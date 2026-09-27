@@ -801,16 +801,47 @@ class WorldScene(
             fieldBird.x = bx + 8f - fieldBird.sprW / 2f
             fieldBird.y = by + 9f - fieldBird.sprH
             birds.add(fieldBird)
-            if (def.tier.star >= 3) {
-                viewRig.punchZoom(0.03f)              // 희귀새 등장 — 숨을 죽이듯 살짝 당겨진다
-                game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
-                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
-            }
-            if (state.questBird == def.id) {
-                game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
-                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
-            }
+            announceSpawn(def)
             return
+        }
+    }
+
+    /**
+     * 나타난 새의 등급(Tier)에 따라 알림 연출을 다르게 준다.
+     * 흔함일수록 조용하게, 희귀·전설일수록 화면·소리·문구가 점점 극적으로 커진다.
+     */
+    private fun announceSpawn(def: BirdDef) {
+        when (def.tier) {
+            Tier.COMMON -> {
+                // 흔한 새 — 주의를 끌지 않게 가벼운 지저귐만 (토스트 없음)
+                game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.45f)
+            }
+            Tier.UNCOMMON -> {
+                // 보통 새 — 짧은 토스트와 지저귐
+                game.toast("🐤 ${def.name} 발견 — ${def.tier.starText()}")
+                game.sfx(Audio.Sfx.BIRD_CHIRP2, 0.65f)
+                viewRig.punchZoom(0.015f)
+            }
+            Tier.RARE -> {
+                // 희귀새 — 숨을 죽이듯 화면이 살짝 당겨지고 알림음
+                viewRig.punchZoom(0.03f)
+                game.toast("✨ 조심하세요… 희귀한 ${def.name}가 나타났어요! ${def.tier.starText()}")
+                game.sfx(Audio.Sfx.NOTIFY, 0.8f)
+            }
+            Tier.LEGEND -> {
+                // 전설 — 배너 + 반짝 + 화면 당김/떨림으로 최대한 극적으로
+                viewRig.punchZoom(0.06f)
+                viewRig.shake(0.28f)
+                game.banner("🌟 전설의 ${def.name} 출현! 🌟")
+                game.toast("전설급 ${def.name} — 절대 놓치지 마세요! 📷 ${def.tier.starText()}")
+                game.sfx(Audio.Sfx.SPARKLE, 1f)
+                game.sfx(Audio.Sfx.NOTIFY, 0.9f)
+            }
+        }
+        if (state.questBird == def.id) {
+            game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+            // 흔함·보통이라 알림음이 약했다면 의뢰 알림음을 확실히 준다
+            if (def.tier.star < 3) game.sfx(Audio.Sfx.NOTIFY, 0.7f)
         }
     }
 
