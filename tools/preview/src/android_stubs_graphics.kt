@@ -667,6 +667,21 @@ class Paint {
 // ---------------------------------------------------------------------------
 
 class Bitmap internal constructor(val image: BufferedImage) {
+    enum class CompressFormat { JPEG, PNG, WEBP }
+
+    /** JPEG 저장(사진 결과 화면)용 — 기기와 같은 서명을 흉내 낸다. */
+    val byteCount: Int get() = width * height * 4
+
+    fun recycle() {}
+
+    fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean =
+        try {
+            javax.imageio.ImageIO.write(image, "png", stream)
+            true
+        } catch (_: Exception) {
+            false
+        }
+
     enum class Config { ARGB_8888 }
 
     val width: Int get() = image.width
@@ -757,6 +772,9 @@ class Bitmap internal constructor(val image: BufferedImage) {
 object BitmapFactory {
     class Options {
         @JvmField var inSampleSize: Int = 1
+        @JvmField var inJustDecodeBounds: Boolean = false
+        @JvmField var outWidth: Int = 0
+        @JvmField var outHeight: Int = 0
         @JvmField var inPreferredConfig: Bitmap.Config? = null
     }
 
@@ -794,6 +812,17 @@ object BitmapFactory {
         } catch (_: Exception) {
             null
         }
+    }
+
+    @JvmStatic
+    fun decodeStream(stream: java.io.InputStream, pad: android.graphics.Rect?, opts: Options?): Bitmap? =
+        decodeStream(stream, opts)
+
+    @JvmStatic
+    fun decodeByteArray(data: ByteArray, offset: Int, length: Int, opts: Options?): Bitmap? = try {
+        decodeStream(java.io.ByteArrayInputStream(data, offset, length), opts)
+    } catch (_: Exception) {
+        null
     }
 
     @JvmStatic

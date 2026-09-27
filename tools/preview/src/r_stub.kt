@@ -1,49 +1,49 @@
 @file:Suppress("unused", "MayBeConstant", "UNUSED_PARAMETER")
 
 /**
- * tools/preview — R.raw 리소스 ID 스텁 (aapt 대체).
- * 실제 Android 빌드에서는 gradle가 생성한 R 이 쓰이고, 프리뷰 컴파일에만 필요하다.
+ * tools/preview — R 리소스 ID 스텁 (aapt 대체). res/raw·drawable의 파일 목록 기준 자동 생성.
+ * drawable은 Context.drawableRegistry에 이름을 등록해 VectorArtDrawable 렌더링에 쓰인다.
+ * (갱신: app/src/main/res 파일 목록이 바뀌면 이 파일을 다시 생성할 것)
  */
 package com.pizzaandbird.game
-
 object R {
     object raw {
         val amb_birds = 1
         val amb_fire = 2
-        val amb_hum = 3
-        val amb_wind = 4
-        val bgm_home = 6
-        val bgm_mountain = 5
-        val bgm_sea = 28
-        val bgm_title = 7
-        val bgm_world = 8
-        val sfx_bike_bell = 9
-        val sfx_bike_brake = 10
-        val sfx_bird_chirp1 = 11
-        val sfx_bird_chirp2 = 12
-        val sfx_bird_flee = 13
-        val sfx_buy = 14
-        val sfx_eat = 15
-        val sfx_fail = 16
-        val sfx_notify = 17
-        val sfx_owl = 18
-        val sfx_reward = 19
-        val sfx_shutter = 20
-        val sfx_sparkle = 21
-        val sfx_step_gravel1 = 22
-        val sfx_step_gravel2 = 23
-        val sfx_step_wood = 24
-        val sfx_success = 25
-        val sfx_tap = 26
-        val sfx_whoosh = 27
-        val amb_forest = 29
-        val amb_night = 30
-        val amb_sea = 31
-        val sfx_bag_open = 32
-        val sfx_book_open = 33
-        val sfx_crow = 34
-        val sfx_cuckoo1 = 35
-        val sfx_cuckoo2 = 36
+        val amb_forest = 3
+        val amb_hum = 4
+        val amb_night = 5
+        val amb_sea = 6
+        val amb_wind = 7
+        val bgm_home = 8
+        val bgm_mountain = 9
+        val bgm_sea = 10
+        val bgm_title = 11
+        val bgm_world = 12
+        val sfx_bag_open = 13
+        val sfx_bike_bell = 14
+        val sfx_bike_brake = 15
+        val sfx_bird_chirp1 = 16
+        val sfx_bird_chirp2 = 17
+        val sfx_bird_flee = 18
+        val sfx_book_open = 19
+        val sfx_buy = 20
+        val sfx_crow = 21
+        val sfx_cuckoo1 = 22
+        val sfx_cuckoo2 = 23
+        val sfx_eat = 24
+        val sfx_fail = 25
+        val sfx_notify = 26
+        val sfx_owl = 27
+        val sfx_reward = 28
+        val sfx_shutter = 29
+        val sfx_sparkle = 30
+        val sfx_step_gravel1 = 31
+        val sfx_step_gravel2 = 32
+        val sfx_step_wood = 33
+        val sfx_success = 34
+        val sfx_tap = 35
+        val sfx_whoosh = 36
     }
 
     object drawable {

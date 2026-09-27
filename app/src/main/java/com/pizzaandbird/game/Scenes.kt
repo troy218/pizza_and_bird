@@ -223,7 +223,7 @@ class TitleScene(game: Game) : Scene(game) {
         button(contRect, "이어하기", game.state.started)
 
         // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
-        val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with 🍕"
+        val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with pizza"
         Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
     }
 
@@ -313,9 +313,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val t1 = Type.paintPx(30f, true, 0.05f, Type.BROWN)
         val s1 = "여행할 캐릭터를 골라 주세요"
         c.drawText(s1, cx - t1.measureText(s1) / 2f, 115f, t1)
-        val t2 = Type.paintPx(16f, false, 0f, Type.SOFT)
-        val s2 = "선택한 캐릭터는 게임 내내 함께 여행해요"
-        c.drawText(s2, cx - t2.measureText(s2) / 2f, 145f, t2)
         fun card(r: RectF, label: String, selected: Boolean, bmp: android.graphics.Bitmap) {
             p.color = if (selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt()
             c.drawRoundRect(r, 18f, 18f, p)
@@ -332,9 +329,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val femaleIdle = game.assets.playerSet("female", 0).idle
         card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
         card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
-        val t3 = Type.paintPx(15f, false, 0f, Type.SOFT)
-        val s3 = "캐릭터를 탭해서 선택한 뒤 계속하기를 누르세요"
-        c.drawText(s3, cx - t3.measureText(s3) / 2f, 448f, t3)
     }
 
     override fun drawHud(c: Canvas) {
@@ -345,8 +339,8 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val bh = d * 40f
         nextRect = RectF((w - bw) / 2f, h - d * 16f - bh, (w + bw) / 2f, h - d * 16f)
         backRect = RectF(d * 14f, d * 14f, d * 90f, d * 50f)
-        UiKit.button(c, game, nextRect, "계속하기 ▶", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
-        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
+        UiKit.button(c, game, nextRect, "arrow_right 계속하기", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
+        UiKit.button(c, game, backRect, "arrow_left 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
     }
 
     override fun handleInput(input: Input) {

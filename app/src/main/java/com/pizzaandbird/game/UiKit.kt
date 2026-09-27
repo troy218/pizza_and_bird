@@ -19,6 +19,96 @@ import kotlin.math.sin
  */
 object UiKit {
 
+    /**
+     * Canvas에서 문자를 아이콘으로 그리는 공용 어댑터.
+     *
+     * 예전 UI는 이모지를 글꼴에 의존해 그렸기 때문에 제조사/OS마다 모양과
+     * baseline이 달랐다. 이제 아이콘은 모두 assets/ui의 작은 SVG로 고정하고,
+     * 이 표는 저장 데이터에 남아 있는 옛 토큰도 자연스럽게 받아들인다.
+     */
+    private val iconAliases = mapOf(
+        // SVG 에셋 이름 그대로도 쓸 수 있다 (이모지 별칭 없는 키의 자기 매핑)
+        "arrow_down" to "arrow_down",
+        "arrow_left" to "arrow_left",
+        "arrow_right" to "arrow_right",
+        "arrow_up" to "arrow_up",
+        "chair" to "chair",
+        "cheese" to "cheese",
+        "cloud" to "cloud",
+        "fire" to "fire",
+        "minus" to "minus",
+        "mushroom" to "mushroom",
+        "photo" to "photo",
+        "plant" to "plant",
+        "plus" to "plus",
+        "star" to "star",
+        "star_empty" to "star_empty",
+        "sun" to "sun",
+
+        "☀" to "sun", "☀️" to "sun", "sunny" to "sun",
+        "☁" to "cloud", "cloudy" to "cloud",
+        "☂" to "rain", "☔" to "rain", "rain" to "rain",
+        "≋" to "wind", "wind" to "wind",
+        "❄" to "snow", "snow" to "snow",
+        "🌙" to "moon", "moon" to "moon",
+        "★" to "star", "☆" to "star_empty",
+        "📷" to "camera", "📸" to "photo", "camera" to "camera", "🔭" to "lens", "lens" to "lens",
+        "🍕" to "pizza", "pizza" to "pizza", "🔥" to "fire", "🌶" to "fire",
+        "🧀" to "cheese", "🍄" to "mushroom", "🥩" to "pizza", "🍅" to "pizza", "🍠" to "pizza", "🥓" to "pizza", "🥗" to "leaf", "🍯" to "star",
+        "🚲" to "bike", "bike" to "bike", "💞" to "bike",
+        "📚" to "book", "📖" to "book", "book" to "book", "📊" to "note", "🌱" to "leaf",
+        "🎒" to "backpack", "backpack" to "backpack",
+        "🗺" to "map", "🗺️" to "map", "map" to "map",
+        "🏠" to "house", "house" to "house",
+        "📍" to "pin", "pin" to "pin",
+        "📅" to "calendar", "calendar" to "calendar", "🕐" to "calendar", "⏱" to "calendar",
+        "🐦" to "bird", "bird" to "bird", "🏘" to "house", "🎨" to "sparkle", "🧺" to "box",
+        "⚙" to "gear", "gear" to "gear",
+        "✕" to "close", "×" to "close", "close" to "close",
+        "✓" to "check", "✔" to "check", "check" to "check",
+        "⚠" to "warning", "warning" to "warning",
+        "🔍" to "search", "search" to "search",
+        "🏆" to "trophy", "trophy" to "trophy", "💰" to "coin", "coin" to "coin",
+        "🌵" to "plant", "🪴" to "plant", "🌿" to "leaf", "🧶" to "plant", "💡" to "sun", "🪑" to "chair", "🖼" to "photo", "✉️" to "note",
+        "📻" to "radio", "radio" to "radio",
+        "🎵" to "music", "🎶" to "music", "music" to "music",
+        "📓" to "note", "note" to "note",
+        "📦" to "box", "box" to "box",
+        "✨" to "sparkle", "sparkle" to "sparkle",
+        "🌿" to "leaf", "🌱" to "leaf", "🌸" to "sparkle", "🍁" to "leaf", "leaf" to "leaf", "🪴" to "plant", "🧴" to "plant", "🌅" to "sun", "🏔" to "leaf", "🌊" to "rain", "🏖" to "sun", "🌾" to "leaf", "🏙" to "house", "🌲" to "leaf",
+        "💬" to "note", "🪧" to "map", "☕" to "coffee", "coffee" to "coffee", "🐈" to "bird", "🚪" to "house", "🛏" to "house", "🎨" to "sparkle", "👊" to "fist", "fist" to "fist",
+        "+" to "plus", "＋" to "plus", "-" to "minus", "−" to "minus",
+        "◀" to "arrow_left", "‹" to "arrow_left", "←" to "arrow_left",
+        "▶" to "arrow_right", "›" to "arrow_right", "→" to "arrow_right",
+        "▲" to "arrow_up", "↑" to "arrow_up", "▼" to "arrow_down", "↓" to "arrow_down"
+    )
+
+    /** SVG 파일 이름으로 변환한다. 아이콘이 아닌 문자열이면 null을 반환한다. */
+    fun iconName(token: String): String? = iconAliases[token]
+
+    /** 별점 한 줄을 SVG로 그린다. */
+    fun starRow(c: Canvas, game: Game, x: Float, y: Float, filled: Int, total: Int = 3, size: Float = 14f): Float {
+        for (i in 0 until total) {
+            val name = if (i < filled) "star" else "star_empty"
+            icon(c, game, name, RectF(x + i * (size + 2f), y - size, x + i * (size + 2f) + size, y))
+        }
+        return total * size + (total - 1).coerceAtLeast(0) * 2f
+    }
+
+    /** 아이콘을 원하는 사각형에 맞춰 그린다. */
+    fun icon(c: Canvas, game: Game, token: String, bounds: RectF): Boolean {
+        // 아직 별칭이 없는 옛 저장 토큰도 빈 칸으로 남기지 않고 작은 반짝이로
+        // 대체한다. 화면에는 OS 이모지가 절대 직접 그려지지 않는다.
+        val name = iconName(token) ?: "sparkle"
+        game.illustrations.draw(c, "ui/$name.svg", bounds)
+        return true
+    }
+
+    /** 중심 좌표 기준 아이콘. SVG는 텍스트보다 baseline 차이가 없어 작은 UI에도 안정적이다. */
+    fun iconCenter(c: Canvas, game: Game, token: String, cx: Float, cy: Float, size: Float): Boolean {
+        return icon(c, game, token, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f))
+    }
+
     // ------------------------------------------------------------------
     // 팔레트
     // ------------------------------------------------------------------
@@ -265,7 +355,7 @@ object UiKit {
             stroke.color = Color.argb(110, 140, 125, 105)
             stroke.strokeWidth = 1.5f * d
             c.drawRoundRect(r, radius, radius, stroke)
-            drawCenterText(c, game, label, r, textSizeDp, textCol, shadow = false)
+            drawCenterLabel(c, game, label, r, textSizeDp, textCol, shadow = false)
             return
         }
         // 프레스 상태 — 누른 만큼 눌리고 어둡게 (UI 공통 터치 피드백)
@@ -303,7 +393,7 @@ object UiKit {
                 7f * d, 7f * d, stroke
             )
         }
-        drawCenterText(c, game, label, r, textSizeDp, textCol, shadow = true)
+        drawCenterLabel(c, game, label, r, textSizeDp, textCol, shadow = true)
         if (pressed) {
             c.restore()
             fill.shader = null
@@ -340,8 +430,11 @@ object UiKit {
         stroke.color = Color.argb(90, 255, 255, 255)
         stroke.strokeWidth = 1f * d
         c.drawCircle(cx, cy, radius - 2.4f * d, stroke)
-        val gp = Type.paintAt(glyphSizeDp, true, 0.02f, glyphCol)
-        c.drawText(glyph, cx - gp.measureText(glyph) / 2f, Type.midBaseline(gp, cy), gp)
+        // 닫기/확대/축소 기호도 폰트 글리프가 아니라 동일한 SVG 아이콘으로 통일한다.
+        if (!iconCenter(c, game, glyph, cx, cy, radius * 1.35f)) {
+            val gp = Type.paintAt(glyphSizeDp, true, 0.02f, glyphCol)
+            c.drawText(glyph, cx - gp.measureText(glyph) / 2f, Type.midBaseline(gp, cy), gp)
+        }
         if (pressed) {
             c.restore()
             fill.shader = null
@@ -414,7 +507,7 @@ object UiKit {
     // ------------------------------------------------------------------
     fun iconCircle(
         c: Canvas, game: Game, cx: Float, cy: Float, radius: Float,
-        emoji: String, emojiSizeDp: Float, base: Int = GOLD
+        emoji: String, _emojiSizeDp: Float, base: Int = GOLD
     ) {
         val d = game.density
         fill.shader = null
@@ -430,8 +523,8 @@ object UiKit {
         // 광택 점
         fill.color = Color.argb(90, 255, 255, 255)
         c.drawCircle(cx - radius * 0.3f, cy - radius * 0.34f, radius * 0.22f, fill)
-        val ep = Type.paintAt(emojiSizeDp, false, 0f, BROWN)
-        c.drawText(emoji, cx - ep.measureText(emoji) / 2f, Type.midBaseline(ep, cy) + 1f * d, ep)
+        // 장식/피자/장비 아이콘은 OS 이모지 대신 로컬 SVG를 사용한다.
+        iconCenter(c, game, emoji, cx, cy, radius * 1.45f)
     }
 
     // ------------------------------------------------------------------
@@ -653,7 +746,7 @@ object UiKit {
             stroke.strokeWidth = 1.2f * d
             c.drawPath(pixelRect(r, u), stroke)
             stroke.pathEffect = null
-            drawCenterText(c, game, label, r, textSizeDp, textCol, shadow = false)
+            drawCenterLabel(c, game, label, r, textSizeDp, textCol, shadow = false)
             return
         }
         val pressed = game.input.isPressedIn(r)
@@ -696,7 +789,32 @@ object UiKit {
             while (lbl.length > 1 && tp.measureText("$lbl…") > maxW) lbl = lbl.dropLast(1)
             lbl = "$lbl…"
         }
-        drawCenterText(c, game, lbl, labelR, textSizeDp, textCol, shadow = true)
+        drawCenterLabel(c, game, lbl, labelR, textSizeDp, textCol, shadow = true)
+    }
+
+    /** 아이콘 토큰으로 시작하는 버튼 라벨을 SVG + 텍스트로 조합한다. */
+    private fun drawCenterLabel(
+        c: Canvas, game: Game, label: String, r: RectF,
+        textSizeDp: Float, color: Int, shadow: Boolean
+    ) {
+        val firstSpace = label.indexOf(' ')
+        val token = if (firstSpace > 0) label.substring(0, firstSpace) else label
+        val icon = iconName(token)
+        if (icon == null) {
+            drawCenterText(c, game, label, r, textSizeDp, color, shadow)
+            return
+        }
+        val text = if (firstSpace > 0) label.substring(firstSpace + 1).trim() else ""
+        val tp = Type.paintAt(textSizeDp, true, 0.03f, color)
+        val gap = game.density * 3f
+        val iconSize = minOf(r.height() * 0.62f, game.density * (textSizeDp + 2f))
+        val total = iconSize + gap + tp.measureText(text)
+        val left = r.centerX() - total / 2f
+        icon(c, game, token, RectF(left, r.centerY() - iconSize / 2f, left + iconSize, r.centerY() + iconSize / 2f))
+        val tx = left + iconSize + gap
+        val ty = Type.midBaseline(tp, r.centerY())
+        if (shadow) c.drawText(text, tx, ty + game.density, Type.paintAt(textSizeDp, true, 0.03f, Color.argb(80, 40, 26, 12)))
+        c.drawText(text, tx, ty, tp)
     }
 
     /**
@@ -773,17 +891,26 @@ object UiKit {
         c.drawCircle(hx, hy, 3.2f * d, fill)
         fill.color = CREAM_DEEP
         c.drawCircle(hx, hy, 1.6f * d, fill)
-        // 글자
+        // 글자 + 첫 토큰 아이콘
+        val firstSpace = label.indexOf(' ')
+        val token = if (firstSpace > 0) label.substring(0, firstSpace) else ""
+        val visible = if (firstSpace > 0) label.substring(firstSpace + 1) else label
+        val hasIcon = iconName(token) != null
+        if (hasIcon) icon(c, game, token, RectF(hx + 5f * d, r.centerY() - 7f * d, hx + 19f * d, r.centerY() + 7f * d))
         val tp = Type.paintAt(textSizeDp, true, 0.04f, textCol)
-        val tx = hx + 8f * d
-        c.drawText(label, tx, Type.midBaseline(tp, r.centerY()) + 1f * d, Type.paintAt(textSizeDp, true, 0.04f, Color.argb(70, 40, 26, 12)))
-        c.drawText(label, tx, Type.midBaseline(tp, r.centerY()), tp)
+        val tx = hx + if (hasIcon) 22f * d else 8f * d
+        c.drawText(visible, tx, Type.midBaseline(tp, r.centerY()) + 1f * d, Type.paintAt(textSizeDp, true, 0.04f, Color.argb(70, 40, 26, 12)))
+        c.drawText(visible, tx, Type.midBaseline(tp, r.centerY()), tp)
     }
 
     /** 이름표 폭 계산 (nameTag 와 짝) */
     fun nameTagWidth(game: Game, label: String, textSizeDp: Float): Float {
         val d = game.density
-        return 17f * d + Type.paintAt(textSizeDp, true, 0.04f, BROWN).measureText(label) + 12f * d
+        val firstSpace = label.indexOf(' ')
+        val token = if (firstSpace > 0) label.substring(0, firstSpace) else ""
+        val visible = if (firstSpace > 0) label.substring(firstSpace + 1) else label
+        return 17f * d + (if (iconName(token) != null) 14f * d else 0f) +
+            Type.paintAt(textSizeDp, true, 0.04f, BROWN).measureText(visible) + 12f * d
     }
 
     /**

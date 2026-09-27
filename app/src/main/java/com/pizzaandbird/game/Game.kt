@@ -50,8 +50,8 @@ private const val WORLD_COVER_REDRAW_EVERY = 3
  * 게임 전역 컨텍스트: 씬 관리, 2K 기준 가상 해상도 스케일링, 페이드 전환.
  *
  * ## 2K 렌더링 아키텍처 (v0.4)
- * - **가상 해상도**: 세로 540 고정 · 가로는 화면 비율에 맞춰 720~1280으로 자동 확장
- *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 레터박스 없이 넓게 보인다)
+ * - **가상 해상도**: 세로 540 고정 · 가로는 화면 비율에 맞춰 720~1280으로 자동 조정
+ *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 초광폭은 좌우, 4:3보다 좁은 창은 상하 여백)
  * - **월드 슈퍼샘플링**: 월드는 `worldScale`(정수 1~3배) 비트맵에 렌더된 뒤 화면에 출력된다.
  *   스프라이트는 정수배로 커지므로 픽셀 아트 격자가 흐트러지지 않고,
  *   FHD=2×(1080p 네이티브) · QHD(2K)=2×(업스케일 1.33, 기존 2.67 대비 픽셀 굵기 절반) · 4K=3×
@@ -59,6 +59,9 @@ private const val WORLD_COVER_REDRAW_EVERY = 3
  * - 설정 › 화질에서 렌더 배율(자동/1×/2×/3×)과 화면 보간을 바꿀 수 있다
  */
 class Game(val context: Context) {
+
+    /** 고양이 펀치 안내를 이번 실행에서 이미 보여 줬는가 */
+    var catPunchHintShown = false
 
     // 글꼴(roles·픽셀 폰트·dp 배율)을 먼저 준비한다 — 아래에서 그리는 모든 글자가 여기 의존한다.
     init { Type.init(context) }
@@ -104,6 +107,8 @@ class Game(val context: Context) {
     private var overlayLayerCanvas: Canvas? = null
     private val overlayFadePaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
+    /** 렌더 합성용 스크래치 사각형 — 프레임마다 할당하지 않도록 재사용 */
+    private val screenDstRect = RectF()
     // 월드 비트맵을 다시 그려야 하는 상태인지 (크기 변경으로 새 비트맵이 생겼을 때)
     private var worldStale = true
     // 직전 프레임에 월드를 건너뛰었는지 — 오버레이가 닫히는 순간 한 장 되돌린다
@@ -135,18 +140,31 @@ class Game(val context: Context) {
         assets.birdFlipped("magpie")
     }
 
+    @Synchronized
     fun onSurfaceChanged(w: Int, h: Int) {
+        // Some devices briefly report a zero-sized surface while entering split-screen.
+        // Keep the last valid frame/layout until Android supplies the replacement size.
+        if (w <= 0 || h <= 0) return
+        if (screenW == w && screenH == h) return
         screenW = w
         screenH = h
-        // 1) 가상 너비 = 세로 540 기준 화면 비율 (클램프로 극단 비율 대응)
-        virtW = (VIRT_H.toFloat() * w / h.toFloat()).toInt().coerceIn(VIRT_W_MIN, VIRT_W_MAX)
-        // 2) 월드 슈퍼샘플 배율 (설정 반영 + 메모리 가드)
-        worldScale = computeWorldScale(w, h)
-        rebuildWorldBitmap()
-        // 3) 화면 매핑: 세로 길이에 정확히 맞춘다 (가로는 클램프 시에만 아주 작은 여백)
-        viewScale = h.toFloat() / virtH.toFloat()
+        // The current renderer keeps its 540px virtual height and adapts virtual width
+        // to aspect ratio (720..1280). This preserves the game's 2K-era layout while
+        // avoiding any stretch on 4:3 tablets/foldables and on ultrawide phones.
+        val nextVirtW = (VIRT_H.toFloat() * w / h.toFloat()).toInt().coerceIn(VIRT_W_MIN, VIRT_W_MAX)
+        val oldVirtW = virtW
+        val oldWorldScale = worldScale
+        virtW = nextVirtW
+        val nextWorldScale = computeWorldScale(w, h)
+        val bitmapChanged = nextVirtW != oldVirtW || nextWorldScale != oldWorldScale
+        worldScale = nextWorldScale
+        if (bitmapChanged) rebuildWorldBitmap()
+        // Fit the aspect-adaptive virtual surface without distortion. If a narrow
+        // foldable/split window falls below the supported 4:3 virtual minimum, fit by
+        // width and letterbox vertically; ultrawide/clamped surfaces pillarbox instead.
+        viewScale = minOf(w.toFloat() / virtW.toFloat(), h.toFloat() / virtH.toFloat())
         viewOffX = (w - virtW * viewScale) / 2f
-        viewOffY = 0f
+        viewOffY = (h - virtH * viewScale) / 2f
         hud.layout(w, h)
         scene.onLayout()
     }
@@ -190,12 +208,20 @@ class Game(val context: Context) {
     }
 
     /** 실제 터치 좌표 -> 가상 화면 좌표 (여백 포함). */
-    fun screenToVirtual(p: PointF): PointF = PointF(
-        (p.x - viewOffX) / viewScale,
-        (p.y - viewOffY) / viewScale
-    )
+    @Synchronized
+    fun screenToVirtual(p: PointF): PointF {
+        val s = viewScale.takeIf { it > 0f } ?: return PointF(p.x, p.y)
+        return PointF((p.x - viewOffX) / s, (p.y - viewOffY) / s)
+    }
+
+    @Synchronized
+    fun isInsideVirtualViewport(screen: PointF): Boolean {
+        val virtual = screenToVirtual(screen)
+        return virtual.x in 0f..virtW.toFloat() && virtual.y in 0f..virtH.toFloat()
+    }
 
     /** 실제 터치 좌표 -> 현재 씬의 절대 월드 좌표 (렌더링 카메라 오프셋 포함). */
+    @Synchronized
     fun screenToWorld(p: PointF): PointF {
         val v = screenToVirtual(p)
         val camera = scene.cameraOffset()
@@ -221,6 +247,7 @@ class Game(val context: Context) {
 
     // ---------------------------------------------------------------------
 
+    @Synchronized
     fun update(dt: Float) {
         time += dt
         audio.update(dt)   // BGM/환경음 페이드 진행
@@ -262,6 +289,7 @@ class Game(val context: Context) {
         input.endFrame()
     }
 
+    @Synchronized
     fun render(c: Canvas) {
         // 월드 재렌더는 이 게임에서 가장 비싼 한 번이다(프레임당 2000회 가까운 비트맵 드로우).
         // 화면을 덮는 오버레이(가방·지도·상점·베이킹…)가 떠 있으면 시선이 이미 오버레이에
@@ -290,7 +318,8 @@ class Game(val context: Context) {
         }
         // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())
-        val dst = RectF(
+        val dst = screenDstRect
+        dst.set(
             viewOffX, viewOffY,
             viewOffX + virtW * viewScale, viewOffY + virtH * viewScale
         )
@@ -393,6 +422,38 @@ class Game(val context: Context) {
                 disableKeys = true
             )
         )
+    }
+
+    /**
+     * [P05] 백업 코드에서 복원한 직후 — prefs를 다시 읽어 **살아 있는 `state` 객체**를 갱신한다.
+     *
+     * `state`는 val이라 통째로 갈아끼울 수 없고, 씬·HUD·Audio는 전부 이 한 객체를 붙잡고 있다.
+     * 그래서 새로 로드한 상태의 필드를 지금 객체에 그대로 복사해 넣는다(참조 동일성 유지).
+     * 세이브 포맷/스키마는 건드리지 않는다 — [SaveManager.load] 경로만 다시 탄다.
+     *
+     * @return 복원된 상태로 게임 시작 지점(`started`)이 참인지.
+     *         거짓이면 타이틀에서 「새로 시작하기」를 눌러야 한다.
+     */
+    fun reloadState(): Boolean {
+        val fresh = SaveManager.load(context)
+        var k: Class<*> = GameState::class.java
+        while (k != Any::class.java) {
+            for (f in k.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(f.modifiers)) continue
+                try {
+                    f.isAccessible = true
+                    f.set(state, f.get(fresh))
+                } catch (_: Throwable) {
+                }
+            }
+            k = k.superclass ?: Any::class.java
+        }
+        // 복원된 설정을 곧바로 반영한다 (음소거/화질이 백업 기준으로 돌아온다)
+        audio.setMusic(state.musicOn)
+        audio.setSfx(state.sfxOn)
+        hud.releaseStick()
+        applyRenderQuality()
+        return state.started
     }
 }
 

@@ -47,6 +47,7 @@ private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.S
 private val textP = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply { letterSpacing = 0.01f }
 
 private fun dp(scene: Scene, v: Float): Float = v * scene.game.density
+private fun textDp(scene: Scene, v: Float): Float = TypeScale.px(dp(scene, v))
 
 /** 프리미엄 패널 그리기 (섀도우 + 그라데이션 + 이중 테두리) */
 private fun panel(c: Canvas, r: RectF, scene: Scene) {
@@ -77,10 +78,10 @@ private fun drawCard(
 /** 텍스트가 maxW 안에 들어가도록 글자 크기를 줄여 그린다 (최소 minSize) */
 private fun drawFitText(c: Canvas, scene: Scene, text: String, x: Float, y: Float, maxW: Float, size: Float, minSize: Float = 7.5f) {
     var sz = size
-    textP.textSize = dp(scene, sz)
+    textP.textSize = textDp(scene, sz)
     while (textP.measureText(text) > maxW && sz > minSize) {
         sz -= 0.5f
-        textP.textSize = dp(scene, sz)
+        textP.textSize = textDp(scene, sz)
     }
     c.drawText(text, x, y, textP)
 }
@@ -225,12 +226,13 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     /** 탭마다 파스텔 색이 다르다 — 가방 속 색색의 인덱스 탭처럼 */
     private enum class Tab(val label: String, val icon: String, val tint: Int) {
-        STATUS("상태", "📊", UiKit.PASTEL_PEACH),
-        QUEST("퀘스트", "🗺", UiKit.PASTEL_SKY),
-        GROW("성장", "🌱", UiKit.PASTEL_MINT),
-        PIZZA("피자", "🍕", UiKit.PASTEL_LEMON),
-        BOOK("도감", "📚", UiKit.PASTEL_LILAC),
-        SETTINGS("설정", "⚙", UiKit.PASTEL_SAND)
+        STATUS("상태", "note", UiKit.PASTEL_PEACH),
+        QUEST("퀘스트", "map", UiKit.PASTEL_SKY),
+        GROW("성장", "leaf", UiKit.PASTEL_MINT),
+        PIZZA("피자", "pizza", UiKit.PASTEL_LEMON),
+        BOOK("도감", "book", UiKit.PASTEL_LILAC),
+        ALBUM("사진집", "camera", UiKit.PASTEL_SKY),
+        SETTINGS("설정", "gear", UiKit.PASTEL_SAND)
     }
 
     // ---- 가방 속 전용 그리기 도우미 (아기자기 키트) ----
@@ -267,7 +269,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         for ((r, t) in tabRects) {
             if (r.contains(tap.x, tap.y)) {
                 // 📚 도감 탭은 책장 넘기는 소리로 열린다
-                if (t == Tab.BOOK && tab != Tab.BOOK) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
+                if ((t == Tab.BOOK || t == Tab.ALBUM) && tab != t) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
                 else g.sfx(Audio.Sfx.TAP, 0.45f)
                 tab = t
                 resetArmed = false
@@ -309,11 +311,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val adv = MainQuestAdvisor.advise(s) ?: return
         if (adv.alreadyThere || adv.regionId == s.region) {
             // 이미 추천 지역 안 — 이동 대신 "그냥 여기" 안내
-            g.toast("📍 ${adv.regionName} · ${adv.reason}")
+            g.toast("${adv.regionName} · ${adv.reason}")
             g.toast(adv.tip)
             return
         }
-        g.toast("🚲 ${adv.regionName}으로 출발! · ${adv.reason}")
+        g.toast("${adv.regionName}으로 출발! · ${adv.reason}")
         g.toast(adv.tip)
         finished = true
         fastTravel(g, adv.regionId)
@@ -341,7 +343,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             dp(scene, 1.4f), 0xFFFFE9C4.toInt(), 175)
 
         // 이름표 스티커 (제목)
-        val titleTxt = "🎒 여행 가방"
+        val titleTxt = "backpack 여행 가방"
         val tagW = UiKit.nameTagWidth(g, titleTxt, 15f)
         val tagR = RectF(flapR.left + dp(scene, 10f), flapR.centerY() - dp(scene, 13f), flapR.left + dp(scene, 10f) + tagW, flapR.centerY() + dp(scene, 13f))
         UiKit.nameTag(c, g, tagR, titleTxt, 15f)
@@ -350,7 +352,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         UiKit.sparkle(c, tagR.right + dp(scene, 17f), tagR.bottom - dp(scene, 5f), dp(scene, 5f), 0xFFFFF1C2.toInt(), g.time * 3.1f + 2.1f)
         // 서브 타이틀 (넓을 때만 — 닫기 단추와 겹침 방지)
         if (panelR.width() > dp(scene, 420f)) {
-            textP.textSize = dp(scene, 10f)
+            textP.textSize = textDp(scene, 10f)
             textP.color = 0xFFFFF3DC.toInt()
             c.drawText("지금 펼친 칸 · ${tab.icon} ${tab.label}", tagR.right + dp(scene, 30f), flapR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
         }
@@ -362,7 +364,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             closeCx - closeRr - dp(scene, 6f), closeCy - closeRr - dp(scene, 6f),
             closeCx + closeRr + dp(scene, 6f), closeCy + closeRr + dp(scene, 6f)
         )
-        UiKit.circleButton(c, g, closeCx, closeCy, closeRr, "✕", 11f, 0xFFFFF3DC.toInt(), 0xFF8A4A2A.toInt())
+        UiKit.circleButton(c, g, closeCx, closeCy, closeRr, "close", 11f, 0xFFFFF3DC.toInt(), 0xFF8A4A2A.toInt())
 
         // ---- 탭: 색색의 인덱스 탭. 고른 탭은 위로 톡 튀어나온다 ----
         tabRects.clear()
@@ -393,6 +395,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             Tab.GROW -> drawGrow(c)
             Tab.PIZZA -> drawPizza(c)
             Tab.BOOK -> drawBook(c)
+            Tab.ALBUM -> drawAlbum(c)
             Tab.SETTINGS -> drawSettings(c)
         }
     }
@@ -417,11 +420,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val walletH = dp(scene, 32f)
         val walletR = RectF(left, y, right, y + walletH)
         cuteCard(c, walletR, UiKit.PASTEL_LEMON, UiKit.GOLD_DEEP, 1.8f)
-        UiKit.iconCircle(c, g, left + dp(scene, 17f), walletR.centerY(), dp(scene, 11f), "💰", 12f, UiKit.GOLD)
-        textP.textSize = dp(scene, 12f)
+        UiKit.iconCircle(c, g, left + dp(scene, 17f), walletR.centerY(), dp(scene, 11f), "coin", 12f, UiKit.GOLD)
+        textP.textSize = textDp(scene, 12f)
         textP.color = 0xFF6B4F35.toInt()
         c.drawText("내 지갑", left + dp(scene, 34f), walletR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
-        textP.textSize = dp(scene, 14f)
+        textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A2E12.toInt()
         val moneyTxt = won(s.money)
         c.drawText(moneyTxt, right - dp(scene, 12f) - textP.measureText(moneyTxt), walletR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
@@ -437,21 +440,21 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val barW = (valX - dp(scene, 34f) - barX).coerceAtLeast(dp(scene, 40f))
         // 배고픔 행
         var ry = y + dp(scene, 18f)
-        textP.textSize = dp(scene, 11f)
+        textP.textSize = textDp(scene, 11f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🍕 배고픔", left + dp(scene, 10f), ry, textP)
+        c.drawText("배고픔", left + dp(scene, 10f), ry, textP)
         val hungerCols = if (s.hunger < 25f) (0xFFF28B82.toInt() to 0xFFE2574C.toInt()) else (0xFFFFB35C.toInt() to 0xFFF2913C.toInt())
         UiKit.bar(c, g, barX, ry - dp(scene, 10f), barW, dp(scene, 12f), s.hunger / 100f, hungerCols.first, hungerCols.second)
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         val hungerTxt = "${s.hunger.toInt()}"
         c.drawText(hungerTxt, valX - textP.measureText(hungerTxt), ry, textP)
         // 행운 행
         ry = y + dp(scene, 40f)
-        textP.textSize = dp(scene, 11f)
+        textP.textSize = textDp(scene, 11f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("☘️ 행운", left + dp(scene, 10f), ry, textP)
+        c.drawText("행운", left + dp(scene, 10f), ry, textP)
         UiKit.bar(c, g, barX, ry - dp(scene, 10f), barW, dp(scene, 12f), s.effectiveLuck() / 100f, 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         val luckBonus = decorLuck + s.bikeLuck()
         val luckTxt = "${s.effectiveLuck().toInt()}" + (if (luckBonus > 0) "(+$luckBonus)" else "")
         c.drawText(luckTxt, valX - textP.measureText(luckTxt), ry, textP)
@@ -461,10 +464,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val lvH = dp(scene, 28f)
         val lvR = RectF(left, y, right, y + lvH)
         cuteCard(c, lvR, UiKit.PASTEL_MINT, 0xFF7FB37A.toInt(), 1.6f, stitched = false)
-        textP.textSize = dp(scene, 11f)
+        textP.textSize = textDp(scene, 11f)
         val lvCy = lvR.centerY() - (textP.descent() + textP.ascent()) / 2f
         textP.color = 0xFF4A3728.toInt()
-        var lvTxt = "🌱 Lv.${s.level} 「${s.title()}」" + (if (s.skillPoints > 0) " · SP ${s.skillPoints}" else "")
+        var lvTxt = "Lv.${s.level} 「${s.title()}」" + (if (s.skillPoints > 0) " · SP ${s.skillPoints}" else "")
         val expBarW = dp(scene, 86f)
         val maxLvW = (right - left) - dp(scene, 24f) - expBarW - dp(scene, 8f)
         if (textP.measureText(lvTxt) > maxLvW && maxLvW > dp(scene, 40f)) {
@@ -473,9 +476,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         }
         c.drawText(lvTxt, left + dp(scene, 10f), lvCy, textP)
         if (s.level >= Progression.MAX_LEVEL) {
-            textP.textSize = dp(scene, 10f)
+            textP.textSize = textDp(scene, 10f)
             textP.color = 0xFFB5651D.toInt()
-            val maxT = "MAX ★"
+            val maxT = "MAX"
             c.drawText(maxT, right - dp(scene, 10f) - textP.measureText(maxT), lvCy, textP)
         } else {
             UiKit.bar(
@@ -496,7 +499,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             g.assets.sprPaint
         )
         val camTx = left + dp(scene, 54f)
-        textP.textSize = dp(scene, 11f)
+        textP.textSize = textDp(scene, 11f)
         textP.color = 0xFF4A3728.toInt()
         var camName = rig.title
         val camMaxW = (right - camTx) - dp(scene, 92f)
@@ -505,11 +508,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             camName = "$camName…"
         }
         c.drawText(camName, camTx, camR.top + dp(scene, 15f), textP)
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("환산 ${rig.teleMm}mm · 반경 ${rig.reach.fmt1()}칸 · ${rig.sensor.label}", camTx, camR.top + dp(scene, 27f), textP)
         val bagR = RectF(right - dp(scene, 84f), camR.centerY() - dp(scene, 12f), right - dp(scene, 7f), camR.centerY() + dp(scene, 10f))
-        cuteBtn(c, bagR, "🎒 장비 가방", UiKit.GOLD, 0xFF4A2E12.toInt(), 9.5f)
+        cuteBtn(c, bagR, "backpack 장비 가방", UiKit.GOLD, 0xFF4A2E12.toInt(), 9.5f)
         btnRects.add(Triple(bagR, "gearbag") { scene.openOverlay(GearBagOverlay(scene)) })
         y += camH + dp(scene, 6f)
 
@@ -520,15 +523,15 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val rowH = ((gridH - gap * (rows - 1)) / rows).coerceAtLeast(dp(scene, 18f))
         val colW = (right - left - gap) / 2f
         val cells = listOf(
-            "🕐 시각" to "${s.timeLabel()} ${s.timeEmoji()} · 📸${s.photos}",
-            "🏠 우리 집" to (Regions.byId[s.homeRegion]?.name ?: "?"),
-            "📍 위치" to "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}",
-            "🏘 주택" to "${s.ownedHomes.size}채 · 🎨${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}",
-            "📚 도감" to "${s.birdCounts.size}/${Birds.ALL.size}종",
-            "🔍 의뢰" to (s.questBird?.let { Birds.byId[it]?.name } ?: "없음"),
-            "⏱ 플레이" to timeStr,
-            "🚲 자전거" to "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else ""),
-            "🍕 피자" to "${s.pizzaCount}개 (🔥${s.pizzaCountOfKind(PizzaKind.OVEN)} · 🍕${s.pizzaCountOfKind(PizzaKind.REGULAR)}) · 🧺${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"
+            Triple("calendar", "시각", "${s.timeLabel()} · 사진 ${s.photos}장"),
+            Triple("house", "우리 집", Regions.byId[s.homeRegion]?.name ?: "?"),
+            Triple("pin", "위치", "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}"),
+            Triple("house", "주택", "${s.ownedHomes.size}채 · 인테리어 ${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}"),
+            Triple("book", "도감", "${s.birdCounts.size}/${Birds.ALL.size}종"),
+            Triple("search", "의뢰", s.questBird?.let { Birds.byId[it]?.name } ?: "없음"),
+            Triple("calendar", "플레이", timeStr),
+            Triple("bike", "자전거", "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else "")),
+            Triple("pizza", "피자", "${s.pizzaCount}개 · 화덕 ${s.pizzaCountOfKind(PizzaKind.OVEN)} · 일반 ${s.pizzaCountOfKind(PizzaKind.REGULAR)} · 장식 ${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}")
         )
         for (i in cells.indices) {
             val col = i % 2
@@ -541,16 +544,18 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             // 격자무늬 천처럼 두 색을 번갈아 (가로세로 체크)
             val checker = (col + row) % 2 == 0
             cuteCard(c, cr, if (checker) UiKit.CARD_HI else 0xFFFFF4E2.toInt(), stitched = rowH >= dp(scene, 24f))
-            textP.textSize = dp(scene, 9.5f)
+            textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
-            val label = cells[i].first
-            val labelW = textP.measureText(label)
+            val iconToken = cells[i].first
+            val label = cells[i].second
+            UiKit.icon(c, g, iconToken, RectF(cr.left + dp(scene, 7f), cr.centerY() - dp(scene, 8f), cr.left + dp(scene, 23f), cr.centerY() + dp(scene, 8f)))
             val ty = cr.centerY() - (textP.descent() + textP.ascent()) / 2f
-            c.drawText(label, cr.left + dp(scene, 8f), ty, textP)
+            c.drawText(label, cr.left + dp(scene, 27f), ty, textP)
+            val labelW = textP.measureText(label)
             // 값은 오른쪽 정렬 + 넘치면 말줄임
-            textP.textSize = dp(scene, 10.5f)
+            textP.textSize = textDp(scene, 10.5f)
             textP.color = 0xFF4A3728.toInt()
-            var value = cells[i].second
+            var value = cells[i].third
             val maxVW = cr.width() - dp(scene, 16f) - labelW - dp(scene, 6f)
             if (textP.measureText(value) > maxVW && maxVW > dp(scene, 20f)) {
                 while (value.length > 1 && textP.measureText("$value…") > maxVW) value = value.dropLast(1)
@@ -582,21 +587,17 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         // 왼쪽 위 작은 책갈피 리본
         UiKit.pixelFill(c, RectF(mainR.right - dp(scene, 26f), mainR.top - dp(scene, 2f), mainR.right - dp(scene, 14f), mainR.top + dp(scene, 16f)), dp(scene, 1.2f), if (mainDone) UiKit.GOLD else 0xFFE2857A.toInt())
         UiKit.pixelStroke(c, RectF(mainR.right - dp(scene, 26f), mainR.top - dp(scene, 2f), mainR.right - dp(scene, 14f), mainR.top + dp(scene, 16f)), dp(scene, 1.2f), UiKit.OUTLINE, dp(scene, 1.2f))
-        textP.textSize = dp(scene, 13f)
+        textP.textSize = textDp(scene, 13f)
         textP.color = 0xFF6B4F35.toInt()
         val mainTitle = when {
-            s.mainQuestFinished -> "✓ 메인 완결 · 함께 사는 지도"
+            s.mainQuestFinished -> "메인 완결 · 함께 사는 지도"
             !s.mainQuestStarted -> "! 메인 · 보리 박사에게 낡은 수첩 묻기"
             else -> "메인 ${s.mainQuestStage}/${MainStory.CHAPTERS.size - 1} · ${chapter?.title ?: ""}"
         }
         c.drawText(mainTitle, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 18f), textP)
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFF796653.toInt()
-        val objective = when {
-            s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
-            !s.mainQuestStarted -> "메인과 사진 의뢰는 독립적이며 원하는 순서로 진행할 수 있어요."
-            else -> chapter?.objective(s) ?: ""
-        }
+        val objective = if (s.mainQuestFinished || !s.mainQuestStarted) "" else chapter?.objective(s) ?: ""
         val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
         objectiveLines.forEachIndexed { i, line ->
             c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 13f), textP)
@@ -605,9 +606,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             // 추천 위치 한 줄 — "어디로 가야 하는지"를 카드에 직접 보여준다
             val here = adv.alreadyThere || adv.regionId == s.region
             var rec = if (here) {
-                "📍 ${adv.regionName} · ${adv.reason} · 카드 탭하면 힌트"
+                "${adv.regionName} · ${adv.reason}"
             } else {
-                "📍 ${adv.regionName} · ${adv.reason} · 카드 탭하면 이동"
+                "${adv.regionName} · ${adv.reason}"
             }
             textP.textSize = dp(scene, 10f)
             textP.color = if (here) 0xFF397547.toInt() else 0xFFB5651D.toInt()
@@ -617,7 +618,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
-            ?: "서브 사진 의뢰: 없음 · 어느 지역 보리 박사에게서 언제든 수락"
+            ?: "서브 사진 의뢰: 없음"
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
         y = mainR.bottom + dp(scene, 7f)
 
@@ -625,10 +626,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val lifers = s.birdCounts.size
         val rank = BirdingRanks.of(lifers)
         val next = BirdingRanks.next(lifers)
-        textP.textSize = dp(scene, 12f)
+        textP.textSize = textDp(scene, 12f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("라이퍼 ${lifers}종 · 게임 탐조 등급 「${rank.name}」", left, y + dp(scene, 13f), textP)
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
         val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 수집 이정표" else "400종 이상 · 공식 자격이 아닌 수집 이정표"
         c.drawText(rankHint, right - textP.measureText(rankHint), y + dp(scene, 13f), textP)
@@ -650,14 +651,16 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 strokeP.color = Color.argb(180, 226, 87, 76)
                 strokeP.strokeWidth = dp(scene, 1.6f)
                 c.drawCircle(r.right - dp(scene, 18f), r.centerY(), dp(scene, 9f), strokeP)
-                textP.textSize = dp(scene, 9f)
+                textP.textSize = textDp(scene, 9f)
                 textP.color = Color.argb(200, 226, 87, 76)
                 c.drawText("완료", r.right - dp(scene, 18f) - textP.measureText("완료") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             }
-            textP.textSize = dp(scene, 11.5f)
+            textP.textSize = textDp(scene, 11.5f)
             textP.color = if (done) 0xFF397547.toInt() else 0xFF5D4938.toInt()
-            c.drawText("${set.icon} ${if (done) "✓ " else ""}${set.name}  ${set.progress(s)}", r.left + dp(scene, 8f), r.top + dp(scene, 15f), textP)
-            textP.textSize = dp(scene, 8.8f)
+            UiKit.icon(c, scene.game, set.icon, RectF(r.left + dp(scene, 7f), r.top + dp(scene, 4f), r.left + dp(scene, 21f), r.top + dp(scene, 18f)))
+            if (done) UiKit.icon(c, scene.game, "check", RectF(r.left + dp(scene, 22f), r.top + dp(scene, 5f), r.left + dp(scene, 32f), r.top + dp(scene, 15f)))
+            c.drawText("${set.name}  ${set.progress(s)}", r.left + dp(scene, if (done) 35f else 25f), r.top + dp(scene, 15f), textP)
+            textP.textSize = textDp(scene, 8.8f)
             textP.color = 0xFF8A7360.toInt()
             val missing = set.species.filterNot { s.hasBirdName(it) }
             val detail = if (missing.isEmpty()) set.note else "남은 새: ${missing.take(4).joinToString("·")}" + if (missing.size > 4) " 외" else ""
@@ -671,7 +674,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             cuteBtn(c, prevR, "‹ 이전", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
             btnRects.add(Triple(prevR, "quest_prev") { questPage-- })
         }
-        textP.textSize = dp(scene, 10f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         val pageText = "도장 깨기 ${questPage + 1}/$pages"
         c.drawText(pageText, panelR.centerX() - textP.measureText(pageText) / 2, contentBottom() - dp(scene, 7f), textP)
@@ -697,7 +700,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
 
         val tx = left + avatar.width * ak + dp(scene, 12f)
-        textP.textSize = dp(scene, 16f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("Lv.${s.level}  ${s.title()}", tx, ty + dp(scene, 16f), textP)
 
@@ -711,13 +714,13 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         } else {
             UiKit.bar(c, g, bx, byBar, bw, bh, 1f, 0xFFFFD97A.toInt(), 0xFFF2B63C.toInt())
         }
-        textP.textSize = dp(scene, 10f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         val expTxt = if (s.level >= Progression.MAX_LEVEL) "최고 레벨 달성!" else "경험치 ${s.exp} / ${s.expToNext()}"
         c.drawText(expTxt, bx, byBar + bh + dp(scene, 12f), textP)
 
         // 숙련 포인트
-        textP.textSize = dp(scene, 12.5f)
+        textP.textSize = textDp(scene, 12.5f)
         textP.color = if (s.skillPoints > 0) 0xFF3F6FB0.toInt() else 0xFF8A7360.toInt()
         val spTxt = "숙련 포인트(SP): ${s.skillPoints}"
         c.drawText(spTxt, tx, byBar + bh + dp(scene, 28f), textP)
@@ -726,14 +729,14 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val tc = s.trainingCost()
         val trR = RectF(right - dp(scene, 150f), byBar + bh + dp(scene, 16f), right, byBar + bh + dp(scene, 40f))
         if (s.money >= tc) {
-            cuteBtn(c, trR, "🎓 탐조 강습 ₩${fmtMoney(tc)}", UiKit.GOLD, 0xFF4A2E12.toInt(), 10.5f)
+            cuteBtn(c, trR, "trophy 탐조 강습 ₩${fmtMoney(tc)}", UiKit.GOLD, 0xFF4A2E12.toInt(), 10.5f)
             btnRects.add(Triple(trR, "train") {
                 val cost = scene.game.state.trainingCost()
                 if (scene.game.state.money >= cost) {
                     scene.game.state.money -= cost
                     scene.game.state.skillPoints += 1
                     SaveManager.save(scene.game.context, scene.game.state)
-                    scene.game.toast("탐조 강습 수료! 숙련 포인트 +1 🎓")
+                    scene.game.toast("탐조 강습 수료! 숙련 포인트 +1")
                 } else {
                     scene.game.toast("돈이 부족해요!")
                 }
@@ -759,11 +762,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             UiKit.iconCircle(c, g, r.left + dp(scene, 19f), r.centerY(), dp(scene, 11.5f), def.emoji, 12.5f,
                 if (maxed) UiKit.GOLD else UiKit.PASTEL_MINT)
 
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(def.name, r.left + dp(scene, 38f), midY, textP)
 
-            textP.textSize = dp(scene, 10f)
+            textP.textSize = textDp(scene, 10f)
             textP.color = 0xFF6FAE6F.toInt()
             c.drawText("+${def.perRank}", r.left + dp(scene, 130f), midY, textP)
 
@@ -788,7 +791,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             // 강화 버튼
             val br = RectF(r.right - dp(scene, 92f), r.centerY() - dp(scene, 13f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 11f))
             when {
-                maxed -> UiKit.badge(c, g, RectF(br.left, br.centerY() - dp(scene, 10f), br.right, br.centerY() + dp(scene, 10f)), "MAX ★", UiKit.GOLD, 0xFF4A2E12.toInt(), 11f)
+                maxed -> UiKit.badge(c, g, RectF(br.left, br.centerY() - dp(scene, 10f), br.right, br.centerY() + dp(scene, 10f)), "MAX", UiKit.GOLD, 0xFF4A2E12.toInt(), 11f)
                 s.skillPoints <= 0 -> cuteBtnOff(c, br, "SP 필요", 10.5f)
                 else -> {
                     cuteBtn(c, br, "강화 SP1", UiKit.PASTEL_MINT, UiKit.INK, 11f)
@@ -824,10 +827,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val headH = dp(scene, 44f)
         val headR = RectF(left, ty, right, ty + headH)
         cuteCard(c, headR, UiKit.lighten(kind.tint, 70), UiKit.darken(kind.tint, 20), 1.6f)
-        textP.textSize = dp(scene, 12f)
+        textP.textSize = textDp(scene, 12f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🍕 피자 가방", left + dp(scene, 10f), ty + dp(scene, 16f), textP)
-        textP.textSize = dp(scene, 11f)
+        c.drawText("피자 가방", left + dp(scene, 10f), ty + dp(scene, 16f), textP)
+        textP.textSize = textDp(scene, 11f)
         textP.color = 0xFFB5651D.toInt()
         val capEff = s.pizzaCapEff()
         val capTxt = "${s.pizzaCount}/$capEff"
@@ -835,12 +838,12 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         c.drawText(capTxt, left + dp(scene, 10f) + gaugeW - textP.measureText(capTxt), ty + dp(scene, 16f), textP)
         UiKit.bar(c, g, left + dp(scene, 10f), ty + dp(scene, 22f), gaugeW, dp(scene, 9f),
             s.pizzaCount / capEff.toFloat(), 0xFFFFD97A.toInt(), 0xFFF2A33C.toInt())
-        textP.textSize = dp(scene, 9f)
+        textP.textSize = textDp(scene, 9f)
         textP.color = 0xFF8A7360.toInt()
         run {
             var descTxt = "${kind.station}에서 구워요 · ${kind.desc}"
             val maxDescW = gaugeW + dp(scene, 4f)
-            textP.textSize = dp(scene, 9f)
+            textP.textSize = textDp(scene, 9f)
             if (textP.measureText(descTxt) > maxDescW) {
                 while (descTxt.length > 1 && textP.measureText("$descTxt…") > maxDescW) descTxt = descTxt.dropLast(1)
                 descTxt = "$descTxt…"
@@ -900,8 +903,8 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             // 이름 + 보유 뱃지
             textP.color = if (total > 0) 0xFF4A3728.toInt() else 0xFF8A7360.toInt()
             val nameTxt = "${p.emoji} ${p.name}"
-            textP.textSize = dp(scene, 9.5f)
-            val badgeTxt = "×$total"
+            textP.textSize = textDp(scene, 9.5f)
+            val badgeTxt = Ingredients.toppingOfPizza(p.id)?.let { "✈ ${it.regionName} 특산" } ?: "×$total"   // [P07]
             val badgeW = textP.measureText(badgeTxt) + dp(scene, 12f)
             drawFitText(c, scene, nameTxt, tx, top0 + dp(scene, 16f), textW - badgeW - dp(scene, 6f), 12f)
             val nameW = textP.measureText(nameTxt)
@@ -916,7 +919,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             drawFitText(c, scene, bonusTxt, tx, top0 + dp(scene, 29f), textW, 9.5f)
             // 품질별 보유 — 등급 색상 텍스트
             if (cellH >= dp(scene, 50f)) {
-                textP.textSize = dp(scene, 8.5f)
+                textP.textSize = textDp(scene, 8.5f)
                 var cx = tx
                 val cy = top0 + dp(scene, 41f)
                 val segs = listOf(
@@ -939,7 +942,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             val br = RectF(r.right - dp(scene, 8f) - btnW, r.centerY() - dp(scene, 13f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 11f))
             val enabled = total > 0 && s.hunger < 100f
             if (enabled) {
-                cuteBtn(c, br, "냠냠 😋", UiKit.PASTEL_TOMATO, 0xFF4A2E12.toInt(), 11f)
+                cuteBtn(c, br, "pizza 냠냠", UiKit.PASTEL_TOMATO, 0xFF4A2E12.toInt(), 11f)
                 btnRects.add(Triple(br, p.name) {
                     val eaten = scene.game.state.eat(p.id)
                     if (eaten != null) {
@@ -961,6 +964,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private var bookRects: Map<String, RectF> = emptyMap()
     private var bookPage = 0
+    private var albumPage = 0
 
     private fun bookCell(def: BirdDef): RectF? = bookRects[def.id]
 
@@ -982,22 +986,22 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         // 헤더 — 도감 완성도 게이지
         val done = s.birdCounts.size
         val total = Birds.ALL.size
-        textP.textSize = dp(scene, 11.5f)
+        textP.textSize = textDp(scene, 11.5f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("📚 도감 $done/${total}종", areaLeft, contentTop() + dp(scene, 8f), textP)
-        textP.textSize = dp(scene, 10f)
+        c.drawText("도감 $done/${total}종", areaLeft, contentTop() + dp(scene, 8f), textP)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFFB5651D.toInt()
         val pctTxt = "${(done * 100f / total).toInt()}% 완성!"
         c.drawText(pctTxt, areaLeft + areaW - textP.measureText(pctTxt), contentTop() + dp(scene, 8f), textP)
         UiKit.bar(c, g, areaLeft, contentTop() + dp(scene, 13f), areaW, dp(scene, 8f),
             done / total.toFloat(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
-        textP.textSize = dp(scene, 8.5f)
+        textP.textSize = textDp(scene, 8.5f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(OfficialBirdChecklist.SOURCE_TITLE, areaLeft, contentTop() + dp(scene, 33f), textP)
 
         // 도감 모드 전환 버튼 (사진 썸네일 vs 도트 스프라이트)
-        val modeLabel = if (bookPhotoMode) "🖼 사진 모드" else "👾 도트 모드"
-        textP.textSize = dp(scene, 8.2f)
+        val modeLabel = if (bookPhotoMode) "photo 사진 모드" else "bird 도트 모드"
+        textP.textSize = textDp(scene, 8.2f)
         val modeBtnW = textP.measureText(modeLabel) + dp(scene, 16f)
         val modeBtnH = dp(scene, 17f)
         val modeBtnR = RectF(areaLeft + areaW - modeBtnW, contentTop() + dp(scene, 21f), areaLeft + areaW, contentTop() + dp(scene, 21f) + modeBtnH)
@@ -1067,7 +1071,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                     if (!seen) {
                         fillP.color = Color.argb(145, 30, 25, 20)
                         c.drawRect(thumbR, fillP)
-                        textP.textSize = dp(scene, 9.5f)
+                        textP.textSize = textDp(scene, 9.5f)
                         textP.color = 0xFFF8EFDC.toInt()
                         c.drawText("?", thumbR.centerX() - textP.measureText("?") / 2f, thumbR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                     }
@@ -1099,7 +1103,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 } else {
                     fillP.color = Color.argb(95, 150, 140, 130)
                     c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 7f), fillP)
-                    textP.textSize = dp(scene, 9.5f)
+                    textP.textSize = textDp(scene, 9.5f)
                     textP.color = 0xFFF8EFDC.toInt()
                     c.drawText("?", bx + bmp.width * k / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                 }
@@ -1107,20 +1111,20 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             }
 
             val top0 = r.centerY() - dp(scene, 20f)
-            textP.textSize = dp(scene, 10.2f)
+            textP.textSize = textDp(scene, 10.2f)
             textP.color = if (seen) 0xFF4A3728.toInt() else Color.argb(175, 74, 55, 40)
             c.drawText(def.name, tx, top0 + dp(scene, 12f), textP)
-            textP.textSize = dp(scene, 8.2f)
+            textP.textSize = textDp(scene, 8.2f)
             textP.color = 0xFF8A7360.toInt()
             val baseLine2 = if (seen) {
                 val best = s.bestStars[def.id] ?: 1
-                "📸${s.birdCounts[def.id]} 최고★$best"
+                "사진 ${s.birdCounts[def.id]}회 · 최고 ${best}점"
             } else {
                 "미촬영 · ${def.tier.label}"
             }
-            val line2 = baseLine2 + if (def.active == "night") " 🌙" else ""
+            val line2 = baseLine2 + if (def.active == "night") " · 야간" else ""
             c.drawText(line2, tx, top0 + dp(scene, 24f), textP)
-            textP.textSize = dp(scene, 7.8f)
+            textP.textSize = textDp(scene, 7.8f)
             textP.color = Color.argb(170, 94, 76, 58)
             val familyLabel = if (def.familyName.isBlank()) "공식 목록" else def.familyName
             c.drawText(familyLabel, tx, top0 + dp(scene, 35f), textP)
@@ -1140,10 +1144,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val py = contentBottom() - dp(scene, 25f)
         val prev = RectF(areaLeft, py, areaLeft + dp(scene, 82f), py + dp(scene, 22f))
         val next = RectF(areaLeft + areaW - dp(scene, 82f), py, areaLeft + areaW, py + dp(scene, 22f))
-        pagerButton(prev, "◀ 이전", bookPage > 0) { bookPage-- }
-        pagerButton(next, "다음 ▶", bookPage < totalPages - 1) { bookPage++ }
+        pagerButton(prev, "arrow_left 이전", bookPage > 0) { bookPage-- }
+        pagerButton(next, "arrow_right 다음", bookPage < totalPages - 1) { bookPage++ }
         val pageText = "${bookPage + 1} / $totalPages"
-        textP.textSize = dp(scene, 11.5f)
+        textP.textSize = textDp(scene, 11.5f)
         val pillW = textP.measureText(pageText) + dp(scene, 22f)
         UiKit.badge(
             c, g, RectF(panelR.centerX() - pillW / 2f, py, panelR.centerX() + pillW / 2f, py + dp(scene, 22f)),
@@ -1151,138 +1155,340 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         )
     }
 
+    /** 촬영할 때마다 실제 월드 배경과 방향별 새가 자동으로 쌓이는 사진집. */
+    private fun drawAlbum(c: Canvas) {
+        val g = scene.game
+        val records = g.state.photoAlbum.asReversed()
+        val left = panelR.left + dp(scene, 14f)
+        val right = panelR.right - dp(scene, 14f)
+        val width = right - left
+
+        textP.textSize = dp(scene, 13f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("나의 새 사진집", left, contentTop() + dp(scene, 10f), textP)
+        textP.textSize = dp(scene, 9.2f)
+        textP.color = 0xFF8A7360.toInt()
+        val countText = "${records.size}장 · 최대 ${PhotoArchive.MAX_PHOTOS}장 · 지형과 촬영 방향까지 보존"
+        c.drawText(countText, right - textP.measureText(countText), contentTop() + dp(scene, 10f), textP)
+
+        if (records.isEmpty()) {
+            val emptyR = RectF(left, contentTop() + dp(scene, 28f), right, contentBottom() - dp(scene, 8f))
+            cuteCard(c, emptyR, UiKit.PASTEL_SKY, UiKit.BROWN_LINE, 1.4f)
+            textP.textSize = dp(scene, 34f)
+            UiKit.iconCenter(c, g, "photo", emptyR.centerX(), emptyR.centerY() - dp(scene, 22f), dp(scene, 30f))
+            textP.textSize = dp(scene, 14f)
+            textP.color = 0xFF4A3728.toInt()
+            val msg = "아직 인화한 사진이 없어요"
+            c.drawText(msg, emptyR.centerX() - textP.measureText(msg) / 2f, emptyR.centerY() + dp(scene, 15f), textP)
+            textP.textSize = dp(scene, 10.5f)
+            textP.color = 0xFF8A7360.toInt()
+            val sub = "필드에서 카메라를 열고 새를 찍으면 이곳에 자동으로 저장돼요"
+            c.drawText(sub, emptyR.centerX() - textP.measureText(sub) / 2f, emptyR.centerY() + dp(scene, 34f), textP)
+            return
+        }
+
+        val cols = 3
+        val rows = 2
+        val pageSize = cols * rows
+        val totalPages = ((records.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+        albumPage = albumPage.coerceIn(0, totalPages - 1)
+        val gridTop = contentTop() + dp(scene, 24f)
+        val pagerH = dp(scene, 28f)
+        val gridBottom = contentBottom() - pagerH
+        val gap = dp(scene, 7f)
+        val cw = (width - gap * (cols - 1)) / cols
+        val ch = (gridBottom - gridTop - gap * (rows - 1)) / rows
+        val page = records.drop(albumPage * pageSize).take(pageSize)
+
+        for ((i, record) in page.withIndex()) {
+            val col = i % cols
+            val row = i / cols
+            val r = RectF(
+                left + col * (cw + gap), gridTop + row * (ch + gap),
+                left + col * (cw + gap) + cw, gridTop + row * (ch + gap) + ch
+            )
+            cuteCard(c, r, 0xFFFFFCF4.toInt(), 0xFFD8B77D.toInt(), 1.4f, stitched = false)
+            val photoR = RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 27f))
+            fillP.color = 0xFF25252B.toInt()
+            c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), fillP)
+            PhotoArchive.prefetch(g.context, record.fileName)   // 넘길 때 프레임을 지키기 위한 선행 디코드
+            val bmp = PhotoArchive.load(g.context, record.fileName)
+            if (bmp != null) {
+                val k = maxOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
+                val dw = bmp.width * k
+                val dh = bmp.height * k
+                c.save(); c.clipRect(photoR)
+                c.drawBitmap(bmp, null, RectF(photoR.centerX() - dw / 2f, photoR.centerY() - dh / 2f,
+                    photoR.centerX() + dw / 2f, photoR.centerY() + dh / 2f), Paint(Paint.FILTER_BITMAP_FLAG))
+                c.restore()
+            } else {
+                val def = Birds.byId[record.birdId]
+                if (def != null) {
+                    val bird = g.assets.birdPose(def.id, record.facing, record.pose)
+                    val k = minOf(photoR.width() * 0.52f / bird.width, photoR.height() * 0.72f / bird.height)
+                    c.drawBitmap(bird, null, RectF(photoR.centerX() - bird.width * k / 2f, photoR.centerY() - bird.height * k / 2f,
+                        photoR.centerX() + bird.width * k / 2f, photoR.centerY() + bird.height * k / 2f), g.assets.sprPaint)
+                }
+            }
+            strokeP.color = Color.argb(75, 40, 30, 22)
+            strokeP.strokeWidth = dp(scene, 1f)
+            c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), strokeP)
+
+            val def = Birds.byId[record.birdId]
+            val regionName = Regions.byId[record.regionId]?.name ?: record.regionId
+            textP.textSize = dp(scene, 10.2f)
+            textP.color = 0xFF3B2F24.toInt()
+            c.drawText(def?.name ?: "새 사진", r.left + dp(scene, 7f), r.bottom - dp(scene, 10f), textP)
+            textP.textSize = dp(scene, 8.4f)
+            textP.color = 0xFF8A7360.toInt()
+            val meta = "별점 ${record.stars} · $regionName · ${record.facing.label}"
+            c.drawText(meta, r.right - dp(scene, 7f) - textP.measureText(meta), r.bottom - dp(scene, 10f), textP)
+
+            btnRects.add(Triple(r, def?.name ?: "사진") {
+                scene.openOverlay(PhotoAlbumViewerOverlay(scene, record.id))
+            })
+        }
+
+        fun pager(rect: RectF, label: String, enabled: Boolean, action: () -> Unit) {
+            if (enabled) {
+                cuteBtn(c, rect, label, UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
+                btnRects.add(Triple(rect, label, action))
+            } else cuteBtnOff(c, rect, label, 10.5f)
+        }
+        val py = contentBottom() - dp(scene, 23f)
+        val prev = RectF(left, py, left + dp(scene, 78f), py + dp(scene, 21f))
+        val next = RectF(right - dp(scene, 78f), py, right, py + dp(scene, 21f))
+        pager(prev, "arrow_left 이전", albumPage > 0) { albumPage-- }
+        pager(next, "arrow_right 다음", albumPage < totalPages - 1) { albumPage++ }
+        val pageText = "${albumPage + 1} / $totalPages"
+        textP.textSize = dp(scene, 10.5f)
+        val pw = textP.measureText(pageText) + dp(scene, 22f)
+        UiKit.badge(c, g, RectF(panelR.centerX() - pw / 2f, py, panelR.centerX() + pw / 2f, py + dp(scene, 21f)),
+            pageText, 0xFFDDEEF5.toInt(), 0xFF4A6070.toInt(), 10.5f)
+    }
+
     private fun drawSettings(c: Canvas) {
         val g = scene.game
         val left = panelR.left + dp(scene, 12f)
         val right = panelR.right - dp(scene, 12f)
-        // 가로가 넉넉하면 2열 배치 (세로 공간 절약)
-        val wide = panelR.width() > dp(scene, 560f)
-        val colW = if (wide) (right - left - dp(scene, 12f)) / 2f else right - left
-        val yCol = floatArrayOf(contentTop() + dp(scene, 4f), contentTop() + dp(scene, 4f))
+        val top = contentTop() + dp(scene, 4f)
+        val bottom = contentBottom()
 
-        fun rowAt(
-            col: Int, icon: String, label: String, sub: String,
-            danger: Boolean, switch: Boolean?, action: () -> Unit
-        ) {
-            val rx = if (col == 0) left else left + colW + dp(scene, 12f)
-            val yy = yCol[col]
-            val rh = dp(scene, 46f)
-            val r = RectF(rx, yy, rx + colW, yy + rh)
-            cuteCard(c, r, if (danger) 0xFFFFE6E1.toInt() else UiKit.CARD_HI,
-                if (danger) 0xFFE2574C.toInt() else UiKit.BROWN_LINE, if (danger) 2f else 1.6f)
-            UiKit.iconCircle(c, g, rx + dp(scene, 24f), r.centerY(), dp(scene, 14f), icon, 15f,
-                if (danger) 0xFFF28B82.toInt() else if (switch == true) UiKit.PASTEL_MINT else UiKit.PASTEL_PEACH)
-            textP.textSize = dp(scene, 13f)
-            textP.color = if (danger) 0xFFB03A30.toInt() else 0xFF4A3728.toInt()
-            c.drawText(label, rx + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
-            textP.textSize = dp(scene, 9.5f)
-            textP.color = 0xFF8A7360.toInt()
-            c.drawText(sub, rx + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
-            if (switch != null) {
-                // 픽셀 토글 스위치
-                UiKit.cuteToggle(c, g, r.right - dp(scene, 14f), r.centerY(), switch)
-            } else {
-                // 작은 화살표 단추
-                val ar = RectF(r.right - dp(scene, 34f), r.centerY() - dp(scene, 11f), r.right - dp(scene, 10f), r.centerY() + dp(scene, 9f))
-                UiKit.cuteButton(c, g, ar, "›", if (danger) 0xFFF28B82.toInt() else UiKit.PASTEL_PEACH,
-                    if (danger) 0xFF7A1E14.toInt() else UiKit.INK, 14f, depthDp = 2f)
-            }
-            btnRects.add(Triple(r, label, action))
-            yCol[col] = yy + rh + dp(scene, 8f)
-        }
+        // 설정이 늘어나도 패널 밖으로 밀려나지 않도록 먼저 항목을 모은 뒤,
+        // 현재 화면의 가로·세로 여유에 맞춰 한 화면짜리 그리드로 배치한다.
+        data class SettingItem(
+            val icon: () -> String,
+            val label: () -> String,
+            val sub: String,
+            val danger: Boolean = false,
+            val switch: (() -> Boolean)? = null,
+            val action: () -> Unit
+        )
 
-        // 1열: 사운드 + 조이스틱 설정
-        rowAt(0, if (g.state.musicOn) "🎵" else "🔇", "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐", "배경 음악을 켜고 꺼요", false, null) {
-            g.state.musicOn = !g.state.musicOn
-            g.audio.setMusic(g.state.musicOn)
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(0, if (g.state.sfxOn) "🔊" else "🔈", "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐", "새 소리와 버튼음을 켜고 꺼요", false, null) {
-            g.state.sfxOn = !g.state.sfxOn
-            g.audio.setSfx(g.state.sfxOn)
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(0, "🕹️", "움직이는 조이스틱: " + if (g.state.floatStick) "켜짐" else "꺼짐",
-            "왼쪽 아래를 끌면 그 자리에 스틱이 생겨요", false, g.state.floatStick) {
-            g.state.floatStick = !g.state.floatStick
-            g.hud.releaseStick()
-            SaveManager.save(g.context, g.state)
-            g.toast(if (g.state.floatStick) "움직이는 스틱 켬 🕹️" else "고정 스틱만 쓸게요")
-        }
-        rowAt(0, "🎚️", "민 만큼 속도: " + if (g.state.analogStick) "켜짐" else "꺼짐",
-            "스틱을 살짝 밀면 살금살금, 끝까지 밀면 쌩쌩", false, g.state.analogStick) {
-            g.state.analogStick = !g.state.analogStick
-            SaveManager.save(g.context, g.state)
-            g.toast(if (g.state.analogStick) "아날로그 이동 켬 — 틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
-        }
-
-        rowAt(0, "🎥", "화면 연출 (몰입감)",
-            "흔들림·헤드밥·잔상·심도 — 멀미가 있다면 여기서 꺼요", false, null) {
-            scene.openOverlay(CameraFxOverlay(scene))
-        }
-
-        // 2열(화면이 좁으면 1열 이어서): 화질/보간/저장/타이틀/초기화
-        val c2 = if (wide) 1 else 0
-        rowAt(c2, "🖥", "화질: " + when (g.state.renderScale) {
-            "1" -> "1배 (성능 우선)"
-            "2" -> "2배 (고화질)"
-            "3" -> "3배 (최고 화질)"
-            else -> "자동 (2K 기준)"
-        }, "월드 렌더 해상도 — 높을수록 또렷해요", false, null) {
-            g.state.renderScale = when (g.state.renderScale) {
-                "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
-            }
-            g.applyRenderQuality()
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(c2, "🎨", "화면 보간: " + if (g.state.smoothScreen) "부드럽게" else "끔 (픽셀 선명)",
-            "픽셀 아트를 부드럽게 확대해 보여요", false, null) {
-            g.state.smoothScreen = !g.state.smoothScreen
-            g.applyRenderQuality()
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(c2, "💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false, null) {
-            SaveManager.save(g.context, g.state)
-            g.toast("저장 완료! ✨")
-        }
-        rowAt(c2, "🏠", "타이틀로 가기", "저장 후 타이틀 화면으로 돌아가요", false, null) {
-            SaveManager.save(g.context, g.state)
-            finished = true
-            g.fadeTo { g.scene = TitleScene(g) }
-        }
-        if (resetArmed) {
-            rowAt(c2, "⚠️", "정말 처음부터 시작할까요?", "되돌릴 수 없어요! 다시 누르면 초기화돼요", true, null) {
-                SaveManager.clear(g.context)
-                g.state.reset("seoul")
-                g.state.started = false
+        val items = arrayListOf(
+            SettingItem(
+                { "music" },
+                { "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐" },
+                "배경 음악을 켜고 꺼요",
+                action = {
+                    g.state.musicOn = !g.state.musicOn
+                    g.audio.setMusic(g.state.musicOn)
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem(
+                { "music" },
+                { "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐" },
+                "새 소리와 버튼음을 켜고 꺼요",
+                action = {
+                    g.state.sfxOn = !g.state.sfxOn
+                    g.audio.setSfx(g.state.sfxOn)
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem({ "note" }, { "글자 크기: ${TypeScale.label()}" }, "대화와 메뉴 글자를 더 크게 표시해요", action = {
+                val level = TypeScale.cycle(g.context)
+                g.toast("글자 크기: ${listOf("보통", "크게", "아주 크게")[level]}")
+            }),
+            SettingItem(
+                { "gear" },
+                { "움직이는 조이스틱: " + if (g.state.floatStick) "켜짐" else "꺼짐" },
+                "왼쪽 아래를 끌면 그 자리에 스틱이 생겨요",
+                switch = { g.state.floatStick },
+                action = {
+                    g.state.floatStick = !g.state.floatStick
+                    g.hud.releaseStick()
+                    SaveManager.save(g.context, g.state)
+                    g.toast(if (g.state.floatStick) "움직이는 스틱 켬" else "고정 스틱만 쓸게요")
+                }
+            ),
+            SettingItem(
+                { "gear" },
+                { "민 만큼 속도: " + if (g.state.analogStick) "켜짐" else "꺼짐" },
+                "스틱을 살짝 밀면 살금살금, 끝까지 밀면 쌩쌩",
+                switch = { g.state.analogStick },
+                action = {
+                    g.state.analogStick = !g.state.analogStick
+                    SaveManager.save(g.context, g.state)
+                    g.toast(if (g.state.analogStick) "아날로그 이동 켬 — 스틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
+                }
+            ),
+            SettingItem({ "camera" }, { "화면 연출 (몰입감)" }, "흔들림·헤드밥·잔상·심도 설정", action = {
+                scene.openOverlay(CameraFxOverlay(scene))
+            }),
+            SettingItem(
+                { "photo" },
+                { "화질: " + when (g.state.renderScale) {
+                    "1" -> "1배 (성능 우선)"
+                    "2" -> "2배 (고화질)"
+                    "3" -> "3배 (최고 화질)"
+                    else -> "자동 (2K 기준)"
+                } },
+                "월드 렌더 해상도 — 높을수록 또렷해요",
+                action = {
+                    g.state.renderScale = when (g.state.renderScale) {
+                        "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
+                    }
+                    g.applyRenderQuality()
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem(
+                { "sparkle" },
+                { "화면 보간: " + if (g.state.smoothScreen) "부드럽게" else "끔 (픽셀 선명)" },
+                "픽셀 아트를 부드럽게 확대해 보여요",
+                action = {
+                    g.state.smoothScreen = !g.state.smoothScreen
+                    g.applyRenderQuality()
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem({ "note" }, { "저장하기" }, "지금까지의 여행을 안전하게 보관해요", action = {
+                SaveManager.save(g.context, g.state)
+                g.toast("저장 완료!")
+            }),
+            SettingItem({ "house" }, { "타이틀로 가기" }, "저장 후 타이틀 화면으로 돌아가요", action = {
+                SaveManager.save(g.context, g.state)
                 finished = true
                 g.fadeTo { g.scene = TitleScene(g) }
+            }),
+            if (resetArmed) {
+                SettingItem({ "warning" }, { "정말 처음부터 시작할까요?" }, "되돌릴 수 없어요! 다시 누르면 초기화돼요", danger = true, action = {
+                    SaveManager.clear(g.context)
+                    g.state.reset("seoul")
+                    g.state.started = false
+                    finished = true
+                    g.fadeTo { g.scene = TitleScene(g) }
+                })
+            } else {
+                SettingItem({ "box" }, { "처음부터 다시 시작" }, "저장 데이터를 모두 지우고 새로 시작해요", action = {
+                    resetArmed = true
+                })
+            },
+            // [P05] 클라우드 없는 백업 — 코드 한 장으로 세이브를 다른 기기로 옮긴다.
+            // 닫히면 왔던 자리(여행 가방 메뉴)를 다시 열어 준다.
+            SettingItem({ "🗄" }, { "백업 코드 만들기" }, "진행 상황을 텍스트 코드로 복사해 다른 기기로", action = {
+                scene.openOverlay(BackupOverlay(scene, BackupOverlay.Mode.CREATE) { scene.openOverlay(MenuOverlay(scene)) })
+            }),
+            SettingItem({ "📥" }, { "코드에서 불러오기" }, "복사해 둔 백업 코드를 클립보드에서 읽어 복원", action = {
+                scene.openOverlay(BackupOverlay(scene, BackupOverlay.Mode.RESTORE) { scene.openOverlay(MenuOverlay(scene)) })
+            })
+        )
+
+        val gap = dp(scene, 6f)
+        val contentW = right - left
+        val contentH = (bottom - top).coerceAtLeast(dp(scene, 1f))
+        // 카드가 지나치게 좁아지지 않는 범위에서 열 수를 늘린다. 일반 휴대폰은
+        // 3열×4행, 4:3/분할 화면은 2열×6행, 넓은 태블릿은 4열×3행이다.
+        val maxColumnsByWidth = ((contentW + gap) / (dp(scene, 170f) + gap)).toInt().coerceIn(2, 4)
+        val columns = minOf(items.size, maxColumnsByWidth)
+        val rows = (items.size + columns - 1) / columns
+        val preferredRowGap = if (rows >= 6) dp(scene, 4f) else gap
+        // 아주 낮은 분할 화면에서도 간격 때문에 높이가 음수가 되지 않게 한다.
+        val rowGap = minOf(preferredRowGap, contentH / rows / 4f)
+        val colW = (contentW - gap * (columns - 1)) / columns
+        val rowH = ((contentH - rowGap * (rows - 1)) / rows).coerceAtMost(dp(scene, 46f))
+        val gridH = rowH * rows + rowGap * (rows - 1)
+
+        fun fittedText(raw: String, maxW: Float, preferred: Float, minimum: Float): String {
+            var size = preferred
+            textP.textSize = textDp(scene, size)
+            while (textP.measureText(raw) > maxW && size > minimum) {
+                size -= 0.5f
+                textP.textSize = textDp(scene, size)
             }
-        } else {
-            rowAt(c2, "🗑", "처음부터 다시 시작", "저장 데이터를 모두 지우고 새로 시작해요", false, null) {
-                resetArmed = true
-            }
+            if (textP.measureText(raw) <= maxW) return raw
+            var out = raw
+            while (out.length > 1 && textP.measureText("$out…") > maxW) out = out.dropLast(1)
+            return "$out…"
         }
 
-        // 푸터 정보 카드
-        val ty = maxOf(yCol[0], yCol[1])
-        val footR = RectF(left, ty, right, contentBottom())
-        if (footR.height() > dp(scene, 40f)) {
-            cuteCard(c, footR, UiKit.PASTEL_SAND)
-            textP.textSize = dp(scene, 10.5f)
-            textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.4.2-beta01 · 2K", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
-            textP.textSize = dp(scene, 9.5f)
-            textP.color = 0xFF8A7360.toInt()
-            c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)
-            if (footR.height() > dp(scene, 62f)) {
-                c.drawText("조이스틱은 왼쪽 아래 어디든 잡으면 그 자리에 생겨요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
+        items.forEachIndexed { index, item ->
+            val col = index % columns
+            val row = index / columns
+            val rx = left + col * (colW + gap)
+            val yy = top + row * (rowH + rowGap)
+            val r = RectF(rx, yy, rx + colW, yy + rowH)
+            val isOn = item.switch?.invoke()
+            cuteCard(
+                c, r,
+                if (item.danger) 0xFFFFE6E1.toInt() else UiKit.CARD_HI,
+                if (item.danger) 0xFFE2574C.toInt() else UiKit.BROWN_LINE,
+                if (item.danger) 2f else 1.6f,
+                stitched = rowH >= dp(scene, 34f)
+            )
+
+            val iconR = minOf(dp(scene, 12f), rowH * 0.31f)
+            val iconX = rx + dp(scene, 7f) + iconR
+            UiKit.iconCircle(
+                c, g, iconX, r.centerY(), iconR, item.icon(),
+                if (rowH < dp(scene, 34f)) 11f else 13f,
+                if (item.danger) 0xFFF28B82.toInt() else if (isOn == true) UiKit.PASTEL_MINT else UiKit.PASTEL_PEACH
+            )
+
+            val endReserve = if (item.switch != null) dp(scene, 45f) else dp(scene, 25f)
+            val tx = iconX + iconR + dp(scene, 6f)
+            val maxTextW = (r.right - endReserve - tx).coerceAtLeast(dp(scene, 18f))
+            val spacious = rowH >= dp(scene, 42f) && colW >= dp(scene, 235f)
+            textP.color = if (item.danger) 0xFFB03A30.toInt() else 0xFF4A3728.toInt()
+            val label = fittedText(item.label(), maxTextW, if (spacious) 12.5f else 11.5f, 7.5f)
+            val labelY = if (spacious) r.centerY() - dp(scene, 1f) else r.centerY() - (textP.descent() + textP.ascent()) / 2f
+            c.drawText(label, tx, labelY, textP)
+            if (spacious) {
+                textP.color = 0xFF8A7360.toInt()
+                val sub = fittedText(item.sub, maxTextW, 8.8f, 7f)
+                c.drawText(sub, tx, r.centerY() + dp(scene, 12f), textP)
             }
-            // 내장 글꼴 출처 표기 (SIL Open Font License 1.1 — assets/font/OFL.txt)
-            if (footR.height() > dp(scene, 76f)) {
-                textP.textSize = dp(scene, 9f)
-                c.drawText("글꼴: 주아(Jua) · 고운돋움(Gowun Dodum) — SIL Open Font License 1.1",
-                    left + dp(scene, 12f), ty + dp(scene, 61f), textP)
+
+            if (item.switch != null && rowH >= dp(scene, 28f)) {
+                UiKit.cuteToggle(c, g, r.right - dp(scene, 7f), r.centerY(), isOn == true)
+            } else {
+                val arrowW = minOf(dp(scene, 20f), rowH * 0.55f)
+                val ar = RectF(r.right - arrowW - dp(scene, 5f), r.centerY() - arrowW / 2f,
+                    r.right - dp(scene, 5f), r.centerY() + arrowW / 2f)
+                UiKit.cuteButton(
+                    c, g, ar, "›",
+                    if (item.danger) 0xFFF28B82.toInt() else UiKit.PASTEL_PEACH,
+                    if (item.danger) 0xFF7A1E14.toInt() else UiKit.INK,
+                    if (rowH < dp(scene, 34f)) 10f else 12f, depthDp = 1.5f
+                )
+            }
+            btnRects.add(Triple(r, item.label(), item.action))
+        }
+
+        // 큰 태블릿처럼 그리드 아래 여백이 충분할 때만 부가 정보를 보여 준다.
+        // 작은 화면에서는 설정 버튼의 터치 영역을 우선해 푸터가 절대 겹치지 않는다.
+        val footerTop = top + gridH + dp(scene, 7f)
+        if (bottom - footerTop >= dp(scene, 34f)) {
+            val footR = RectF(left, footerTop, right, bottom)
+            cuteCard(c, footR, UiKit.PASTEL_SAND)
+            textP.textSize = textDp(scene, 9.5f)
+            textP.color = 0xFF6B4F35.toInt()
+            c.drawText("Pizza and Bird v0.4.2-beta01 · 2K", left + dp(scene, 12f), footerTop + dp(scene, 16f), textP)
+            if (footR.height() >= dp(scene, 54f)) {
+                textP.textSize = dp(scene, 8f)
+                textP.color = 0xFF8A7360.toInt()
+                c.drawText("글꼴: 주아 · 고운돋움 — SIL Open Font License 1.1", left + dp(scene, 12f), footerTop + dp(scene, 38f), textP)
             }
         }
     }
@@ -1338,12 +1544,12 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
         val closeCx = panelR.right - dp(scene, 25f)
         val closeCy = panelR.top + dp(scene, 23f)
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
-        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "close", 11f)
 
-        textP.textSize = dp(scene, 15f)
+        textP.textSize = textDp(scene, 15f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🎥 화면 연출", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
-        textP.textSize = dp(scene, 10f)
+        c.drawText("화면 연출", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("화면이 살아 움직이게 하는 연출들이에요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
         UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 56f))
@@ -1365,14 +1571,14 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
                 c, g, left + dp(scene, 22f), r.centerY(), dp(scene, 13f), icon, 14f,
                 if (on) 0xFF6FBA6B.toInt() else 0xFFB9AA95.toInt()
             )
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(label, left + dp(scene, 42f), r.centerY() - dp(scene, 1f), textP)
-            textP.textSize = dp(scene, 9f)
+            textP.textSize = textDp(scene, 9f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText(sub, left + dp(scene, 42f), r.centerY() + dp(scene, 12f), textP)
 
-            textP.textSize = dp(scene, 10.5f)
+            textP.textSize = textDp(scene, 10.5f)
             val vw = textP.measureText(value) + dp(scene, 20f)
             UiKit.badge(
                 c, g,
@@ -1383,30 +1589,30 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
             ty += rowH + gap
         }
 
-        row("📳", "카메라 흔들림", "타격·충돌·셔터의 충격을 화면으로", CamFx.shakeLabel(st), st.camShake > 0) {
+        row("camera", "카메라 흔들림", "타격·충돌·셔터의 충격을 화면으로", CamFx.shakeLabel(st), st.camShake > 0) {
             st.camShake = (st.camShake + 1) % CamFx.SHAKE_LABELS.size
             g.shake(0.5f)                       // 바꾼 강도를 바로 체감해 볼 수 있게
         }
-        row("🚶", "헤드 밥 · 바디 스웨이", "걸음 리듬에 맞춰 화면이 출렁여요", CamFx.onOff(st.camBob), st.camBob) {
+        row("bird", "헤드 밥 · 바디 스웨이", "걸음 리듬에 맞춰 화면이 출렁여요", CamFx.onOff(st.camBob), st.camBob) {
             st.camBob = !st.camBob
         }
-        row("💨", "잔상 · 속도선", "달리기·자전거에서 속도가 느껴지게", CamFx.onOff(st.camBlur), st.camBlur) {
+        row("wind", "잔상 · 속도선", "달리기·자전거에서 속도가 느껴지게", CamFx.onOff(st.camBlur), st.camBlur) {
             st.camBlur = !st.camBlur
         }
-        row("🔭", "시야각 변동 (FOV)", "빠르면 넓게, 카메라 모드에선 망원으로", CamFx.onOff(st.camFov), st.camFov) {
+        row("lens", "시야각 변동 (FOV)", "빠르면 넓게, 카메라 모드에선 망원으로", CamFx.onOff(st.camFov), st.camFov) {
             st.camFov = !st.camFov
             if (st.camFov) g.punchZoom(0.06f)
         }
-        row("🌙", "심도 · 초점 흐림", "카메라 모드에서 초점 밖을 어둡게", CamFx.onOff(st.camDof), st.camDof) {
+        row("moon", "심도 · 초점 흐림", "카메라 모드에서 초점 밖을 어둡게", CamFx.onOff(st.camDof), st.camDof) {
             st.camDof = !st.camDof
         }
-        row("🧭", "예측 배치", "가는 방향의 앞쪽을 더 보여줘요", CamFx.onOff(st.camLead), st.camLead) {
+        row("map", "예측 배치", "가는 방향의 앞쪽을 더 보여줘요", CamFx.onOff(st.camLead), st.camLead) {
             st.camLead = !st.camLead
         }
 
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
-        c.drawText("💡 3D 멀미가 있다면 흔들림을 '끔'으로 두세요. 바로 저장돼요.", left + dp(scene, 2f), ty + dp(scene, 14f), textP)
+        c.drawText("3D 멀미가 있다면 흔들림을 '끔'으로 두세요. 바로 저장돼요.", left + dp(scene, 2f), ty + dp(scene, 14f), textP)
     }
 }
 
@@ -1486,16 +1692,16 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         val closeCx = panelR.right - dp(scene, 25f)
         val closeCy = panelR.top + dp(scene, 23f)
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
-        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "close", 11f)
 
-        textP.textSize = dp(scene, 15f)
+        textP.textSize = textDp(scene, 15f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🧺 장식 코너", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
-        textP.textSize = dp(scene, 10f)
+        c.drawText("장식 코너", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("집에 놓으면 행운이 오르는 소품들이에요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
-        textP.textSize = dp(scene, 10.5f)
-        val moneyTxt = "💰 ${won(s.money)}"
+        textP.textSize = textDp(scene, 10.5f)
+        val moneyTxt = "₩ ${won(s.money)}"
         val moneyW = textP.measureText(moneyTxt) + dp(scene, 18f)
         UiKit.badge(
             c, g, RectF(panelR.right - dp(scene, 44f) - moneyW, panelR.top + dp(scene, 30f), panelR.right - dp(scene, 44f), panelR.top + dp(scene, 50f)),
@@ -1533,19 +1739,19 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             UiKit.iconCircle(c, g, r.left + dp(scene, 22f), r.centerY(), dp(scene, 13f), d.emoji, 15f)
             val tx = r.left + dp(scene, 42f)
             // 이름 + 행운 뱃지
-            textP.textSize = dp(scene, 12f)
+            textP.textSize = textDp(scene, 12f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(d.name, tx, r.top + dp(scene, 17f), textP)
             val luckTxt = "행운+${d.luck}"
-            textP.textSize = dp(scene, 9f)
+            textP.textSize = textDp(scene, 9f)
             val luckW = textP.measureText(luckTxt) + dp(scene, 11f)
-            val nameW = run { textP.textSize = dp(scene, 12f); textP.measureText(d.name) }
+            val nameW = run { textP.textSize = textDp(scene, 12f); textP.measureText(d.name) }
             UiKit.badge(
                 c, g, RectF(tx + nameW + dp(scene, 6f), r.top + dp(scene, 6f), tx + nameW + dp(scene, 6f) + luckW, r.top + dp(scene, 21f)),
                 luckTxt, 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 9f
             )
             // 설명 (말줄임)
-            textP.textSize = dp(scene, 9.5f)
+            textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             var desc = d.desc
             val btnLeft = r.right - dp(scene, 88f)
@@ -1559,7 +1765,7 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             val owned = d.id in s.decorOwned
             val br = RectF(r.right - dp(scene, 82f), r.centerY() - dp(scene, 12f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 12f))
             if (owned) {
-                drawButton(c, scene, br, "보유중 ✓", Color.argb(90, 200, 190, 175), Color.argb(140, 74, 55, 40), 10.5f)
+                drawButton(c, scene, br, "check 보유중", Color.argb(90, 200, 190, 175), Color.argb(140, 74, 55, 40), 10.5f)
             } else {
                 drawButton(c, scene, br, won(d.cost), 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 10.5f)
                 buyRects.add(br to d.id)
@@ -1650,14 +1856,11 @@ class DecorPickOverlay(
         val closeCx = panelR.right - dp(scene, 25f)
         val closeCy = panelR.top + dp(scene, 23f)
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
-        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "close", 11f)
 
-        textP.textSize = dp(scene, 14f)
+        textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("✨ 장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 29f), textP)
-        textP.textSize = dp(scene, 9.5f)
-        textP.color = 0xFF8A7360.toInt()
-        c.drawText("소품 하나는 한 칸에만 배치할 수 있어요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
+        c.drawText("장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 29f), textP)
         UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 52f))
 
         // 소품이 많아져도 6개씩 넘긴다.
@@ -1683,13 +1886,13 @@ class DecorPickOverlay(
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH)
             drawCard(c, scene, r)
             UiKit.iconCircle(c, g, r.left + dp(scene, 24f), r.centerY(), dp(scene, 14f), emoji, 16f, accent)
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(name, r.left + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
-            textP.textSize = dp(scene, 9.5f)
+            textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText(sub, r.left + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
-            textP.textSize = dp(scene, 15f)
+            textP.textSize = textDp(scene, 15f)
             textP.color = 0xFFB5651D.toInt()
             c.drawText("›", r.right - dp(scene, 20f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             pickRects.add(r to id)
@@ -1701,7 +1904,7 @@ class DecorPickOverlay(
             val here = s.decorSlots.getOrNull(slot) == did
             row(did, d.emoji, d.name, "행운 +${d.luck}" + if (here) " · 이 칸에 배치 중" else "")
         }
-        row(-1, "🫙", "빈 칸으로 두기", "장식을 치웁니다", 0xFFD9CFC0.toInt())
+        row(-1, "box", "빈 칸으로 두기", "장식을 치웁니다", 0xFFD9CFC0.toInt())
     }
 }
 
@@ -1735,7 +1938,7 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
             val count = s.autoArrangeDecors()
             SaveManager.save(g.context, s)
             // 한글이 바로 붙으면 식별자로 먹히므로 ${} 로 감싼다
-            g.toast("보유 소품 ${count}개를 순서대로 정리했어요 ✨")
+            g.toast("보유 소품 ${count}개를 순서대로 정리했어요")
             g.sfx(Audio.Sfx.SUCCESS, 0.6f)
             return
         }
@@ -1777,11 +1980,11 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
         val closeCx = panelR.right - dp(scene, 25f)
         val closeCy = panelR.top + dp(scene, 23f)
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
-        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "close", 11f)
 
         textP.textSize = dp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🪴 집 꾸미기 보드", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
+        c.drawText("집 꾸미기 보드", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         val filled = s.placedDecorIds().size
@@ -1811,14 +2014,16 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
             val id = s.decorSlots[slot]
             val d = Decors.of(id)
             UiKit.card(c, g, r, 9f, d != null, if (d != null) 0xFF6FBA6B.toInt() else 0xFFC9A87B.toInt(), if (d != null) 2f else 1f)
-            UiKit.iconCircle(c, g, r.left + dp(scene, 19f), r.centerY(), dp(scene, 11f), d?.emoji ?: "＋", 13f,
+            UiKit.iconCircle(c, g, r.left + dp(scene, 19f), r.centerY(), dp(scene, 11f), d?.emoji ?: "plus", 13f,
                 if (d != null) 0xFF6FBA6B.toInt() else 0xFFE9DDC7.toInt())
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText("${slot + 1}. ${d?.name ?: "비어 있음"}", r.left + dp(scene, 37f), r.centerY() - dp(scene, 1f), textP)
-            textP.textSize = dp(scene, 8.5f)
-            textP.color = 0xFF8A7360.toInt()
-            c.drawText(if (d != null) "행운 +${d.luck}" else "탭해서 소품 놓기", r.left + dp(scene, 37f), r.centerY() + dp(scene, 11f), textP)
+            if (d != null) {
+                textP.textSize = dp(scene, 8.5f)
+                textP.color = 0xFF8A7360.toInt()
+                c.drawText("행운 +${d.luck}", r.left + dp(scene, 37f), r.centerY() + dp(scene, 11f), textP)
+            }
             slotRects.add(r to slot)
         }
 
@@ -1834,7 +2039,7 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
         textP.textSize = dp(scene, 9.5f)
         textP.color = 0xFF4A3728.toInt()
         val infoText = if (next == null) {
-            "🏅 모든 컬렉션 완성! 세트 효과 +${s.decorSetBonus()}"
+            "모든 컬렉션 완성! 세트 효과 +${s.decorSetBonus()}"
         } else {
             val n = next.members.count { it in placed }
             "${next.emoji} 다음: ${next.name}  $n/${next.required} · 완성 시 행운 +${next.bonus}"
@@ -1843,7 +2048,7 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
 
         autoRect = RectF(gridLeft, panelR.bottom - dp(scene, 40f), gridLeft + (gridRight - gridLeft - gap) * 0.62f, panelR.bottom - dp(scene, 10f))
         clearRect = RectF(autoRect.right + gap, autoRect.top, gridRight, autoRect.bottom)
-        drawButton(c, scene, autoRect, "✨ 보유 소품 자동 정리", 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 10.5f)
+        drawButton(c, scene, autoRect, "sparkle 보유 소품 자동 정리", 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 10.5f)
         drawButton(c, scene, clearRect, "비우기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10.5f)
     }
 }
@@ -1910,16 +2115,15 @@ class HouseStyleOverlay(
         val closeCx = panelR.right - dp(scene, 25f)
         val closeCy = panelR.top + dp(scene, 23f)
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
-        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "close", 11f)
 
-        textP.textSize = dp(scene, 16f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🏠 우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
-        textP.textSize = dp(scene, 10f)
+        c.drawText("우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        c.drawText("구매한 스타일은 이사 후에도 계속 사용할 수 있어요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
-        textP.textSize = dp(scene, 10.5f)
-        val moneyTxt = "💰 ${won(s.money)}"
+        textP.textSize = textDp(scene, 10.5f)
+        val moneyTxt = "₩ ${won(s.money)}"
         val moneyW = textP.measureText(moneyTxt) + dp(scene, 18f)
         UiKit.badge(
             c, g, RectF(panelR.right - dp(scene, 44f) - moneyW, panelR.top + dp(scene, 30f), panelR.right - dp(scene, 44f), panelR.top + dp(scene, 50f)),
@@ -1941,11 +2145,11 @@ class HouseStyleOverlay(
             UiKit.card(c, g, r, 10f, applied, if (applied) style.accentTint else 0xFFC9A87B.toInt(), if (applied) 2.5f else 1.5f)
 
             UiKit.iconCircle(c, g, r.left + dp(scene, 24f), r.centerY(), dp(scene, 14f), style.emoji, 16f, style.accentTint)
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(style.name, r.left + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
             // 설명 말줄임
-            textP.textSize = dp(scene, 9.5f)
+            textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             var desc = style.desc
             val maxDW = r.right - dp(scene, 100f) - (r.left + dp(scene, 46f))
@@ -1957,7 +2161,7 @@ class HouseStyleOverlay(
 
             val br = RectF(r.right - dp(scene, 90f), r.centerY() - dp(scene, 14f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 14f))
             if (applied) {
-                drawButton(c, scene, br, "적용중 ✓", 0xFFD7E3C3.toInt(), 0xFF4A3728.toInt(), 10.5f)
+                drawButton(c, scene, br, "check 적용중", 0xFFD7E3C3.toInt(), 0xFF4A3728.toInt(), 10.5f)
             } else if (owned) {
                 drawButton(c, scene, br, "적용하기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 11f)
             } else {
@@ -2094,14 +2298,14 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
         panel(c, panelR, scene)
 
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 8f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 34f))
-        textP.textSize = dp(scene, 16f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFFB5651D.toInt()
-        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+        c.drawText("close", closeRect.centerX() - textP.measureText("close") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-        textP.textSize = dp(scene, 15f)
+        textP.textSize = textDp(scene, 15f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🚲 자전거 상점", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
-        textP.textSize = dp(scene, 10f)
+        c.drawText("자전거 상점", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(
             "탈것은 자전거뿐! 모델을 고르고 도색·부속품으로 꾸며보세요 · 보유 ${won(s.money)}",
@@ -2167,15 +2371,15 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
             val iw = dp(scene, 44f)
             c.drawBitmap(set.side[0], null, RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.left + dp(scene, 4f) + iw, r.top + dp(scene, 4f) + iw), pixelPaint)
 
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText("${bike.emoji} ${bike.name}", r.left + dp(scene, 54f), r.top + dp(scene, 17f), textP)
-            textP.textSize = dp(scene, 9.2f)
+            textP.textSize = textDp(scene, 9.2f)
             textP.color = 0xFF8A7360.toInt()
             val stat = "속도 ${pctText(bike.speed - 1f)} · 배고픔 ${pctText(bike.hunger - 1f)} · 새 놀람 ${pctText((bike.scare - 1.4f) / 1.4f)}" +
                 (if (bike.luck > 0) " · 행운 +${bike.luck}" else "")
             c.drawText(stat, r.left + dp(scene, 54f), r.top + dp(scene, 32f), textP)
-            textP.textSize = dp(scene, 8.6f)
+            textP.textSize = textDp(scene, 8.6f)
             textP.color = 0xFFA08A72.toInt()
             c.drawText(bike.desc, r.left + dp(scene, 54f), r.top + dp(scene, 45f), textP)
 
@@ -2196,11 +2400,11 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
             val py = panelR.bottom - dp(scene, 32f)
             val prev = RectF(left, py, left + dp(scene, 72f), py + dp(scene, 24f))
             val next = RectF(right - dp(scene, 72f), py, right, py + dp(scene, 24f))
-            drawButton(c, scene, prev, "◀ 이전", if (pageIdx > 0) 0xFFF2B63C.toInt() else Color.argb(90, 200, 190, 175), 0xFF4A3728.toInt(), 11f)
-            drawButton(c, scene, next, "다음 ▶", if (pageIdx < totalPages - 1) 0xFFF2B63C.toInt() else Color.argb(90, 200, 190, 175), 0xFF4A3728.toInt(), 11f)
+            drawButton(c, scene, prev, "arrow_left 이전", if (pageIdx > 0) 0xFFF2B63C.toInt() else Color.argb(90, 200, 190, 175), 0xFF4A3728.toInt(), 11f)
+            drawButton(c, scene, next, "arrow_right 다음", if (pageIdx < totalPages - 1) 0xFFF2B63C.toInt() else Color.argb(90, 200, 190, 175), 0xFF4A3728.toInt(), 11f)
             if (pageIdx > 0) pageRects.add(prev to pageIdx - 1)
             if (pageIdx < totalPages - 1) pageRects.add(next to pageIdx + 1)
-            textP.textSize = dp(scene, 11f)
+            textP.textSize = textDp(scene, 11f)
             textP.color = 0xFF6B4F35.toInt()
             val pt = "${pageIdx + 1}/$totalPages"
             c.drawText(pt, panelR.centerX() - textP.measureText(pt) / 2f, py + dp(scene, 16.5f), textP)
@@ -2218,13 +2422,9 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
         val px = panelR.left + dp(scene, 20f)
         val py = panelR.top + dp(scene, 92f)
         c.drawBitmap(set.side[0], null, RectF(px, py, px + pv, py + pv), pixelPaint)
-        textP.textSize = dp(scene, 12.5f)
+        textP.textSize = textDp(scene, 12.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText(s.bike().name, px + pv + dp(scene, 16f), py + dp(scene, 26f), textP)
-        textP.textSize = dp(scene, 9.5f)
-        textP.color = 0xFF8A7360.toInt()
-        c.drawText("도색은 언제든 무료예요.", px + pv + dp(scene, 16f), py + dp(scene, 44f), textP)
-        c.drawText("색을 누르면 바로 바뀌어요!", px + pv + dp(scene, 16f), py + dp(scene, 58f), textP)
 
         var ty = panelR.top + dp(scene, 206f)
         drawSwatchRow(c, "프레임", 0, BikeColors.FRAME, s.bikeFrameColor, ty)
@@ -2235,7 +2435,7 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
     }
 
     private fun drawSwatchRow(c: Canvas, label: String, slot: Int, colors: List<BikeColors.BikeColor>, sel: Int, ty: Float) {
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText(label, panelR.left + dp(scene, 16f), ty + dp(scene, 16f), textP)
         var x = panelR.left + dp(scene, 86f)
@@ -2268,12 +2468,12 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = dp(scene, 1.5f)
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
 
-            textP.textSize = dp(scene, 20f)
-            c.drawText(part.emoji, r.left + dp(scene, 10f), r.centerY() + dp(scene, 7f), textP)
-            textP.textSize = dp(scene, 13f)
+            textP.textSize = textDp(scene, 20f)
+            c.drawText(part.emoji, r.left + dp(scene, 10f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+            textP.textSize = textDp(scene, 13f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(part.name, r.left + dp(scene, 44f), r.top + dp(scene, 18f), textP)
-            textP.textSize = dp(scene, 9.6f)
+            textP.textSize = textDp(scene, 9.6f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText(part.desc, r.left + dp(scene, 44f), r.top + dp(scene, 34f), textP)
 
@@ -2296,7 +2496,12 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
 //   오븐(🍕): 일반 피자 — 느긋하게 익는다. 굽기 쉽고 든든하다.
 // ---------------------------------------------------------------------------
 
-class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : Overlay(scene) {
+class BakeOverlay(
+    scene: Scene,
+    private val kind: PizzaKind = PizzaKind.OVEN,
+    private val dough: Dough = Dough.CLASSIC,
+    private val topping: Ingredients.ToppingDef? = null
+) : Overlay(scene) {
     /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
     override val coversWorld: Boolean get() = true
 
@@ -2311,13 +2516,34 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
     private val menuRects = ArrayList<Pair<RectF, Int>>()
     private var cancelRect = RectF()
 
-    private val menu: List<PizzaDef> = Pizzas.ofKind(kind)
-    private val def: PizzaDef get() = Pizzas.of(pizzaId)
+    // [P07] ② 피자 선택 확장 — 특산 탭(현재 지역 재료) + 선택한 특산 재료 + 도우 보너스 문구
+    private var specialTab = false
+    private var activeTopping: Ingredients.ToppingDef? = topping
+    private var doughBonusTxt: String? = null
+    private val specialRects = ArrayList<Pair<RectF, Int>>()   // 0 = 특산 피자 카드, 1 = 재료 사들이기
+    private val kindTabRects = ArrayList<Pair<RectF, Boolean>>()
+
+    // [P07] 일반 메뉴는 기본 12종 — 특산 피자(id 12~19)는 아래 "✈ 특산" 탭에서만 고른다
+    private val menu: List<PizzaDef> = Pizzas.ofKind(kind).filter { !Ingredients.isSpecial(it.id) }
+
+    /** [P07] 지금 굽는 피자 (특산 탭에서 고르면 특산 피자) */
+    private val def: PizzaDef get() = if (activeTopping != null) activeTopping!!.pizza else Pizzas.of(pizzaId)
+
+    /** [P07] 이 조리기구에서 현재 지역 특산 재료를 살 수 있는지 (특산은 전부 화덕피자) */
+    private val localTopping: Ingredients.ToppingDef?
+        get() = if (kind == PizzaKind.OVEN) Ingredients.toppingsFor(scene.game.state.region).firstOrNull() else null
+
+    /** [P07] 도우가 커서 속도에 곱해진다 */
+    private val speedF: Float get() = def.cursorSpeed * dough.speedF
+
+    /** [P07] 도우가 판정 폭(걸작/맛있는)을 좁히거나 넓힌다 */
+    private val perfectHalf: Float get() = def.perfectW / 2f * dough.zoneScale
+    private val goodW: Float get() = kind.goodW * dough.zoneScale
 
     private fun cursorPos(): Float = 0.5f + 0.5f * sin(t * 2.6f)
 
     override fun update(dt: Float) {
-        if (step == 1 && !stopped) t += dt * def.cursorSpeed
+        if (step == 1 && !stopped) t += dt * speedF
     }
 
     override fun handleInput(input: Input) {
@@ -2326,15 +2552,26 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
             0 -> {
                 if (input.justB || input.justBack) { finished = true; return }
                 if (tap == null) return
-                for ((r, id) in menuRects) {
+                // [P07] 하단 서브탭: 🍕 메뉴 / ✈ 특산
+                for ((r, special) in kindTabRects) {
                     if (r.contains(tap.x, tap.y)) {
-                        pizzaId = id
-                        step = 1
-                        t = 0.6f
-                        scene.game.sfx(Audio.Sfx.TAP, 0.6f)
-                        // 🔥 화덕은 장작불 소리 크게, 가정용 오븐은 은은하게
-                        scene.game.audio.playAmb(R.raw.amb_fire, if (kind == PizzaKind.OVEN) 0.5f else 0.25f)
+                        if (specialTab != special) { specialTab = special; scene.game.sfx(Audio.Sfx.TAP, 0.6f) }
                         return
+                    }
+                }
+                // [P07] 특산 탭 — 피자 굽기 / 재료 사들이기
+                if (specialTab) {
+                    val tp = localTopping
+                    if (tp != null) {
+                        for ((r, which) in specialRects) {
+                            if (!r.contains(tap.x, tap.y)) continue
+                            if (which == 1) buyTopping(tp) else startBake(tp)
+                            return
+                        }
+                    }
+                } else {
+                    for ((r, id) in menuRects) {
+                        if (r.contains(tap.x, tap.y)) { startBake(null, id); return }
                     }
                 }
                 if (cancelRect.contains(tap.x, tap.y)) {
@@ -2351,30 +2588,71 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
         }
     }
 
+    /** [P07] 굽기 시작 — 특산 재료는 재고를 먼저 소모하고, 없으면 막는다 */
+    private fun startBake(tp: Ingredients.ToppingDef?, id: Int = -1) {
+        val g = scene.game
+        if (tp != null) {
+            if (!Ingredients.consume(g.context, tp.id)) {
+                g.toast("${tp.icon} ${tp.label} 재료가 없어요! 아래 '재료 사들이기'로 먼저 사 오세요 (${won(tp.price)})")
+                g.sfx(Audio.Sfx.FAIL, 0.55f)
+                return
+            }
+            activeTopping = tp
+            pizzaId = tp.pizzaId
+        } else {
+            activeTopping = null
+            pizzaId = id
+        }
+        step = 1
+        t = 0.6f
+        g.sfx(Audio.Sfx.TAP, 0.6f)
+        // 🔥 화덕은 장작불 소리 크게, 가정용 오븐은 은은하게
+        g.audio.playAmb(R.raw.amb_fire, if (kind == PizzaKind.OVEN) 0.5f else 0.25f)
+    }
+
+    /** [P07] 특산 재료 구매 — 골드는 여기에서 차감 (Ingredients.buy는 재고만) */
+    private fun buyTopping(tp: Ingredients.ToppingDef) {
+        val g = scene.game
+        val s = g.state
+        if (s.money < tp.price) {
+            g.toast("돈이 부족해요… ${tp.icon} ${tp.label}은(는) ${won(tp.price)}")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
+            return
+        }
+        s.money -= tp.price
+        Ingredients.buy(g.context, tp.id)
+        SaveManager.save(g.context, s)
+        g.toast("${tp.icon} ${tp.label} 재료 팬트리에 보관! (남은 돈 ${won(s.money)})")
+        g.sfx(Audio.Sfx.BUY)
+    }
+
     private fun stopBake() {
         stopped = true
         step = 2
+        val g = scene.game
         val pos = cursorPos()
-        val half = def.perfectW / 2f
-        val goodW = kind.goodW
+        val half = perfectHalf
+        val gw = goodW
         resultQ = when {
-            pos < 0.5f - half - goodW || pos > 0.5f + half + goodW -> 0
+            pos < 0.5f - half - gw || pos > 0.5f + half + gw -> 0
             abs(pos - 0.5f) <= half -> 2
             else -> 1
         }
-        lostPizza = !scene.game.state.addPizza(pizzaId, resultQ)
+        lostPizza = !g.state.addPizza(pizzaId, resultQ)
+        // [P07] 도우 보너스는 굽자마자 바로 (피자에 붙어 다니지 않는다)
+        doughBonusTxt = Ingredients.applyDoughBonus(g.state, dough)
         // 화덕의 충격을 몸으로 — 걸작일수록 크게 울린다
         when (resultQ) {
-            2 -> { scene.game.shake(0.3f); scene.game.punchZoom(0.05f) }
-            1 -> scene.game.shake(0.16f)
-            else -> scene.game.kick(0f, 1f, 1.4f)
+            2 -> { g.shake(0.3f); g.punchZoom(0.05f) }
+            1 -> g.shake(0.16f)
+            else -> g.kick(0f, 1f, 1.4f)
         }
-        SaveManager.save(scene.game.context, scene.game.state)
-        scene.game.audio.stopAmb()   // 불 소리 끄기
+        SaveManager.save(g.context, g.state)
+        g.audio.stopAmb()   // 불 소리 끄기
         when (resultQ) {
-            2 -> scene.game.sfx(Audio.Sfx.SPARKLE)          // 걸작!
-            1 -> scene.game.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
-            else -> scene.game.sfx(Audio.Sfx.FAIL, 0.6f)    // 살짝 탐
+            2 -> g.sfx(Audio.Sfx.SPARKLE)          // 걸작!
+            1 -> g.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
+            else -> g.sfx(Audio.Sfx.FAIL, 0.6f)    // 살짝 탐
         }
     }
 
@@ -2384,7 +2662,8 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
         val w = g.screenW.toFloat()
         val h = g.screenH.toFloat()
         val cw = minOf(w * 0.84f, dp(scene, 500f))
-        val chh = if (step == 0) minOf(h - dp(scene, 16f), dp(scene, 290f)) else dp(scene, 240f)
+        // [P07] ①도우 → ②선택 3단 구성이라 선택 화면은 서브탭/팬트리 줄 만큼 더 높다
+        val chh = if (step == 0) minOf(h - dp(scene, 16f), dp(scene, 306f)) else dp(scene, 240f)
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
@@ -2393,89 +2672,153 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
 
         when (step) {
             0 -> {
-                textP.textSize = dp(scene, 16f)
+                textP.textSize = textDp(scene, 16f)
                 textP.color = 0xFF4A3728.toInt()
                 val title = "${kind.emoji} ${kind.label} — 무엇을 구울까요?"
                 c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 24f), textP)
-                textP.textSize = dp(scene, 9.5f)
+                textP.textSize = textDp(scene, 9.5f)
                 textP.color = kind.tint
                 val descW = minOf(textP.measureText(kind.desc), r.width() - dp(scene, 130f))
                 drawFitText(c, scene, kind.desc, r.centerX() - descW / 2, r.top + dp(scene, 38f), r.width() - dp(scene, 130f), 9.5f)
 
-                // 3열 × 2행 메뉴 카드
+                // 3열 × 2행 메뉴 카드 ([P07] ✈ 특산 탭이면 현재 지역 특산 1종 + 팬트리)
                 menuRects.clear()
+                specialRects.clear()
+                val tp = localTopping
+                val spec = specialTab && tp != null
+
                 val cols = 3
                 val gapX = dp(scene, 10f)
                 val gapY = dp(scene, 8f)
                 val top = r.top + dp(scene, 48f)
-                val bottomArea = r.bottom - dp(scene, 50f)
-                val rows = (menu.size + cols - 1) / cols
+                val bottomArea = r.bottom - dp(scene, 62f)
+                val list = if (spec) listOf(tp!!.pizza) else menu
+                val rows = (list.size + cols - 1) / cols
                 val cardW = (r.width() - dp(scene, 14f) * 2 - gapX * (cols - 1)) / cols
-                val cardH = ((bottomArea - top) - gapY * (rows - 1)) / rows
-                for ((i, p) in menu.withIndex()) {
+                val cardH = (((bottomArea - top) - gapY * (rows - 1)) / rows).coerceAtMost(dp(scene, 96f))
+                // [P07] 행이 적으면(특산 1종) 세로 가운데로 — 윗공간만 비어 보이는 것 방지
+                val gridH = (cardH * rows + gapY * (rows - 1)).coerceAtMost(bottomArea - top)
+                val gridTop = top + ((bottomArea - top) - gridH) / 2f
+                for ((i, p) in list.withIndex()) {
                     val col = i % cols
                     val row = i / cols
                     val cr = RectF(
-                        r.left + dp(scene, 14f) + col * (cardW + gapX), top + row * (cardH + gapY),
-                        r.left + dp(scene, 14f) + col * (cardW + gapX) + cardW, top + row * (cardH + gapY) + cardH
+                        r.left + dp(scene, 14f) + col * (cardW + gapX), gridTop + row * (cardH + gapY),
+                        r.left + dp(scene, 14f) + col * (cardW + gapX) + cardW, gridTop + row * (cardH + gapY) + cardH
                     )
-                    UiKit.card(c, g, cr, 10f, false, kind.tint, 2f)
+                    UiKit.card(c, g, cr, 10f, spec, kind.tint, 2f)
 
                     // 아이콘 (왼쪽) + 이름/효과/난이도 (오른쪽)
                     val isz = minOf(dp(scene, 36f), cardH - dp(scene, 14f))
                     drawPizzaArt(c, scene, p.id, cr.left + dp(scene, 8f) + isz / 2f, cr.centerY(), isz)
                     val tx = cr.left + dp(scene, 8f) + isz + dp(scene, 6f)
                     val textW = cr.right - dp(scene, 6f) - tx
-                    // 보유 수 배지 (오른쪽 위)
+                    // 보유 수 배지 (오른쪽 위) — [P07] 특산은 "✈ 특산" 뱃지
                     val have = g.state.pizzaCountOf(p.id)
                     var badgeW = 0f
-                    if (have > 0) {
-                        val badge = "×$have"
-                        textP.textSize = dp(scene, 9f)
-                        badgeW = textP.measureText(badge) + dp(scene, 10f)
-                        UiKit.badge(c, g, RectF(cr.right - dp(scene, 6f) - badgeW, cr.top + dp(scene, 5f), cr.right - dp(scene, 6f), cr.top + dp(scene, 19f)),
-                            badge, 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 9f)
-                        badgeW += dp(scene, 4f)
+                    run {
+                        val badge = if (spec) "✈ 특산" else if (have > 0) "×$have" else null
+                        if (badge != null) {
+                            textP.textSize = textDp(scene, 9f)
+                            badgeW = textP.measureText(badge) + dp(scene, 10f)
+                            UiKit.badge(c, g, RectF(cr.right - dp(scene, 6f) - badgeW, cr.top + dp(scene, 5f), cr.right - dp(scene, 6f), cr.top + dp(scene, 19f)),
+                                badge, if (spec) 0xFF57B894.toInt() else 0xFFF2B63C.toInt(), if (spec) 0xFFFFFBF0.toInt() else 0xFF4A2E12.toInt(), 9f)
+                            badgeW += dp(scene, 4f)
+                        }
                     }
                     textP.color = 0xFF4A3728.toInt()
                     drawFitText(c, scene, "${p.emoji} ${p.name}", tx, cr.top + dp(scene, 17f), textW - badgeW, 12f)
                     textP.color = 0xFF8A7360.toInt()
                     drawFitText(c, scene, "배고픔 ${if (p.hungerBonus >= 0) "+" else ""}${p.hungerBonus} · 행운 ${if (p.luckBonus >= 0) "+" else ""}${p.luckBonus}", tx, cr.top + dp(scene, 31f), textW, 9.5f)
                     // 난이도 — 라벨 + 컬러 도트
-                    textP.textSize = dp(scene, 9.5f)
+                    textP.textSize = textDp(scene, 9.5f)
                     val dLabel = "구우기 "
                     textP.color = 0xFF8A7360.toInt()
                     c.drawText(dLabel, tx, cr.top + dp(scene, 44f), textP)
                     textP.color = 0xFFE8830C.toInt()
                     c.drawText(p.difficultyDots(), tx + textP.measureText(dLabel), cr.top + dp(scene, 44f), textP)
-                    menuRects.add(cr to p.id)
+                    if (spec) specialRects.add(cr to 0) else menuRects.add(cr to p.id)
                 }
 
+                // [P07] 특산 탭 — 카드 옆에 팬트리(재료 사들이기) 패널
+                if (spec) {
+                    val pr = RectF(r.left + dp(scene, 14f) + cardW + gapX, gridTop, r.right - dp(scene, 14f), gridTop + cardH)
+                    UiKit.stitchCard(c, g, pr, UiKit.CREAM_HI, UiKit.THREAD, 1.6f)
+                    val stock = Ingredients.stock(g.context, tp.id)
+                    textP.textSize = dp(scene, 12f)
+                    textP.color = 0xFF4A3728.toInt()
+                    c.drawText("🧺 ${Regions.byId[tp.regionId]?.name ?: tp.regionId} 팬트리", pr.left + dp(scene, 12f), pr.top + dp(scene, 20f), textP)
+                    textP.textSize = dp(scene, 9.5f)
+                    textP.color = 0xFF8A7360.toInt()
+                    val ing = "${tp.icon} ${tp.label} 재료 ×$stock · 여행지에서 사 두면 집 화덕에서도 구워요"
+                    drawFitText(c, scene, ing, pr.left + dp(scene, 12f), pr.top + dp(scene, 36f), pr.width() - dp(scene, 24f), 9.5f)
+                    val canBuy = g.state.money >= tp.price
+                    val br = RectF(pr.left + dp(scene, 12f), pr.bottom - dp(scene, 34f), pr.left + dp(scene, 150f), pr.bottom - dp(scene, 10f))
+                    drawButton(c, scene, br, "재료 사들이기 ${won(tp.price)}",
+                        if (canBuy) 0xFFF2B63C.toInt() else Color.argb(120, 200, 190, 175),
+                        if (canBuy) 0xFF4A2E12.toInt() else Color.argb(150, 74, 55, 40), 10f)
+                    specialRects.add(br to 1)
+                    textP.textSize = dp(scene, 9f)
+                    textP.color = if (stock > 0) 0xFF4E8A4E.toInt() else 0xFF8A7360.toInt()
+                    val useTxt = if (stock > 0) "왼쪽 카드를 탭하면 재료 1개 사용!" else "재료가 있어야 구울 수 있어요"
+                    c.drawText(useTxt, br.right + dp(scene, 10f), pr.bottom - dp(scene, 18f), textP)
+                    textP.textSize = dp(scene, 9f)
+                    textP.color = 0xFF8A7360.toInt()
+                    val moneyTxt = "💰 ${won(g.state.money)}"
+                    c.drawText(moneyTxt, pr.right - dp(scene, 12f) - textP.measureText(moneyTxt), pr.top + dp(scene, 20f), textP)
+                }
+
+                // [P07] 하단 — 서브탭(🍕 메뉴 / ✈ 특산) + 그만두기 + 도우·팬트리 정보
+                kindTabRects.clear()
+                if (tp != null) {
+                    val labels = listOf(false to "${kind.emoji} 메뉴", true to "✈ 특산")
+                    var tbx = r.left + dp(scene, 14f)
+                    for ((special, lbl) in labels) {
+                        textP.textSize = dp(scene, 10.5f)
+                        val tw = textP.measureText(lbl) + dp(scene, 18f)
+                        val tr = RectF(tbx, r.bottom - dp(scene, 38f), tbx + tw, r.bottom - dp(scene, 12f))
+                        if (specialTab == special) UiKit.cuteButton(c, g, tr, lbl, kind.tint, 0xFFFFFBF0.toInt(), 10.5f, depthDp = 2f)
+                        else UiKit.cuteButton(c, g, tr, lbl, UiKit.PASTEL_SAND, UiKit.MUTED, 10.5f, depthDp = 2f)
+                        kindTabRects.add(tr to special)
+                        tbx += tw + dp(scene, 6f)
+                    }
+                }
                 cancelRect = RectF(r.centerX() - dp(scene, 60f), r.bottom - dp(scene, 40f), r.centerX() + dp(scene, 60f), r.bottom - dp(scene, 12f))
                 drawButton(c, scene, cancelRect, "그만두기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12f)
-                textP.textSize = dp(scene, 9.5f)
+                textP.textSize = textDp(scene, 9f)
                 textP.color = 0xFF8A7360.toInt()
-                val bag = "가방 ${g.state.pizzaCount}/${g.state.pizzaCapEff()}"
-                c.drawText(bag, r.right - dp(scene, 14f) - textP.measureText(bag), r.bottom - dp(scene, 22f), textP)
+                val bag = "가방 ${g.state.pizzaCount}/${g.state.pizzaCapEff()} · ${dough.icon} ${dough.label} · 팬트리 ${Ingredients.stockTotal(g.context)}개"
+                val bagW = textP.measureText(bag)
+                val bagX = r.right - dp(scene, 14f) - bagW
+                drawFitText(c, scene, bag, bagX, r.bottom - dp(scene, 46f), bagW, 9f)
+                textP.textSize = dp(scene, 8.5f)
+                textP.color = kind.tint
+                val dInfo = "도우 ×${"%.2f".format(dough.gaugeSpeed)} · ${dough.bonusLabel}"
+                c.drawText(dInfo, r.right - dp(scene, 14f) - textP.measureText(dInfo), r.bottom - dp(scene, 22f), textP)
             }
             1 -> {
                 val p = def
-                textP.textSize = dp(scene, 16f)
+                textP.textSize = textDp(scene, 16f)
                 textP.color = 0xFF4A3728.toInt()
+                // [P07] 특산 피자 이름에는 지역명이 이미 들어 있다 ("춘천 닭갈비 화덕피자")
+                val at = activeTopping
                 val title = "${p.emoji} ${p.fullName} 굽기"
                 c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 26f), textP)
-                textP.textSize = dp(scene, 9.5f)
+                textP.textSize = textDp(scene, 9.5f)
                 textP.color = kind.tint
-                val sub = if (kind == PizzaKind.OVEN) "🔥 장작불 400도 — 순식간에 익어요! 커서가 빨라요" else "🍕 가정용 오븐 — 느긋하게 익어요"
-                c.drawText(sub, r.centerX() - textP.measureText(sub) / 2, r.top + dp(scene, 41f), textP)
+                // [P07] 도우 정보 — 고른 도우가 속도/판정/보너스를 바꾼다
+                val sub = "${dough.icon} ${dough.label} · 속도 ×${"%.2f".format(dough.gaugeSpeed)} · ${dough.bonusLabel}" +
+                    (if (at != null) " · ${at.icon} 재료" else "")
+                drawFitText(c, scene, sub, r.centerX() - minOf(textP.measureText(sub), r.width() - dp(scene, 24f)) / 2,
+                    r.top + dp(scene, 41f), r.width() - dp(scene, 24f), 9.5f)
 
                 // 게이지 — 글로스 + 걸작존 글로우 + 프리미엄 커서
                 val gx = r.left + dp(scene, 26f)
                 val gy = r.centerY() - dp(scene, 2f)
                 val gw = r.width() - dp(scene, 52f)
                 val gh = dp(scene, 28f)
-                val half = p.perfectW / 2f
-                val goodW = kind.goodW
+                val half = perfectHalf        // [P07] 도우 보정 포함
+                val goodW = this.goodW        // [P07] 도우 보정 포함
                 // 바 섀도우
                 fillP.color = Color.argb(60, 50, 32, 14)
                 c.drawRoundRect(RectF(gx, gy + dp(scene, 2.5f), gx + gw, gy + gh + dp(scene, 2.5f)), dp(scene, 8f), dp(scene, 8f), fillP)
@@ -2534,47 +2877,40 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                 c.drawPath(triTop, fillP)
 
                 // 라벨 — 걸작 뱃지 + 양옆 탄 라벨
-                textP.textSize = dp(scene, 10.5f)
+                textP.textSize = textDp(scene, 10.5f)
                 textP.color = 0xFF8A7360.toInt()
                 c.drawText("살짝 탐", gx, gy + gh + dp(scene, 18f), textP)
                 val rightLbl = "살짝 탐"
                 c.drawText(rightLbl, gx + gw - textP.measureText(rightLbl), gy + gh + dp(scene, 18f), textP)
                 val midTxt = "걸작!"
-                textP.textSize = dp(scene, 10.5f)
+                textP.textSize = textDp(scene, 10.5f)
                 val midW = textP.measureText(midTxt) + dp(scene, 16f)
                 UiKit.badge(
                     c, g, RectF(gx + gw / 2f - midW / 2f, gy - dp(scene, 38f), gx + gw / 2f + midW / 2f, gy - dp(scene, 20f)),
                     midTxt, 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 10.5f
                 )
 
-                val hint = "초록 칸에서 멈춰보세요! (아무 곳이나 탭)"
-                textP.textSize = dp(scene, 12f)
-                val hintW = textP.measureText(hint) + dp(scene, 24f)
-                UiKit.badge(
-                    c, g, RectF(r.centerX() - hintW / 2f, r.bottom - dp(scene, 34f), r.centerX() + hintW / 2f, r.bottom - dp(scene, 12f)),
-                    hint, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 12f
-                )
             }
             else -> {
                 val q = PizzaQ.of(resultQ)
                 val p = def
                 val perfect = resultQ == 2
                 val title = if (lostPizza) "${p.emoji} ${q.label}… 그런데 두 손이 가득!" else "${p.emoji} ${p.name} ${q.label} 완성!"
-                textP.textSize = dp(scene, 16f)
+                textP.textSize = textDp(scene, 16f)
                 textP.color = if (perfect) 0xFFB5651D.toInt() else 0xFF4A3728.toInt()
                 c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.centerY() - dp(scene, 52f), textP)
                 // 품질 별점 + 계열
-                textP.textSize = dp(scene, 14f)
+                textP.textSize = textDp(scene, 14f)
                 textP.color = 0xFFE8A33C.toInt()
                 val starTxt = "★".repeat(q.stars) + "☆".repeat(3 - q.stars)
                 val starW = textP.measureText(starTxt)
-                textP.textSize = dp(scene, 10f)
+                textP.textSize = textDp(scene, 10f)
                 val kl = "  ${kind.emoji} ${kind.label}"
                 val klW = textP.measureText(kl)
                 val sx0 = r.centerX() - (starW + klW) / 2f
-                textP.textSize = dp(scene, 14f)
+                textP.textSize = textDp(scene, 14f)
                 c.drawText(starTxt, sx0, r.centerY() - dp(scene, 32f), textP)
-                textP.textSize = dp(scene, 10f)
+                textP.textSize = textDp(scene, 10f)
                 textP.color = kind.tint
                 c.drawText(kl, sx0 + starW, r.centerY() - dp(scene, 32f), textP)
 
@@ -2603,18 +2939,27 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                     }
                 }
 
+                // [P07] 도우/특산 재료 정보 — 도우 보너스는 구운 순간 바로 적용된다
+                run {
+                    val at = activeTopping
+                    val extra = buildString {
+                        append("${dough.icon} ${dough.label}")
+                        if (doughBonusTxt != null) append(" · $doughBonusTxt")
+                        if (at != null) append(" · ${at.icon} ${at.regionName} 특산 재료")
+                    }
+                    textP.textSize = dp(scene, 10f)
+                    textP.color = kind.tint
+                    drawFitText(c, scene, extra, r.centerX() - minOf(textP.measureText(extra), r.width() - dp(scene, 24f)) / 2,
+                        r.bottom - dp(scene, 48f), r.width() - dp(scene, 24f), 10f)
+                }
                 val info = if (lostPizza) "피자 가방이 가득해서 못 챙겼어요… (최대 ${g.state.pizzaCapEff()}개)"
                 else "먹으면 배고픔 +${q.hunger + p.hungerBonus} · 행운 +${q.luck + p.luckBonus}"
-                textP.textSize = dp(scene, 12f)
+                textP.textSize = textDp(scene, 12f)
                 val infoW = (textP.measureText(info) + dp(scene, 24f)).coerceAtMost(r.width() - dp(scene, 24f))
                 UiKit.badge(
                     c, g, RectF(r.centerX() - infoW / 2f, r.bottom - dp(scene, 40f), r.centerX() + infoW / 2f, r.bottom - dp(scene, 18f)),
                     info, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 12f
                 )
-                textP.textSize = dp(scene, 10.5f)
-                textP.color = 0xFF8A7360.toInt()
-                val hint2 = "탭해서 닫기"
-                c.drawText(hint2, r.centerX() - textP.measureText(hint2) / 2, r.bottom - dp(scene, 5f), textP)
             }
         }
     }
@@ -2647,7 +2992,10 @@ class PhotoResultOverlay(
     private val prevLevel: Int = 1,
     private val reachTiles: Float = 0f,
     private val exif: String = "",
-    private val notes: List<String> = emptyList()
+    private val notes: List<String> = emptyList(),
+    private val capturedPhoto: Bitmap? = null,
+    private val birdFacing: BirdFacing = BirdFacing.LEFT,
+    private val birdPose: BirdPose = BirdPose.PERCHED
 ) : Overlay(scene) {
 
     private var t = 0f
@@ -2747,7 +3095,7 @@ class PhotoResultOverlay(
             val stripH = dp(scene, 13f)
             fillP.color = Color.argb(160, 20, 18, 26)
             c.drawRect(photo.left, photo.bottom - stripH, photo.right, photo.bottom, fillP)
-            textP.textSize = dp(scene, 8.5f)
+            textP.textSize = textDp(scene, 8.5f)
             textP.color = 0xFFF2E3C2.toInt()
             c.drawText(exif, photo.left + dp(scene, 5f), photo.bottom - dp(scene, 4f), textP)
         }
@@ -2757,13 +3105,13 @@ class PhotoResultOverlay(
 
         // 캡션: 이름
         val capTop = photo.bottom + dp(scene, 12f)
-        textP.textSize = dp(scene, 17f)
+        textP.textSize = textDp(scene, 17f)
         textP.color = 0xFF3B2F24.toInt()
         val nm = def.name
         c.drawText(nm, card.centerX() - textP.measureText(nm) / 2, capTop + dp(scene, 12f), textP)
 
         // 캡션: 등급 · 영문명
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFF8A7360.toInt()
         val tierColor = when (def.tier) {
             Tier.COMMON -> 0xFF777F82.toInt()
@@ -2800,7 +3148,7 @@ class PhotoResultOverlay(
         }
 
         // 캡션: 촬영 정보
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFF9A8570.toInt()
         var camTxt = cameraTxt
         val camMaxW = cardW - dp(scene, 130f)
@@ -2808,7 +3156,7 @@ class PhotoResultOverlay(
             while (camTxt.length > 1 && textP.measureText("$camTxt…") > camMaxW) camTxt = camTxt.dropLast(1)
             camTxt = "$camTxt…"
         }
-        val info = buildString {
+        var info = buildString {
             if (camTxt.isNotBlank()) append("$camTxt · ")
             if (distTiles > 0f) {
                 append(String.format("%.1f", distTiles))
@@ -2816,7 +3164,12 @@ class PhotoResultOverlay(
                 append("칸 · ")
             }
             if (timeTxt.isNotBlank()) append("$timeTxt · ")
-            append("촬영 ${count}회")
+            append("${birdFacing.label} · ${birdPose.label} · 촬영 ${count}회")
+        }
+        val infoMaxW = cardW - dp(scene, 20f)
+        if (textP.measureText(info) > infoMaxW) {
+            while (info.length > 1 && textP.measureText("$info…") > infoMaxW) info = info.dropLast(1)
+            info += "…"
         }
         c.drawText(info, card.centerX() - textP.measureText(info) / 2, card.bottom - dp(scene, 12f), textP)
 
@@ -2833,7 +3186,7 @@ class PhotoResultOverlay(
             strokeP.color = 0xFFFFF3E2.toInt()
             strokeP.strokeWidth = dp(scene, 1.4f)
             c.drawRoundRect(RectF(sCx - sw / 2f + dp(scene, 2.5f), sCy - sh / 2f + dp(scene, 2.5f), sCx + sw / 2f - dp(scene, 2.5f), sCy + sh / 2f - dp(scene, 2.5f)), dp(scene, 3f), dp(scene, 3f), strokeP)
-            textP.textSize = dp(scene, 11f)
+            textP.textSize = textDp(scene, 11f)
             textP.color = 0xFFFFF3E2.toInt()
             val st = "NEW 첫 발견"
             c.drawText(st, sCx - textP.measureText(st) / 2, sCy - (textP.descent() + textP.ascent()) / 2f, textP)
@@ -2845,7 +3198,7 @@ class PhotoResultOverlay(
         // 의뢰 보수 & 경험치
         var badgeY = cy + cardH / 2f + dp(scene, 24f)
         if (questLine != null) {
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = textDp(scene, 12.5f)
             val qw = textP.measureText(questLine) + dp(scene, 26f)
             val qr = RectF(cx - qw / 2f, badgeY - dp(scene, 14f), cx + qw / 2f, badgeY + dp(scene, 14f))
             fillP.color = Color.argb(220, 43, 38, 58)
@@ -2859,8 +3212,8 @@ class PhotoResultOverlay(
         }
 
         if (expGain > 0) {
-            val expTxt = if (levelsGained > 0) "경험치 +  · 레벨 업! ✨" else "경험치 +"
-            textP.textSize = dp(scene, 12f)
+            val expTxt = if (levelsGained > 0) "경험치 +  · 레벨 업!" else "경험치 +"
+            textP.textSize = textDp(scene, 12f)
             val ew = textP.measureText(expTxt) + dp(scene, 24f)
             val er = RectF(cx - ew / 2f, badgeY - dp(scene, 13f), cx + ew / 2f, badgeY + dp(scene, 13f))
             fillP.color = Color.argb(215, 34, 48, 38)
@@ -2874,7 +3227,7 @@ class PhotoResultOverlay(
 
         // 촬영 노트 — 장비가 사진에 어떤 영향을 줬는지
         if (notes.isNotEmpty() && t > 0.5f) {
-            textP.textSize = dp(scene, 10f)
+            textP.textSize = textDp(scene, 10f)
             var ny = badgeY + (if (expGain > 0) dp(scene, 30f) else dp(scene, 4f))
             for (n in notes.take(3)) {
                 val bad = n.contains("노이즈") || n.contains("흔들") || n.contains("물방울")
@@ -2885,19 +3238,30 @@ class PhotoResultOverlay(
             }
         }
 
-        // 안내 (깜빡임)
-        val blink = 0.55f + 0.45f * sin(t * 3.4f).coerceIn(0f, 1f)
-        textP.textSize = dp(scene, 11.5f)
-        textP.color = Color.argb((215 * blink).toInt().coerceIn(0, 255), 240, 236, 226)
-        val hint = if (levelsGained > 0) "화면을 탭해 계속" else "화면을 탭해 탐조를 계속해요"
-        c.drawText(hint, cx - textP.measureText(hint) / 2, h - dp(scene, 18f), textP)
     }
 
     /** 인화지 속 풍경 + 새 */
     private fun drawPhoto(c: Canvas, r: RectF) {
         val a = scene.game.assets
+        // 촬영 시점에 월드 타일/지형물/날씨와 방향별 큰 새를 함께 렌더해 저장한 실제 게임 사진.
+        // 화면 비율이 달라도 중앙 피사체를 유지하는 center-crop으로 인화한다.
+        val saved = capturedPhoto
+        if (saved != null) {
+            val scale = maxOf(r.width() / saved.width.toFloat(), r.height() / saved.height.toFloat())
+            val dw = saved.width * scale
+            val dh = saved.height * scale
+            val dx = r.centerX() - dw / 2f
+            val dy = r.centerY() - dh / 2f
+            c.save()
+            c.clipRect(r)
+            c.drawBitmap(saved, null, RectF(dx, dy, dx + dw, dy + dh), Paint(Paint.FILTER_BITMAP_FLAG))
+            c.restore()
+            return
+        }
+
         val hab = def.habitats.firstOrNull() ?: "field"
 
+        // 이전 세이브/파일 실패 때의 절차적 폴백 풍경
         // 하늘 (6단 밴드 — 이음새가 보이지 않게 겹쳐 그린다)
         val sky = when {
             night -> when (hab) {
@@ -3181,9 +3545,9 @@ class LevelUpOverlay(
         strokeP.strokeWidth = dp(scene, 3f)
         c.drawRoundRect(RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 4f)), dp(scene, 10f), dp(scene, 10f), strokeP)
 
-        textP.textSize = dp(scene, 22f)
+        textP.textSize = textDp(scene, 22f)
         textP.color = 0xFFB5651D.toInt()
-        val t1 = "🎉 레벨 업! 🎉"
+        val t1 = "레벨 업!"
         c.drawText(t1, r.centerX() - textP.measureText(t1) / 2, r.top + dp(scene, 42f), textP)
 
         val a = g.assets
@@ -3196,32 +3560,30 @@ class LevelUpOverlay(
         c.drawOval(RectF(bx + dp(scene, 6f), by + bmp.height * k - dp(scene, 4f), bx + bmp.width * k - dp(scene, 6f), by + bmp.height * k + dp(scene, 4f)), a.shadowPaint)
         c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
 
-        textP.textSize = dp(scene, 18f)
+        textP.textSize = textDp(scene, 18f)
         textP.color = 0xFF4A3728.toInt()
-        val lv = "Lv.$fromLevel  →  Lv.$toLevel"
+        val lv = "Lv.$fromLevel  to  Lv.$toLevel"
         c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + bmp.height * k + dp(scene, 26f), textP)
 
-        textP.textSize = dp(scene, 13f)
+        textP.textSize = textDp(scene, 13f)
         textP.color = 0xFF6FAE6F.toInt()
         val title = "「 ${Progression.title(toLevel)} 」"
         c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + bmp.height * k + dp(scene, 46f), textP)
 
-        textP.textSize = dp(scene, 11.5f)
+        textP.textSize = textDp(scene, 11.5f)
         textP.color = 0xFF3F6FB0.toInt()
         val sp = "숙련 포인트 +${s.skillPoints}  (메뉴 › 성장 에서 능력 강화!)"
         c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + bmp.height * k + dp(scene, 64f), textP)
 
         if (Progression.gearTier(fromLevel) != Progression.gearTier(toLevel)) {
-            textP.textSize = dp(scene, 11f)
+            textP.textSize = textDp(scene, 11f)
             textP.color = 0xFFB5651D.toInt()
-            val gearMsg = "새 탐조 장비를 갖췄어요! 👒"
+            val gearMsg = "새 탐조 장비를 갖췄어요!"
             c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 26f), textP)
         }
 
-        textP.textSize = dp(scene, 10f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val hint = "탭해서 닫기"
-        c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
 
     }
 }
@@ -3475,15 +3837,14 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         strokeP.color = Color.argb(150, 233, 196, 106)
         strokeP.strokeWidth = dp(scene, 1.4f)
         c.drawRoundRect(headerR, dp(scene, 10f), dp(scene, 10f), strokeP)
-        textP.textSize = dp(scene, 14f)
-        val titleTxt = "🗺 대한민국 탐조 지도"
+        textP.textSize = textDp(scene, 14f)
+        val titleTxt = "대한민국 탐조 지도"
         val titleW = textP.measureText(titleTxt)
         textP.color = 0xFFF8EFDC.toInt()
         c.drawText(titleTxt, dp(scene, 22f), dp(scene, 29f), textP)
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFFE9C46A.toInt()
-        var sub = if (w < dp(scene, 620f)) "방문 ${s.visited.size}/${Regions.ALL.size}"
-        else "방문 ${s.visited.size}/${Regions.ALL.size} · 두 손가락 확대 · 드래그 이동 · 지역 탭하면 정보"
+        var sub = "방문 ${s.visited.size}/${Regions.ALL.size}"
         val maxSW = w - dp(scene, 22f) - titleW - dp(scene, 12f) - dp(scene, 108f)
         if (maxSW > dp(scene, 40f)) {
             while (sub.length > 4 && textP.measureText(sub) > maxSW) sub = sub.dropLast(1)
@@ -3565,13 +3926,13 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 strokeP.strokeWidth = dp(scene, 1.4f)
                 c.drawCircle(mx, my, dp(scene, 10f), strokeP)
 
-                textP.textSize = dp(scene, 10f)
+                textP.textSize = textDp(scene, 10f)
                 textP.color = 0xFF4A2E12.toInt()
                 val numTxt = exitInfo.number.toString()
                 c.drawText(numTxt, mx - textP.measureText(numTxt) / 2, my - (textP.descent() + textP.ascent()) / 2, textP)
 
                 // 방향 화살표 작게
-                textP.textSize = dp(scene, 9f)
+                textP.textSize = textDp(scene, 9f)
                 textP.color = 0xFFF2B63C.toInt()
                 val arrow = Regions.dirArrow(exitInfo.dir)
                 c.drawText(arrow, mx + dp(scene, 12f), my - (textP.descent() + textP.ascent()) / 2, textP)
@@ -3615,9 +3976,9 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
             c.drawCircle(x, y, r, strokeP)
 
             if (isHome) {
-                textP.textSize = dp(scene, 11f)
+                textP.textSize = textDp(scene, 11f)
                 textP.color = 0xFF4A3728.toInt()
-                c.drawText("🏠", x - dp(scene, 6f), y - r - dp(scene, 3f), textP)
+                UiKit.iconCenter(c, g, "house", x, y - r - dp(scene, 10f), dp(scene, 16f))
             }
 
             // 메인 퀘스트 자동 진행 — 추천 지역: 금색 별 + 펄스 링 (현재 위치와 겹치면 생략)
@@ -3628,8 +3989,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 c.drawCircle(x, y, r + dp(scene, 3f) + pulse * dp(scene, 7f), strokeP)
                 textP.textSize = dp(scene, 15f)
                 textP.color = 0xFF8A5A12.toInt()
-                val star = "★"
-                c.drawText(star, x - textP.measureText(star) / 2f, y - r - dp(scene, 6f), textP)
+                UiKit.iconCenter(c, g, "star", x, y - r - dp(scene, 10f), dp(scene, 18f))
             }
 
             // 현재 위치에서는 각 방향 출구 번호를 주변에 표시 — 지하철 출입구처럼
@@ -3659,7 +4019,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                     strokeP.strokeWidth = dp(scene, 1.2f)
                     c.drawCircle(bx, by, dp(scene, 8f), strokeP)
 
-                    textP.textSize = dp(scene, 9f)
+                    textP.textSize = textDp(scene, 9f)
                     textP.color = 0xFF4A2E12.toInt()
                     val numTxt = exit.number.toString()
                     c.drawText(numTxt, bx - textP.measureText(numTxt) / 2, by - (textP.descent() + textP.ascent()) / 2, textP)
@@ -3668,7 +4028,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
             if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
                 val nm = if (visited) reg.name else "? ${reg.name}"
-                textP.textSize = dp(scene, if (isCurrent) 11.5f else 10.5f)
+                textP.textSize = textDp(scene, if (isCurrent) 11.5f else 10.5f)
                 val tw = textP.measureText(nm)
                 fillP.color = Color.argb(170, 255, 252, 240)
                 c.drawRoundRect(
@@ -3691,11 +4051,11 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         resetR = RectF(mapR.left + dp(scene, 12f), mapR.bottom - dp(scene, 12f) - bs, mapR.left + dp(scene, 12f) + dp(scene, 76f), mapR.bottom - dp(scene, 12f))
         homeR = RectF(resetR.right + dp(scene, 8f), resetR.top, resetR.right + dp(scene, 8f) + dp(scene, 76f), resetR.bottom)
 
-        drawButton(c, scene, closeR, "✕ 닫기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12f)
-        drawButton(c, scene, zoomInR, "＋", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 17f)
-        drawButton(c, scene, zoomOutR, "－", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 17f)
+        drawButton(c, scene, closeR, "close 닫기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12f)
+        drawButton(c, scene, zoomInR, "plus", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 17f)
+        drawButton(c, scene, zoomOutR, "minus", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 17f)
         drawButton(c, scene, resetR, "전체 보기", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 11.5f)
-        drawButton(c, scene, homeR, "📍 내 위치", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 11.5f)
+        drawButton(c, scene, homeR, "pin 내 위치", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 11.5f)
     }
 
     private fun drawLegend(c: Canvas) {
@@ -3714,7 +4074,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         for (k in RegionKind.values()) {
             fillP.color = k.color
             c.drawCircle(x0 + dp(scene, 2f), y - dp(scene, 3f), dp(scene, 4f), fillP)
-            textP.textSize = dp(scene, 9.5f)
+            textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(k.label, x0 + dp(scene, 10f), y, textP)
             y += dp(scene, 14f)
@@ -3748,21 +4108,21 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
         val x = r.left + dp(scene, 12f)
         var y = r.top + dp(scene, 20f)
-        textP.textSize = dp(scene, 14f)
+        textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
-        val title = "${reg.emoji} ${reg.name}"
-        c.drawText(title, x, y, textP)
-        val tw = textP.measureText(title)
-        textP.textSize = dp(scene, 9f)
+        UiKit.icon(c, g, reg.emoji, RectF(x, y - dp(scene, 13f), x + dp(scene, 16f), y + dp(scene, 3f)))
+        c.drawText(reg.name, x + dp(scene, 20f), y, textP)
+        val tw = textP.measureText(reg.name) + dp(scene, 20f)
+        textP.textSize = textDp(scene, 9f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(reg.english, x + tw + dp(scene, 6f), y, textP)
         val badgeTxt = when {
-            reg.id == s.region -> "📍 현재 위치"
-            reg.id == s.homeRegion -> "🏠 우리 집"
-            reg.id in s.visited -> "방문함 ✓"
+            reg.id == s.region -> "현재 위치"
+            reg.id == s.homeRegion -> "우리 집"
+            reg.id in s.visited -> "방문함"
             else -> "미방문"
         }
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         val badgeW = textP.measureText(badgeTxt) + dp(scene, 12f)
         val badgeBg = when {
             reg.id == s.region -> 0xFFE2574C.toInt()
@@ -3776,22 +4136,22 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         )
 
         y += dp(scene, 15f)
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF6FAE6F.toInt()
         c.drawText("${reg.kind.label} · ${reg.habitatLabels}", x, y, textP)
 
         y += dp(scene, 14f)
         textP.color = 0xFF6B4F35.toInt()
-        c.drawText("🐦 " + Regions.signatureBirds(reg).joinToString(", ") { it.name }, x, y, textP)
+        c.drawText("대표 새: " + Regions.signatureBirds(reg).joinToString(", ") { it.name }, x, y, textP)
 
         y += dp(scene, 14f)
         textP.color = 0xFF3F6FB0.toInt()
-        c.drawText("📅 추천 시기: ${reg.season}", x, y, textP)
+        c.drawText("추천 시기: ${reg.season}", x, y, textP)
 
         if (isMainPick) {
             y += dp(scene, 14f)
             textP.color = 0xFFB5651D.toInt()
-            var rec = "📌 메인 퀘스트 추천: ${mainAdv!!.reason}"
+            var rec = "메인 퀘스트 추천: ${mainAdv!!.reason}"
             val maxRecW = r.width() - dp(scene, 24f)
             while (rec.length > 6 && textP.measureText(rec) > maxRecW) rec = rec.dropLast(1)
             c.drawText(rec, x, y, textP)
@@ -3809,7 +4169,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val numbered = Regions.exitNumbered(reg.id)
         if (numbered.isEmpty()) {
             textP.color = 0xFF8A7360.toInt()
-            val ex = "🚲 연결: - (막다른 길)"
+            val ex = "연결: - (막다른 길)"
             for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(2)) {
                 c.drawText(ln, x, y, textP)
                 y += dp(scene, 12f)
@@ -3818,8 +4178,8 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
             // 현재 위치면 강조
             val isCurrent = reg.id == s.region
             textP.color = if (isCurrent) 0xFF4A2E12.toInt() else 0xFF8A7360.toInt()
-            textP.textSize = dp(scene, 9.5f)
-            val header = if (isCurrent) "🚲 터널 번호 (지도 ↔ 월드 동일, 맵별 다름):" else "🚲 연결:"
+            textP.textSize = textDp(scene, 9.5f)
+            val header = if (isCurrent) "터널 번호 (지도와 월드 동일, 맵별 다름):" else "연결:"
             c.drawText(header, x, y, textP)
             y += dp(scene, 12f)
 
@@ -3828,7 +4188,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 val targetName = target?.name ?: exit.targetId
                 val dirArrow = Regions.dirArrow(exit.dir)
                 val dirLabel = Regions.dirLabel(exit.dir)
-                val line = "${exit.number}. $dirArrow $dirLabel → $targetName"
+                val line = "${exit.number}. $dirLabel · $targetName"
 
                 // 번호 원
                 fillP.color = 0xFFF2B63C.toInt()
@@ -3836,13 +4196,13 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 strokeP.color = 0xFF4A2E12.toInt()
                 strokeP.strokeWidth = dp(scene, 1f)
                 c.drawCircle(x + dp(scene, 6f), y - dp(scene, 3f), dp(scene, 6f), strokeP)
-                textP.textSize = dp(scene, 8f)
+                textP.textSize = textDp(scene, 8f)
                 textP.color = 0xFF4A2E12.toInt()
                 val nt = exit.number.toString()
                 c.drawText(nt, x + dp(scene, 6f) - textP.measureText(nt) / 2, y, textP)
 
                 // 텍스트
-                textP.textSize = dp(scene, 9.5f)
+                textP.textSize = textDp(scene, 9.5f)
                 textP.color = if (isCurrent) 0xFF3A2A24.toInt() else 0xFF8A7360.toInt()
                 c.drawText(line, x + dp(scene, 16f), y, textP)
                 y += dp(scene, 12f)
@@ -3872,14 +4232,14 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         c.drawRoundRect(r, dp(scene, 10f), dp(scene, 10f), strokeP)
 
         var y = r.top + dp(scene, 14f)
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFFF8EFDC.toInt()
-        c.drawText("📍 ${cur.name} 현재 위치 출구 (번호 = 월드 터널 번호)", r.left + dp(scene, 10f), y, textP)
+        c.drawText("${cur.name} 현재 위치 출구 (번호 = 월드 터널 번호)", r.left + dp(scene, 10f), y, textP)
         y += dp(scene, 12f)
         for (exit in numbered) {
             val target = Regions.byId[exit.targetId] ?: continue
-            val line = "${exit.number}. ${Regions.dirArrow(exit.dir)} ${Regions.dirLabel(exit.dir)} → ${target.name} ${target.emoji}"
-            textP.textSize = dp(scene, 9.5f)
+            val line = "${exit.number}. ${Regions.dirLabel(exit.dir)} · ${target.name}"
+            textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFFE9C46A.toInt()
             c.drawText(line, r.left + dp(scene, 10f), y, textP)
             y += dp(scene, 12f)
@@ -3909,18 +4269,18 @@ private fun drawGearCard(
             scene.game.assets.sprPaint
         )
     } else {
-        textP.textSize = dp(scene, 22f)
+        textP.textSize = textDp(scene, 22f)
         textP.color = 0xFF6B4F35.toInt()
-        c.drawText(gear.kind.emoji, r.left + dp(scene, 18f), r.centerY() + dp(scene, 8f), textP)
+        c.drawText(gear.kind.emoji, r.left + dp(scene, 18f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
     }
 
     val tx = r.left + dp(scene, 62f)
     // 이름 + 등급 칩
-    textP.textSize = dp(scene, 12.5f)
+    textP.textSize = textDp(scene, 12.5f)
     textP.color = 0xFF4A3728.toInt()
     c.drawText(gear.fullName, tx, r.top + dp(scene, 16f), textP)
     val gLabel = gear.grade.label
-    textP.textSize = dp(scene, 8.5f)
+    textP.textSize = textDp(scene, 8.5f)
     val gw = textP.measureText(gLabel) + dp(scene, 10f)
     val gr = RectF(r.right - gw - dp(scene, 96f), r.top + dp(scene, 5f), r.right - dp(scene, 96f), r.top + dp(scene, 19f))
     fillP.color = gear.grade.color
@@ -3928,7 +4288,7 @@ private fun drawGearCard(
     textP.color = 0xFFFFF8E8.toInt()
     c.drawText(gLabel, gr.centerX() - textP.measureText(gLabel) / 2, gr.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-    textP.textSize = dp(scene, 9.5f)
+    textP.textSize = textDp(scene, 9.5f)
     textP.color = 0xFF3F6FB0.toInt()
     c.drawText(spec, tx, r.top + dp(scene, 29f), textP)
     textP.color = 0xFF8A7360.toInt()
@@ -4034,7 +4394,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
                         val eq = (gear.teleMm * cur.sensor.crop).toInt()
                         body.append("지금 바디(${cur.name})에 물리면 환산 ${eq}mm\n")
                     } else {
-                        body.append("⚠ $problem\n")
+                        body.append("주의: $problem\n")
                     }
                 }
                 body.append(if (gear.macro) "접사 렌즈 — 아주 가까이서 찍을 수 있어요\n" else "")
@@ -4080,15 +4440,15 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
             is CompactCam -> {
                 s.compactId = gear.id
                 s.useIlc = false
-                g.toast("${gear.name} 구매! 바로 목에 걸었어요 📷")
+                g.toast("${gear.name} 구매! 바로 목에 걸었어요")
             }
             is CamBody -> {
                 s.bodyId = gear.id
                 val lens = CameraGear.lens(s.lensId)
                 s.useIlc = lens != null && CameraGear.canMount(gear, lens, s.hasAdapter())
                 g.toast(
-                    if (s.useIlc) "${gear.name} 구매! 렌즈를 물려 장착했어요 📷"
-                    else "${gear.name} 구매! 이제 마운트가 맞는 렌즈가 필요해요 🔭"
+                    if (s.useIlc) "${gear.name} 구매! 렌즈를 물려 장착했어요"
+                    else "${gear.name} 구매! 이제 마운트가 맞는 렌즈가 필요해요"
                 )
             }
             is CamLens -> {
@@ -4097,10 +4457,10 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
                     s.lensId = gear.id
                     if (!gear.tcOk) s.tcId = null
                     s.useIlc = true
-                    g.toast("${gear.name} 구매! ${body.name}에 물렸어요 🔭")
+                    g.toast("${gear.name} 구매! ${body.name}에 물렸어요")
                 } else {
                     s.lensId = s.lensId ?: gear.id
-                    g.toast("${gear.name} 구매! 맞는 바디에 물려 보세요 🔩")
+                    g.toast("${gear.name} 구매! 맞는 바디에 물려 보세요")
                 }
             }
             is TeleConv -> {
@@ -4112,7 +4472,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
                     g.toast("${gear.name} 구매! TC를 지원하는 렌즈에 물려 보세요")
                 }
             }
-            is CamAccessory -> g.toast("${gear.name} 구매! 효과가 바로 적용돼요 🎒")
+            is CamAccessory -> g.toast("${gear.name} 구매! 효과가 바로 적용돼요")
         }
         s.invalidateRig()
         SaveManager.save(g.context, s)
@@ -4131,14 +4491,14 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         panel(c, panelR, scene)
 
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 6f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 32f))
-        textP.textSize = dp(scene, 16f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFFB5651D.toInt()
-        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+        c.drawText("close", closeRect.centerX() - textP.measureText("close") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-        textP.textSize = dp(scene, 14f)
+        textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("📷 사진용품점 진열대", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
-        textP.textSize = dp(scene, 10f)
+        c.drawText("사진용품점 진열대", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         val rig = s.rig()
         c.drawText(
@@ -4158,7 +4518,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
             )
             fillP.color = if (t == tab) 0xFF6B4F35.toInt() else 0xFFF2E3C2.toInt()
             c.drawRoundRect(r, dp(scene, 7f), dp(scene, 7f), fillP)
-            textP.textSize = dp(scene, 11.5f)
+            textP.textSize = textDp(scene, 11.5f)
             textP.color = if (t == tab) 0xFFF8EFDC.toInt() else 0xFF6B4F35.toInt()
             c.drawText(t.label, r.centerX() - textP.measureText(t.label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
             tabRects.add(r to t)
@@ -4206,12 +4566,11 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         val by = panelR.bottom - dp(scene, 32f)
         prevRect = RectF(panelR.left + dp(scene, 14f), by, panelR.left + dp(scene, 74f), by + dp(scene, 24f))
         nextRect = RectF(panelR.right - dp(scene, 74f), by, panelR.right - dp(scene, 14f), by + dp(scene, 24f))
-        drawButton(c, scene, prevRect, "◀ 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
-        drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
-        textP.textSize = dp(scene, 10f)
+        drawButton(c, scene, prevRect, "arrow_left 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        drawButton(c, scene, nextRect, "arrow_right 다음", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val pg = "${
-page + 1} / ${maxPage + 1}  ·  항목을 누르면 자세한 성능"
+        val pg = "${page + 1} / ${maxPage + 1}  ·  항목을 누르면 자세한 성능"
         c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
     }
 }
@@ -4244,7 +4603,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
     }
 
     private fun statBar(c: Canvas, x: Float, y: Float, w: Float, label: String, v: Float, max: Float, col: Int) {
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF6B5A48.toInt()
         c.drawText(label, x, y + dp(scene, 8f), textP)
         val bx = x + dp(scene, 46f)
@@ -4257,7 +4616,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
             fillP.color = col
             c.drawRoundRect(RectF(bx, y + dp(scene, 1f), bx + bw * k, y + dp(scene, 1f) + bh), bh / 2, bh / 2, fillP)
         }
-        textP.textSize = dp(scene, 8.5f)
+        textP.textSize = textDp(scene, 8.5f)
         textP.color = 0xFF8A7360.toInt()
         val t = v.fmt1()
         c.drawText(t, bx + bw + dp(scene, 4f), y + dp(scene, 8f), textP)
@@ -4281,14 +4640,14 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         btnRects.clear()
 
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 6f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 32f))
-        textP.textSize = dp(scene, 16f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFFB5651D.toInt()
-        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+        c.drawText("close", closeRect.centerX() - textP.measureText("close") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
         val rig = s.rig()
-        textP.textSize = dp(scene, 14f)
+        textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("🎒 장비 가방", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
+        c.drawText("backpack 장비 가방", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
 
         // 현재 조합 카드
         val cardR = RectF(panelR.left + dp(scene, 12f), panelR.top + dp(scene, 32f), panelR.right - dp(scene, 12f), panelR.top + dp(scene, 116f))
@@ -4301,11 +4660,11 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
             RectF(cardR.left + dp(scene, 8f), cardR.top + dp(scene, 8f), cardR.left + dp(scene, 8f) + iconW, cardR.top + dp(scene, 8f) + iconH),
             g.assets.sprPaint
         )
-        textP.textSize = dp(scene, 12.5f)
+        textP.textSize = textDp(scene, 12.5f)
         textP.color = 0xFF4A3728.toInt()
         val tx = cardR.left + dp(scene, 108f)
         c.drawText(rig.title, tx, cardR.top + dp(scene, 18f), textP)
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF3F6FB0.toInt()
         c.drawText(rig.specLine(), tx, cardR.top + dp(scene, 32f), textP)
         textP.color = 0xFF8A7360.toInt()
@@ -4344,7 +4703,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
             s.invalidateRig()
             SaveManager.save(g.context, s)
             g.sfx(Audio.Sfx.TAP)
-            g.toast("일체형 컴팩트를 꺼냈어요 📷")
+            g.toast("일체형 컴팩트를 꺼냈어요")
         })
         val canIlc = s.ilcReady()
         drawButton(
@@ -4358,7 +4717,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
                 s.invalidateRig()
                 SaveManager.save(g.context, s)
                 g.sfx(Audio.Sfx.TAP)
-                g.toast("바디 + 렌즈를 조립했어요 🔭")
+                g.toast("바디 + 렌즈를 조립했어요")
             } else {
                 g.sfx(Audio.Sfx.FAIL, 0.5f)
                 g.toast("마운트가 맞는 바디와 렌즈가 모두 필요해요")
@@ -4371,12 +4730,12 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         fun slot(label: String, value: String, kind: GearKind, enabled: Boolean) {
             val r = RectF(panelR.left + dp(scene, 12f), y, panelR.right - dp(scene, 12f), y + slotH - dp(scene, 4f))
             drawCard(c, scene, r, enabled, if (enabled) 0xFFB5651D.toInt() else 0xFFC9A87B.toInt(), 1.3f)
-            textP.textSize = dp(scene, 10.5f)
+            textP.textSize = textDp(scene, 10.5f)
             textP.color = 0xFF8A7360.toInt()
-            c.drawText(label, r.left + dp(scene, 10f), r.centerY() + dp(scene, 4f), textP)
-            textP.textSize = dp(scene, 11.5f)
+            c.drawText(label, r.left + dp(scene, 10f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+            textP.textSize = textDp(scene, 11.5f)
             textP.color = if (enabled) 0xFF4A3728.toInt() else 0xFF9A8B7A.toInt()
-            c.drawText(value, r.left + dp(scene, 74f), r.centerY() + dp(scene, 4f), textP)
+            c.drawText(value, r.left + dp(scene, 74f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             val br = RectF(r.right - dp(scene, 66f), r.centerY() - dp(scene, 11f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 11f))
             drawButton(c, scene, br, "바꾸기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10f)
             btnRects.add(Triple(br, label) { pick(kind) })
@@ -4388,14 +4747,14 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         val lensName = CameraGear.lens(s.lensId)?.let { l ->
             val b = CameraGear.body(s.bodyId)
             val bad = b != null && !CameraGear.canMount(b, l, s.hasAdapter())
-            l.name + if (bad) "  ⚠ 마운트 불일치" else ""
+            l.name + if (bad) "  마운트 불일치" else ""
         } ?: "없음"
         slot("렌즈", lensName, GearKind.LENS, s.useIlc)
         slot("텔레컨버터", CameraGear.tc(s.tcId)?.name ?: "없음", GearKind.TELECONV, s.useIlc)
 
         // 액세서리
         y += dp(scene, 2f)
-        textP.textSize = dp(scene, 10f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF6B5A48.toInt()
         val accs = CameraGear.ACCESSORIES.filter {
  it.id in s.ownedGear }
@@ -4456,14 +4815,14 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
             GearKind.COMPACT -> {
                 s.compactId = id
                 s.useIlc = false
-                g.toast("${CameraGear.compact(id)?.name}을(를) 꺼냈어요 📷")
+                g.toast("${CameraGear.compact(id)?.name}을(를) 꺼냈어요")
             }
             GearKind.BODY -> {
                 s.bodyId = id
                 val body = CameraGear.body(id)
                 val lens = CameraGear.lens(s.lensId)
                 if (body != null && lens != null && !CameraGear.canMount(body, lens, s.hasAdapter())) {
-                    g.toast("바디를 바꿨어요. 이 렌즈와는 마운트가 달라요 ⚠")
+                    g.toast("바디를 바꿨어요. 이 렌즈와는 마운트가 달라요")
                 } else {
                     s.useIlc = s.ilcReady()
                     g.toast("${body?.name}을(를) 장착했어요")
@@ -4478,7 +4837,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
                     s.lensId = id
                     if (lens != null && !lens.tcOk) s.tcId = null
                     s.useIlc = s.ilcReady()
-                    g.toast("${lens?.name}을(를) 물렸어요 🔭")
+                    g.toast("${lens?.name}을(를) 물렸어요")
                 }
             }
             GearKind.TELECONV -> {
@@ -4514,14 +4873,14 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         panel(c, panelR, scene)
 
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 6f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 32f))
-        textP.textSize = dp(scene, 16f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFFB5651D.toInt()
-        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+        c.drawText("close", closeRect.centerX() - textP.measureText("close") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-        textP.textSize = dp(scene, 13.5f)
+        textP.textSize = textDp(scene, 13.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("${kind.emoji} ${kind.label} 선택", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
-        textP.textSize = dp(scene, 9.5f)
+        textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("가진 장비만 보여요 · 상점에서 더 살 수 있어요", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 38f), textP)
 
@@ -4541,9 +4900,9 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH - dp(scene, 5f))
             if (gear == null) {
                 drawCard(c, scene, r)
-                textP.textSize = dp(scene, 12f)
+                textP.textSize = textDp(scene, 12f)
                 textP.color = 0xFF4A3728.toInt()
-                c.drawText("텔레컨버터 빼기", r.left + dp(scene, 14f), r.centerY() + dp(scene, 4f), textP)
+                c.drawText("텔레컨버터 빼기", r.left + dp(scene, 14f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                 pickRects.add(r to "")
             } else {
                 val look = when (gear) {
@@ -4564,9 +4923,9 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
                 }
                 drawGearCard(c, scene, r, gear, look, gearSpecLine(gear), gearSubLine(gear), equipped)
                 if (equipped) {
-                    textP.textSize = dp(scene, 9f)
+                    textP.textSize = textDp(scene, 9f)
                     textP.color = 0xFF6FBA6B.toInt()
-                    c.drawText("장착중", r.right - dp(scene, 44f), r.centerY() + dp(scene, 4f), textP)
+                    c.drawText("장착중", r.right - dp(scene, 44f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                 }
                 pickRects.add(r to gear.id)
             }
@@ -4574,18 +4933,18 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         }
 
         if (list.isEmpty()) {
-            textP.textSize = dp(scene, 11.5f)
+            textP.textSize = textDp(scene, 11.5f)
             textP.color = 0xFF8A7360.toInt()
             val msg = "가진 ${kind.label}이(가) 없어요. 사진용품점에서 먼저 사 보세요!"
-            c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY(), textP)
+            c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
         }
 
         val by = panelR.bottom - dp(scene, 32f)
         prevRect = RectF(panelR.left + dp(scene, 14f), by, panelR.left + dp(scene, 74f), by + dp(scene, 24f))
         nextRect = RectF(panelR.right - dp(scene, 74f), by, panelR.right - dp(scene, 14f), by + dp(scene, 24f))
-        drawButton(c, scene, prevRect, "◀ 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
-        drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
-        textP.textSize = dp(scene, 10f)
+        drawButton(c, scene, prevRect, "arrow_left 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        drawButton(c, scene, nextRect, "arrow_right 다음", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         val pg = "${page + 1} / ${maxPage + 1}"
         c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)

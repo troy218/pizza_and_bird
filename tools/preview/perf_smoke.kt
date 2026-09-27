@@ -215,8 +215,8 @@ object PerfSmoke {
             g.hud.mainCx to g.hud.mainCy,
             g.hud.bikeCx to g.hud.bikeCy,
             g.hud.camBCx to g.hud.camBCy,
-            g.hud.runCx to g.hud.runCy,
             g.hud.eatCx to g.hud.eatCy,
+            g.hud.punchCx to g.hud.punchCy,
             g.hud.menuCx to g.hud.menuCy,
         )
         repeat(6) {

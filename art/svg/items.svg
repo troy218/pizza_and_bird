@@ -7,27 +7,55 @@
        ================================================================ -->
 
   <!-- ============ 피자 (최종 22x14) ============ -->
+  <!-- 살짝 기울여 본 통통한 원판: 황금 크러스트 + 토마토 소스 링 + 흘러내린 치즈 -->
   <symbol id="art_pizza" viewBox="0 0 44 28">
-    <ellipse cx="22" cy="24" rx="15" ry="3" fill="#000000" fill-opacity="0.18"/>
-    <circle cx="22" cy="13" r="11" fill="#C97B3F"/>
-    <circle cx="22" cy="12.4" r="11" fill="#E8A75C"/>
-    <path d="M13.4,7.2 A10.4,10.4 0 0 1 22,2.2 L22,4.4 A8.6,8.6 0 0 0 14.8,8 Z" fill="#F2C078"/>
-    <circle cx="22" cy="12.4" r="8.8" fill="#F2B63C"/>
-    <circle cx="22" cy="12.4" r="8.2" fill="#F7CE5B"/>
-    <path d="M16.5,8.2 A8,8 0 0 1 21,5.6 L21,7 A6.6,6.6 0 0 0 17.4,9.2 Z" fill="#FBE9A8"/>
-    <!-- 페퍼로니 -->
-    <circle cx="17.2" cy="9.8" r="2.1" fill="#B23F44"/><circle cx="17.2" cy="9.6" r="1.8" fill="#E2574C"/><rect x="16.4" y="8.8" width="1" height="0.9" fill="#F08878"/>
-    <circle cx="26.6" cy="9" r="2.1" fill="#B23F44"/><circle cx="26.6" cy="8.8" r="1.8" fill="#E2574C"/><rect x="25.8" y="8" width="1" height="0.9" fill="#F08878"/>
-    <circle cx="22" cy="14.8" r="2.1" fill="#B23F44"/><circle cx="22" cy="14.6" r="1.8" fill="#E2574C"/><rect x="21.2" y="13.8" width="1" height="0.9" fill="#F08878"/>
-    <circle cx="15.8" cy="15" r="2" fill="#B23F44"/><circle cx="15.8" cy="14.8" r="1.7" fill="#E2574C"/><rect x="15" y="14" width="1" height="0.9" fill="#F08878"/>
-    <circle cx="28" cy="15.8" r="2" fill="#B23F44"/><circle cx="28" cy="15.6" r="1.7" fill="#E2574C"/><rect x="27.2" y="14.8" width="1" height="0.9" fill="#F08878"/>
-    <!-- 바질/피망 -->
-    <rect x="19.4" y="10.4" width="1.8" height="1.4" fill="#4F8F52"/>
-    <rect x="24.2" y="12.8" width="1.8" height="1.4" fill="#4F8F52"/>
-    <rect x="18.2" y="16.8" width="1.6" height="1.2" fill="#6FAE57"/>
-    <rect x="25.6" y="17.6" width="1.6" height="1.2" fill="#6FAE57"/>
-    <!-- 치즈 그림자/광택 -->
-    <path d="M15,18 A8.2,8.2 0 0 0 29,18 L28,16.8 A6.8,6.8 0 0 1 16,16.8 Z" fill="#EDC04A"/>
+    <!-- 그림자 -->
+    <ellipse cx="21.5" cy="25.8" rx="14" ry="2" fill="#000000" fill-opacity="0.16"/>
+    <!-- 크러스트: 아래 어두운 림 + 본체 + 위 하이라이트 띠 -->
+    <ellipse cx="22" cy="14" rx="19.6" ry="11.9" fill="#D18F4A"/>
+    <ellipse cx="22" cy="12.8" rx="19.6" ry="11.9" fill="#E8A75C"/>
+    <path d="M3.6,8.7 A19.6,11.9 0 0 1 40.4,8.7 L37.8,9.5 A16.8,9.6 0 0 0 6.2,9.5 Z" fill="#F2C078"/>
+    <!-- 노릇하게 그을린 점 -->
+    <ellipse cx="8" cy="7" rx="1.5" ry="0.9" fill="#BF7640"/>
+    <ellipse cx="35.6" cy="6.8" rx="1.7" ry="1" fill="#BF7640"/>
+    <ellipse cx="38.4" cy="13.6" rx="1.2" ry="0.8" fill="#BF7640"/>
+    <!-- 토마토 소스 링 -->
+    <ellipse cx="22" cy="12.3" rx="16" ry="9" fill="#D8453A"/>
+    <!-- 치즈: 구운 가장자리 + 본체 + 빛 웅덩이 -->
+    <ellipse cx="22" cy="12.9" rx="15.2" ry="8.6" fill="#F2B63C"/>
+    <ellipse cx="22" cy="12.2" rx="14.9" ry="8.2" fill="#F7CE5B"/>
+    <ellipse cx="17.2" cy="8.3" rx="6.2" ry="2.9" fill="#FBE9A8"/>
+    <!-- 크러스트 밖으로 흘러내린 치즈 -->
+    <path d="M14.3,18.9 L16.9,18.9 L16.9,23.2 Q16.9,24.3 15.6,24.3 Q14.3,24.3 14.3,23.2 Z" fill="#F7CE5B"/>
+    <rect x="14.9" y="22.6" width="1.1" height="1" fill="#FBE9A8"/>
+    <path d="M26.5,19.2 L29.1,19.2 L29.1,23 Q29.1,24 27.8,24 Q26.5,24 26.5,23 Z" fill="#F7CE5B"/>
+    <rect x="27.1" y="22.5" width="1.1" height="1" fill="#FBE9A8"/>
+    <!-- 페퍼로니 (컵 모양: 어두운 테 + 밝은 면 + 윤) -->
+    <ellipse cx="13" cy="9" rx="2.7" ry="2.3" fill="#9E3236"/>
+    <ellipse cx="13" cy="8.65" rx="2.2" ry="1.85" fill="#D64541"/>
+    <ellipse cx="12.3" cy="7.9" rx="0.6" ry="0.45" fill="#F08878"/>
+    <ellipse cx="29" cy="7" rx="2.7" ry="2.3" fill="#9E3236"/>
+    <ellipse cx="29" cy="6.65" rx="2.2" ry="1.85" fill="#D64541"/>
+    <ellipse cx="28.3" cy="5.9" rx="0.6" ry="0.45" fill="#F08878"/>
+    <ellipse cx="21" cy="13" rx="2.7" ry="2.3" fill="#9E3236"/>
+    <ellipse cx="21" cy="12.65" rx="2.2" ry="1.85" fill="#D64541"/>
+    <ellipse cx="20.3" cy="11.9" rx="0.6" ry="0.45" fill="#F08878"/>
+    <ellipse cx="11" cy="15" rx="2.7" ry="2.3" fill="#9E3236"/>
+    <ellipse cx="11" cy="14.65" rx="2.2" ry="1.85" fill="#D64541"/>
+    <ellipse cx="10.3" cy="13.9" rx="0.6" ry="0.45" fill="#F08878"/>
+    <ellipse cx="33" cy="13" rx="2.7" ry="2.3" fill="#9E3236"/>
+    <ellipse cx="33" cy="12.65" rx="2.2" ry="1.85" fill="#D64541"/>
+    <ellipse cx="32.3" cy="11.9" rx="0.6" ry="0.45" fill="#F08878"/>
+    <ellipse cx="26.5" cy="16.5" rx="2.7" ry="2.3" fill="#9E3236"/>
+    <ellipse cx="26.5" cy="16.15" rx="2.2" ry="1.85" fill="#D64541"/>
+    <ellipse cx="25.8" cy="15.4" rx="0.6" ry="0.45" fill="#F08878"/>
+    <!-- 바질 잎 (테 잡힌 2톤) -->
+    <path d="M21.7,5.7 Q23.9,6.6 21.4,8 Q18.9,6.6 21.7,5.7 Z" fill="#3E7A44"/>
+    <path d="M21.6,6.1 Q23,6.7 21.4,7.4 Q19.8,6.7 21.6,6.1 Z" fill="#6FAE57"/>
+    <path d="M29.1,10.3 Q31.1,11.1 28.8,12.4 Q26.6,11.3 29.1,10.3 Z" fill="#3E7A44"/>
+    <path d="M29,10.7 Q30.3,11.2 28.8,11.9 Q27.4,11.3 29,10.7 Z" fill="#6FAE57"/>
+    <path d="M18,15.9 Q20,16.7 17.7,18 Q15.5,16.9 18,15.9 Z" fill="#3E7A44"/>
+    <path d="M17.9,16.3 Q19.2,16.8 17.7,17.5 Q16.3,16.9 17.9,16.3 Z" fill="#6FAE57"/>
   </symbol>
 
   <!-- ============ 네잎클로버 (최종 14x14) ============ -->

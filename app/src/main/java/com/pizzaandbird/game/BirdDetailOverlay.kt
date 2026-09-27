@@ -36,8 +36,9 @@ class BirdDetailOverlay(
     private var descPage = 0
 
     init {
-        // 첫 사진을 미리 받는다 — 패널이 열릴 때쯤에는 이미 준비돼 있다
+        // 첫 사진과 사진 기준색을 미리 받는다 — 패널이 열릴 때쯤에는 이미 준비돼 있다
         scene.game.assets.prefetchBirdPhoto(currentNum)
+        scene.game.assets.prefetchBirdPalette(Birds.ALL[currentNum - 1].id)
     }
 
     private val textP = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -60,6 +61,7 @@ class BirdDetailOverlay(
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
             // 사진은 미리 받아둔다 (디코드는 로더 스레드가)
             scene.game.assets.prefetchBirdPhoto(currentNum)
+            scene.game.assets.prefetchBirdPalette(Birds.ALL[currentNum - 1].id)
         }
     }
 
@@ -69,6 +71,7 @@ class BirdDetailOverlay(
             descPage = 0
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
             scene.game.assets.prefetchBirdPhoto(currentNum)
+            scene.game.assets.prefetchBirdPalette(Birds.ALL[currentNum - 1].id)
         }
     }
 
@@ -154,7 +157,7 @@ class BirdDetailOverlay(
         )
 
         // 새 이름
-        textP.textSize = dp(17f)
+        textP.textSize = TypeScale.px(dp(17f))
         textP.isFakeBoldText = true
         textP.color = 0xFF2E2118.toInt()
         val nameX = contentLeft + numBadgeW + dp(8f)
@@ -164,16 +167,16 @@ class BirdDetailOverlay(
         // 등급 뱃지
         val nameWidth = textP.measureText(def.name)
         val tierColor = UiKit.tierColor(def.tier)
-        val tierStr = "${def.tier.label} ${def.tier.starText()}"
-        textP.textSize = dp(10.5f)
+        val tierStr = def.tier.label
+        textP.textSize = TypeScale.px(dp(10.5f))
         textP.isFakeBoldText = false
-        val tierW = textP.measureText(tierStr) + dp(14f)
+        val tierTextW = textP.measureText(tierStr)
+        val tierStarW = dp(4f * 7f + 3f * 2f)
+        val tierW = tierTextW + tierStarW + dp(20f)
         val tierLeft = nameX + nameWidth + dp(8f)
-        UiKit.badge(
-            c, g,
-            RectF(tierLeft, contentTop + dp(1f), tierLeft + tierW, contentTop + dp(19f)),
-            tierStr, tierColor, 0xFFFFFFFF.toInt(), 10f
-        )
+        val tierR = RectF(tierLeft, contentTop + dp(1f), tierLeft + tierW, contentTop + dp(19f))
+        UiKit.badge(c, g, tierR, tierStr, tierColor, 0xFFFFFFFF.toInt(), 10f)
+        UiKit.starRow(c, g, tierR.right - tierStarW - dp(5f), tierR.centerY() + dp(3.5f), def.tier.star, 4, dp(7f))
 
         // 보전 등급 뱃지 (천연기념물, 멸종위기, VU 등)
         val status = enc?.status?.takeIf { it.isNotBlank() }
@@ -185,7 +188,7 @@ class BirdDetailOverlay(
                 else -> 0xFF4A7CA8.toInt()
             }
             val statusStr = "보전: $status"
-            textP.textSize = dp(9.5f)
+            textP.textSize = TypeScale.px(dp(9.5f))
             val stW = textP.measureText(statusStr) + dp(12f)
             val stLeft = tierLeft + tierW + dp(6f)
             if (stLeft + stW < panelR.right - dp(40f)) {
@@ -205,7 +208,7 @@ class BirdDetailOverlay(
             closeCx - closeR - dp(4f), closeCy - closeR - dp(4f),
             closeCx + closeR + dp(4f), closeCy + closeR + dp(4f)
         )
-        UiKit.circleButton(c, g, closeCx, closeCy, closeR, "✕", 11f)
+        UiKit.circleButton(c, g, closeCx, closeCy, closeR, "close", 11f)
 
         // -------------------------------------------------------------------
         // 레이아웃 분할: 좌측 고화질 사진 액자 vs 우측 상세 설명
@@ -284,8 +287,8 @@ class BirdDetailOverlay(
 
         // 사진 위 스탬프/뱃지 (촬영 완료 vs 미촬영)
         if (seen) {
-            val stampStr = "📸 ${seenCount}회 촬영 · 최고 ★$bestStars"
-            textP.textSize = dp(9f)
+            val stampStr = "${seenCount}회 촬영 · 최고 ${bestStars}점"
+            textP.textSize = TypeScale.px(dp(9f))
             textP.isFakeBoldText = true
             val stampW = textP.measureText(stampStr) + dp(12f)
             val stampR = RectF(
@@ -303,7 +306,7 @@ class BirdDetailOverlay(
             c.drawText(stampStr, stampR.left + dp(6f), stampR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
         } else {
             val unStr = "미촬영 종"
-            textP.textSize = dp(8.5f)
+            textP.textSize = TypeScale.px(dp(8.5f))
             textP.isFakeBoldText = true
             val unW = textP.measureText(unStr) + dp(10f)
             val unR = RectF(
@@ -320,11 +323,12 @@ class BirdDetailOverlay(
 
         // 사진 하단 마운트: 저작권 크레딧 + 도트 그래픽 미니 프리뷰
         val mountY = photoInnerR.bottom + dp(5f)
-        val creditStr = enc?.photoCredit ?: "📷 사진 도감 자료"
-        textP.textSize = dp(8.2f)
+        val creditStr = (enc?.photoCredit ?: "사진 도감 자료").removePrefix("📷 ")
+        textP.textSize = TypeScale.px(dp(8.2f))
         textP.isFakeBoldText = false
         textP.color = 0xFF7A6855.toInt()
-        c.drawText(creditStr, photoCardR.left + photoInset + dp(2f), mountY + dp(11f), textP)
+        UiKit.icon(c, g, "camera", RectF(photoCardR.left + photoInset + dp(2f), mountY + dp(2f), photoCardR.left + photoInset + dp(14f), mountY + dp(14f)))
+        c.drawText(creditStr, photoCardR.left + photoInset + dp(17f), mountY + dp(11f), textP)
 
         // 도트 스프라이트 비교 뱃지
         val miniDot = a.bird(def.id)
@@ -347,7 +351,7 @@ class BirdDetailOverlay(
         val sciName = def.scientificName.ifBlank { enc?.sci ?: "" }
         val engName = def.englishName.ifBlank { enc?.eng ?: "" }
         if (sciName.isNotBlank() || engName.isNotBlank()) {
-            textP.textSize = dp(11.2f)
+            textP.textSize = TypeScale.px(dp(11.2f))
             textP.isFakeBoldText = true
             textP.color = 0xFF4A3728.toInt()
             val sciDisplay = if (sciName.isNotBlank()) sciName else engName
@@ -355,7 +359,7 @@ class BirdDetailOverlay(
 
             if (engName.isNotBlank() && sciName.isNotBlank()) {
                 val sciW = textP.measureText(sciDisplay)
-                textP.textSize = dp(9.8f)
+                textP.textSize = TypeScale.px(dp(9.8f))
                 textP.isFakeBoldText = false
                 textP.color = 0xFF8A7360.toInt()
                 c.drawText("·  $engName", textLeft + sciW + dp(8f), curY, textP)
@@ -364,7 +368,7 @@ class BirdDetailOverlay(
         }
 
         // (2) 분류 · 서식지 · 출현 태그
-        textP.textSize = dp(9.2f)
+        textP.textSize = TypeScale.px(dp(9.2f))
         textP.isFakeBoldText = false
         textP.color = 0xFF6B4F35.toInt()
         val orderFamily = "${def.orderName.ifBlank { enc?.order ?: "기러기목" }} · ${def.familyName.ifBlank { enc?.family ?: "오리과" }}"
@@ -381,7 +385,7 @@ class BirdDetailOverlay(
             else -> "${subsList.take(2).joinToString(", ")} 외 ${subsList.size - 2}종"
         }
         val metaLine2 = "범주: ${def.category.ifBlank { enc?.cat ?: "가-1" }}   |   계절: ${def.seasonLabel} · ${def.migrationLabel}   |   아종: $subsStr"
-        textP.textSize = dp(8.8f)
+        textP.textSize = TypeScale.px(dp(8.8f))
         textP.color = 0xFF8A7360.toInt()
         c.drawText(metaLine2, textLeft, curY, textP)
         curY += dp(16f)
@@ -395,7 +399,7 @@ class BirdDetailOverlay(
         // (3) 📖 상세 한국어 설명 본문 (엑셀의 위키백과 / 생태 정보)
         val fullDesc = def.fullDesc.ifBlank { "한국의 공식 기록 조류입니다." }
 
-        textP.textSize = dp(10.2f)
+        textP.textSize = TypeScale.px(dp(10.2f))
         textP.isFakeBoldText = false
         textP.color = 0xFF2E2118.toInt()
 
@@ -415,7 +419,7 @@ class BirdDetailOverlay(
 
         // 설명 출처 표기 (하단)
         val srcStr = enc?.descSrc?.takeIf { it.isNotBlank() } ?: "한국조류학회 조류목록 2025"
-        textP.textSize = dp(8f)
+        textP.textSize = TypeScale.px(dp(8f))
         textP.color = 0xFF9E8A75.toInt()
         c.drawText("설명 근거: $srcStr", textLeft, descCardR.bottom - dp(8f), textP)
 
@@ -440,20 +444,20 @@ class BirdDetailOverlay(
         val nextEnabled = currentNum < Birds.ALL.size
 
         if (prevEnabled) {
-            UiKit.button(c, g, prevRect, "◀ 이전 새", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
+            UiKit.button(c, g, prevRect, "arrow_left 이전 새", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
         } else {
-            UiKit.button(c, g, prevRect, "◀ 이전 새", Color.argb(80, 200, 190, 175), Color.argb(130, 74, 55, 40), 10.5f)
+            UiKit.button(c, g, prevRect, "arrow_left 이전 새", Color.argb(80, 200, 190, 175), Color.argb(130, 74, 55, 40), 10.5f)
         }
 
         if (nextEnabled) {
-            UiKit.button(c, g, nextRect, "다음 새 ▶", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
+            UiKit.button(c, g, nextRect, "arrow_right 다음 새", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
         } else {
-            UiKit.button(c, g, nextRect, "다음 새 ▶", Color.argb(80, 200, 190, 175), Color.argb(130, 74, 55, 40), 10.5f)
+            UiKit.button(c, g, nextRect, "arrow_right 다음 새", Color.argb(80, 200, 190, 175), Color.argb(130, 74, 55, 40), 10.5f)
         }
 
         val totalBirds = Birds.ALL.size
         val counterStr = "$currentNum / $totalBirds"
-        textP.textSize = dp(11f)
+        textP.textSize = TypeScale.px(dp(11f))
         val counterW = textP.measureText(counterStr) + dp(24f)
         UiKit.badge(
             c, g,
@@ -462,9 +466,9 @@ class BirdDetailOverlay(
         )
 
         // 단축키 안내
-        textP.textSize = dp(8.2f)
+        textP.textSize = TypeScale.px(dp(8.2f))
         textP.color = 0xFF8A7360.toInt()
-        val guideStr = "키보드 [A/◀] 이전   [D/▶] 다음   [B/✕/ESC] 닫기"
+        val guideStr = "키보드 [A] 이전   [D] 다음   [B/ESC] 닫기"
         val gw = textP.measureText(guideStr)
         c.drawText(guideStr, panelR.centerX() - gw / 2f, navY - dp(6f), textP)
 
