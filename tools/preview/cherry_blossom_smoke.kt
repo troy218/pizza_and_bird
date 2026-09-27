@@ -158,6 +158,9 @@ object CherryBlossomSmoke {
             check((worldPetals(reentered) > 0) == expected)
         }
         game.scene = world
+        // 벤치 보상에는 25초 쿨다운이 있다. 밤에 쉰 뒤 충분히 기다리고
+        // 개화 시간으로 맞춰, 쿨다운이 아닌 꽃바람 조건을 검증한다.
+        repeat(26 * 60) { game.update(DT) }
         moment()
         rest.invoke(world)
         check(hasPicnic())
