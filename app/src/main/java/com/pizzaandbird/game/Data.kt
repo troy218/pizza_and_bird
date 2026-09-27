@@ -823,8 +823,101 @@ object CameraDefs {
 /** 이사 용달·중개 수수료 (대한민국 원) */
 const val MOVE_COST = 300000
 
-/** 들고 다닐 수 있는 피자 최대 개수 */
+/** 들고 다닐 수 있는 피자 기본 최대 개수 (넉넉한 배낭 스킬로 늘어남) */
 const val PIZZA_CAP = 6
+
+// ---------------------------------------------------------------------------
+// 탐조가 성장 (레벨 / 경험치 / 칭호)
+// ---------------------------------------------------------------------------
+
+/**
+ * 캐릭터(탐조가) 레벨 시스템.
+ * - 새를 찍고 의뢰를 완료하면 경험치를 얻어 레벨이 오른다.
+ * - 레벨업마다 숙련 포인트(SP)를 얻어 능력을 강화할 수 있다.
+ * - 레벨 구간마다 칭호와 겉모습(장비)이 바뀐다.
+ */
+object Progression {
+    const val MAX_LEVEL = 25
+
+    /** 현재 레벨에서 다음 레벨까지 필요한 경험치 */
+    fun expToNext(level: Int): Int {
+        if (level >= MAX_LEVEL) return 0
+        val l = level.coerceAtLeast(1)
+        return 50 + (l - 1) * 40 + (l - 1) * (l - 1) * 6
+    }
+
+    /** 레벨업 시 지급되는 숙련 포인트 (5레벨마다 보너스) */
+    fun skillPointsFor(newLevel: Int): Int = if (newLevel % 5 == 0) 2 else 1
+
+    /** 겉모습 등급 (0~3) — 레벨이 오를수록 장비가 좋아진다 */
+    fun gearTier(level: Int): Int = when {
+        level >= 19 -> 3
+        level >= 12 -> 2
+        level >= 6 -> 1
+        else -> 0
+    }
+
+    /** 레벨 칭호 */
+    fun title(level: Int): String = when {
+        level >= 25 -> "전설의 탐조가"
+        level >= 20 -> "탐조 명인"
+        level >= 15 -> "베테랑 탐조가"
+        level >= 12 -> "숙련 탐조가"
+        level >= 10 -> "능숙한 탐조가"
+        level >= 6 -> "어엿한 탐조가"
+        level >= 3 -> "초보 탐조가"
+        else -> "새내기 탐조인"
+    }
+
+    /** 새 촬영 경험치: 등급 × 별점 (+ 첫 발견 보너스는 별도) */
+    fun photoExp(tier: Tier, stars: Int): Int {
+        val base = when (tier) {
+            Tier.COMMON -> 8
+            Tier.UNCOMMON -> 16
+            Tier.RARE -> 34
+            Tier.LEGEND -> 60
+        }
+        val starMul = when (stars) {
+            3 -> 1.7f
+            2 -> 1.3f
+            else -> 1.0f
+        }
+        return (base * starMul).toInt().coerceAtLeast(1)
+    }
+
+    /** 첫 발견(도감 신규) 보너스 경험치 */
+    fun newSpeciesExp(tier: Tier): Int = 20 + tier.star * 8
+
+    /** 박사 의뢰 완료 보너스 경험치 */
+    fun questExp(reward: Int): Int = (reward / 60).coerceIn(15, 90)
+}
+
+/**
+ * 능력(스킬) 정의 — 숙련 포인트(SP)로 강화. 각 랭크마다 효과가 누적된다.
+ */
+object Skills {
+    class Skill(
+        val id: String,
+        val name: String,
+        val emoji: String,
+        val maxRank: Int,
+        val desc: String,
+        val perRank: String
+    )
+
+    val ALL = listOf(
+        Skill("legs", "튼튼한 다리", "🦵", 4, "걷기·달리기·자전거가 조금씩 빨라져요.", "이동 속도 +6%"),
+        Skill("pack", "넉넉한 배낭", "🎒", 3, "피자를 더 많이 넣어 다닐 수 있어요.", "피자 소지 +1"),
+        Skill("quiet", "고요한 발걸음", "🤫", 3, "새가 덜 놀라 더 가까이 다가갈 수 있어요.", "도망 반경 -8%"),
+        Skill("stamina", "튼튼한 체력", "🍙", 3, "덜 배고파져 더 오래 돌아다녀요.", "배고픔 감소 -10%"),
+        Skill("lucky", "타고난 행운", "🍀", 3, "행운이 천천히 줄고 기본 행운이 높아져요.", "행운 감소 -20%, 하한 +5"),
+        Skill("sharp", "매의 눈", "👁️", 3, "사진에서 별을 하나 더 얻을 확률이 올라요.", "추가 별 확률 +7%")
+    )
+
+    val byId: Map<String, Skill> = ALL.associateBy { it.id }
+
+    fun of(id: String): Skill? = byId[id]
+}
 
 /** 하루(낮+밤 한 사이클) 길이 — 실제 초 */
 const val DAY_SECONDS = 300f

@@ -309,11 +309,12 @@ class HomeScene(game: Game) : Scene(game) {
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
         val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
+        val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = when (player.facing) {
-            Dir.E -> a.playerSide[frame]
-            Dir.W -> a.playerSideL[frame]
-            Dir.N -> a.playerUp[frame]
-            else -> a.playerDown[frame]
+            Dir.E -> ps.side[frame]
+            Dir.W -> ps.sideL[frame]
+            Dir.N -> ps.up[frame]
+            else -> ps.down[frame]
         }
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
