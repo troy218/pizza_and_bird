@@ -93,7 +93,13 @@ object RegionCards {
             c.drawText(sig, x, y, metaBird)
 
             y += dp * 12f
-            c.drawText("📅 ${reg.season}", x, y, metaSeason)
+            // 사람은 한 장소에만 산다 — 정착지를 고를 때 "누가 있는 동네인지" 보이도록 표시
+            val landmark = when (reg.id) {
+                NpcRoster.PROFESSOR_REGION -> " · 🔍 보리 박사"
+                NpcRoster.SHOP_REGION -> " · 🏬 사진용품점"
+                else -> ""
+            }
+            c.drawText("📅 ${reg.season}$landmark", x, y, metaSeason)
 
             y += dp * 12f
             val descLines = game.hud.wrapText(reg.desc, descPaint, r.width() - dp * 20f).take(1)

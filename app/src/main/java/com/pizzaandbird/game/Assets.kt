@@ -510,35 +510,37 @@ class Assets(private val context: Context) {
     val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).sideL[0]
 
     // -----------------------------------------------------------------------
-    // NPC — 성격이 드러나는 대기 동작 (12프레임)
+    // NPC — 사람마다 다른 옷차림 + 성격이 드러나는 대기 동작 (12프레임)
+    //   누구인지(이름·옷·사는 지역)는 NpcRoster.kt, 자리는 MapBuilder.placeCast 가 정한다.
     // -----------------------------------------------------------------------
 
-    private fun npcPal(
-        hair: Long, top: Long, top2: Long, pants: Long, pack: Long
-    ): CharacterArt.Pal = CharacterArt.Pal(
-        hair = c(hair), hair2 = shade(c(hair), 0.75f),
-        skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
-        top = c(top), top2 = c(top2), pants = c(pants), pants2 = shade(c(pants), 0.75f),
-        shoe = c(0xFF3A3A44), line = c(0xFF33241C), pack = c(pack), pack2 = shade(c(pack), 0.75f),
-        eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
-    )
-
-    private fun npcLook(kind: NpcKind): CharacterArt.Look = when (kind) {
-        NpcKind.PROFESSOR -> CharacterArt.Look(
-            npcPal(0xFFCFD2D8, 0xFFF5F2EA, 0xFFD8D2C4, 0xFF5D6470, 0xFF9AA3AD), glasses = true
+    /** 사람 옷차림([NpcLook]) -> 렌더용 Look. 바디가 요구하는 체형은 자동으로 따라붙는다. */
+    private fun npcLook(kind: NpcKind, look: NpcLook): CharacterArt.Look {
+        val pal = CharacterArt.Pal(
+            hair = c(look.hair.toLong()), hair2 = shade(c(look.hair.toLong()), 0.75f),
+            skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
+            top = c(look.top.toLong()), top2 = c(look.top2.toLong()),
+            pants = c(look.pants.toLong()), pants2 = shade(c(look.pants.toLong()), 0.75f),
+            shoe = c(0xFF3A3A44), line = c(0xFF33241C),
+            pack = c(look.pack.toLong()), pack2 = shade(c(look.pack.toLong()), 0.75f),
+            eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        NpcKind.SHOP -> CharacterArt.Look(
-            npcPal(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A), apron = true
+        // 모자·조끼·목도리 — 탐조가와 같은 파츠를 써서 사람마다 실루엣이 달라진다
+        val gear = if (look.cap == null && look.vest == null && look.scarf == null) null
+        else CharacterArt.Gear(
+            cap = look.cap, capDark = shade(look.cap ?: 0, 0.72f),
+            vest = look.vest, vestDark = shade(look.vest ?: 0, 0.75f),
+            scarf = look.scarf,
+            brim = look.cap != null
         )
-        NpcKind.VILLAGER -> CharacterArt.Look(
-            npcPal(0xFF2E2620, 0xFFC3A3E8, 0xFF9F7FC8, 0xFF4A6FA5, 0xFF8A5A33)
-        )
-        NpcKind.KID -> CharacterArt.Look(
-            npcPal(0xFF5B3A29, 0xFFE2574C, 0xFFB23F44, 0xFF3F6FB0, 0xFFF2B63C), small = true
-        )
-        NpcKind.ELDER -> CharacterArt.Look(
-            npcPal(0xFFE8E4DC, 0xFF8A7360, 0xFF6B5A48, 0xFF5D6470, 0xFF4F463F),
-            cane = true, longHair = true
+        return CharacterArt.Look(
+            pal,
+            gear = gear,
+            glasses = look.glasses,
+            apron = look.apron,
+            cane = look.cane || kind == NpcKind.ELDER,
+            small = look.small || kind == NpcKind.KID,
+            longHair = look.longHair
         )
     }
 
@@ -550,29 +552,45 @@ class Assets(private val context: Context) {
         NpcKind.ELDER -> CharacterArt.NPC_ELDER
     }
 
-    private val npcCache = HashMap<NpcKind, Array<Bitmap>>()
+    /**
+     * 사람별 대기 애니메이션 캐시.
+     *
+     * 지역마다 다른 사람이 서 있으므로 키는 "바디"가 아니라 **사람 id** 다.
+     * 12프레임 × 32×32 ≈ 49KB 라서, 오래 안 본 사람은 밀어내는 LRU(24명)로 묶어 둔다.
+     */
+    private val npcCache = LruCache<String, Array<Bitmap>>(24)
 
-    /** NPC 대기 애니메이션 프레임 (12장, 약 2.4초 루프) */
-    fun npcFrames(kind: NpcKind): Array<Bitmap> {
-        npcCache[kind]?.let { return it }
-        val lk = npcLook(kind)
-        val art = npcArtKind(kind)
+    /** 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프) */
+    fun npcFrames(person: NpcPerson): Array<Bitmap> {
+        npcCache.get(person.id)?.let { return it }
+        val lk = npcLook(person.kind, person.look)
+        val art = npcArtKind(person.kind)
         val frames = Array(NPC_FRAMES) {
             CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk)
         }
-        npcCache[kind] = frames
+        npcCache.put(person.id, frames)
         return frames
     }
 
-    /** 시간 -> NPC 스프라이트 (offset 으로 NPC마다 위상을 다르게) */
+    /** 바디만 알고 있을 때(미리보기 도구·구 코드) — 그 바디의 대표 인물로 그린다 */
+    fun npcFrames(kind: NpcKind): Array<Bitmap> = npcFrames(NpcRoster.representative(kind))
+
+    /** 시간 -> NPC 스프라이트 (offset 으로 사람마다 위상을 다르게) */
+    fun npcBitmap(person: NpcPerson, time: Float, offset: Float = 0f): Bitmap {
+        val frames = npcFrames(person)
+        val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
+        return frames[i]
+    }
+
+    /** 바디만 알고 있을 때(미리보기 도구·구 코드) */
     fun npcBitmap(kind: NpcKind, time: Float, offset: Float = 0f): Bitmap {
         val frames = npcFrames(kind)
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
 
-    val npcProfessor: Bitmap get() = npcFrames(NpcKind.PROFESSOR)[0]
-    val npcShop: Bitmap get() = npcFrames(NpcKind.SHOP)[0]
+    val npcProfessor: Bitmap get() = npcFrames(NpcRoster.professor)[0]
+    val npcShop: Bitmap get() = npcFrames(NpcRoster.shopkeeper)[0]
     val npcVillager: Bitmap get() = npcFrames(NpcKind.VILLAGER)[0]
     val npcKid: Bitmap get() = npcFrames(NpcKind.KID)[0]
     val npcElder: Bitmap get() = npcFrames(NpcKind.ELDER)[0]

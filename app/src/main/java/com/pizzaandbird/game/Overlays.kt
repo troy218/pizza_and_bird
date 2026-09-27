@@ -293,6 +293,16 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val s = g.state
         if (MainStory.current(s) == null) return
         val adv = MainQuestAdvisor.advise(s) ?: return
+        // 보고할 기록이 있으면 — 같은 지역 안에서도 보리 박사 바로 옆으로 데려다 준다
+        val readyToReport = MainStory.current(s)?.isComplete(s) == true &&
+            adv.regionId == NpcRoster.PROFESSOR_REGION
+        if (readyToReport) {
+            g.toast("🔍 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}의 보리 박사에게")
+            g.toast(adv.tip)
+            finished = true
+            fastTravel(g, adv.regionId, force = true)
+            return
+        }
         if (adv.alreadyThere || adv.regionId == s.region) {
             // 이미 추천 지역 안 — 이동 대신 "그냥 여기" 안내
             g.toast("📍 ${adv.regionName} · ${adv.reason}")
@@ -303,6 +313,35 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         g.toast(adv.tip)
         finished = true
         fastTravel(g, adv.regionId)
+    }
+
+    /**
+     * 사진용품점 안내 — 가게는 서울 건물 앞 골목에 하나뿐이다 (`NpcRoster.SHOP_REGION`).
+     * 다른 지역에서는 바로 자전거를 태워 준다.
+     */
+    private fun openShopTrip() {
+        val g = scene.game
+        val s = g.state
+        if (NpcRoster.hasShop(s.region)) {
+            g.toast("📷 ${NpcRoster.shopTravelHint}")
+            g.toast("가게 주인에게 말을 걸면 카메라·장식·자전거를 살 수 있어요")
+            return
+        }
+        scene.openOverlay(
+            DialogOverlay(
+                scene, "사진용품점 · ${NpcRoster.shopkeeper.title}",
+                "\"장비·장식·자전거는 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}에 있는 " +
+                    "우리 가게에서만 팔아. 다른 동네엔 분점이 없어.\"",
+                listOf(
+                    DialogOverlay.Choice("🚲 ${NpcRoster.shopRegionName}으로 이동") {
+                        g.toast("🚲 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}로 출발!")
+                        finished = true
+                        fastTravel(g, NpcRoster.SHOP_REGION)
+                    },
+                    DialogOverlay.Choice("다음에 갈게요")
+                )
+            )
+        )
     }
 
     override fun draw(c: Canvas) {
@@ -514,7 +553,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             "🔍 의뢰" to (s.questBird?.let { Birds.byId[it]?.name } ?: "없음"),
             "⏱ 플레이" to timeStr,
             "🚲 자전거" to "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else ""),
-            "🍕 피자" to "${s.pizzaCount}개 (🔥${s.pizzaCountOfKind(PizzaKind.OVEN)} · 🍕${s.pizzaCountOfKind(PizzaKind.REGULAR)}) · 🧺${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"
+            "🍕 피자" to "${s.pizzaCount}개 (🔥${s.pizzaCountOfKind(PizzaKind.OVEN)} · 🍕${s.pizzaCountOfKind(PizzaKind.REGULAR)}) · 🧺${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}",
+            // 사진용품점은 서울에 하나뿐 — 탭하면 위치를 알려 주고 (서울이 아니면) 태워 준다.
+            "🏬 사진용품점" to (if (NpcRoster.hasShop(s.region)) "지금 이 동네! 📷" else NpcRoster.shopRegionName)
         )
         for (i in cells.indices) {
             val col = i % 2
@@ -541,6 +582,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             if (textP.measureText(value) > maxVW && maxVW > dp(scene, 20f)) {
                 while (value.length > 1 && textP.measureText("$value…") > maxVW) value = value.dropLast(1)
                 value = "$value…"
+            }
+            // 상점 셀은 눌린다 — 어디 있는지 알려 주고, 다른 지역이면 자전거로 태워 준다
+            if (label == "🏬 사진용품점") {
+                btnRects.add(Triple(cr, "shop_trip") { openShopTrip() })
             }
             val vty = cr.centerY() - (textP.descent() + textP.ascent()) / 2f
             c.drawText(value, cr.right - dp(scene, 8f) - textP.measureText(value), vty, textP)
@@ -572,7 +617,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFF6B4F35.toInt()
         val mainTitle = when {
             s.mainQuestFinished -> "✓ 메인 완결 · 함께 사는 지도"
-            !s.mainQuestStarted -> "! 메인 · 보리 박사에게 낡은 수첩 묻기"
+            !s.mainQuestStarted -> "! 메인 · ${NpcRoster.professorRegionName} 보리 박사에게 낡은 수첩 묻기"
             else -> "메인 ${s.mainQuestStage}/${MainStory.CHAPTERS.size - 1} · ${chapter?.title ?: ""}"
         }
         c.drawText(mainTitle, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 18f), textP)
@@ -580,7 +625,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFF796653.toInt()
         val objective = when {
             s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
-            !s.mainQuestStarted -> "메인과 사진 의뢰는 독립적이며 원하는 순서로 진행할 수 있어요."
+            !s.mainQuestStarted -> "카드를 탭하면 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}의 박사에게 바로 데려다 줘요."
             else -> chapter?.objective(s) ?: ""
         }
         val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
@@ -603,7 +648,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
-            ?: "서브 사진 의뢰: 없음 · 어느 지역 보리 박사에게서 언제든 수락"
+            ?: "서브 사진 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락"
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
         y = mainR.bottom + dp(scene, 7f)
 
@@ -3738,6 +3783,19 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFF6B4F35.toInt()
         c.drawText("🐦 " + Regions.signatureBirds(reg).joinToString(", ") { it.name }, x, y, textP)
 
+        // 이 지역에 사는 사람들 — 사람은 한 장소에만 살므로 여기 적힌 사람만 여기서 만날 수 있다.
+        y += dp(scene, 14f)
+        textP.color = 0xFF9A6B4F.toInt()
+        var castTxt = "👥 동네 사람: " + NpcRoster.forRegion(reg.id).joinToString(" · ") {
+            if (it.title.isEmpty()) it.name else "${it.name}(${it.title})"
+        }
+        val castMaxW = r.width() - dp(scene, 24f)
+        if (textP.measureText(castTxt) > castMaxW) {
+            while (castTxt.length > 8 && textP.measureText("$castTxt…") > castMaxW) castTxt = castTxt.dropLast(1)
+            castTxt += "…"
+        }
+        c.drawText(castTxt, x, y, textP)
+
         y += dp(scene, 14f)
         textP.color = 0xFF3F6FB0.toInt()
         c.drawText("📅 추천 시기: ${reg.season}", x, y, textP)
@@ -4465,7 +4523,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         c.drawText("${kind.emoji} ${kind.label} 선택", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
         textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
-        c.drawText("가진 장비만 보여요 · 상점에서 더 살 수 있어요", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 38f), textP)
+        c.drawText("가진 장비만 보여요 · ${NpcRoster.shopRegionName} 사진용품점에서 더 살 수 있어요", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 38f), textP)
 
         pickRects.clear()
         val list = ArrayList<CamGear?>()
@@ -4518,7 +4576,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         if (list.isEmpty()) {
             textP.textSize = textDp(scene, 11.5f)
             textP.color = 0xFF8A7360.toInt()
-            val msg = "가진 ${kind.label}이(가) 없어요. 사진용품점에서 먼저 사 보세요!"
+            val msg = "가진 ${kind.label}이(가) 없어요. ${NpcRoster.shopRegionName} 사진용품점에서 먼저 사 보세요!"
             c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY(), textP)
         }
 

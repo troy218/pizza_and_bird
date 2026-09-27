@@ -8,6 +8,10 @@ import com.pizzaandbird.game.*
  *   java -cp <android.jar>:<게임 클래스>:out:<kotlin-stdlib.jar> MapTestKt
  */
 
+// 광장 중심 — 사람 배치 검증의 출발점 (MapBuilder.PLAZA_* 와 같은 값)
+private const val PLAZA_CX = 21
+private const val PLAZA_CY = 15
+
 fun reach(map: GameMap, sx: Int, sy: Int, tx: Int, ty: Int): Boolean {
     if (sx < 0 || sy < 0 || sx >= map.w || sy >= map.h) return false
     if (map.solidTile(sx, sy)) return false
@@ -68,6 +72,35 @@ fun main() {
     check(Birds.ALL.any { it.active == "night" }, "밤새(active=night) 정의 없음")
     check(Birds.ALL.all { it.habitats.isNotEmpty() }, "서식지 없는 새 존재")
 
+    // 2.55 캐스팅 북(NpcRoster) — 「한 사람은 한 장소에만」의 전제 조건
+    run {
+        val ids = NpcRoster.ALL.map { it.id }
+        val dupId = ids.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+        check(dupId.isEmpty(), "NPC id 중복: $dupId")
+        val names = NpcRoster.ALL.map { it.name }
+        val dupName = names.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+        check(dupName.isEmpty(), "NPC 이름 중복: $dupName")
+        check(NpcRoster.ALL.count { it.kind == NpcKind.PROFESSOR } == 1, "보리 박사는 한 명이어야 한다")
+        check(NpcRoster.ALL.count { it.kind == NpcKind.SHOP } == 1, "사진용품점은 한 곳이어야 한다")
+        check(NpcRoster.byId[NpcRoster.professor.id]?.regionId == NpcRoster.PROFESSOR_REGION,
+            "보리 박사 거주지 오류")
+        check(NpcRoster.shopkeeper.regionId == NpcRoster.SHOP_REGION, "사진용품점 위치 오류")
+        for (r in Regions.ALL) {
+            val cast = NpcRoster.forRegion(r.id)
+            check(cast.size >= 2, "사람이 2명 미만인 지역 ${r.id}: ${cast.size}명")
+            check(cast.all { it.regionId == r.id }, "캐스팅 지역 id 오류 ${r.id}")
+            check(cast.count { it.resident } == 1, "이웃 주민이 정확히 한 명이 아닌 지역 ${r.id}")
+            check(cast.all { it.title.isNotBlank() }, "별명(직함)이 없는 사람이 있는 지역 ${r.id}")
+            check(cast.all { it.lines.isNotEmpty() && it.lines.all { l -> l.isNotBlank() } },
+                "대사가 없는 사람이 있는 지역 ${r.id}")
+            // 같은 지역 안에서 옷차림이 같으면 사람 구별이 안 된다
+            val looks = cast.map { listOf(it.look.hair, it.look.top, it.look.pants, it.look.pack) }
+            check(looks.toSet().size == looks.size, "같은 지역 안에서 옷차림 중복 ${r.id}")
+            val spots = cast.map { it.spot }
+            check(spots.toSet().size == spots.size, "같은 지역 안에서 자리(${spots}) 중복 ${r.id}")
+        }
+    }
+
     // 2.6 해안·호수·하천 타일은 지정한 지역 방향과 위치에 놓인다
     for (r in Regions.ALL) {
         val map = MapBuilder.build(r, START_REGION_ID)
@@ -119,10 +152,40 @@ fun main() {
                     "스폰 막힘 region=${r.id} home=${home.id} spawn=$name tile=${map.feetTile(sp.first, sp.second)}")
             }
 
-            // NPC 위치
+            // 지역 사람(NPC) — 캐스팅 북에 있는 그 지역 사람만, 걸어서 갈 수 있는 자리에 선다
+            val cast = NpcRoster.forRegion(r.id)
+            check(map.npcs.size == cast.size,
+                "사람 수 불일치 ${r.id}(home=${home.id}): 캐스팅 ${cast.size}명 · 배치 ${map.npcs.size}명 " +
+                    "(${cast.map { it.name } - map.npcs.map { it.name }})")
+            check(map.npcs.map { it.person.id }.toSet().size == map.npcs.size, "사람 중복 배치 ${r.id}")
             for (n in map.npcs) {
-                check(!map.solidTile(n.tileX, n.tileY), "NPC 막힘 ${r.id} (${n.tileX},${n.tileY}) ${n.kind}")
-                check(!map.solidTile(n.tileX, n.tileY + 1), "NPC 앞 막힘 ${r.id} (${n.tileX},${n.tileY + 1})")
+                check(n.person.regionId == r.id,
+                    "다른 지역 사람이 나타남 ${r.id}: ${n.name}(거주=${n.person.regionId})")
+                check(!map.solidTile(n.tileX, n.tileY), "NPC 막힘 ${r.id} (${n.tileX},${n.tileY}) ${n.name}")
+                check(!map.solidTile(n.tileX, n.tileY + 1), "NPC 앞 막힘 ${r.id} (${n.tileX},${n.tileY + 1}) ${n.name}")
+                check(map.walkableTile(n.greetX, n.greetY),
+                    "인사 자리 막힘 ${r.id} ${n.name} (${n.greetX},${n.greetY})=${map.t(n.greetX, n.greetY)}")
+                check(!map.solidBox(n.greetX * 16f, n.greetY * 16f),
+                    "인사 자리 박스 막힘 ${r.id} ${n.name} (${n.greetX},${n.greetY})")
+                check(reach(map, (PLAZA_CX), (PLAZA_CY), n.tileX, n.tileY),
+                    "걸어서 갈 수 없는 사람 ${r.id} ${n.name} (${n.tileX},${n.tileY}) 자리=${n.person.spot}")
+                val gd = kotlin.math.hypot(
+                    (n.greetX - n.tileX).toDouble(), (n.greetY - n.tileY).toDouble())
+                check(gd <= 1.5, "인사 자리가 너무 멂 ${r.id} ${n.name} (${gd}칸)")
+                for (m in map.npcs) {
+                    if (m === n) continue
+                    val d = kotlin.math.abs(m.tileX - n.tileX) + kotlin.math.abs(m.tileY - n.tileY)
+                    check(d >= 3, "사람이 붙어 있음 ${r.id}: ${n.name}(${n.tileX},${n.tileY}) ↔ ${m.name}(${m.tileX},${m.tileY})")
+                }
+            }
+            // 보리 박사·사진용품점은 자기 동네에만 있다
+            for (n in map.npcs) {
+                if (n.kind == NpcKind.PROFESSOR) {
+                    check(r.id == NpcRoster.PROFESSOR_REGION, "다른 지역에 나타난 보리 박사 ${r.id}")
+                }
+                if (n.kind == NpcKind.SHOP) {
+                    check(r.id == NpcRoster.SHOP_REGION, "다른 지역에 나타난 사진용품점 ${r.id}")
+                }
             }
 
             // 터널 타일 & 플라자까지 경로
