@@ -1565,6 +1565,39 @@ object Regions {
         return m
     }
 
+    /** 터널 번호 — 북·동·남·서 시계방향으로 1부터. 맵별로 다르게 */
+    data class ExitNumbered(val dir: Dir, val targetId: String, val number: Int)
+
+    fun exitNumbered(id: String): List<ExitNumbered> {
+        val ex = exits(id)
+        val ordered = listOf(Dir.N, Dir.E, Dir.S, Dir.W)
+        var n = 1
+        val out = ArrayList<ExitNumbered>()
+        for (d in ordered) {
+            val tgt = ex[d] ?: continue
+            out.add(ExitNumbered(d, tgt, n))
+            n++
+        }
+        return out
+    }
+
+    fun exitNumberedMap(id: String): Map<Dir, ExitNumbered> = exitNumbered(id).associateBy { it.dir }
+
+    /** 방향을 한글/아이콘으로 */
+    fun dirLabel(d: Dir): String = when (d) {
+        Dir.N -> "북쪽"
+        Dir.E -> "동쪽"
+        Dir.S -> "남쪽"
+        Dir.W -> "서쪽"
+    }
+
+    fun dirArrow(d: Dir): String = when (d) {
+        Dir.N -> "↑"
+        Dir.E -> "→"
+        Dir.S -> "↓"
+        Dir.W -> "←"
+    }
+
     /** 두 지역이 직접 연결되어 있는가 */
     fun linked(a: String, b: String): Boolean =
         LINKS.any { (it.a == a && it.b == b) || (it.a == b && it.b == a) }

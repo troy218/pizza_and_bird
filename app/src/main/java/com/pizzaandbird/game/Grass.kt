@@ -187,7 +187,7 @@ class GrassField(map: GameMap) {
     // 갱신 — 상태 머신
     // -----------------------------------------------------------------------
 
-    /** fx, fy = 캐릭터 발끝 월드 좌표 / bike = 자전거 탑승 여부 */
+    /** fx, fy = 캐릭터 발끝 렌더 월드 좌표(32px 타일) / bike = 자전거 탑승 여부 */
     fun update(dt: Float, time: Float, fx: Float, fy: Float, bike: Boolean) {
         if (dt <= 0f) return
 
@@ -264,6 +264,7 @@ class GrassField(map: GameMap) {
     // -----------------------------------------------------------------------
 
     /**
+     * 카메라와 발끝은 모두 32px 타일 기준 렌더 월드 좌표. 호출자는 화면 패딩만 적용한다.
      * @param feetY 캐릭터 발끝의 월드 y — 풀잎 밑동이 이보다 아래면 전경(캐릭터 뒤)으로 그린다
      */
     fun draw(
@@ -281,7 +282,7 @@ class GrassField(map: GameMap) {
             if (b.x < x0 || b.x > x1 || b.y < y0 || b.y > y1) continue
             if ((layer == LAYER_FRONT) != (b.y > feetY)) continue
             val bmp = a.grassPose(b.kind, b.lean.roundToInt(), b.curl.roundToInt())
-            c.drawBitmap(bmp, b.x - a.grassOx[b.kind], b.y - a.grassOy[b.kind], p)
+            c.drawBitmap(bmp, b.x - camX - a.grassOx[b.kind], b.y - camY - a.grassOy[b.kind], p)
         }
     }
 }

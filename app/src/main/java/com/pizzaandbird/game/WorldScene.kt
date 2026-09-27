@@ -174,7 +174,7 @@ class WorldScene(
         updateAmbience()
     }
 
-    /** 낮 → 새소리(숲 지역은 벌새 허밍), 밤 → 바람 환경음 루프 */
+    /** 낮 -> 새소리(숲 지역은 벌새 허밍), 밤 -> 바람 환경음 루프 */
     private fun updateAmbience() {
         when {
             state.isNight() -> game.audio.playAmb(R.raw.amb_wind, 0.2f)
@@ -269,7 +269,8 @@ class WorldScene(
         updateParticles(dt)
 
         // 살아있는 풀 (바람 필드 + 풀잎 상태 머신 + 밟힘 반응)
-        grass.update(dt, game.time, player.x + 8f, player.y + 13f, player.bike)
+        // 풀은 32px 렌더 좌표, 캐릭터는 16px 논리 좌표를 사용한다.
+        grass.update(dt, game.time, (player.x + 8f) * WORLD_SCALE, (player.y + 13f) * WORLD_SCALE, player.bike)
         spawnAmbient(dt)
         if (player.bike && player.moving) {
             dustT -= dt
@@ -383,7 +384,7 @@ class WorldScene(
         camY = (viewRig.y * WORLD_SCALE - hy + game.virtH / (2f * z)) / WORLD_SCALE
     }
 
-    /** 확대 전 캔버스 좌표 → 실제 화면 좌표 */
+    /** 확대 전 캔버스 좌표 -> 실제 화면 좌표 */
     private fun projX(ux: Float): Float {
         val hx = game.virtW / 2f
         return hx + (ux - hx) * viewRig.zoom
@@ -1053,7 +1054,7 @@ class WorldScene(
         val ty = (vy / 16f).toInt()
         if (map.t(tx, ty) == T.SIGN) {
             val target = signTarget(tx, ty)
-            if (target != null) game.toast("🪧 이 터널 → ${target.name}")
+            if (target != null) game.toast("🪧 이 터널 -> ${target.name}")
         }
     }
 
@@ -1331,7 +1332,7 @@ class WorldScene(
             nearTile(T.SIGN)?.let { (sx, sy) ->
                 val target = signTarget(sx, sy)
                 if (target != null) {
-                    game.toast("🪧 이 터널 → ${target.name}")
+                    game.toast("🪧 이 터널 -> ${target.name}")
                     return
                 }
             }
@@ -1474,7 +1475,7 @@ class WorldScene(
         fx.drawGround(c, camXv - padX, camYv - padY, padW, padH)
 
         // 살아있는 풀 — 뒤쪽 레이어(캐릭터보다 위). 밑동이 발보다 위인 풀잎들.
-        val feetY = player.y + 13f
+        val feetY = (player.y + 13f) * WORLD_SCALE
         grass.draw(c, game.assets, camXv - padX, camYv - padY, padW.toFloat(), padH.toFloat(), feetY, GrassField.LAYER_BACK)
         c.restore()
         drawCloudShadows(c, camXv, camYv)
@@ -1488,7 +1489,7 @@ class WorldScene(
         ents.sortBy { sortY(it) }
         for (e in ents) drawEntity(c, e)
 
-        // 살아있는 풀 — 앞쪽 레이어. 캐릭터가 풀밭을 헤치며 걷는 깊이감
+        // 살아있는 풀 — 지면에 고정된 전경으로 발목을 가린다. 엔티티에 풀을 붙여 그리지 않는다.
         c.save()
         c.translate(-padX, -padY)
         grass.draw(c, game.assets, camXv - padX, camYv - padY, padW.toFloat(), padH.toFloat(), feetY, GrassField.LAYER_FRONT)
@@ -1503,6 +1504,8 @@ class WorldScene(
         drawWarmShafts(c)
         drawVignette(c)
         drawNpcOverlays(c)
+        drawTunnelOverlays(c)
+        drawExitHints(c)
         c.restore()
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
@@ -1564,13 +1567,6 @@ class WorldScene(
         a.sprPaint.alpha = 255
     }
 
-    /** 발밑 타일이 풀숲이면 1(키 큰 풀) / 2(갈대), 아니면 0 */
-    private fun grassKindAt(lx: Float, ly: Float): Int = when (map.t((lx / 16f).toInt(), (ly / 16f).toInt())) {
-        T.TALLGRASS -> 1
-        T.REED -> 2
-        else -> 0
-    }
-
     private fun sortY(e: Any): Float = when (e) {
         is Npc -> e.y + 14f
         is Cat -> e.y + 12f
@@ -1614,8 +1610,6 @@ class WorldScene(
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
                 c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
-                val gk = grassKindAt(e.cx, e.cy + 3f)
-                if (gk != 0) fx.drawGrassOver(c, sx + 4f, sy + bmp.height, bmp.width - 8f, gk == 2, e.state == 1)
                 // 밤에 웅크린 고양이는 쿨쿨
                 if (e.state == 0 && state.isNight()) {
                     val zt = (game.time * 0.8f) % 1f
@@ -1657,8 +1651,6 @@ class WorldScene(
                     a.sprPaint.alpha = 255
                 } else {
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
-                    val gk = grassKindAt(e.cx, e.y + bmp.height / WORLD_SCALE - 1f)
-                    if (gk != 0 && e.state == 0) fx.drawGrassOver(c, bx + 2f, by + bmp.height, bmp.width - 4f, gk == 2, false)
                 }
             }
             is Player -> {
@@ -1713,10 +1705,6 @@ class WorldScene(
                     }
                     c.drawCircle(ex, sy + 11.4f, 3.0f + t * 1.2f, uiFill)
                 }
-
-                // 풀숲에 들어가면 발목이 풀에 가려진다
-                val gk = grassKindAt(player.cx, player.y + 13f)
-                if (gk != 0) fx.drawGrassOver(c, sx + 3f, sy + 32f, 26f, gk == 2, player.moving)
             }
         }
     }
@@ -1787,7 +1775,7 @@ class WorldScene(
     }
 
     /**
-     * 낮밤 조명. 시각에 맞는 어둠(새벽 주황 → 낮 → 노을 → 밤 남색)을 조명 맵으로 깔고,
+     * 낮밤 조명. 시각에 맞는 어둠(새벽 주황 -> 낮 -> 노을 -> 밤 남색)을 조명 맵으로 깔고,
      * 가로등·창문·터널 등·반딧불·플레이어 주변에 부드러운 빛 구멍을 낸 뒤 전구색 번짐을 얹는다.
      */
     private fun drawLighting(c: Canvas, camXv: Float, camYv: Float) {
@@ -1960,6 +1948,129 @@ class WorldScene(
             val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
             val ew = ep.measureText(em)
             c.drawText(em, cx - ew / 2, by - 5f, ep)
+        }
+    }
+
+    /** 터널 위에 지하철 출입구처럼 번호 뱃지를 표시 — 맵별 번호와 동일 */
+    private fun drawTunnelOverlays(c: Canvas) {
+        if (map.tunnels.isEmpty()) return
+        for (tunnel in map.tunnels) {
+            val sx = (tunnel.cx - camX) * WORLD_SCALE
+            val sy = (tunnel.cy - camY) * WORLD_SCALE
+            if (sx < -140f || sx > game.virtW + 140f || sy < -140f || sy > game.virtH + 140f) continue
+            val target = Regions.byId[tunnel.targetId]
+            val targetName = target?.name ?: tunnel.targetId
+
+            // 터널 입구 중앙보다 살짝 위 — 번호판
+            val badgeCx = sx + 16f
+            val badgeCy = sy - 18f
+
+            // 그림자
+            bubbleFill.color = Color.argb(80, 20, 14, 10)
+            c.drawCircle(badgeCx, badgeCy + 2f, 14f, bubbleFill)
+
+            // 노란 원 — 지하철 출입구 번호 느낌
+            bubbleFill.color = 0xFFF2B63C.toInt()
+            c.drawCircle(badgeCx, badgeCy, 13f, bubbleFill)
+            bubbleStroke.color = 0xFF4A2E12.toInt()
+            bubbleStroke.strokeWidth = 1.8f
+            c.drawCircle(badgeCx, badgeCy, 13f, bubbleStroke)
+
+            // 번호
+            val np = Type.paintPx(12f, true, 0.02f, 0xFF4A2E12.toInt())
+            val numTxt = tunnel.number.toString()
+            val tw = np.measureText(numTxt)
+            c.drawText(numTxt, badgeCx - tw / 2f, badgeCy + 4f, np)
+
+            // 가까우면 목적지 라벨도
+            val distToPlayer = hypot(tunnel.cx - player.cx, tunnel.cy - player.cy)
+            if (distToPlayer < 160f) {
+                val dirArrow = Regions.dirArrow(tunnel.dir)
+                val label = "$dirArrow $targetName"
+                val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
+                val lw = lp.measureText(label)
+                uiFill.color = Color.argb(200, 58, 52, 74)
+                c.drawRoundRect(RectF(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f), 6f, 6f, uiFill)
+                c.drawText(label, badgeCx - lw / 2, badgeCy + 21f, lp)
+            }
+        }
+    }
+
+    /** 현재 위치에서 각 터널로 가는 방향을 번호와 함께 표시 */
+    private fun drawExitHints(c: Canvas) {
+        if (map.tunnels.isEmpty()) return
+        val pSx = (player.cx - camX) * WORLD_SCALE
+        val pSy = (player.cy - camY) * WORLD_SCALE
+        val screenR = 52f
+
+        for (tunnel in map.tunnels) {
+            val dx = tunnel.cx - player.cx
+            val dy = tunnel.cy - player.cy
+            val dist = hypot(dx, dy)
+            if (dist < 1f) continue
+            // 터널 바로 앞에서는 힌트 생략 — 터널 뱃지가 이미 보임
+            if (dist < 90f) continue
+            val nx = dx / dist
+            val ny = dy / dist
+
+            val ix = pSx + nx * screenR + 16f
+            val iy = pSy + ny * screenR
+
+            val target = Regions.byId[tunnel.targetId]
+            val targetName = target?.name ?: tunnel.targetId
+
+            // 번호 원
+            bubbleFill.color = Color.argb(190, 253, 250, 240)
+            c.drawCircle(ix, iy, 10f, bubbleFill)
+            bubbleStroke.color = 0xFFF2B63C.toInt()
+            bubbleStroke.strokeWidth = 1.6f
+            c.drawCircle(ix, iy, 10f, bubbleStroke)
+
+            val np = Type.paintPx(10f, true, 0.02f, 0xFF4A2E12.toInt())
+            val numTxt = tunnel.number.toString()
+            val tw = np.measureText(numTxt)
+            c.drawText(numTxt, ix - tw / 2, iy + 3.5f, np)
+
+            // 방향 화살표
+            val arrow = Regions.dirArrow(tunnel.dir)
+            val ap = Type.paintPx(11f, true, 0f, 0xFFF2B63C.toInt())
+            c.drawText(arrow, ix + 12f, iy + 4f, ap)
+
+            if (dist < 240f) {
+                val lp = Type.paintPx(9f, false, 0f, Color.argb(210, 58, 52, 74))
+                val label = "${tunnel.number}. $targetName"
+                val lw = lp.measureText(label)
+                uiFill.color = Color.argb(175, 255, 252, 240)
+                c.drawRoundRect(RectF(ix + 18f, iy - 8f, ix + 18f + lw + 8f, iy + 6f), 5f, 5f, uiFill)
+                c.drawText(label, ix + 22f, iy + 3f, lp)
+            }
+        }
+
+        // 광장 근처에서는 전체 출구 안내판 (지하철 출입구 종합 안내처럼)
+        val plazaCx = 21f * 16f + 8f
+        val plazaCy = 15f * 16f + 8f
+        val distPlaza = hypot(player.cx - plazaCx, player.cy - plazaCy)
+        if (distPlaza < 140f) {
+            val sx = (plazaCx - camX) * WORLD_SCALE + 16f
+            val sy = (plazaCy - camY) * WORLD_SCALE - 42f
+            var curY = sy
+            for (tunnel in map.tunnels) {
+                val target = Regions.byId[tunnel.targetId] ?: continue
+                val dirArrow = Regions.dirArrow(tunnel.dir)
+                val dirLabel = Regions.dirLabel(tunnel.dir)
+                val line = "${tunnel.number} $dirArrow $dirLabel -> ${target.name}"
+                val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
+                val lw = lp.measureText(line)
+                uiFill.color = Color.argb(210, 58, 52, 74)
+                c.drawRoundRect(RectF(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f), 6f, 6f, uiFill)
+                bubbleFill.color = 0xFFF2B63C.toInt()
+                c.drawCircle(sx - lw / 2 - 4f, curY - 5f, 8f, bubbleFill)
+                val np = Type.paintPx(9f, true, 0.02f, 0xFF4A2E12.toInt())
+                val nt = tunnel.number.toString()
+                c.drawText(nt, sx - lw / 2 - 4f - np.measureText(nt) / 2, curY - 1.5f, np)
+                c.drawText(line, sx - lw / 2 + 10f, curY, lp)
+                curY += 18f
+            }
         }
     }
 
