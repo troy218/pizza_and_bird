@@ -16,6 +16,9 @@ const val WORLD_SCALE = 2f
  */
 class Game(val context: Context) {
 
+    // 글꼴(roles·픽셀 폰트·dp 배율)을 먼저 준비한다 — 아래에서 그리는 모든 글자가 여기 의존한다.
+    init { Type.init(context) }
+
     val virtW = 960
     val virtH = 540
 
@@ -23,7 +26,7 @@ class Game(val context: Context) {
     val worldCanvas = Canvas(worldBitmap)
 
     val state: GameState = SaveManager.load(context)
-    val assets = Assets()
+    val assets = Assets(context)
     val illustrations = SvgIllustrations(context.assets)
     val audio = Audio(context).apply {
         musicOn = state.musicOn
@@ -44,6 +47,11 @@ class Game(val context: Context) {
 
     val density: Float = context.resources.displayMetrics.density
 
+    init {
+        // 첫 프레임에 렉이 걸리지 않도록 현재 캐릭터 동작 스프라이트를 미리 만들어 둔다
+        assets.playerSet(state.gender, state.gearTier())
+    }
+
     fun onSurfaceChanged(w: Int, h: Int) {
         screenW = w
         screenH = h
@@ -54,9 +62,18 @@ class Game(val context: Context) {
         scene.onLayout()
     }
 
-    /** 화면 좌표 -> 월드 논리 좌표 (월드는 WORLD_SCALE배로 그려진다) */
-    fun screenToWorld(p: PointF): PointF =
-        PointF((p.x - viewOffX) / viewScale / WORLD_SCALE, (p.y - viewOffY) / viewScale / WORLD_SCALE)
+    /** 실제 터치 좌표 -> 960×540 가상 화면 좌표 (레터박스 여백 포함). */
+    fun screenToVirtual(p: PointF): PointF = PointF(
+        (p.x - viewOffX) / viewScale,
+        (p.y - viewOffY) / viewScale
+    )
+
+    /** 실제 터치 좌표 -> 현재 씬의 절대 월드 좌표 (렌더링 카메라 오프셋 포함). */
+    fun screenToWorld(p: PointF): PointF {
+        val v = screenToVirtual(p)
+        val camera = scene.cameraOffset()
+        return PointF(v.x / WORLD_SCALE + camera.x, v.y / WORLD_SCALE + camera.y)
+    }
 
     /** 짧은 햅틱 피드백 (버튼 누름 등) — 탭 효과음도 함께 */
     @Suppress("DEPRECATION")

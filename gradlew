@@ -270,33 +270,19 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
     exit $PB_EXIT
 fi
 
-# ---------------------------------------------------------------------------
-# [TEMP-01a0e109] 빌드 출력 캡처 + 실패 시 컴파일 오류를 ci-errors.txt로
-#                 브랜치에 푸시 (Actions 로그 다운로드가 막힌 환경용 임시 훅 —
-#                 디버그 완료 후 삭제한다)
-# ---------------------------------------------------------------------------
-if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
-        && [ "${GITHUB_REF:-}" = "refs/heads/arena/01a0e109-pizza-and-bird" ]; then
-    PB_ROOT="$(cd "$(dirname "$0")" && pwd)"
-    "$JAVACMD" "$@" > "$PB_ROOT/ci-build.log" 2>&1
+# CI 오류 요약을 Checks 어노테이션에도 노출한다. Actions 로그 다운로드가
+# 차단된 환경에서도 컴파일 오류 위치와 원인을 확인할 수 있다.
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    PB_BUILD_LOG="$(mktemp)"
+    "$JAVACMD" "$@" > "$PB_BUILD_LOG" 2>&1
     PB_EXIT=$?
-    cat "$PB_ROOT/ci-build.log"
-    if [ "$PB_EXIT" != "0" ]; then
-        {
-            echo "# gradle exit: $PB_EXIT @ $(git -C "$PB_ROOT" rev-parse --short HEAD 2>/dev/null)"
-            echo ""
-            grep -E "^e: |error:|^FAILURE" "$PB_ROOT/ci-build.log" | head -80
-            echo ""
-            sed -n '/What went wrong/,/^\* Try/p' "$PB_ROOT/ci-build.log" | head -40
-        } > "$PB_ROOT/ci-errors.txt"
-        git -C "$PB_ROOT" config user.name ci-reporter
-        git -C "$PB_ROOT" config user.email ci@local
-        git -C "$PB_ROOT" add ci-errors.txt
-        git -C "$PB_ROOT" commit -m "CI: 컴파일 오류 리포트 [skip ci]" || true
-        git -C "$PB_ROOT" push origin "HEAD:refs/heads/arena/01a0e109-pizza-and-bird" || true
+    cat "$PB_BUILD_LOG"
+    if [ "$PB_EXIT" -ne 0 ]; then
+        grep -E '(^e: |^error:|^FAILURE:|^\* What went wrong:|^> (Could not|Execution failed|A failure|Failed)|^Caused by:)' "$PB_BUILD_LOG" \
+            | tail -30 | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
     fi
-    rm -f "$PB_ROOT/ci-build.log"
-    exit $PB_EXIT
+    rm -f "$PB_BUILD_LOG"
+    exit "$PB_EXIT"
 fi
 
 exec "$JAVACMD" "$@"

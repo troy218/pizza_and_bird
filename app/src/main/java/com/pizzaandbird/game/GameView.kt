@@ -2,6 +2,7 @@ package com.pizzaandbird.game
 
 import android.content.Context
 import android.graphics.Canvas
+import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -37,6 +38,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     fun onPause() {
         resumed = false
         stopThread()
+        game.input.releaseHeld()
         game.audio.onPause()
         SaveManager.save(context, game.state)
     }
@@ -81,6 +83,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     // ---------------------------------------------------------------------
 
     override fun run() {
+        var lastErrorLog = 0L
         var last = System.nanoTime()
         while (running) {
             val frameStart = System.nanoTime()
@@ -97,8 +100,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                         game.update(dt)
                         game.render(canvas)
                     }
-                } catch (_: Exception) {
-                    // 프레임 스킵
+                } catch (e: Exception) {
+                    // 반복 오류는 로그 폭주를 막되, 원인은 숨기지 않는다.
+                    val now = System.nanoTime()
+                    if (now - lastErrorLog > 5_000_000_000L) {
+                        Log.e("PizzaAndBird", "게임 프레임 처리 실패", e)
+                        lastErrorLog = now
+                    }
                 } finally {
                     if (canvas != null) {
                         try { holder.unlockCanvasAndPost(canvas) } catch (_: Exception) { }
