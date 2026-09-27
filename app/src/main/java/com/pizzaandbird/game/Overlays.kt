@@ -173,7 +173,7 @@ class DialogOverlay(
 class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private enum class Tab(val label: String, val icon: String) {
-        STATUS("상태", "📊"), GROW("성장", "🌱"), PIZZA("피자", "🍕"), BOOK("도감", "📚"), SETTINGS("설정", "⚙")
+        STATUS("상태", "📊"), QUEST("퀘스트", "🗺"), GROW("성장", "🌱"), PIZZA("피자", "🍕"), BOOK("도감", "📚"), SETTINGS("설정", "⚙")
     }
 
     private var tab = Tab.STATUS
@@ -181,6 +181,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
     private var resetArmed = false
+    private var questPage = 0
     private var panelR = RectF()
 
     override fun handleInput(input: Input) {
@@ -254,7 +255,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             textP.textSize = dp(scene, 10f)
             textP.color = 0xFF8A7360.toInt()
             val subW = textP.measureText(titleTxt)
-            c.drawText("상태 · 성장 · 피자 · 도감 · 설정", panelR.left + dp(scene, 18f) + subW + dp(scene, 34f), panelR.top + dp(scene, 25f), textP)
+            c.drawText("상태 · 퀘스트 · 성장 · 피자 · 도감 · 설정", panelR.left + dp(scene, 18f) + subW + dp(scene, 34f), panelR.top + dp(scene, 25f), textP)
         }
 
         val closeCx = panelR.right - dp(scene, 25f)
@@ -295,6 +296,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         btnRects.clear()
         when (tab) {
             Tab.STATUS -> drawStatus(c)
+            Tab.QUEST -> drawQuest(c)
             Tab.GROW -> drawGrow(c)
             Tab.PIZZA -> drawPizza(c)
             Tab.BOOK -> drawBook(c)
@@ -453,6 +455,96 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             c.drawText(value, cr.right - dp(scene, 8f) - textP.measureText(value), vty, textP)
         }
     }
+
+    private fun drawQuest(c: Canvas) {
+        val s = scene.game.state
+        val left = panelR.left + dp(scene, 16f)
+        val right = panelR.right - dp(scene, 16f)
+        var y = contentTop() + dp(scene, 5f)
+
+        // 메인 퀘스트와 시간 제한 없는 서브 의뢰
+        val chapter = MainStory.current(s)
+        fillP.color = 0xFFFFF7E6.toInt()
+        val mainR = RectF(left, y, right, y + dp(scene, 72f))
+        c.drawRoundRect(mainR, dp(scene, 9f), dp(scene, 9f), fillP)
+        strokeP.color = if (chapter?.isComplete(s) == true) 0xFFF2B63C.toInt() else 0xFFC9A87B.toInt()
+        strokeP.strokeWidth = dp(scene, 1.4f)
+        c.drawRoundRect(mainR, dp(scene, 9f), dp(scene, 9f), strokeP)
+        textP.textSize = dp(scene, 13f)
+        textP.color = 0xFF6B4F35.toInt()
+        val mainTitle = when {
+            s.mainQuestFinished -> "✓ 메인 완결 · 함께 사는 지도"
+            !s.mainQuestStarted -> "! 메인 · 보리 박사에게 낡은 수첩 묻기"
+            else -> "메인 ${s.mainQuestStage}/${MainStory.CHAPTERS.size - 1} · ${chapter?.title ?: ""}"
+        }
+        c.drawText(mainTitle, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 18f), textP)
+        textP.textSize = dp(scene, 10.5f)
+        textP.color = 0xFF796653.toInt()
+        val objective = when {
+            s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
+            !s.mainQuestStarted -> "메인과 사진 의뢰는 독립적이며 원하는 순서로 진행할 수 있어요."
+            else -> chapter?.objective(s) ?: ""
+        }
+        val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
+        objectiveLines.forEachIndexed { i, line ->
+            c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 13f), textP)
+        }
+        val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
+            ?: "서브 사진 의뢰: 없음 · 어느 지역 보리 박사에게서 언제든 수락"
+        c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
+        y = mainR.bottom + dp(scene, 7f)
+
+        // 라이퍼 기반 탐조 이정표. 실제 자격제도가 아님을 UI에서 명시한다.
+        val lifers = s.birdCounts.size
+        val rank = BirdingRanks.of(lifers)
+        val next = BirdingRanks.next(lifers)
+        textP.textSize = dp(scene, 12f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("라이퍼 ${lifers}종 · 게임 탐조 등급 「${rank.name}」", left, y + dp(scene, 13f), textP)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF8A7360.toInt()
+        val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 수집 이정표" else "400종 이상 · 공식 자격이 아닌 수집 이정표"
+        c.drawText(rankHint, right - textP.measureText(rankHint), y + dp(scene, 13f), textP)
+        y += dp(scene, 23f)
+
+        val perPage = 5
+        val pages = (BirdingCollections.ALL.size + perPage - 1) / perPage
+        questPage = questPage.coerceIn(0, pages - 1)
+        val sets = BirdingCollections.ALL.drop(questPage * perPage).take(perPage)
+        val rowsBottom = contentBottom() - dp(scene, 29f)
+        val rowH = (rowsBottom - y) / perPage
+        for (set in sets) {
+            val done = set.complete(s)
+            val r = RectF(left, y, right, y + rowH - dp(scene, 4f))
+            fillP.color = if (done) 0xFFE5F4DD.toInt() else 0xFFF7EBD5.toInt()
+            c.drawRoundRect(r, dp(scene, 7f), dp(scene, 7f), fillP)
+            textP.textSize = dp(scene, 11.5f)
+            textP.color = if (done) 0xFF397547.toInt() else 0xFF5D4938.toInt()
+            c.drawText("${set.icon} ${if (done) "✓ " else ""}${set.name}  ${set.progress(s)}", r.left + dp(scene, 8f), r.top + dp(scene, 15f), textP)
+            textP.textSize = dp(scene, 8.8f)
+            textP.color = 0xFF8A7360.toInt()
+            val missing = set.species.filterNot { s.hasBirdName(it) }
+            val detail = if (missing.isEmpty()) set.note else "남은 새: ${missing.take(4).joinToString("·")}" + if (missing.size > 4) " 외" else ""
+            c.drawText(detail, r.left + dp(scene, 8f), r.bottom - dp(scene, 6f), textP)
+            y += rowH
+        }
+
+        val prevR = RectF(left, contentBottom() - dp(scene, 24f), left + dp(scene, 80f), contentBottom())
+        val nextR = RectF(right - dp(scene, 80f), contentBottom() - dp(scene, 24f), right, contentBottom())
+        if (questPage > 0) {
+            drawButton(c, scene, prevR, "‹ 이전", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10.5f)
+            btnRects.add(Triple(prevR, "quest_prev") { questPage-- })
+        }
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val pageText = "도장 깨기 ${questPage + 1}/$pages"
+        c.drawText(pageText, panelR.centerX() - textP.measureText(pageText) / 2, contentBottom() - dp(scene, 7f), textP)
+        if (questPage < pages - 1) {
+            drawButton(c, scene, nextR, "다음 ›", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10.5f)
+            btnRects.add(Triple(nextR, "quest_next") { questPage++ })
+        }
+    }
+
 
     private fun drawGrow(c: Canvas) {
         val g = scene.game
@@ -707,7 +799,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val total = Birds.ALL.size
         textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("📚 도감 $done/$total종", areaLeft, contentTop() + dp(scene, 4f), textP)
+        c.drawText("📚 도감 $done/${total}종", areaLeft, contentTop() + dp(scene, 4f), textP)
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFFB5651D.toInt()
         val pctTxt = "${(done * 100f / total).toInt()}% 완성!"
