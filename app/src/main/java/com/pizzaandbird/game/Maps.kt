@@ -493,6 +493,7 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     val len = sqrt(dx * dx + dy * dy)
                     fleeVx = dx / len * 85f
                     fleeVy = dy / len * 85f - 35f
+                    faceLeft = fleeVx < 0f
                     fleeT = 0f
                     return
                 }

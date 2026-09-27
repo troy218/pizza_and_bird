@@ -371,7 +371,7 @@ class WorldScene(
             val bonus = if (stars >= 3) (state.questReward * 0.3f).toInt() else 0
             val total = state.questReward + bonus
             state.money += total
-            questLine = "의뢰 완료! +₩${fmtMoney(total)}" + if (bonus > 0) " (3성 보너스)" else ""
+            questLine = "의뢰 완료! +${won(total)}" + if (bonus > 0) " (3성 보너스)" else ""
             state.questBird = null
             state.questReward = 0
         }
@@ -618,7 +618,7 @@ class WorldScene(
             openOverlay(
                 DialogOverlay(
                     this, "보리 박사",
-                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ₩${fmtMoney(def.reward)}.\"",
+                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ${won(def.reward)}.\"",
                     listOf(
                         DialogOverlay.Choice("맡겨주세요!") {
                             state.questBird = def.id
@@ -658,13 +658,13 @@ class WorldScene(
                     "\"이미 최고의 장비를 갖췄구먼! 부럽다니까.\""
                 else {
                     val next = CameraDefs.LEVELS[lvl]
-                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ₩${fmtMoney(next.cost)}야.\""
+                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ${won(next.cost)}야.\""
                 },
                 buildList {
                     if (lvl < CameraDefs.LEVELS.size) {
                         val next = CameraDefs.LEVELS[lvl]
                         add(
-                            DialogOverlay.Choice("업그레이드 (₩${fmtMoney(next.cost)})") {
+                            DialogOverlay.Choice("업그레이드 (${won(next.cost)})") {
                                 if (game.state.money >= next.cost) {
                                     game.state.money -= next.cost
                                     game.state.cameraLevel = lvl + 1
@@ -878,17 +878,31 @@ class WorldScene(
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
             is FieldBird -> {
-                val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
+                val flying = e.state == 2
+                val bmp = if (flying) {
+                    val wingFrame = ((e.fleeT * 11f).toInt() and 1)
+                    a.birdFlight(e.def.id, wingFrame, e.faceLeft)
+                } else if (e.faceLeft) {
+                    a.bird(e.def.id)
+                } else {
+                    a.birdFlipped(e.def.id)
+                }
                 val bx = (e.x - camX) * WORLD_SCALE
                 val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
-                c.drawOval(
-                    RectF(
-                        bx + bmp.width * 0.1f, (e.cy - camY) * WORLD_SCALE + 6f,
-                        bx + bmp.width * 0.9f, (e.cy - camY) * WORLD_SCALE + 13f
-                    ),
-                    a.shadowPaint
-                )
-                if (e.state == 2) {
+                // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
+                if (!flying || e.fleeT < 0.32f) {
+                    val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
+                    val shadowCx = bx + bmp.width * 0.5f
+                    val shadowHalf = bmp.width * 0.4f * shadowK
+                    c.drawOval(
+                        RectF(
+                            shadowCx - shadowHalf, (e.cy - camY) * WORLD_SCALE + 7f,
+                            shadowCx + shadowHalf, (e.cy - camY) * WORLD_SCALE + 12f
+                        ),
+                        a.shadowPaint
+                    )
+                }
+                if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
                     a.sprPaint.alpha = alpha
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
@@ -904,10 +918,10 @@ class WorldScene(
                     player.bike && player.facing == Dir.W -> a.bikeSideL
                     player.bike && player.facing == Dir.N -> a.bikeUp
                     player.bike && player.facing == Dir.S -> a.bikeDown
-                    player.facing == Dir.E -> a.playerSide[frame]
-                    player.facing == Dir.W -> a.playerSideL[frame]
-                    player.facing == Dir.N -> a.playerUp[frame]
-                    else -> a.playerDown[frame]
+                    player.facing == Dir.E -> if (state.gender == "female") a.femaleSide[frame] else a.playerSide[frame]
+                    player.facing == Dir.W -> if (state.gender == "female") a.femaleSideL[frame] else a.playerSideL[frame]
+                    player.facing == Dir.N -> if (state.gender == "female") a.femaleUp[frame] else a.playerUp[frame]
+                    else -> if (state.gender == "female") a.femaleDown[frame] else a.playerDown[frame]
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE

@@ -27,6 +27,12 @@ fun fmtMoney(v: Int): String {
     return sb.reverse().toString()
 }
 
+/** 새 게임은 실제 여행의 출발점인 서울에서 시작한다. */
+const val START_REGION_ID = "seoul"
+
+/** 게임 안의 모든 금액을 대한민국 원으로 표시한다. */
+fun won(v: Int): String = "₩${fmtMoney(v)}"
+
 /** 이동 방향 (지도 기준) */
 enum class Dir { N, E, S, W }
 
@@ -44,15 +50,38 @@ enum class Tier(val star: Int, val label: String) {
     fun starText(): String = "★".repeat(star) + "☆".repeat(4 - star)
 }
 
+/** 새의 깃무늬. 같은 체형 안에서도 종마다 실루엣과 인상이 겹치지 않게 한다. */
+object BirdPatterns {
+    const val PLAIN = 0
+    const val WING_BARS = 1
+    const val STREAKED = 2
+    const val BIB = 3
+    const val DARK_CAP = 4
+    const val SPOTTED = 5
+    const val COLLAR = 6
+    const val EYE_STRIPE = 7
+    const val IRIDESCENT = 8
+}
+
 /**
- * 새 픽셀 아트 정보 (Assets.kt에서 실제 비트맵 생성)
- * template: 0=소형 명금, 1=물오리, 2=섬새(백로형), 3=맹금, 4=올빼미
+ * 새 픽셀 아트 정보 (Assets.kt에서 실제 비트맵 생성).
+ *
+ * template:
+ * 0=명금, 1=오리, 2=백로/두루미, 3=맹금, 4=올빼미,
+ * 5=도요/물떼새, 6=바닷새, 7=딱다구리, 8=비둘기/두견이,
+ * 9=물총새, 10=팔색조형, 11=꿩/뜸부기, 12=제비/칼새
+ *
+ * head/accent/pattern은 기존 팔레트만 바꾸던 방식에서 한 단계 더 나아가
+ * 머리색, 볼·날개 포인트, 종별 깃무늬를 독립적으로 표현한다.
  */
 class BirdArt(
     val template: Int,
     val body: Int, val belly: Int, val wing: Int,
     val beak: Int, val crest: Int, val leg: Int,
-    val scale: Float = 1f
+    val scale: Float = 1f,
+    val head: Int = body,
+    val accent: Int = crest,
+    val pattern: Int = BirdPatterns.PLAIN
 )
 
 class BirdDef(
@@ -87,166 +116,166 @@ object Birds {
     private val CURATED = listOf(
         // ---------------- 흔함 ----------------
         BirdDef(
-            "sparrow", "참새", Tier.COMMON, setOf("city", "field"), 30.0, 300,
+            "sparrow", "참새", Tier.COMMON, setOf("city", "field"), 30.0, 3000,
             "동네 어디서나 만날 수 있는 우리의 친구. 수수 한 알에도 행복해한다.",
             null,
-            BirdArt(0, c(0xFF9C7A54), c(0xFFEFE3CF), c(0xFF6B4A33), c(0xFF4A3728), c(0xFF6B4A33), c(0xFFB98A4A))
+            BirdArt(0, c(0xFF9C7A54), c(0xFFEFE3CF), c(0xFF6B4A33), c(0xFF4A3728), c(0xFF6B4A33), c(0xFFB98A4A), pattern = BirdPatterns.STREAKED)
         ),
         BirdDef(
-            "bulbul", "직박구리", Tier.COMMON, setOf("city", "forest"), 28.0, 300,
+            "bulbul", "직박구리", Tier.COMMON, setOf("city", "forest"), 28.0, 3000,
             "머리에 흰 털이 특징. 목청이 무척 좋아 아침마다 알람 역할을 한다.",
             null,
-            BirdArt(0, c(0xFF6D635A), c(0xFFE8DDC8), c(0xFF8A7D6D), c(0xFF3A322C), c(0xFF4F463F), c(0xFFB98A4A))
+            BirdArt(0, c(0xFF6D635A), c(0xFFE8DDC8), c(0xFF8A7D6D), c(0xFF3A322C), c(0xFF4F463F), c(0xFFB98A4A), head = c(0xFF4F463F), accent = c(0xFFF2EEE4), pattern = BirdPatterns.EYE_STRIPE)
         ),
         BirdDef(
-            "magpie", "까치", Tier.COMMON, setOf("city", "field"), 26.0, 320,
+            "magpie", "까치", Tier.COMMON, setOf("city", "field"), 26.0, 3200,
             "한국의 국조. 아침에 울면 반가운 소식이 온다는 좋은 새.",
             null,
-            BirdArt(0, c(0xFF3C3F47), c(0xFFF2F2F0), c(0xFF23252B), c(0xFF23252B), c(0xFF3C3F47), c(0xFF3A3A44))
+            BirdArt(0, c(0xFF3C3F47), c(0xFFF2F2F0), c(0xFF23252B), c(0xFF23252B), c(0xFF3C3F47), c(0xFF3A3A44), accent = c(0xFF4E6F91), pattern = BirdPatterns.IRIDESCENT)
         ),
         BirdDef(
-            "greattit", "박새", Tier.COMMON, setOf("forest", "city"), 26.0, 320,
+            "greattit", "박새", Tier.COMMON, setOf("forest", "city"), 26.0, 3200,
             "노란 배에 검은 넥타이를 맨 듯한 깔끔한 패션의 소유자.",
             null,
-            BirdArt(0, c(0xFF4F6F52), c(0xFFF2D65A), c(0xFF3A5440), c(0xFF23252B), c(0xFF23252B), c(0xFFB98A4A))
+            BirdArt(0, c(0xFF4F6F52), c(0xFFF2D65A), c(0xFF3A5440), c(0xFF23252B), c(0xFF23252B), c(0xFFB98A4A), head = c(0xFF23252B), accent = c(0xFFF5F1DF), pattern = BirdPatterns.BIB)
         ),
         BirdDef(
-            "dove", "멧비둘기", Tier.COMMON, setOf("city", "forest"), 22.0, 300,
+            "dove", "멧비둘기", Tier.COMMON, setOf("city", "forest"), 22.0, 3000,
             "목에 무늬가 반짝이는 온화한 새. 구구… 구구…",
             null,
-            BirdArt(0, c(0xFFB8A99A), c(0xFFE6DCCB), c(0xFF8F8072), c(0xFF6B5A48), c(0xFF9C8D7E), c(0xFFB0793F), 1.05f)
+            BirdArt(8, c(0xFFB8A99A), c(0xFFE6DCCB), c(0xFF8F8072), c(0xFF6B5A48), c(0xFF9C8D7E), c(0xFFB0793F), 1.05f, accent = c(0xFF4A4A52), pattern = BirdPatterns.COLLAR)
         ),
         BirdDef(
-            "jay", "어치", Tier.COMMON, setOf("forest", "city"), 20.0, 340,
+            "jay", "어치", Tier.COMMON, setOf("forest", "city"), 20.0, 3400,
             "복숭아빛 깃털에 파란 날개. 도토리를 숨겨두고 잊어버리는 숲의 수호자.",
             null,
-            BirdArt(0, c(0xFFD9825C), c(0xFFF2E3D0), c(0xFF4F6FA5), c(0xFF23252B), c(0xFFEFE8DC), c(0xFF6B5A48))
+            BirdArt(0, c(0xFFD9825C), c(0xFFF2E3D0), c(0xFF4F6FA5), c(0xFF23252B), c(0xFFEFE8DC), c(0xFF6B5A48), head = c(0xFFD9825C), accent = c(0xFF69A7D8), pattern = BirdPatterns.WING_BARS)
         ),
         BirdDef(
-            "gull", "괭이갈매기", Tier.COMMON, setOf("coast", "water"), 26.0, 300,
+            "gull", "괭이갈매기", Tier.COMMON, setOf("coast", "water"), 26.0, 3000,
             "바닷가의 주민. 괭이~ 괭이~ 울음소리가 이름이 되었다.",
             null,
-            BirdArt(0, c(0xFFF2F2EE), c(0xFFFFFFFF), c(0xFFC9C9C2), c(0xFFF2A33C), c(0xFFD9D9D2), c(0xFFF2A33C), 1.05f)
+            BirdArt(6, c(0xFFF2F2EE), c(0xFFFFFFFF), c(0xFFC9C9C2), c(0xFFF2A33C), c(0xFFD9D9D2), c(0xFFF2A33C), 1.05f, head = c(0xFFF7F7F2), accent = c(0xFF3B3C42), pattern = BirdPatterns.DARK_CAP)
         ),
         // ---------------- 보통 ----------------
         BirdDef(
-            "tern", "쇠제비갈매기", Tier.UNCOMMON, setOf("coast", "water"), 12.0, 800,
+            "tern", "쇠제비갈매기", Tier.UNCOMMON, setOf("coast", "water"), 12.0, 8000,
             "제비처럼 날카롭게 물위를 가르며 낚시를 즐기는 갈매기.",
             null,
-            BirdArt(0, c(0xFFEEF2F4), c(0xFFFFFFFF), c(0xFF6B7D8A), c(0xFFE8B14E), c(0xFF23252B), c(0xFFE8863C))
+            BirdArt(6, c(0xFFEEF2F4), c(0xFFFFFFFF), c(0xFF6B7D8A), c(0xFFE8B14E), c(0xFF23252B), c(0xFFE8863C), head = c(0xFFEEF2F4), accent = c(0xFF23252B), pattern = BirdPatterns.DARK_CAP)
         ),
         BirdDef(
-            "spotduck", "청둥오리", Tier.UNCOMMON, setOf("water", "wetland"), 12.0, 800,
+            "spotduck", "청둥오리", Tier.UNCOMMON, setOf("water", "wetland"), 12.0, 8000,
             "연못과 호수의 단골. 머리의 초록빛이 은은하게 반짝인다.",
             null,
-            BirdArt(1, c(0xFF7A6A52), c(0xFFCBB894), c(0xFF3F6D8E), c(0xFFE8B14E), c(0xFF5D6440), c(0xFFE8863C), 1.05f)
+            BirdArt(1, c(0xFF7A6A52), c(0xFFCBB894), c(0xFF3F6D8E), c(0xFFE8B14E), c(0xFF5D6440), c(0xFFE8863C), 1.05f, head = c(0xFF28705B), accent = c(0xFFF2EEE0), pattern = BirdPatterns.COLLAR)
         ),
         BirdDef(
-            "tufteduck", "쇠오리", Tier.UNCOMMON, setOf("water", "wetland"), 11.0, 800,
+            "tufteduck", "쇠오리", Tier.UNCOMMON, setOf("water", "wetland"), 11.0, 8000,
             "뒤통수에 삐죽 머리를 세운 검은 오리. 물속에 머리를 박고 뒤집혀 먹이를 찾는다.",
             null,
-            BirdArt(1, c(0xFF2B2B33), c(0xFFF5F2EA), c(0xFF1E1E26), c(0xFF5A5A66), c(0xFF1A1A20), c(0xFFE8A14E), 1.1f)
+            BirdArt(1, c(0xFF2B2B33), c(0xFFF5F2EA), c(0xFF1E1E26), c(0xFF5A5A66), c(0xFF1A1A20), c(0xFFE8A14E), 1.1f, head = c(0xFF191921), accent = c(0xFFF5F2EA), pattern = BirdPatterns.WING_BARS)
         ),
         BirdDef(
-            "egret", "중대백로", Tier.UNCOMMON, setOf("water", "wetland", "coast"), 10.0, 850,
+            "egret", "중대백로", Tier.UNCOMMON, setOf("water", "wetland", "coast"), 10.0, 8500,
             "흰 한복을 입은 듯 우아한 겨울 손님. 목을 S자로 접고 한가로이 서 있다.",
             null,
             BirdArt(2, c(0xFFFDFDF8), c(0xFFFFFFFF), c(0xFFE8E4D8), c(0xFFE8B14E), c(0xFFFDFDF8), c(0xFF4A3728), 1.15f)
         ),
         BirdDef(
-            "woodpecker", "까막딱다구리", Tier.UNCOMMON, setOf("forest", "mountain"), 10.0, 800,
+            "woodpecker", "까막딱다구리", Tier.UNCOMMON, setOf("forest", "mountain"), 10.0, 8000,
             "울창한 숲의 목수. 나무를 두드리는 소리가 숲에 울려 퍼진다.",
             null,
-            BirdArt(0, c(0xFF2B2B30), c(0xFF3A3A40), c(0xFF1E1E24), c(0xFFD9D3C8), c(0xFFD9403A), c(0xFF6B7280), 1.1f)
+            BirdArt(7, c(0xFF2B2B30), c(0xFF3A3A40), c(0xFF1E1E24), c(0xFFD9D3C8), c(0xFFD9403A), c(0xFF6B7280), 1.1f, head = c(0xFF202027), accent = c(0xFFD9403A), pattern = BirdPatterns.DARK_CAP)
         ),
         BirdDef(
-            "greenwood", "청딱다구리", Tier.UNCOMMON, setOf("forest"), 9.0, 850,
+            "greenwood", "청딱다구리", Tier.UNCOMMON, setOf("forest"), 9.0, 8500,
             "등이 청록색으로 빛나는 우리 숲의 딱따구리. 수컷의 정수리는 빨갛다.",
             null,
-            BirdArt(0, c(0xFF5D9E5F), c(0xFFF2E8D0), c(0xFF3F6F44), c(0xFF23252B), c(0xFFD9403A), c(0xFF6B7280))
+            BirdArt(7, c(0xFF5D9E5F), c(0xFFF2E8D0), c(0xFF3F6F44), c(0xFF23252B), c(0xFFD9403A), c(0xFF6B7280), head = c(0xFF758B64), accent = c(0xFFD9403A), pattern = BirdPatterns.DARK_CAP)
         ),
         BirdDef(
-            "cuckoo", "뻐꾸기", Tier.UNCOMMON, setOf("forest", "field"), 9.0, 800,
+            "cuckoo", "뻐꾸기", Tier.UNCOMMON, setOf("forest", "field"), 9.0, 8000,
             "뻐꾹~ 뻐꾹~ 봄을 알리는 소리의 주인공. 남의 둥지에 알을 맡기는 야무진 전략가.",
             null,
-            BirdArt(0, c(0xFF8A8F98), c(0xFFF2F0E8), c(0xFF5F646D), c(0xFF6B6455), c(0xFF6F747D), c(0xFF6B7280), 1.05f)
+            BirdArt(8, c(0xFF8A8F98), c(0xFFF2F0E8), c(0xFF5F646D), c(0xFF6B6455), c(0xFF6F747D), c(0xFF6B7280), 1.05f, pattern = BirdPatterns.STREAKED)
         ),
         BirdDef(
-            "nightheron", "검은댕기해오라기", Tier.UNCOMMON, setOf("wetland", "water"), 7.0, 900,
+            "nightheron", "검은댕기해오라기", Tier.UNCOMMON, setOf("wetland", "water"), 7.0, 9000,
             "해 질 녘 습지에 어둠처럼 나타나는 새. 짧은 다리로 꼿꼿이 서서 기다린다.",
             null,
-            BirdArt(2, c(0xFF3A3F4A), c(0xFFE8E4D8), c(0xFF262A33), c(0xFF23252B), c(0xFF23252B), c(0xFFE8A14E)),
+            BirdArt(2, c(0xFF3A3F4A), c(0xFFE8E4D8), c(0xFF262A33), c(0xFF23252B), c(0xFF23252B), c(0xFFE8A14E), head = c(0xFF23252B), accent = c(0xFFF1EEE4), pattern = BirdPatterns.DARK_CAP),
             "night"
         ),
         BirdDef(
-            "owl", "올빼미", Tier.UNCOMMON, setOf("forest"), 8.0, 1000,
+            "owl", "올빼미", Tier.UNCOMMON, setOf("forest"), 8.0, 10000,
             "밤의 숲 지기. 머리를 거꾸로 270도나 돌릴 수 있다. 후~ 후~.",
             null,
-            BirdArt(4, c(0xFF8A6F4F), c(0xFFE8D9B8), c(0xFF6B5438), c(0xFFD9A03C), c(0xFF6B5438), c(0xFFD9A03C)),
+            BirdArt(4, c(0xFF8A6F4F), c(0xFFE8D9B8), c(0xFF6B5438), c(0xFFD9A03C), c(0xFF6B5438), c(0xFFD9A03C), accent = c(0xFF3F3429), pattern = BirdPatterns.SPOTTED),
             "night"
         ),
         // ---------------- 희귀 ----------------
         BirdDef(
-            "kestrel", "황조롱이", Tier.RARE, setOf("field", "mountain", "coast"), 5.0, 2000,
+            "kestrel", "황조롱이", Tier.RARE, setOf("field", "mountain", "coast"), 5.0, 20000,
             "하늘에 떠서 들판을 살피는 작은 매. 바람 위에서 멈춰 서기도 한다.",
             null,
-            BirdArt(3, c(0xFFB06A3C), c(0xFFE8D5B0), c(0xFF7A4A2B), c(0xFF4A3728), c(0xFF6B7D8A), c(0xFFF2D06B), 1.1f)
+            BirdArt(3, c(0xFFB06A3C), c(0xFFE8D5B0), c(0xFF7A4A2B), c(0xFF4A3728), c(0xFF6B7D8A), c(0xFFF2D06B), 1.1f, pattern = BirdPatterns.STREAKED)
         ),
         BirdDef(
-            "kite", "말똥가리", Tier.RARE, setOf("coast", "field", "city"), 5.0, 2100,
+            "kite", "말똥가리", Tier.RARE, setOf("coast", "field", "city"), 5.0, 21000,
             "갈색 깃털에 가위꼬리를 가른 바다의 매. 항구 하늘을 빙빙 돌며 유영한다.",
             null,
-            BirdArt(3, c(0xFF8A5A3C), c(0xFFF0DEC0), c(0xFF6B4430), c(0xFFD9A03C), c(0xFF6B4430), c(0xFFE8B14E), 1.2f)
+            BirdArt(3, c(0xFF8A5A3C), c(0xFFF0DEC0), c(0xFF6B4430), c(0xFFD9A03C), c(0xFF6B4430), c(0xFFE8B14E), 1.2f, pattern = BirdPatterns.STREAKED)
         ),
         BirdDef(
-            "goshawk", "참매", Tier.RARE, setOf("forest", "mountain"), 4.5, 2200,
+            "goshawk", "참매", Tier.RARE, setOf("forest", "mountain"), 4.5, 22000,
             "숲의 사냥꾼. 노란 눈이 초롱초롱한 대형 맹금. 가까이서 보면 심장이 뛴다.",
             null,
-            BirdArt(3, c(0xFF5F6B78), c(0xFFF2F0EA), c(0xFF4A5460), c(0xFFD9A03C), c(0xFF4A5460), c(0xFFE8B14E), 1.15f)
+            BirdArt(3, c(0xFF5F6B78), c(0xFFF2F0EA), c(0xFF4A5460), c(0xFFD9A03C), c(0xFF4A5460), c(0xFFE8B14E), 1.15f, pattern = BirdPatterns.STREAKED)
         ),
         BirdDef(
-            "kingfisher", "물총새", Tier.RARE, setOf("water"), 5.0, 2200,
+            "kingfisher", "물총새", Tier.RARE, setOf("water"), 5.0, 22000,
             "물가의 보석. 파란 번개처럼 스쳐 지나가 물고기를 낚는다.",
             null,
-            BirdArt(0, c(0xFF3F8FB5), c(0xFFF2913C), c(0xFF2F6FA0), c(0xFF23252B), c(0xFF2F6FA0), c(0xFFE8863C), 0.85f)
+            BirdArt(9, c(0xFF3F8FB5), c(0xFFF2913C), c(0xFF2F6FA0), c(0xFF23252B), c(0xFF2F6FA0), c(0xFFE8863C), 0.85f, head = c(0xFF2876A4), accent = c(0xFF67C1D5), pattern = BirdPatterns.EYE_STRIPE)
         ),
         BirdDef(
-            "pitta", "팔색조", Tier.RARE, setOf("forest"), 4.0, 2000,
+            "pitta", "팔색조", Tier.RARE, setOf("forest"), 4.0, 20000,
             "무지개 빛깔 여덟 색을 두른 숲의 보석. 운이 좋아야 만날 수 있다.",
             setOf("gwangju", "jeju", "ulsan"),
-            BirdArt(0, c(0xFF4F8F6A), c(0xFFE8E0C8), c(0xFF3F6FB0), c(0xFF23252B), c(0xFFD9403A), c(0xFFB98A4A))
+            BirdArt(10, c(0xFF4F8F6A), c(0xFFE8E0C8), c(0xFF3F6FB0), c(0xFF23252B), c(0xFFD9403A), c(0xFFB98A4A), head = c(0xFF3A2D28), accent = c(0xFFD9403A), pattern = BirdPatterns.IRIDESCENT)
         ),
         BirdDef(
-            "mandarin", "원앙", Tier.RARE, setOf("water", "forest"), 4.5, 2400,
+            "mandarin", "원앙", Tier.RARE, setOf("water", "forest"), 4.5, 24000,
             "무지개色 깃털의 오리. 부부 금실이 좋아 예부터 사랑의 상징이었다.",
             setOf("gwangju", "jeonju", "jeju", "ulsan"),
-            BirdArt(1, c(0xFF6B4A5E), c(0xFFF5EBD0), c(0xFF4F7DAD), c(0xFFC9503A), c(0xFFE8863C), c(0xFFD97B4A), 1.05f)
+            BirdArt(1, c(0xFF6B4A5E), c(0xFFF5EBD0), c(0xFF4F7DAD), c(0xFFC9503A), c(0xFFE8863C), c(0xFFD97B4A), 1.05f, head = c(0xFF356D5A), accent = c(0xFFE8863C), pattern = BirdPatterns.IRIDESCENT)
         ),
         BirdDef(
-            "eagleowl", "수리부엉이", Tier.RARE, setOf("mountain", "forest"), 3.5, 3000,
+            "eagleowl", "수리부엉이", Tier.RARE, setOf("mountain", "forest"), 3.5, 30000,
             "밤 산림의 왕. 귀깃을 세운 위엄 있는 얼굴로 어둠을 내려다본다.",
             setOf("sokcho", "jeju", "ulsan", "daegu"),
-            BirdArt(4, c(0xFF9C7A54), c(0xFFE8D5B0), c(0xFF7A5A3A), c(0xFFD9A03C), c(0xFF7A5A3A), c(0xFFD9A03C), 1.3f),
+            BirdArt(4, c(0xFF9C7A54), c(0xFFE8D5B0), c(0xFF7A5A3A), c(0xFFD9A03C), c(0xFF7A5A3A), c(0xFFD9A03C), 1.3f, head = c(0xFF7A5A3A), accent = c(0xFF3F3429), pattern = BirdPatterns.STREAKED),
             "night"
         ),
         BirdDef(
-            "redcrown", "재두루미", Tier.RARE, setOf("wetland", "water"), 3.0, 3200,
+            "redcrown", "재두루미", Tier.RARE, setOf("wetland", "water"), 3.0, 32000,
             "목덜미가 하얀 겨울 귀빈. 두루미보다 눈이 조금 더 검다.",
             setOf("seoul", "chuncheon", "incheon", "jeju"),
-            BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35), 1.25f)
+            BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35), 1.25f, pattern = BirdPatterns.DARK_CAP)
         ),
         // ---------------- 전설 ----------------
         BirdDef(
-            "crane", "두루미", Tier.LEGEND, setOf("wetland", "water"), 1.2, 6000,
+            "crane", "두루미", Tier.LEGEND, setOf("wetland", "water"), 1.2, 60000,
             "머리에 붉은 왕관을 얹은 격식 있는 겨울 손님. 만나면 한 해가 행복하다.",
             setOf("seoul", "chuncheon", "incheon", "jeju"),
-            BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35), 1.3f)
+            BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35), 1.3f, accent = c(0xFFD9403A), pattern = BirdPatterns.DARK_CAP)
         ),
         BirdDef(
-            "stork", "황새", Tier.LEGEND, setOf("wetland", "water"), 1.0, 6500,
+            "stork", "황새", Tier.LEGEND, setOf("wetland", "water"), 1.0, 65000,
             "붉은 부리와 다리로 한 발로 서서 잠드는, 전설 속 아기를 물어다 주는 새.",
             setOf("chuncheon", "seoul", "jeju"),
-            BirdArt(2, c(0xFFFDFAF2), c(0xFFFFFFFF), c(0xFFE0DCC8), c(0xFFB03A30), c(0xFFFDFAF2), c(0xFFB03A30), 1.35f)
+            BirdArt(2, c(0xFFFDFAF2), c(0xFFFFFFFF), c(0xFFE0DCC8), c(0xFFB03A30), c(0xFFFDFAF2), c(0xFFB03A30), 1.35f, pattern = BirdPatterns.DARK_CAP)
         )
     )
 
@@ -407,14 +436,26 @@ object Birds {
 
     private fun artFor(entry: BirdChecklistEntry, habitats: Set<String>): BirdArt {
         val family = entry.familyName
-        val text = "${entry.koreanName} ${entry.englishName} $family"
+        val order = entry.orderName
+        val text = "${entry.koreanName} ${entry.englishName} $family $order"
+
+        // 598종을 단순 5개 체형에 끼워 넣지 않고 생태적 체형에 맞는 13개 실루엣으로 분류한다.
         val template = when {
-            entry.orderName == "올빼미목" -> 4
-            entry.orderName == "수리목" || entry.orderName == "매목" -> 3
+            order == "올빼미목" -> 4
+            order == "수리목" || order == "매목" -> 3
             family in setOf("황새과", "저어새과", "백로과", "사다새과", "홍학과", "두루미과") -> 2
-            family == "오리과" || hasAny(text, "오리", "기러기", "고니", "논병아리", "아비", "물닭", "뜸부기") -> 1
+            family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과", "호사도요과", "물꿩과", "제비물떼새과") -> 5
+            family in setOf("갈매기과", "도둑갈매기과", "바다오리과", "알바트로스과", "바다제비과", "슴새과", "군함조과", "얼가니새과", "가마우지과") -> 6
+            family == "오리과" || order == "논병아리목" || order == "아비목" || hasAny(text, "오리", "기러기", "고니") -> 1
+            order == "딱다구리목" || order == "코뿔새목" -> 7
+            order == "비둘기목" || order == "두견이목" -> 8
+            order == "파랑새목" -> 9
+            family == "팔색조과" -> 10
+            order in setOf("닭목", "사막꿩목", "느시목") || family == "뜸부기과" -> 11
+            order == "칼새목" || family == "제비과" -> 12
             else -> 0
         }
+
         var body = hashedColor(entry, 0)
         var belly = lighten(body)
         var wing = darken(body)
@@ -441,25 +482,78 @@ object Birds {
             body = c(0xFF4F8F5E); belly = c(0xFFE2E8C8); wing = c(0xFF356F45); crest = body
         }
         if (family == "갈매기과") {
-            body = c(0xFFF2F2EE); belly = c(0xFFFFFFFF); wing = c(0xFFC9C9C2); beak = c(0xFFF2A33C); leg = beak
+            body = c(0xFFF2F2EE); belly = c(0xFFFFFFFF); wing = c(0xFFC9C9C2)
+            beak = c(0xFFF2A33C); leg = beak; crest = c(0xFF3B3C42)
         }
         if (template == 3) {
-            body = c(0xFF8A5A3C); belly = c(0xFFE8D5B0); wing = c(0xFF5F3B2B); beak = c(0xFFD9A03C); leg = c(0xFFF2D06B)
+            val raptorBodies = intArrayOf(c(0xFF8A5A3C), c(0xFF9B6848), c(0xFF6A625C), c(0xFF79513D))
+            body = raptorBodies[(entry.scientificName.hashCode() and 0x7fffffff) % raptorBodies.size]
+            belly = lighten(body); wing = darken(body); beak = c(0xFFD9A03C); leg = c(0xFFF2D06B); crest = wing
         }
         if (template == 4) {
-            body = c(0xFF8A6F4F); belly = c(0xFFE8D9B8); wing = c(0xFF6B5438); beak = c(0xFFD9A03C); crest = wing; leg = c(0xFFD9A03C)
+            body = c(0xFF8A6F4F); belly = c(0xFFE8D9B8); wing = c(0xFF6B5438)
+            beak = c(0xFFD9A03C); crest = wing; leg = c(0xFFD9A03C)
         }
         if (habitats.contains("water") || habitats.contains("wetland")) {
             beak = if (hasAny(text, "오리", "기러기", "고니")) c(0xFFE8B14E) else beak
             leg = c(0xFFE8863C)
         }
+
+        var head = body
+        var accent = crest
+        if (template == 1) {
+            head = if (hasAny(text, "청둥", "Mallard", "원앙", "Mandarin")) c(0xFF28705B) else darken(body)
+            accent = if (head != body) c(0xFFF2EEE0) else lighten(wing)
+        }
+        if (template == 6) {
+            head = body
+            accent = if (hasAny(text, "제비갈매기", "Tern", "괭이", "Black-tailed")) c(0xFF303139) else wing
+        }
+        if (template == 7 && hasAny(text, "붉은", "홍", "Red", "청딱")) accent = c(0xFFD9403A)
+        if (template == 9) accent = lighten(body)
+
+        var pattern = when (template) {
+            1 -> BirdPatterns.COLLAR
+            2 -> if (hasAny(text, "두루미", "황새", "Crane", "Stork")) BirdPatterns.DARK_CAP else BirdPatterns.PLAIN
+            3 -> BirdPatterns.STREAKED
+            4 -> BirdPatterns.SPOTTED
+            5 -> BirdPatterns.EYE_STRIPE
+            6 -> BirdPatterns.DARK_CAP
+            7 -> BirdPatterns.WING_BARS
+            8 -> BirdPatterns.COLLAR
+            9 -> BirdPatterns.EYE_STRIPE
+            10 -> BirdPatterns.IRIDESCENT
+            11 -> BirdPatterns.SPOTTED
+            12 -> BirdPatterns.COLLAR
+            else -> when (family) {
+                "지빠귀과", "딱새과" -> BirdPatterns.SPOTTED
+                "참새과", "멧새과", "되새과", "종다리과" -> BirdPatterns.STREAKED
+                "박새과", "할미새과" -> BirdPatterns.BIB
+                "까마귀과", "찌르레기과" -> BirdPatterns.IRIDESCENT
+                "직박구리과" -> BirdPatterns.DARK_CAP
+                "동박새과", "솔새과", "휘파람새과" -> BirdPatterns.EYE_STRIPE
+                else -> 1 + ((entry.scientificName.hashCode() and 0x7fffffff) % 7)
+            }
+        }
+        if (hasAny(text, "점박", "알락", "Spotted", "Speckled")) pattern = BirdPatterns.SPOTTED
+        if (hasAny(text, "검은머리", "검은이마", "Black-headed", "Black-capped")) pattern = BirdPatterns.DARK_CAP
+        if (hasAny(text, "흰눈썹", "Eyebrow", "White-eye")) pattern = BirdPatterns.EYE_STRIPE
+
         val scale = when (template) {
             2 -> 1.12f
             3 -> 1.08f
             4 -> 1.12f
+            5 -> 0.96f
+            6 -> 1.04f
+            7 -> 1.02f
+            8 -> 1.04f
+            9 -> 0.92f
+            10 -> 0.96f
+            11 -> 1.08f
+            12 -> 0.92f
             else -> 1f
         }
-        return BirdArt(template, body, belly, wing, beak, crest, leg, scale)
+        return BirdArt(template, body, belly, wing, beak, crest, leg, scale, head, accent, pattern)
     }
 
     private fun hashedColor(entry: BirdChecklistEntry, salt: Int): Int {
@@ -532,17 +626,81 @@ object Decors {
     )
 
     val ALL = listOf(
-        Decor(0, "선인장 화분", "🌵", 400, 1, "작지만 튼튼한 친구. 물은 아껴 주세요."),
-        Decor(1, "원목 책장", "📚", 1200, 2, "조류 도감과 여행 수첩이 가득한 책장."),
-        Decor(2, "포근한 러그", "🧶", 800, 2, "맨발로 밟으면 기분이 좋아지는 러그."),
-        Decor(3, "스탠드 조명", "💡", 1500, 2, "따뜻한 불빛. 밤에 집 안을 환히 밝혀요."),
-        Decor(4, "탐조 트로피", "🏆", 2500, 3, "첫 사진 콘테스트 입상 기념품!"),
-        Decor(5, "빈티지 라디오", "📻", 1000, 2, "드르륵 돌리면 새소리 방송이 나와요.")
+        Decor(0, "선인장 화분", "🌵", 40000, 1, "작지만 튼튼한 친구. 물은 아껴 주세요."),
+        Decor(1, "원목 책장", "📚", 120000, 2, "조류 도감과 여행 수첩이 가득한 책장."),
+        Decor(2, "포근한 러그", "🧶", 80000, 2, "맨발로 밟으면 기분이 좋아지는 러그."),
+        Decor(3, "스탠드 조명", "💡", 150000, 2, "따뜻한 불빛. 밤에 집 안을 환히 밝혀요."),
+        Decor(4, "탐조 트로피", "🏆", 250000, 3, "첫 사진 콘테스트 입상 기념품!"),
+        Decor(5, "빈티지 라디오", "📻", 100000, 2, "드르륵 돌리면 새소리 방송이 나와요.")
     )
 
     val byId: Map<Int, Decor> = ALL.associateBy { it.id }
 
     fun of(id: Int): Decor? = byId[id]
+}
+
+/**
+ * 집 내부 인테리어 스타일.
+ * 가격은 일회성 리모델링 비용이며, 한 번 산 스타일은 이사해도 계속 사용할 수 있다.
+ * 색상은 HomeScene에서 실제 바닥/벽/포인트 렌더링에 사용된다.
+ */
+class HouseStyle(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val price: Int,
+    val desc: String,
+    val wallTint: Int,
+    val floorTint: Int,
+    val accentTint: Int
+)
+
+object HouseStyles {
+    val ALL = listOf(
+        HouseStyle(
+            "cozy", "햇살 가득 아늑한 집", "🪵", 0,
+            "나무 바닥과 크림색 벽의 기본 인테리어",
+            0xFFE8D4B8.toInt(), 0xFFC99D6B.toInt(), 0xFFE9B44C.toInt()
+        ),
+        HouseStyle(
+            "hanok", "서울 한옥 감성", "🏯", 5000000,
+            "단정한 나무 기둥과 따뜻한 한지 벽",
+            0xFFD9B892.toInt(), 0xFF9B633E.toInt(), 0xFFB83B35.toInt()
+        ),
+        HouseStyle(
+            "modern", "모던 스튜디오", "🛋", 12000000,
+            "차분한 회색 벽과 깔끔한 청록 포인트",
+            0xFFD8E0E5.toInt(), 0xFF8B9AA5.toInt(), 0xFF4F9DA6.toInt()
+        ),
+        HouseStyle(
+            "garden", "초록 정원형", "🪴", 20000000,
+            "식물과 햇빛이 어울리는 편안한 초록 인테리어",
+            0xFFD7E3C3.toInt(), 0xFF9AB27C.toInt(), 0xFF6FAE57.toInt()
+        )
+    )
+
+    val byId: Map<String, HouseStyle> = ALL.associateBy { it.id }
+    fun of(id: String): HouseStyle = byId[id] ?: ALL.first()
+}
+
+/** 지역별 작은 집 매매가(대한민국 원). 서울은 새 게임에서 이미 보유한다. */
+object HousePrices {
+    private val byRegion = mapOf(
+        "seoul" to 85000000,
+        "incheon" to 42000000,
+        "chuncheon" to 30000000,
+        "gangneung" to 38000000,
+        "sokcho" to 36000000,
+        "daejeon" to 32000000,
+        "jeonju" to 25000000,
+        "daegu" to 28000000,
+        "gwangju" to 26000000,
+        "ulsan" to 34000000,
+        "busan" to 52000000,
+        "jeju" to 48000000
+    )
+
+    fun forRegion(regionId: String): Int = byRegion[regionId] ?: 30000000
 }
 
 /** 카메라 등급 (상점에서 업그레이드) */
@@ -551,18 +709,18 @@ object CameraDefs {
 
     val LEVELS = listOf(
         Cam("폰 카메라", 4.5f, 0, 0),
-        Cam("컴팩트 카메라", 6.0f, 800, 0),
-        Cam("미러리스", 7.5f, 2500, 1),
-        Cam("DSLR", 9.0f, 6000, 1),
-        Cam("프리미엄 DSLR", 11.0f, 15000, 2)
+        Cam("컴팩트 카메라", 6.0f, 80000, 0),
+        Cam("미러리스", 7.5f, 250000, 1),
+        Cam("DSLR", 9.0f, 600000, 1),
+        Cam("프리미엄 DSLR", 11.0f, 1500000, 2)
     )
 
     fun name(level: Int): String = LEVELS[(level - 1).coerceIn(0, LEVELS.size - 1)].name
     fun range(level: Int): Float = LEVELS[(level - 1).coerceIn(0, LEVELS.size - 1)].rangeTiles
 }
 
-/** 이사 비용 */
-const val MOVE_COST = 300
+/** 이사 용달·중개 수수료 (대한민국 원) */
+const val MOVE_COST = 300000
 
 /** 들고 다닐 수 있는 피자 최대 개수 */
 const val PIZZA_CAP = 6

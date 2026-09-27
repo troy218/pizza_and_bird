@@ -165,8 +165,11 @@ fun main() {
 
     // 5. 게임 상태 로직 (v0.2: 토핑×품질)
     val gs = GameState()
-    gs.reset("jeju")
-    check(gs.started && gs.homeRegion == "jeju" && "jeju" in gs.visited, "reset 오류")
+    gs.reset("jeju") // 인자로 무엇을 넘겨도 새 게임은 서울에서 시작
+    check(gs.started && gs.homeRegion == START_REGION_ID && START_REGION_ID in gs.visited, "서울 고정 시작 오류")
+    check(gs.ownedHomes == linkedSetOf(START_REGION_ID), "초기 서울 집 소유 오류")
+    check(HouseStyles.ALL.size == 4 && gs.houseStyleId == "cozy", "인테리어 초기화 오류")
+    check(HousePrices.forRegion("seoul") > HousePrices.forRegion("jeonju"), "지역별 집값 데이터 오류")
     check(gs.worldTime == 8.5f && !gs.isNight(), "초기 시각 오류")
     check(gs.decorSlots.all { it == -1 } && gs.decorLuck() == 0, "장식 초기화 오류")
 
@@ -199,7 +202,7 @@ fun main() {
     gs.decorSlots[0] = 0; gs.decorSlots[1] = 4
     check(gs.decorLuck() == 4, "장식 행운 합산 오류: ${gs.decorLuck()}")
 
-    check(gs.money == 0, "초기 돈 오류")
+    check(gs.money == 30000 && won(gs.money) == "₩30,000", "초기 원화 오류")
 
     // 6. JSON 직렬화 왕복 (org.json은 Android 런타임 필요 — 여기선 미실행)
 
