@@ -33,6 +33,12 @@ import kotlin.math.min
 
 object Color {
     @JvmStatic
+    val WHITE: Int = 0xFFFFFFFF.toInt()
+
+    @JvmStatic
+    val BLACK: Int = 0xFF000000.toInt()
+
+    @JvmStatic
     fun argb(a: Int, r: Int, g: Int, b: Int): Int =
         ((a and 0xFF) shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
 
@@ -313,6 +319,51 @@ private fun cycle(tileMode: TileMode): java.awt.MultipleGradientPaint.CycleMetho
     TileMode.CLAMP -> java.awt.MultipleGradientPaint.CycleMethod.NO_CYCLE
 }
 
+open class Xfermode
+
+/** 프리뷰용 타입페이스 — 실제 폰트 선택은 StubText 가 담당 */
+class Typeface private constructor(val name: String) {
+    companion object {
+        const val NORMAL = 0
+        const val BOLD = 1
+        const val ITALIC = 2
+        const val BOLD_ITALIC = 3
+
+        @JvmStatic
+        val DEFAULT: Typeface = Typeface("default")
+
+        @JvmStatic
+        val DEFAULT_BOLD: Typeface = Typeface("default-bold")
+
+        @JvmStatic
+        val SANS_SERIF: Typeface = Typeface("sans-serif")
+
+        @JvmStatic
+        val SERIF: Typeface = Typeface("serif")
+
+        @JvmStatic
+        val MONOSPACE: Typeface = Typeface("monospace")
+
+        @JvmStatic
+        fun create(family: String?, style: Int): Typeface = Typeface(family ?: "default")
+
+        @JvmStatic
+        fun create(asset: Typeface?, style: Int): Typeface = asset ?: DEFAULT
+    }
+}
+
+open class MaskFilter
+
+class BlurMaskFilter(val radius: Float, val blur: Blur) : MaskFilter() {
+    enum class Blur { NORMAL, SOLID, OUTER, INNER }
+}
+
+object PorterDuff {
+    enum class Mode { SRC, SRC_OVER, SRC_IN, DST_IN, DST_OUT, DST_OVER, CLEAR, MULTIPLY }
+}
+
+class PorterDuffXfermode(val mode: PorterDuff.Mode) : Xfermode()
+
 open class PathEffect
 
 class DashPathEffect(intervals: FloatArray, phase: Float) : PathEffect() {
@@ -367,6 +418,8 @@ object StubText {
 class Paint {
     companion object {
         const val ANTI_ALIAS_FLAG = 1
+        const val FILTER_BITMAP_FLAG = 2
+        const val DITHER_FLAG = 4
     }
 
     enum class Style { FILL, STROKE, FILL_AND_STROKE }
@@ -384,6 +437,9 @@ class Paint {
     var strokeJoin: Join = Join.MITER
     var pathEffect: PathEffect? = null
     var shader: Shader? = null
+    var xfermode: Xfermode? = null
+    var typeface: Typeface? = null
+    var maskFilter: MaskFilter? = null
 
     constructor()
 
@@ -403,6 +459,9 @@ class Paint {
         strokeJoin = paint.strokeJoin
         pathEffect = paint.pathEffect
         shader = paint.shader
+        xfermode = paint.xfermode
+        typeface = paint.typeface
+        maskFilter = paint.maskFilter
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -439,6 +498,7 @@ class Bitmap private constructor(val image: BufferedImage) {
 
     val width: Int get() = image.width
     val height: Int get() = image.height
+    val isRecycled: Boolean = false
 
     fun setPixel(x: Int, y: Int, c: Int) {
         if (x in 0 until width && y in 0 until height) image.setRGB(x, y, c)
@@ -577,7 +637,9 @@ class Canvas {
             else -> BasicStroke.JOIN_MITER
         }
         g.stroke = if (dash != null) {
-            BasicStroke(p.strokeWidth, cap, join, 10f, dash.intervals, dash.phase)
+            // awt BasicStroke 는 음수 phase 를 받지 않는다 (Android 는 허용) — 0 으로 보정
+            val intervals = dash.intervals.map { if (it <= 0f) 1f else it }.toFloatArray()
+            BasicStroke(p.strokeWidth, cap, join, 10f, intervals, dash.phase.coerceAtLeast(0f))
         } else {
             BasicStroke(p.strokeWidth, cap, join)
         }
@@ -676,16 +738,16 @@ class Canvas {
         g.drawImage(bitmap.image, matrix.tx, null)
     }
 
-    fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint) {
-        val alpha = paint.alpha / 255f
+    fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
+        val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
         g.drawImage(bitmap.image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
 
-    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint) {
-        val alpha = paint.alpha / 255f
+    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
+        val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
@@ -729,7 +791,13 @@ class Canvas {
         g.translate(px.toDouble(), py.toDouble()); g.scale(sx.toDouble(), sy.toDouble()); g.translate(-px.toDouble(), -py.toDouble())
     }
 
+    fun skew(sx: Float, sy: Float) = g.shear(sx.toDouble(), sy.toDouble())
+
     fun rotate(degrees: Float) = g.rotate(Math.toRadians(degrees.toDouble()))
+
+    fun rotate(degrees: Float, px: Float, py: Float) {
+        g.translate(px.toDouble(), py.toDouble()); g.rotate(Math.toRadians(degrees.toDouble())); g.translate(-px.toDouble(), -py.toDouble())
+    }
 
     fun clipRect(rect: RectF) = clipRect(rect.left, rect.top, rect.right, rect.bottom)
 
