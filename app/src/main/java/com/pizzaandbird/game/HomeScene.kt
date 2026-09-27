@@ -145,7 +145,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
-        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리
+        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리, 맑으면 창밖 계절 소리
     }
 
     override fun camera(): ViewRig = rig

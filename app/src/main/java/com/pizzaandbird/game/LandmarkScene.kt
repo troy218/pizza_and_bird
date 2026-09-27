@@ -86,7 +86,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         game.banner(landmark.name)
 
         game.audio.playBgm(R.raw.bgm_home)
-        applyIndoorAmbience()   // 비 오는 날엔 지붕 빗소리 (실내가 완전 무음이던 것도 함께 해결)
+        applyIndoorAmbience()   // 비 오는 날엔 지붕 빗소리, 맑으면 창밖 계절 소리
     }
 
     override fun camera(): ViewRig = rig

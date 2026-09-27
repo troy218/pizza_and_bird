@@ -88,6 +88,9 @@
 | ~~`amb_rain.mp3`~~ ⭐ ✅ | 🔁 | 60초 | 창밖에 비 내리는 소리. 물웅덩이·빗줄기 연출과 함께 | **무음** → **연결 완료** | `WorldScene.updateAmbience()` |
 | ~~`amb_rain_heavy.mp3`~~ ✅ (추가 제안) | 🔁 | 40초 | 여름 장맛비 — 같은 '비'라도 계절에 따라 세기를 나눔 | 무음 → **연결 완료** | 〃 (여름 분기) |
 | ~~`amb_rain_roof.mp3`~~ ✅ (추가 제안) | 🔁 | 60초 | 지붕·우산에 떨어지는 비 — 실내가 완전 무음이던 문제도 함께 해결 | 무음 → **연결 완료** | `Scene.applyIndoorAmbience()` |
+| `amb_cicada.wav` ✅ (합성음) | 🔁 | 14초 | 여름 맑은 낮 매미 합창 (tools/season_audio.py 합성 — 실황 녹음 교체 예정) | `amb_birds` 재사용 → **연결 완료** | `WorldScene.updateAmbience()` + `Scene.applyIndoorAmbience()` |
+| `amb_cricket.wav` ✅ (합성음) | 🔁 | 12초 | 가을 맑은 밤 귀뚜라미 (〃 합성 — 실황 녹음 교체 예정) | `amb_night` 재사용 → **연결 완료** | 〃 |
+| `amb_frog.wav` ✅ (합성음) | 🔁 | 10초 | 봄 밤 개구리 + 물소리 (〃 합성 — 실황 녹음 교체 예정) | `amb_night` 재사용 → **연결 완료** | 〃 |
 | `amb_insects.mp3` ⭐ | 🔁 | 60초 | 여름밤 풀벌레 (숲·습지) | `amb_night` 재사용 | 〃 (밤 + 여름 + 숲/습지) |
 | `sfx_thunder.mp3` | ▶️ | 2.5초 | 장마철 비 올 때 가끔 멀리서 '우르릉' | 없음 | `WorldScene` 날씨 타이머 (30~60초 랜덤) |
 | `sfx_wind_gust.mp3` | ▶️ | 1.5초 | 강풍 날씨 돌풍 — 풀이 물결치는 연출은 있는데 소리가 없음 | `amb_wind`만 | `Grass` 돌풍 트리거 |
