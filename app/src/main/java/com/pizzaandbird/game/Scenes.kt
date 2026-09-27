@@ -36,6 +36,11 @@ class TitleScene(game: Game) : Scene(game) {
     private var contRect = RectF()
     private var exitRect = RectF()
 
+    // 매 프레임 픽셀맵을 복사하지 않도록 플립 스프라이트 캐시
+    private val birdFrames: Array<android.graphics.Bitmap> by lazy {
+        arrayOf(game.assets.birdFlipped("sparrow", 0), game.assets.birdFlipped("sparrow", 1))
+    }
+
     init {
         game.hud.showControls = false
         game.hud.showStats = false
@@ -80,12 +85,9 @@ class TitleScene(game: Game) : Scene(game) {
         val bob = kotlin.math.sin(t * 2.2f) * 3f
         val pz = a.pizzaIconBig
         c.drawBitmap(pz, 196f, 176f + bob, a.sprPaint)
-        val bird = a.bird("sparrow")
+        val frame = ((t * 3f).toInt() % 2)
         val fb = kotlin.math.sin(t * 2.6f + 1f) * 4f
-        val m = android.graphics.Matrix()
-        m.postScale(-1f, 1f, bird.width / 2f, 0f)
-        val flipped = android.graphics.Bitmap.createBitmap(bird, 0, 0, bird.width, bird.height, m, false)
-        c.drawBitmap(flipped, 268f, 162f + fb, a.sprPaint)
+        c.drawBitmap(birdFrames[frame], 268f, 162f + fb, a.sprPaint)
 
         // 날아가는 새들
         p.color = Color.argb(140, 90, 80, 90)
@@ -170,7 +172,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(170, 248, 239, 220)
-        val info = "v0.1.0 beta · 오프라인 게임 · made with 🍕"
+        val info = "v0.1.1 beta · 오프라인 게임 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 
@@ -189,9 +191,7 @@ class TitleScene(game: Game) : Scene(game) {
                 game.fadeTo { game.scene = RegionSelectScene(game) }
         }
         if (input.justBack) {
-            if (game.state.started) {
-                game.openExitConfirm()
-            }
+            game.openExitConfirm()
         }
     }
 

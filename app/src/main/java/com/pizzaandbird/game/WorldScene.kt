@@ -39,6 +39,8 @@ class WorldScene(
     private var luckAcc = 0f
     private var hungerWarnT = 0f
     private var saveT = 20f
+    private var flashT = 0f            // 셔터 플래시
+    private var photoEnterT = 0f       // 카메라 모드 진입 연출
 
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         isFakeBoldText = true
@@ -57,6 +59,8 @@ class WorldScene(
         strokeWidth = 2f
         pathEffect = DashPathEffect(floatArrayOf(5f, 5f), 0f)
     }
+    private val motePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val uiPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     init {
         state.region = region.id
@@ -99,8 +103,10 @@ class WorldScene(
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        if (flashT > 0f) flashT = (flashT - dt).coerceAtLeast(0f)
         if (overlay != null) return   // 대화상자/메뉴 중에는 세계 정지
         state.playSeconds += dt
+        if (photoMode) photoEnterT = (photoEnterT + dt).coerceAtMost(1f)
 
         updatePlayer(dt)
         updateStats(dt)
@@ -282,14 +288,18 @@ class WorldScene(
                 if (hypot(b.x - bx, b.y - by) < 40f) { tooClose = true; break }
             }
             if (tooClose) continue
-            birds.add(FieldBird(def, bx, by))
+            val fb = FieldBird(def, bx, by)
+            val bmp = game.assets.bird(def.id)
+            fb.sprW = bmp.width
+            fb.sprH = bmp.height
+            birds.add(fb)
+            if (def.tier.star >= 3) game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+            if (state.questBird == def.id) game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
             return
         }
     }
 
     private fun snap(b: FieldBird) {
-        val a = game.assets
-        val bmp = a.bird(b.def.id)
         val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
         val range = CameraDefs.range(state.cameraLevel)
         val ratio = (distPx / 16f) / range
@@ -322,6 +332,7 @@ class WorldScene(
         b.fleeVy = -75f
         b.fleeT = 0f
 
+        flashT = 0.16f   // 셔터 플래시
         SaveManager.save(game.context, state)
         openOverlay(PhotoResultOverlay(this, b.def, stars, isNew, prev + 1, questLine))
     }
@@ -332,7 +343,7 @@ class WorldScene(
         for (b in birds) {
             if (b.state == 2) continue
             val d = hypot(b.cx - vx, b.cy - vy)
-            if (d < 14f && d < bestD) { best = b; bestD = d }
+            if (d < 20f && d < bestD) { best = b; bestD = d }
         }
         val target = best
         if (target == null) {
@@ -471,8 +482,9 @@ class WorldScene(
         }
         if (input.justCam) {
             photoMode = !photoMode
+            photoEnterT = 0f
             game.hud.photoModeHint = photoMode
-            if (photoMode) game.toast("카메라 모드! 새를 탭해서 찍어요 📷")
+            if (photoMode) game.toast("카메라 모드! 리트래클 안의 새를 탭해서 찍어요 📷")
             return
         }
         if (input.justB) {
@@ -498,8 +510,14 @@ class WorldScene(
             game.toast("주민들에게 말을 걸어보세요! (가까이 가서 A)")
             return
         }
-        val tap = input.consumeTapWorld()
-        if (tap != null) {
+        val tapS = input.consumeTapScreen()
+        if (tapS != null) {
+            // 우상단 미니맵 탭 → 큰 지도
+            if (game.hud.inMinimap(tapS.x, tapS.y)) {
+                openOverlay(MapOverlay(this))
+                return
+            }
+            val tap = game.screenToWorld(tapS)
             if (photoMode) {
                 trySnapAt(tap.x, tap.y)
                 return
@@ -512,7 +530,7 @@ class WorldScene(
             }
             // 새 탭 (힌트)
             for (b in birds) {
-                if (b.state != 2 && hypot(b.cx - tap.x, b.cy - tap.y) < 14f) {
+                if (b.state != 2 && hypot(b.cx - tap.x, b.cy - tap.y) < 20f) {
                     game.toast("카메라 버튼을 누르고 찍어보세요! 📷")
                     return
                 }
@@ -527,6 +545,7 @@ class WorldScene(
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFF3A3040.toInt())
         map.draw(c, game.assets, camX, camY, game.virtW, game.virtH, game.time)
+        drawMotes(c)
 
         // 엔티티 (y 정렬)
         val ents = ArrayList<Any>(map.npcs.size + birds.size + 1)
@@ -537,11 +556,31 @@ class WorldScene(
         for (e in ents) drawEntity(c, e)
 
         if (photoMode) drawPhotoOverlay(c)
+
+        // 셔터 플래시
+        if (flashT > 0f) {
+            uiPaint.color = Color.argb((170 * (flashT / 0.16f)).toInt().coerceIn(0, 170), 255, 255, 255)
+            c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiPaint)
+        }
+    }
+
+    /** 화면에 떠다니는 꽃가루/먼지 입자 */
+    private fun drawMotes(c: Canvas) {
+        val w = game.virtW.toFloat()
+        val h = game.virtH.toFloat()
+        for (i in 0 until 14) {
+            val sp = 5f + (i % 5) * 2.4f
+            val mx = ((game.time * sp + i * 61f) % (w + 30f)) - 15f
+            val baseY = 24f + ((i * 47f) % (h - 60f).coerceAtLeast(1f))
+            val my = baseY + sin(game.time * 0.8f + i * 1.7f) * 9f
+            motePaint.color = Color.argb(70 + (i % 4) * 28, 255, 248, 220)
+            c.drawCircle(mx, my, if (i % 3 == 0) 1.6f else 1.1f, motePaint)
+        }
     }
 
     private fun sortY(e: Any): Float = when (e) {
         is Npc -> e.y + 14f
-        is FieldBird -> e.y + game.assets.bird(e.def.id).height
+        is FieldBird -> e.y + e.sprH
         is Player -> e.y + 14f
         else -> 0f
     }
@@ -570,11 +609,13 @@ class WorldScene(
                 }
             }
             is FieldBird -> {
-                val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
+                val frame = if (e.state == 0) 0 else 1
+                val bmp = if (e.faceLeft) a.bird(e.def.id, frame) else a.birdFlipped(e.def.id, frame)
                 val bx = e.x - camX
                 val by = e.y - camY - e.hopLift
+                // 발밑 그림자 (스프라이트 높이 기준)
                 c.drawOval(
-                    RectF(e.x - camX + 1f, e.cy - camY + 3f, e.x - camX + 13f, e.cy - camY + 7f),
+                    RectF(bx + 2f, e.y - camY + e.sprH - 4f, bx + 12f, e.y - camY + e.sprH),
                     a.shadowPaint
                 )
                 if (e.state == 2) {
@@ -607,32 +648,123 @@ class WorldScene(
         }
     }
 
-    private fun drawPhotoOverlay(c: Canvas) {
-        val p = Paint()
-        p.color = Color.argb(80, 20, 16, 28)
-        c.drawRect(0f, 0f, 480f, 22f, p)
-        c.drawRect(0f, 248f, 480f, 270f, p)
-        c.drawRect(0f, 0f, 18f, 270f, p)
-        c.drawRect(462f, 0f, 480f, 270f, p)
+    /** 카메라에 잡히는 가장 가까운 새 (도망가는 새 제외) */
+    private fun photoTarget(): Pair<FieldBird, Float>? {
+        var best: FieldBird? = null
+        var bestD = Float.MAX_VALUE
+        for (b in birds) {
+            if (b.state == 2) continue
+            val d = hypot(b.cx - player.cx, b.cy - player.cy)
+            if (d < bestD) { bestD = d; best = b }
+        }
+        return if (best != null) best to bestD else null
+    }
 
-        // 뷰파인더 코너
+    private fun drawPhotoOverlay(c: Canvas) {
+        val W = game.virtW.toFloat()
+        val H = game.virtH.toFloat()
+        val enter = photoEnterT   // 0→1 진입 연출
+
+        // ---- 레터박스 ----
+        val bar = Paint()
+        bar.color = Color.argb((120 * enter).toInt().coerceIn(0, 120), 16, 12, 24)
+        val inset = 10f + 10f * enter
+        c.drawRect(0f, 0f, W, inset, bar)
+        c.drawRect(0f, H - inset, W, H, bar)
+        c.drawRect(0f, 0f, inset, H, bar)
+        c.drawRect(W - inset, 0f, W, H, bar)
+
+        // ---- 뷰파인더 코너 ----
         val s = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2.5f
-            color = Color.argb(220, 255, 250, 235)
+            color = Color.argb((235 * enter).toInt().coerceIn(0, 235), 255, 250, 235)
         }
         val m = 34f
         val l = 14f
         val path = Path()
         path.moveTo(m, m + l); path.lineTo(m, m); path.lineTo(m + l, m)
-        path.moveTo(480f - m - l, m); path.lineTo(480f - m, m); path.lineTo(480f - m, m + l)
-        path.moveTo(480f - m, 270f - m - l); path.lineTo(480f - m, 270f - m); path.lineTo(480f - m - l, 270f - m)
-        path.moveTo(m + l, 270f - m); path.lineTo(m, 270f - m); path.lineTo(m, 270f - m - l)
+        path.moveTo(W - m - l, m); path.lineTo(W - m, m); path.lineTo(W - m, m + l)
+        path.moveTo(W - m, H - m - l); path.lineTo(W - m, H - m); path.lineTo(W - m - l, H - m)
+        path.moveTo(m + l, H - m); path.lineTo(m, H - m); path.lineTo(m, H - m - l)
         c.drawPath(path, s)
 
-        // 촬영 반경
-        val range = CameraDefs.range(state.cameraLevel) * 16f
+        // ---- 촬영 반경 ----
+        val rangeTiles = CameraDefs.range(state.cameraLevel)
+        val range = rangeTiles * 16f
+        dashPaint.alpha = (220 * enter).toInt().coerceIn(0, 220)
         c.drawCircle(player.cx - camX, player.cy - camY, range, dashPaint)
+        dashPaint.alpha = 255
+
+        // ---- 포커스 리트래클 + 조류 정보 ----
+        val tgt = photoTarget()
+        if (tgt != null) {
+            val (b, d) = tgt
+            val inRange = d <= range
+            val ret = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 1.8f
+                color = if (inRange) Color.argb(235, 123, 224, 107)
+                else Color.argb(210, 255, 250, 235)
+            }
+            val fx = b.cx - camX
+            val fy = b.cy - camY
+            val half = 12f + sin(game.time * 4f) * 1f + if (inRange) 1.5f else 0f
+            val len = 5f
+            val fp = Path()
+            fp.moveTo(fx - half, fy - half + len); fp.lineTo(fx - half, fy - half); fp.lineTo(fx - half + len, fy - half)
+            fp.moveTo(fx + half - len, fy - half); fp.lineTo(fx + half, fy - half); fp.lineTo(fx + half, fy - half + len)
+            fp.moveTo(fx + half, fy + half - len); fp.lineTo(fx + half, fy + half); fp.lineTo(fx + half - len, fy + half)
+            fp.moveTo(fx - half + len, fy + half); fp.lineTo(fx - half, fy + half); fp.lineTo(fx - half, fy + half - len)
+            c.drawPath(fp, ret)
+
+            // 이름 + 거리 칩
+            val dist = ((d / 16f) * 10f).toInt() / 10f
+            val label = "${b.def.name}  ${dist}칸" + if (inRange) "  ●" else ""
+            val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                isFakeBoldText = true
+                textSize = 8.5f
+                color = if (inRange) 0xFF3F7D3A.toInt() else 0xFF4A3728.toInt()
+            }
+            val tw = tp.measureText(label)
+            val chipR = RectF(fx - tw / 2f - 5f, fy + half + 3f, fx + tw / 2f + 5f, fy + half + 15f)
+            uiPaint.color = if (inRange) Color.argb(225, 240, 255, 226) else Color.argb(215, 248, 239, 220)
+            c.drawRoundRect(chipR, 4f, 4f, uiPaint)
+            uiPaint.style = Paint.Style.STROKE
+            uiPaint.strokeWidth = 1f
+            uiPaint.color = ret.color
+            c.drawRoundRect(chipR, 4f, 4f, uiPaint)
+            uiPaint.style = Paint.Style.FILL
+            c.drawText(label, fx - tw / 2f, chipR.centerY() - (tp.descent() + tp.ascent()) / 2f, tp)
+        }
+
+        // ---- 상단 상태 바 ----
+        val tp2 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFakeBoldText = true
+            textSize = 8.5f
+            color = 0xFFF8EFDC.toInt()
+        }
+        val camName = CameraDefs.name(state.cameraLevel)
+        val alive = birds.count { it.state != 2 }
+        val top = " $camName · 반경 ${rangeTiles}칸"
+        val right = "관찰 중 ${alive}마리 "
+        val topY = inset + 11f
+        val topBg = RectF(4f, inset + 2f, 8f + tp2.measureText(top), inset + 17f)
+        uiPaint.color = Color.argb(170, 30, 24, 42)
+        c.drawRoundRect(topBg, 4f, 4f, uiPaint)
+        c.drawText(top, topBg.left + 4f, topY + 1f, tp2)
+        val rw = tp2.measureText(right)
+        val rightBg = RectF(W - rw - 12f, inset + 2f, W - 4f, inset + 17f)
+        c.drawRoundRect(rightBg, 4f, 4f, uiPaint)
+        c.drawText(right, rightBg.left + 4f, topY + 1f, tp2)
+
+        // ---- 하단 안내 ----
+        val hint = if (tgt != null && tgt.second <= range) "사진 찍기 좋습니다 — 탭!"
+        else if (tgt != null) "가까이 이동하면 초록색으로 바뀌어요"
+        else "새를 기다리는 중…"
+        tp2.color = Color.argb(230, 255, 250, 235)
+        val hw = tp2.measureText(hint)
+        c.drawText(hint, W / 2f - hw / 2f, H - inset - 6f, tp2)
     }
 
     override fun drawHud(c: Canvas) {

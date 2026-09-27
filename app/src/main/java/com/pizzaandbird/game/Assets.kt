@@ -37,8 +37,8 @@ class Assets {
     lateinit var npcVillager: Bitmap
 
     // 새 ---------------------------------------------------------------------
-    lateinit var birds: Map<String, Bitmap>
-    private var birdsFlipped: Map<String, Bitmap> = emptyMap()
+    lateinit var birds: Map<String, Array<Bitmap>>   // [종id][프레임 0=대기 1=날개짓]
+    private var birdsFlipped: Map<String, Array<Bitmap>> = emptyMap()
 
     // 타일 -------------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant]
@@ -243,43 +243,147 @@ class Assets {
     }
 
     // -----------------------------------------------------------------------
-    // 새 (템플릿 + 종별 색상)
+    // 새 (아웃라인 + 2프레임 픽셀 아트: 대기 / 날개짓)
     // -----------------------------------------------------------------------
 
+    /** 색상 밝기 조절 (외곽선·음영 파생용) */
+    private fun shade(color: Int, f: Float): Int {
+        val r = (((color shr 16) and 0xFF) * f).toInt().coerceIn(0, 255)
+        val g = (((color shr 8) and 0xFF) * f).toInt().coerceIn(0, 255)
+        val b = ((color and 0xFF) * f).toInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+    }
+
+    /** 두 색의 채널 평균 */
+    private fun mix(a: Int, b: Int): Int {
+        val r = (((a shr 16) and 0xFF) + ((b shr 16) and 0xFF)) / 2
+        val g = (((a shr 8) and 0xFF) + ((b shr 8) and 0xFF)) / 2
+        val bl = ((a and 0xFF) + (b and 0xFF)) / 2
+        return (0xFF shl 24) or (r shl 16) or (g shl 8) or bl
+    }
+
+    /** 작은 참새류 실루엣 (왼쪽 바라봄) */
+    private val songStand = listOf(
+        "....oooocc.....",
+        "...oBBBBo......",
+        "..oBBBBBBo.....",
+        "..oBegBBBo.....",
+        ".obbBBBBBo.....",
+        ".oBBBBBBBo.....",
+        ".oBBBtttttoooo.",
+        "oBBBttttttotttto",
+        "oBBttttWWWWottto",
+        "oBttWWWWWWWWoooo",
+        ".oBdWWWWWWWdo...",
+        "..odWWWWWWdo....",
+        "...oWWWWWo......",
+        "....l..l........",
+        "...ll..ll......."
+    )
+    private val songFly = listOf(
+        ".....ooooocc...",
+        "....ottttto....",
+        "...ottttttto...",
+        "...otttttBBo...",
+        "..oBBBttttBo...",
+        ".oBBBBBBttBo...",
+        ".oBegBBBBBBo...",
+        ".obbBBBBBBBo...",
+        ".oBBBBBBBBooo..",
+        ".oBBttWWWWotttto",
+        ".oBtWWWWWWWWo...",
+        "..odWWWWWWWdo...",
+        "...oWWWWWWo.....",
+        "....l..l........",
+        "...ll..ll......."
+    )
+
+    /** 물오리 실루엣 (왼쪽 바라봄) */
+    private val duckStand = listOf(
+        "......oooo........",
+        ".....oBBBBo.......",
+        "....oBBBBBBo......",
+        "....oBegBBBo......",
+        "...obbBBBBBo......",
+        "...oBBBBBBBo......",
+        "..oBBBBtttttoooo..",
+        "..oBBBttttttotttto",
+        "..oBBtttWWWWWWooo.",
+        "...oBtWWWWWWWWo...",
+        "..oBdWWWWWWWWdo...",
+        "...odWWWWWWWWo....",
+        "....oWWWWWWWo....."
+    )
+    private val duckFly = listOf(
+        "......ooooo.......",
+        ".....ottttto......",
+        "....ottttttto.....",
+        "...oBBBttttBo.....",
+        "..oBBBBBtttttoooo..",
+        "..oBegBBBttttttto.",
+        ".obbBBBBBBBBo.....",
+        ".oBBBBBBBBBBo.....",
+        ".oBBtttWWWWWo.....",
+        "..oBtWWWWWWWo.....",
+        "...odWWWWWWdo.....",
+        "....oWWWWWWo......",
+        ".....l..l.........",
+        "....ll..ll........"
+    )
+
+    /** 긴 다리·목의 학류 실루엣 (두루미 등, 왼쪽 바라봄) */
+    private val waderStand = listOf(
+        "....oooo.....",
+        "...occcBo....",
+        "...oBegBo....",
+        "bbbBBBBBBo...",
+        "...oBBo......",
+        "...oBBo......",
+        "...oBBo......",
+        "..oBBBo......",
+        "..oBBBBo.....",
+        ".oBBBBBBo....",
+        "oBBBtttttooo.",
+        "oBBtttWWWWoto",
+        ".oBdWWWWWo...",
+        "..odWWWWWo...",
+        "...oWWWWo....",
+        "....l.l......",
+        "....l.l......",
+        "...ll.ll....."
+    )
+    private val waderFly = listOf(
+        "......ooooo...",
+        ".....ottttto..",
+        "....otttttto..",
+        "...oBBBtttto..",
+        "..oBBcBBtttto.",
+        "bbbBegBBotttto",
+        "..oBBBBBBo....",
+        "..oBBtttWWooo.",
+        "...oBtWWWWWoto",
+        "....odWWWWo...",
+        ".....oWWWWo...",
+        "......l.l.....",
+        "......l.l.....",
+        ".....ll.ll...."
+    )
+
     private fun buildBirds() {
-        val song = listOf(
-            "..cc..........",
-            ".BBBB.........",
-            ".BeBB.........",
-            "bBBBBtttt.....",
-            "BBBBBttttttt..",
-            "BBBBBttttttt..",
-            "BWWWBBtttttt..",
-            ".BWWWWWWBBt...",
-            "..BWWWWWWW....",
-            "...ll...ll....",
-            "...ll...ll...."
-        )
-        val water = listOf(
-            ".....BBB........",
-            "....BBBBB.......",
-            "....BeBBB.......",
-            "...bBBBB........",
-            "....BBBBBBB.....",
-            "...BBBBBBBBBtt..",
-            "..BWWWWBBBBBtt..",
-            "..BWWWWWWWWWt...",
-            "...WWWWWWWWW....",
-            "....ll....ll....",
-            "....ll....ll...."
-        )
-        val m = LinkedHashMap<String, Bitmap>()
+        val m = LinkedHashMap<String, Array<Bitmap>>()
         for (d in Birds.ALL) {
+            val outline = shade(mix(d.art.body, d.art.belly), 0.45f)
             val pal = mapOf(
-                'B' to d.art.body, 'W' to d.art.belly, 't' to d.art.wing,
-                'b' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg, 'e' to c(0xFF2E2620)
+                'B' to d.art.body, 'W' to d.art.belly, 'd' to shade(d.art.belly, 0.80f),
+                't' to d.art.wing, 'b' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
+                'e' to c(0xFF2E2620), 'g' to c(0xFFFFFFFF), 'o' to outline
             )
-            m[d.id] = sprite(if (d.art.template == 1) water else song, pal)
+            val (stand, fly) = when (d.art.template) {
+                1 -> duckStand to duckFly
+                2 -> waderStand to waderFly
+                else -> songStand to songFly
+            }
+            m[d.id] = arrayOf(sprite(stand, pal), sprite(fly, pal))
         }
         birds = m
     }
@@ -725,15 +829,25 @@ class Assets {
         }
     }
 
-    /** 새 비트맵 (안전 접근) */
-    fun bird(id: String): Bitmap = birds[id] ?: birds.values.first()
+    /** 새 비트맵 (대기 프레임, 안전 접근) */
+    fun bird(id: String): Bitmap = bird(id, 0)
+
+    /** 새 비트맵 (프레임: 0=대기 1=날개짓) */
+    fun bird(id: String, frame: Int): Bitmap {
+        val arr = birds[id] ?: birds.values.first()
+        return arr[frame.coerceIn(0, arr.size - 1)]
+    }
 
     /** 오른쪽을 바라보는 새 (플립, 지연 생성) */
-    fun birdFlipped(id: String): Bitmap {
-        birdsFlipped[id]?.let { return it }
-        val f = flipH(bird(id))
+    fun birdFlipped(id: String): Bitmap = birdFlipped(id, 0)
+
+    fun birdFlipped(id: String, frame: Int): Bitmap {
+        val arr = birdsFlipped[id]
+        if (arr != null) return arr[frame.coerceIn(0, arr.size - 1)]
+        val base = birds[id] ?: birds.values.first()
+        val f = Array(base.size) { i -> flipH(base[i]) }
         birdsFlipped = birdsFlipped + (id to f)
-        return f
+        return f[frame.coerceIn(0, f.size - 1)]
     }
 
     fun birdW(id: String): Float = bird(id).width.toFloat()

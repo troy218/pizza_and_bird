@@ -81,16 +81,17 @@ class Hud(private val game: Game) {
         aCy = h - dp(26f) - aR
 
         bR = dp(19f)
-        bCx = aCx - aR - dp(10f) - bR
-        bCy = h - dp(20f) - bR
+        bCx = aCx - aR - dp(12f) - bR
+        bCy = h - dp(22f) - bR
 
-        camBR = dp(19f)
-        camBCx = w - dp(24f) - camBR
-        camBCy = aCy - aR - dp(12f) - camBR
+        // 카메라/메뉴 버튼은 A/B와 충분히 떨어뜨려 오인입력 방지
+        camBR = dp(21f)
+        camBCx = w - dp(22f) - camBR
+        camBCy = aCy - aR - dp(20f) - camBR
 
-        menuR = dp(15f)
-        menuCx = bCx - dp(18f) - menuR
-        menuCy = camBCy + dp(30f)
+        menuR = dp(16f)
+        menuCx = bCx - dp(20f) - menuR
+        menuCy = camBCy + dp(36f)
 
         mmR = dp(58f)
         mmCx = w - dp(16f) - mmR
@@ -111,10 +112,14 @@ class Hud(private val game: Game) {
         if (inCircle(x, y, dpadCx, dpadCy, dpadR * 1.12f)) return Ctrl.DPAD
         if (inCircle(x, y, aCx, aCy, aR * 1.25f)) return Ctrl.A
         if (inCircle(x, y, bCx, bCy, bR * 1.25f)) return Ctrl.B
-        if (inCircle(x, y, camBCx, camBCy, camBR * 1.25f)) return Ctrl.CAM
+        if (inCircle(x, y, camBCx, camBCy, camBR * 1.35f)) return Ctrl.CAM
         if (inCircle(x, y, menuCx, menuCy, menuR * 1.3f)) return Ctrl.MENU
         return Ctrl.NONE
     }
+
+    /** 미니맵 원형 영역 판정 (탭 시 큰 지도 열기) */
+    fun inMinimap(x: Float, y: Float): Boolean =
+        showMinimap && inCircle(x, y, mmCx, mmCy, mmR)
 
     fun dpadVector(p: PointF): PointF {
         val dx = p.x - dpadCx
@@ -204,7 +209,7 @@ class Hud(private val game: Game) {
         text.textSize = dp(12f)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(44f), left + dp(12f) + dp(14f), iy2 + dp(44f) + dp(14f)), a.sprPaint)
         c.drawText("×${s.pizzaCount}", left + dp(30f), iy2 + dp(55f), text)
-        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(52f), iy2 + dp(44f), left + dp(52f) + dp(14f), iy2 + dp(44f) + dp(12f)), a.sprPaint)
+        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(52f), iy2 + dp(44f), left + dp(52f) + dp(15f), iy2 + dp(44f) + dp(13f)), a.sprPaint)
         c.drawText("Lv.${s.cameraLevel}", left + dp(70f), iy2 + dp(55f), text)
     }
 
@@ -255,7 +260,7 @@ class Hud(private val game: Game) {
     }
 
     private fun drawPhotoHint(c: Canvas) {
-        drawChip(c, game.screenW / 2f, dp(24f), "카메라 모드! 새를 탭해서 촬영하세요")
+        drawChip(c, game.screenW / 2f, dp(24f), "📷 새를 탭해서 촬영! (뒤로가기: 카메라 모드 종료)")
     }
 
     // ------------------------------------------------------------------
@@ -318,6 +323,9 @@ class Hud(private val game: Game) {
     private fun drawButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, label: String?, labelSize: Float) {
         fill.color = color
         c.drawCircle(cx, cy, r, fill)
+        // 상단 하이라이트 (입체감)
+        fill.color = Color.argb(55, 255, 255, 255)
+        c.drawCircle(cx - r * 0.16f, cy - r * 0.22f, r * 0.66f, fill)
         stroke.color = Color.argb(190, 248, 239, 220)
         stroke.strokeWidth = dp(2f)
         c.drawCircle(cx, cy, r, stroke)

@@ -46,7 +46,7 @@ enum class Tier(val star: Int, val label: String) {
 
 /** 새 픽셀 아트 정보 (Assets.kt에서 실제 비트맵 생성) */
 class BirdArt(
-    val template: Int,                       // 0: 소형 명금, 1: 물오리형
+    val template: Int,                       // 0: 참새류, 1: 물오리, 2: 긴다리 학류
     val body: Int, val belly: Int, val wing: Int,
     val beak: Int, val crest: Int, val leg: Int
 )
@@ -137,7 +137,25 @@ object Birds {
             "crane", "두루미", Tier.LEGEND, setOf("wetland", "water"), 1.2, 6000,
             "머리에 붉은 왕관을 얹은 격식 있는 겨울 손님. 만나면 한 해가 행복하다.",
             setOf("seoul", "chuncheon", "incheon", "jeju"),
-            BirdArt(1, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35))
+            BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35))
+        ),
+        BirdDef(
+            "swallow", "제비", Tier.COMMON, setOf("city", "field"), 24.0, 300,
+            "봄에 찾아와 집 지붕 아래 둥지를 짓는 날쌘 항해사. 깊게 갈라진 꼬리가 특징.",
+            null,
+            BirdArt(0, c(0xFF3A4A6B), c(0xFFF3EAD8), c(0xFF232C44), c(0xFF23252B), c(0xFF3A4A6B), c(0xFF7A4A2B))
+        ),
+        BirdDef(
+            "bluebird", "파랑새", Tier.RARE, setOf("mountain", "forest", "city"), 4.5, 2000,
+            "등면은 감동적인 파랑, 배는 흰빛. 바위 틈과 숲 가장자리에서 조용히 노래한다.",
+            null,
+            BirdArt(0, c(0xFF3E7DC8), c(0xFFF2F4F0), c(0xFF2E5F9E), c(0xFF23252B), c(0xFF3E7DC8), c(0xFFB98A4A))
+        ),
+        BirdDef(
+            "owl", "솔올빼미", Tier.RARE, setOf("forest", "mountain"), 5.0, 2000,
+            "숲의 파수꾼. 주로 밤에 깨어나지만 낮에도 나뭇가지 위에서 우리를 살핀다.",
+            null,
+            BirdArt(0, c(0xFF8A6A4F), c(0xFFE8DCC4), c(0xFF6B4F3B), c(0xFF3A3A44), c(0xFFC9A87B), c(0xFF3A3A44))
         )
     )
 

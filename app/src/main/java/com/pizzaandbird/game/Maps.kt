@@ -350,9 +350,11 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var faceLeft = true
+    var sprW = 16                    // 스프라이트 크기 (생성 시 Assets에서 설정)
+    var sprH = 15
 
-    val cx: Float get() = x + 7f
-    val cy: Float get() = y + 6f
+    val cx: Float get() = x + sprW / 2f
+    val cy: Float get() = y + sprH * 0.45f
 
     fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap) {
         val fleeTiles = when (def.tier) {

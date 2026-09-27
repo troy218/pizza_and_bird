@@ -119,7 +119,8 @@ class RegionSelectScene(game: Game) : Scene(game) {
         for (i in 0 until 3) {
             val bx = (t * (14f + i * 5f) + i * 160f) % 560f - 40f
             val by = 30f + i * 26f + sin(t * 1.8f + i * 2f) * 8f
-            c.drawBitmap(a.bird(birds[i]), bx, by, a.sprPaint)
+            val frame = ((t * 6f + i).toInt() % 2)
+            c.drawBitmap(a.bird(birds[i], frame), bx, by, a.sprPaint)
         }
         val pz = a.pizzaIcon
         c.drawBitmap(pz, 20f, 240f + sin(t * 2f) * 2f, a.sprPaint)

@@ -65,6 +65,10 @@ class Game(val context: Context) {
         if (ov != null) {
             ov.handleInput(input)
             ov.update(dt)
+            // 닫힌 오버레이 정리 (오버레이가 있던 프레임에는 씬 입력을 넘기지 않음)
+            if (ov.finished && scene.overlay === ov) {
+                scene.closeOverlay()
+            }
         } else {
             scene.handleInput(input)
         }
