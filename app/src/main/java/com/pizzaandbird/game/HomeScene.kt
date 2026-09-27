@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import java.util.Random
 import kotlin.math.abs
@@ -12,7 +13,7 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * 우리 집 내부: 화덕(피자 굽기), 침대(수면), 이사 박스, 장식 칸.
+ * 우리 집 내부: 화덕(화덕피자 굽기), 가정용 오븐(일반 피자 굽기), 침대(수면), 이사 박스, 장식 칸.
  */
 class HomeScene(game: Game) : Scene(game) {
 
@@ -22,9 +23,9 @@ class HomeScene(game: Game) : Scene(game) {
 
     private var camX = 0f
     private var camY = 0f
+    override fun cameraOffset(): PointF = PointF(camX, camY)
 
-    private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
+    private val tinyPaint = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply {
         color = 0xFF4A3728.toInt()
         textSize = 14f
     }
@@ -54,8 +55,10 @@ class HomeScene(game: Game) : Scene(game) {
     private val windowTiles = listOf(2 to 1, 5 to 1, 8 to 1)
 
     // 상호작용 대상 위치 (월드 px)
-    private val ovenX = 10f * 16f
+    private val ovenX = 10f * 16f          // 화덕 (2x2) — 화덕피자
     private val ovenY = 4f * 16f
+    private val rangeX = 11.5f * 16f       // 가정용 오븐 (1x2, 화덕 오른쪽) — 일반 피자
+    private val rangeY = 4f * 16f
     private val bedX = 3f * 16f
     private val bedY = 3f * 16f
     private val boxX = 2.5f * 16f
@@ -76,6 +79,17 @@ class HomeScene(game: Game) : Scene(game) {
         7f * 16f to 2f * 16f,
         11f * 16f to 5f * 16f
     )
+
+    /** 상호작용 대상 (A버튼 반경 / 탭 반경). 화덕과 오븐이 나란히 있으므로 항상 가장 가까운 것을 고른다. */
+    private class Spot(val key: String, val slot: Int, val x: Float, val y: Float, val reachA: Float, val reachTap: Float)
+
+    private val spots: List<Spot> = listOf(
+        Spot("oven", -1, ovenX, ovenY, 34f, 26f),
+        Spot("range", -1, rangeX, rangeY, 30f, 30f),
+        Spot("bed", -1, bedX, bedY, 30f, 24f),
+        Spot("box", -1, boxX, boxY, 26f, 22f),
+        Spot("interior", -1, interiorX, interiorY, 28f, 24f)
+    ) + decorSpots.map { (idx, dx0, dy0) -> Spot("decor", idx, dx0, dy0, 22f, 18f) }
 
     init {
         state.inHome = true
@@ -164,16 +178,24 @@ class HomeScene(game: Game) : Scene(game) {
     // 상호작용
     // -------------------------------------------------------------------
 
-    /** (대상, 장식 칸 인덱스) */
-    private fun nearestInteract(): Pair<String, Int>? {
-        if (hypot(ovenX - player.cx, ovenY - player.cy) < 34f) return "oven" to -1
-        if (hypot(bedX - player.cx, bedY - player.cy) < 30f) return "bed" to -1
-        if (hypot(boxX - player.cx, boxY - player.cy) < 26f) return "box" to -1
-        if (hypot(interiorX - player.cx, interiorY - player.cy) < 28f) return "interior" to -1
-        for ((idx, dx0, dy0) in decorSpots) {
-            if (hypot(dx0 - player.cx, dy0 - player.cy) < 22f) return "decor" to idx
+    /** 가장 가까운 상호작용 대상 (대상, 장식 칸 인덱스) — 반경 안에 여러 개면 제일 가까운 것 */
+    private fun nearestSpot(x: Float, y: Float, tap: Boolean): Spot? {
+        var best: Spot? = null
+        var bestD = Float.MAX_VALUE
+        for (sp in spots) {
+            val d = hypot(sp.x - x, sp.y - y)
+            val reach = if (tap) sp.reachTap else sp.reachA
+            if (d < reach && d < bestD) {
+                best = sp
+                bestD = d
+            }
         }
-        return null
+        return best
+    }
+
+    private fun nearestInteract(): Pair<String, Int>? {
+        val sp = nearestSpot(player.cx, player.cy, tap = false) ?: return null
+        return sp.key to sp.slot
     }
 
     private fun interact(target: String, slot: Int) {
@@ -181,10 +203,24 @@ class HomeScene(game: Game) : Scene(game) {
             "oven" -> openOverlay(
                 DialogOverlay(
                     this, "화덕 🔥",
-                    "따끈한 화덕이 준비됐어요. 어떤 피자를 구워볼까요?\n(도우는 무한! 힐링게임이니까요)",
+                    "장작불이 활활 타오르는 화덕이에요. 얇은 도우의 화덕피자를 굽는 곳!\n" +
+                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (도우는 무한! 힐링게임이니까요)",
                     listOf(
-                        DialogOverlay.Choice("피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene))
+                        DialogOverlay.Choice("화덕피자 굽기!") {
+                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.OVEN))
+                        },
+                        DialogOverlay.Choice("나중에")
+                    )
+                )
+            )
+            "range" -> openOverlay(
+                DialogOverlay(
+                    this, "오븐 🍕",
+                    "익숙한 가정용 오븐이에요. 도톰하고 든든한 일반 피자를 굽는 곳!\n" +
+                            "천천히 익어서 굽기 쉬워요. 치즈·페퍼로니·불고기·고구마…",
+                    listOf(
+                        DialogOverlay.Choice("일반 피자 굽기!") {
+                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.REGULAR))
                         },
                         DialogOverlay.Choice("나중에")
                     )
@@ -293,13 +329,13 @@ class HomeScene(game: Game) : Scene(game) {
             return
         }
         if (input.justEat) {
-            val tId = state.eatBest()
-            if (tId == null) {
-                game.toast("피자가 없어요! 화덕에서 구워요 🍕")
+            val pid = state.eatBest()
+            if (pid == null) {
+                game.toast("피자가 없어요! 화덕이나 오븐에서 구워요 🍕")
                 game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
-                val t = Toppings.of(tId)
-                game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+                val p = Pizzas.of(pid)
+                game.toast("냠냠! ${p.emoji} ${p.fullName}")
                 game.sfx(Audio.Sfx.EAT, 0.9f)
             }
             return
@@ -309,24 +345,14 @@ class HomeScene(game: Game) : Scene(game) {
             if (near != null) {
                 interact(near.first, near.second)
             } else {
-                game.toast("화덕·침대·인테리어 보드·이사박스에 다가가서 A를 눌러보세요!")
+                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 A를 눌러보세요!")
             }
             return
         }
         val tap = input.consumeTapWorld()
         if (tap != null) {
-            if (hypot(ovenX - tap.x, ovenY - tap.y) < 26f) interact("oven", -1)
-            else if (hypot(bedX - tap.x, bedY - tap.y) < 24f) interact("bed", -1)
-            else if (hypot(boxX - tap.x, boxY - tap.y) < 22f) interact("box", -1)
-            else if (hypot(interiorX - tap.x, interiorY - tap.y) < 24f) interact("interior", -1)
-            else {
-                for ((idx, dx0, dy0) in decorSpots) {
-                    if (hypot(dx0 - tap.x, dy0 - tap.y) < 18f) {
-                        interact("decor", idx)
-                        break
-                    }
-                }
-            }
+            val sp = nearestSpot(tap.x, tap.y, tap = true)
+            if (sp != null) interact(sp.key, sp.slot)
         }
     }
 
@@ -345,7 +371,8 @@ class HomeScene(game: Game) : Scene(game) {
         drawClock(c, camXv, camYv)
 
         // The house's focal point: a warm, gently flickering wood-fired oven.
-        val ovenScreenX = (ovenX - camX) * WORLD_SCALE
+        // (일러스트는 화덕 타일 9~10칸 위에 얹되, 오른쪽 11칸의 가정용 오븐 타일을 가리지 않도록 왼쪽으로 붙인다)
+        val ovenScreenX = (ovenX - camX) * WORLD_SCALE - 16f
         val ovenScreenY = (ovenY - camY) * WORLD_SCALE
         val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
         uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
@@ -353,9 +380,9 @@ class HomeScene(game: Game) : Scene(game) {
         game.illustrations.draw(
             c, "wood_fired_oven.svg",
             RectF(
-                (9f * 16f - camX) * WORLD_SCALE - 16f,
+                (9f * 16f - camX) * WORLD_SCALE - 32f,
                 (1f * 16f - camY) * WORLD_SCALE - 8f,
-                (9f * 16f - camX) * WORLD_SCALE + 80f,
+                (9f * 16f - camX) * WORLD_SCALE + 64f,
                 (1f * 16f - camY) * WORLD_SCALE + 100f
             )
         )
@@ -398,6 +425,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (near != null) {
             val pos = when (near.first) {
                 "oven" -> ovenX to ovenY
+                "range" -> rangeX to rangeY
                 "bed" -> bedX to bedY
                 "box" -> boxX to boxY
                 "interior" -> interiorX to interiorY
@@ -723,12 +751,11 @@ class HomeScene(game: Game) : Scene(game) {
 
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
-        // 조작 힌트
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
-        tp.textSize = 11f * game.density
-        tp.color = 0x99F8EFDC.toInt()
-        val hint = "A: 상호작용 · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
+        // 조작 힌트 — 월드 위라 얇은 그림자를 넣어 가독성을 확보
+        val hint = "A: 상호작용 (화덕=화덕피자 · 오븐=일반 피자) · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
         val w = game.screenW.toFloat()
-        c.drawText(hint, w / 2f - tp.measureText(hint) / 2, game.screenH - game.density * 10f, tp)
+        val y = game.screenH - game.density * 10f
+        Type.text(c, hint, w / 2f, y + game.density, Role.CAPTION, 0x66000000, 0.5f)
+        Type.text(c, hint, w / 2f, y, Role.CAPTION, 0xCCF8EFDC.toInt(), 0.5f)
     }
 }

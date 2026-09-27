@@ -47,13 +47,15 @@ enum class T(
     FLOOR(false, ground = true),
     WALL_IN(true, bulk = true),
     WALL_WIN(true, bulk = true),
-    OVEN(true),             // 화덕
+    OVEN(true),             // 화덕 (화덕피자)
     BED(true),
     BOX(true),
     DECOR(false),           // 장식 슬롯
     SIGN(true, prop = true),             // 터널 이정표
     BENCH(true, prop = true),            // 벤치
-    LAMP(true, prop = true);             // 가로등 (밤에 빛남)
+    LAMP(true, prop = true),             // 가로등 (밤에 빛남)
+    RANGE_TOP(true),        // 가정용 오븐 윗부분 (후드·선반)
+    RANGE(true);            // 가정용 오븐 (일반 피자) — 2프레임 불빛
 
     companion object {
         val ALL = values()
@@ -140,7 +142,7 @@ class GameMap(
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
      * 레이어 순서: 지면 -> 포장(오토타일) -> 데칼 -> 구조물/소품 -> 접지 그림자.
-     * 물은 애니메이션, 집 화덕은 HomeScene의 SVG 일러스트로 렌더링하며 물가에는 거품이 인다.
+     * 물과 가정용 오븐(RANGE)은 애니메이션, 집 화덕은 HomeScene의 SVG 일러스트로 렌더링하며 물가에는 거품이 인다.
      */
     fun draw(
         c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float,
@@ -151,6 +153,7 @@ class GameMap(
         val x1 = ((camX + vw) / 32f).toInt().coerceAtMost(w - 1)
         val y1 = ((camY + vh) / 32f).toInt().coerceAtMost(h - 1)
         val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
+        val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2      // 가정용 오븐 불빛 깜빡임
 
         for (y in y0..y1) {
             for (x in x0..x1) {
@@ -244,7 +247,8 @@ class GameMap(
 
                 // 4) 구조물 / 소품
                 if (!tile.ground && tile != T.OVEN) {
-                    val bmp = a.tiles[tv][a.tileVariant(tv, x, y)]
+                    val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
+                    else a.tiles[tv][a.tileVariant(tv, x, y)]
                     c.drawBitmap(bmp, fx, fy, a.sprPaint)
                 }
             }
@@ -752,9 +756,12 @@ object MapBuilder {
         t[1][2] = T.WALL_WIN.ordinal
         t[1][5] = T.WALL_WIN.ordinal
         t[1][8] = T.WALL_WIN.ordinal
-        // 화덕 (기본 제공!)
+        // 화덕 (기본 제공!) — 화덕피자
         t[2][9] = T.OVEN.ordinal; t[2][10] = T.OVEN.ordinal
         t[3][9] = T.OVEN.ordinal; t[3][10] = T.OVEN.ordinal
+        // 가정용 오븐 (화덕 옆 주방 코너) — 일반 피자
+        t[2][11] = T.RANGE_TOP.ordinal
+        t[3][11] = T.RANGE.ordinal
         // 침대
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
         // 이사 박스

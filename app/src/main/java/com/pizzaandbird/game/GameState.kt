@@ -7,7 +7,8 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v4: 메인 스토리 진행도와 완료 상태를 추가했다.
+ * 세이브 형식 v4: 메인 스토리 진행도/완료 상태 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
+ *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
  * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
  * v1~v3 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
@@ -20,7 +21,7 @@ class GameState {
     var money = 0                  // 용돈(원)
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
     var luck = 50f                 // 행운 수치 (높을수록 희귀새 출현)
-    val pizzas = IntArray(9)       // [토핑id*3 + 품질] 피자 개수
+    val pizzas = IntArray(Pizzas.ALL.size * 3)   // [피자id*3 + 품질] 피자 개수
 
     // 카메라 장비 -------------------------------------------------------
     val ownedGear = LinkedHashSet<String>()     // 구매한 장비 id 전체
@@ -73,45 +74,60 @@ class GameState {
 
     val pizzaCount: Int get() = pizzas.sum()
 
-    fun pizzaCountOf(topping: Int): Int {
+    private fun pizzaIdx(pizzaId: Int, quality: Int): Int =
+        pizzaId.coerceIn(0, Pizzas.ALL.size - 1) * 3 + quality.coerceIn(0, 2)
+
+    /** 특정 피자(품질 무관) 개수 */
+    fun pizzaCountOf(pizzaId: Int): Int {
         var n = 0
-        for (q in 0 until 3) n += pizzas[topping.coerceIn(0, 2) * 3 + q]
+        for (q in 0 until 3) n += pizzas[pizzaIdx(pizzaId, q)]
         return n
     }
 
-    fun pizzaCountOf(topping: Int, quality: Int): Int =
-        pizzas[topping.coerceIn(0, 2) * 3 + quality.coerceIn(0, 2)]
+    fun pizzaCountOf(pizzaId: Int, quality: Int): Int = pizzas[pizzaIdx(pizzaId, quality)]
 
-    fun addPizza(topping: Int, quality: Int): Boolean {
+    /** 계열(화덕피자/일반 피자)별 개수 */
+    fun pizzaCountOfKind(kind: PizzaKind): Int {
+        var n = 0
+        for (p in Pizzas.ALL) if (p.kind == kind) n += pizzaCountOf(p.id)
+        return n
+    }
+
+    fun addPizza(pizzaId: Int, quality: Int): Boolean {
         if (pizzaCount >= pizzaCapEff()) return false
-        pizzas[topping.coerceIn(0, 2) * 3 + quality.coerceIn(0, 2)]++
+        pizzas[pizzaIdx(pizzaId, quality)]++
         return true
     }
 
-    /** 특정 토핑의 가장 좋은 피자 먹기 (없으면 null) */
-    fun eat(toppingId: Int): PizzaQ? {
-        val t = Toppings.of(toppingId)
+    /** 특정 피자의 가장 좋은 품질부터 먹기 (없으면 null) */
+    fun eat(pizzaId: Int): PizzaQ? {
+        val p = Pizzas.of(pizzaId)
         for (q in 2 downTo 0) {
-            val idx = t.id * 3 + q
+            val idx = pizzaIdx(p.id, q)
             if (pizzas[idx] > 0) {
                 pizzas[idx]--
                 val def = PizzaQ.of(q)
-                hunger = (hunger + def.hunger + t.hungerBonus).coerceIn(0f, 100f)
-                luck = (luck + def.luck + t.luckBonus).coerceIn(0f, 100f)
+                hunger = (hunger + def.hunger + p.hungerBonus).coerceIn(0f, 100f)
+                luck = (luck + def.luck + p.luckBonus).coerceIn(0f, 100f)
                 return def
             }
         }
         return null
     }
 
-    /** 아무 토핑이나 가장 좋은 피자 먹기 (먹은 토핑 id 반환, 없으면 null) */
+    /**
+     * 아무 피자나 가장 좋은 것부터 먹기 (먹은 피자 id 반환, 없으면 null).
+     * 같은 품질이면 배고픔 회복이 큰 피자를 먼저 먹는다 (간식 버튼용).
+     */
     fun eatBest(): Int? {
         for (q in 2 downTo 0) {
-            for (t in Toppings.ALL) {
-                if (pizzas[t.id * 3 + q] > 0) {
-                    eat(t.id)
-                    return t.id
-                }
+            var best: PizzaDef? = null
+            for (p in Pizzas.ALL) {
+                if (pizzas[pizzaIdx(p.id, q)] > 0 && (best == null || p.hungerBonus > best.hungerBonus)) best = p
+            }
+            if (best != null) {
+                eat(best.id)
+                return best.id
             }
         }
         return null
@@ -551,11 +567,12 @@ class GameState {
 
             val pz = j.optJSONArray("pizzas")
             if (pz != null) {
-                if (v >= 2 || pz.length() == 9) {
-                    for (i in 0 until minOf(pz.length(), s.pizzas.size)) s.pizzas[i] = pz.optInt(i, 0)
+                if (v >= 2 || pz.length() >= 9) {
+                    // v2/v3: 9칸(치즈·버섯·불고기 × 품질) / v4: 피자 12종 × 품질 — id가 같으므로 앞에서부터 그대로 복사
+                    for (i in 0 until minOf(pz.length(), s.pizzas.size)) s.pizzas[i] = pz.optInt(i, 0).coerceAtLeast(0)
                 } else {
                     // v1: 품질 3칸 배열 -> 치즈 피자로 마이그레이션
-                    for (q in 0 until minOf(pz.length(), 3)) s.pizzas[q] = pz.optInt(q, 0)
+                    for (q in 0 until minOf(pz.length(), 3)) s.pizzas[q] = pz.optInt(q, 0).coerceAtLeast(0)
                 }
             }
             val bc = j.optJSONObject("birdCounts")
