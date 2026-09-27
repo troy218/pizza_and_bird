@@ -37,6 +37,16 @@ abstract class Scene(val game: Game) {
 }
 
 /**
+ * 실내(집·랜드마크) 환경음 — 비 오는 날엔 지붕에 떨어지는 빗소리가 은은하게 들린다.
+ * 창밖 풍경은 보이지 않아도 "비가 오고 있다"는 것이 소리로 전해진다. 비가 그치면 조용해진다.
+ * (매 프레임 불러도 같은 트랙이면 다시 시작하지 않는다 — Audio.playAmb 의 페이드 규칙)
+ */
+fun Scene.applyIndoorAmbience() {
+    if (game.state.weather() == Weather.RAIN) game.audio.playAmb(R.raw.amb_rain_roof, 0.20f)
+    else game.audio.stopAmb()
+}
+
+/**
  * 타이틀 화면
  */
 class TitleScene(game: Game) : Scene(game) {

@@ -3821,6 +3821,11 @@ class LevelUpOverlay(
 
     private var t = 0f
 
+    init {
+        // 🎉 팡파레 — 만세 모션과 함께. (축하 화면은 여기서 한 번만 뜨므로 init 이 맞다)
+        scene.game.sfx(Audio.Sfx.LEVELUP, 0.9f)
+    }
+
     override fun update(dt: Float) { t += dt }
 
     override fun handleInput(input: Input) {

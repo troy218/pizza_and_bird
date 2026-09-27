@@ -145,13 +145,14 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
-        game.audio.stopAmb()
+        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리
     }
 
     override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        applyIndoorAmbience()   // 비가 오고 그치는 것을 창밖 소리로 (자다 일어나도 바로 반영)
         if (overlay != null) {
             game.audio.stopSteps()
             updateRig(dt, 0f, 0f, Gait.IDLE)   // 화덕 미니게임 뒤에서도 여운은 이어진다

@@ -235,17 +235,28 @@ class WorldScene(
     }
 
     /**
-     * 지역 성격 + 시간대에 맞는 환경음 루프.
+     * 지역 성격 + 시간대 + 날씨에 맞는 환경음 루프.
      *
+     *   비       -> 빗소리 (여름 장마엔 세찬 비, 그 외엔 잔잔한 비)
      *   강풍     -> 바람 소리     (amb_wind)
      *   밤       -> 풀벌레 우는 밤 (amb_night)
      *   바닷가   -> 파도와 갈매기 (amb_sea)
      *   숲       -> 숲속 새소리   (amb_forest)
      *   산       -> 낮은 허밍     (amb_hum)
      *   그 외 낮 -> 들판 새소리   (amb_birds)
+     *
+     * 비는 소리 자체가 커서 밤 풀벌레보다 우선한다(빗소리에 벌레 소리가 묻히는 게 자연스럽다).
+     * 실내(집·랜드마크)에서는 지붕에 떨어지는 빗소리만 은은하게 — Scene.applyIndoorAmbience().
      */
     private fun updateAmbience() {
         when {
+            weather == Weather.RAIN -> {
+                val monsoon = state.season() == Season.SUMMER      // 장마철엔 쏟아지는 비
+                game.audio.playAmb(
+                    if (monsoon) R.raw.amb_rain_heavy else R.raw.amb_rain,
+                    if (monsoon) 0.30f else 0.26f
+                )
+            }
             weather == Weather.WIND -> game.audio.playAmb(R.raw.amb_wind, 0.22f)
             state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
             "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
@@ -253,6 +264,32 @@ class WorldScene(
             "mountain" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
             else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
         }
+    }
+
+    /**
+     * 발밑 지형에 맞는 발소리 고르기.
+     *
+     * 눈이 쌓였으면 바닥이 무엇이든 '뽀득' 소리, 물가(갈대)는 철퍽, 갯벌은 사박,
+     * 광장·실내는 또각, 풀·꽃밭은 사각사각, 나머지 흙길은 자갈이다.
+     * (Fx.WorldFx.snowCover 는 눈이 쌓인 정도 0..1 — 발자국 연출과 같은 기준을 쓴다)
+     */
+    private fun stepKindUnderFeet(): Audio.Steps {
+        val tile = map.feetTile(player.x, player.y)
+        return when {
+            fx.snowCover > 0.3f && tile != T.WATER -> Audio.Steps.SNOW
+            tile == T.WATER || tile == T.REED -> Audio.Steps.WATER
+            tile == T.SAND -> Audio.Steps.SAND
+            tile == T.PLAZA || tile == T.FLOOR -> Audio.Steps.STONE
+            tile == T.GRASS || tile == T.TALLGRASS || tile == T.FLOWER -> Audio.Steps.GRASS
+            else -> Audio.Steps.GRAVEL
+        }
+    }
+
+    /** 고양이 야옹 3종 중 하나 — 쓰다듬을 때마다 같은 소리가 반복되지 않게 */
+    private fun randomMeow(): Audio.Sfx = when (rnd.nextInt(3)) {
+        0 -> Audio.Sfx.CAT_MEOW1
+        1 -> Audio.Sfx.CAT_MEOW2
+        else -> Audio.Sfx.CAT_MEOW3
     }
 
     /** 지역에 어울리는 지저귐 한 소리 — 숲·산에선 뻐꾸기가 섞인다 */
@@ -299,10 +336,10 @@ class WorldScene(
         updateStats(dt)
         checkTileTriggers()
 
-        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~)
+        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~). 지형이 바뀌면 소리도 바뀐다.
         val stepping = player.moving && !player.bike
         game.audio.steps(
-            if (stepping) Audio.Steps.GRAVEL else Audio.Steps.NONE,
+            if (stepping) stepKindUnderFeet() else Audio.Steps.NONE,
             run = stepping && game.input.isRun
         )
 
@@ -1526,7 +1563,8 @@ class WorldScene(
     private fun petCat(cat: Cat) {
         viewRig.kick(0f, 1f, 0.5f)
         state.luck = (state.luck + 1f).coerceAtMost(100f)
-        game.sfx(Audio.Sfx.SPARKLE, 0.5f, 1.15f)
+        game.sfx(randomMeow(), 0.7f)                 // 🐈 야옹~
+        game.sfx(Audio.Sfx.SPARKLE, 0.35f, 1.15f)    // 행운 +1 반짝
         repeat(3) {
             addParticle(
                 cat.cx, cat.cy - 6f,
@@ -1619,6 +1657,7 @@ class WorldScene(
         viewRig.freeze(0.08f)
         game.sfx(Audio.Sfx.WHOOSH, 0.95f, 0.82f)
         game.sfx(Audio.Sfx.TAP, 0.85f, 0.52f)
+        game.sfx(Audio.Sfx.CAT_PUNCH, 0.85f)     // 🐈👊 "냐앙—" 하고 날아간다
         repeat(8) {
             addParticle(
                 cat.cx, cat.cy - 4f,
@@ -2219,7 +2258,8 @@ class WorldScene(
                 val onFish = Healing.catTreats(state) > 0 && hypot(fishX - tap.x, fishY - tap.y) < 10f
                 if (onFish) {
                     if (Healing.feedCat(state)) {
-                        game.sfx(Audio.Sfx.SPARKLE, 0.6f, 1.2f)
+                        game.sfx(randomMeow(), 0.8f)         // 🐈 냠냠 야옹
+                        game.sfx(Audio.Sfx.SPARKLE, 0.4f, 1.2f)
                         repeat(6) {
                             addParticle(cat.cx + (rnd.nextFloat()-0.5f)*6f, cat.cy - 4f,
                                 (rnd.nextFloat()-0.5f)*18f, -22f - rnd.nextFloat()*10f, 1.2f,
