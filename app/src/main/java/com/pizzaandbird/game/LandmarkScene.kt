@@ -86,27 +86,14 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         game.banner(landmark.name)
 
         game.audio.playBgm(R.raw.bgm_home)
-        updateAmbience()
-    }
-
-    /** 실내 계절 환경음 — 집과 같은 규칙 (겨울 화덕 · 여름 매미 · 가을 귀뚜라미 · 봄 개구리). */
-    private fun updateAmbience() {
-        val night = state.isNight()
-        when (state.season()) {
-            Season.WINTER -> game.audio.playAmb(R.raw.amb_fire, 0.28f)
-            Season.SUMMER -> if (!night) game.audio.playAmb(R.raw.amb_cicada, 0.15f)
-            else game.audio.playAmb(R.raw.amb_night, 0.18f)
-            Season.AUTUMN -> if (night) game.audio.playAmb(R.raw.amb_cricket, 0.20f)
-            else game.audio.playAmb(R.raw.amb_birds, 0.10f)
-            Season.SPRING -> if (night) game.audio.playAmb(R.raw.amb_frog, 0.18f)
-            else game.audio.playAmb(R.raw.amb_birds, 0.12f)
-        }
+        applyIndoorAmbience()   // 비 오는 날엔 지붕 빗소리, 맑으면 창밖 계절 소리
     }
 
     override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        applyIndoorAmbience()
         if (overlay != null) {
             game.audio.stopSteps()
             updateRig(dt, 0f, 0f, Gait.IDLE)
@@ -114,7 +101,6 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         }
         state.playSeconds += dt * 0.4f
         state.advanceClock(dt)
-        updateAmbience()
 
         player.bike = false
         val input = game.input

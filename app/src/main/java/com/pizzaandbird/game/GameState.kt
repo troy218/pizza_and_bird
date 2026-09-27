@@ -110,6 +110,8 @@ class GameState {
 
     // ------------------------------------------------------------------
 
+    fun isPizzaUnlocked(id: Int): Boolean = id in MainStory.unlockedPizzas(mainQuestStage)
+
     val pizzaCount: Int get() = pizzas.sum()
 
     private fun pizzaIdx(pizzaId: Int, quality: Int): Int =

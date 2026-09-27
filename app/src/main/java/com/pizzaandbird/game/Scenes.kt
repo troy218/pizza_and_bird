@@ -37,6 +37,34 @@ abstract class Scene(val game: Game) {
 }
 
 /**
+ * 실내(집·랜드마크) 환경음 — 비 오는 날엔 지붕에 떨어지는 빗소리가 은은하게 들린다.
+ * 창밖 풍경은 보이지 않아도 "비가 오고 있다"는 것이 소리로 전해진다. 비가 그치면 조용해진다.
+ * (매 프레임 불러도 같은 트랙이면 다시 시작하지 않는다 — Audio.playAmb 의 페이드 규칙)
+ */
+/**
+ * 실내(집·랜드마크) 환경음 — 비 오는 날엔 지붕 빗소리, 그 외엔 창밖 계절이 벽 너머로 살짝.
+ * 겨울엔 화덕 장작, 여름 낮엔 멀리 매미, 가을 밤엔 귀뚜라미, 봄 밤엔 개구리.
+ * 씬 update()에서 매 프레임 부른다 (날씨·계절·밤낮이 바뀌면 바로 반영).
+ */
+fun Scene.applyIndoorAmbience() {
+    val state = game.state
+    if (state.weather() == Weather.RAIN) {
+        game.audio.playAmb(R.raw.amb_rain_roof, 0.20f)
+        return
+    }
+    val night = state.isNight()
+    when (state.season()) {
+        Season.WINTER -> game.audio.playAmb(R.raw.amb_fire, 0.30f)
+        Season.SUMMER -> if (!night) game.audio.playAmb(R.raw.amb_cicada, 0.16f)
+        else game.audio.playAmb(R.raw.amb_night, 0.19f)
+        Season.AUTUMN -> if (night) game.audio.playAmb(R.raw.amb_cricket, 0.21f)
+        else game.audio.playAmb(R.raw.amb_birds, 0.10f)
+        Season.SPRING -> if (night) game.audio.playAmb(R.raw.amb_frog, 0.19f)
+        else game.audio.playAmb(R.raw.amb_birds, 0.13f)
+    }
+}
+
+/**
  * 타이틀 화면
  */
 class TitleScene(game: Game) : Scene(game) {

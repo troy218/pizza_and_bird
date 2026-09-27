@@ -5,7 +5,8 @@
   amb_cicada.wav   여름 낮 — 참매미 + 쓰르라미 합창 (14초 루프)
   amb_cricket.wav  가을 밤 — 귀뚜라미 (12초 루프)
   amb_frog.wav     봄 밤 — 개구리 + 물소리 (10초 루프)
-  sfx_step_snow.wav 겨울 — 눈 밟는 뽀드득 발걸음 (1.6초 루프, SoundPool용)
+
+눈 발걸음은 실황 녹음(sfx_step_snow.mp3, tools/build_audio.py)으로 대체되어 여기선 만들지 않는다.
 
 모든 루프는 패턴 주기가 전체 길이로 나누어떨어지게 만들고,
 마지막 120ms를 시작 부분으로 크로스페이드해 이음매 클릭을 없앤다.
@@ -166,36 +167,7 @@ def frog(dur: float = 10.0) -> np.ndarray:
     return loop_blend(y)
 
 
-# ---------------------------------------------------------------- 눈 발걸음 (겨울)
-def snow_steps(dur: float = 1.6) -> np.ndarray:
-    t = np.arange(int(dur * SR)) / SR
-    y = np.zeros_like(t)
-    rng = np.random.default_rng(31)
-
-    def crunch(at: float, gain: float, bright: float):
-        n = int(0.24 * SR)
-        i0 = int(at * SR)
-        tt = np.arange(n) / SR
-        # 뽀드득 — 날카로운 어택 + 빠른 감쇠의 대역 노이즈
-        noise = rng.standard_normal(n)
-        noise = np.diff(noise, prepend=noise[0])          # 하이패스 → 바삭함
-        env = np.exp(-tt * 26.0) * (1.0 - np.exp(-tt * 900.0))
-        sig = bright * noise * env
-        # 눈이 눌리는 저음 쿵
-        sig += 0.5 * np.sin(2 * np.pi * 82 * tt) * np.exp(-tt * 30.0)
-        # 새눈의 하이 삐걱임 (짧게)
-        sig += 0.18 * np.sin(2 * np.pi * 5600 * tt) * np.exp(-tt * 60.0)
-        y[i0:i0 + n] += gain * sig
-
-    crunch(0.12, 1.0, 1.0)     # 왼발
-    crunch(0.92, 0.9, 0.85)    # 오른발 (조금 다르게)
-    # 발 사이의 바스락
-    y += 0.012 * rng.standard_normal(len(t))
-    return loop_blend(y, fade_sec=0.05)
-
-
 if __name__ == "__main__":
     write_wav(f"{OUT}/amb_cicada.wav", cicada(), peak=0.5)
     write_wav(f"{OUT}/amb_cricket.wav", cricket(), peak=0.5)
     write_wav(f"{OUT}/amb_frog.wav", frog(), peak=0.55)
-    write_wav(f"{OUT}/sfx_step_snow.wav", snow_steps(), peak=0.6)

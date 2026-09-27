@@ -238,23 +238,34 @@ class WorldScene(
     }
 
     /**
-     * 계절 + 지역 성격 + 시간대에 맞는 환경음 루프.
+     * 계절 + 지역 성격 + 시간대 + 날씨에 맞는 환경음 루프.
      *
-     *   강풍        -> 바람 소리        (amb_wind)
-     *   여름 낮     -> 매미 합창        (amb_cicada) — 비 오는 날은 쉰다
-     *   가을 밤     -> 귀뚜라미         (amb_cricket)
-     *   봄 밤       -> 개구리           (amb_frog)
-     *   겨울        -> 차가운 바람      (amb_wind, 낮게)
-     *   밤          -> 풀벌레 우는 밤    (amb_night)
-     *   바닷가      -> 파도와 갈매기    (amb_sea)
-     *   숲          -> 숲속 새소리      (amb_forest)
-     *   산          -> 낮은 허밍        (amb_hum)
-     *   그 외 낮    -> 들판 새소리      (amb_birds)
+     *   비           -> 빗소리 (여름 장마엔 세찬 비, 그 외엔 잔잔한 비)
+     *   강풍         -> 바람 소리        (amb_wind)
+     *   여름 맑은 낮 -> 매미 합창        (amb_cicada)
+     *   가을 맑은 밤 -> 귀뚜라미         (amb_cricket)
+     *   봄 밤        -> 개구리           (amb_frog)
+     *   겨울         -> 차가운 바람      (amb_wind, 낮게)
+     *   밤           -> 풀벌레 우는 밤    (amb_night)
+     *   바닷가       -> 파도와 갈매기    (amb_sea)
+     *   숲           -> 숲속 새소리      (amb_forest)
+     *   산           -> 낮은 허밍        (amb_hum)
+     *   그 외 낮     -> 들판 새소리      (amb_birds)
+     *
+     * 비는 소리 자체가 커서 밤 풀벌레보다 우선한다(빗소리에 벌레 소리가 묻히는 게 자연스럽다).
+     * 실내(집·랜드마크)는 비엔 지붕 빗소리, 맑으면 창밖 계절 소리 — Scene.applyIndoorAmbience().
      */
     private fun updateAmbience() {
         val night = state.isNight()
         val season = state.season()
         when {
+            weather == Weather.RAIN -> {
+                val monsoon = state.season() == Season.SUMMER      // 장마철엔 쏟아지는 비
+                game.audio.playAmb(
+                    if (monsoon) R.raw.amb_rain_heavy else R.raw.amb_rain,
+                    if (monsoon) 0.30f else 0.26f
+                )
+            }
             weather == Weather.WIND -> game.audio.playAmb(R.raw.amb_wind, 0.22f)
             season == Season.SUMMER && !night && weather != Weather.RAIN ->
                 game.audio.playAmb(R.raw.amb_cicada, 0.30f)
@@ -270,6 +281,32 @@ class WorldScene(
             "mountain" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
             else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
         }
+    }
+
+    /**
+     * 발밑 지형에 맞는 발소리 고르기.
+     *
+     * 눈이 쌓였으면 바닥이 무엇이든 '뽀득' 소리, 물가(갈대)는 철퍽, 갯벌은 사박,
+     * 광장·실내는 또각, 풀·꽃밭은 사각사각, 나머지 흙길은 자갈이다.
+     * (Fx.WorldFx.snowCover 는 눈이 쌓인 정도 0..1 — 발자국 연출과 같은 기준을 쓴다)
+     */
+    private fun stepKindUnderFeet(): Audio.Steps {
+        val tile = map.feetTile(player.x, player.y)
+        return when {
+            fx.snowCover > 0.3f && tile != T.WATER -> Audio.Steps.SNOW
+            tile == T.WATER || tile == T.REED -> Audio.Steps.WATER
+            tile == T.SAND -> Audio.Steps.SAND
+            tile == T.PLAZA || tile == T.FLOOR -> Audio.Steps.STONE
+            tile == T.GRASS || tile == T.TALLGRASS || tile == T.FLOWER -> Audio.Steps.GRASS
+            else -> Audio.Steps.GRAVEL
+        }
+    }
+
+    /** 고양이 야옹 3종 중 하나 — 쓰다듬을 때마다 같은 소리가 반복되지 않게 */
+    private fun randomMeow(): Audio.Sfx = when (rnd.nextInt(3)) {
+        0 -> Audio.Sfx.CAT_MEOW1
+        1 -> Audio.Sfx.CAT_MEOW2
+        else -> Audio.Sfx.CAT_MEOW3
     }
 
     /** 지역에 어울리는 지저귐 한 소리 — 봄·여름 숲·산에선 뻐꾸기가 섞인다 */
@@ -322,11 +359,10 @@ class WorldScene(
         updateStats(dt)
         checkTileTriggers()
 
-        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~). 쌓인 눈 위에선 뽀드득.
+        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~). 지형이 바뀌면 소리도 바뀐다.
         val stepping = player.moving && !player.bike
-        val snowy = fx.snowCover > 0.3f
         game.audio.steps(
-            if (stepping) (if (snowy) Audio.Steps.SNOW else Audio.Steps.GRAVEL) else Audio.Steps.NONE,
+            if (stepping) stepKindUnderFeet() else Audio.Steps.NONE,
             run = stepping && game.input.isRun
         )
 
@@ -708,13 +744,7 @@ class WorldScene(
         // 1) 벽·바위에 부딪힘 — 자전거일수록 크게 '쿵'
         if (blocked && sp > 30f && bumpCd <= 0f) {
             bumpCd = 0.42f
-            viewRig.shake(if (player.bike) 0.34f else 0.14f)
-            viewRig.kick(-lastDirX, -lastDirY, if (player.bike) 2.6f else 1.1f)
-            if (player.bike) {
-                game.sfx(Audio.Sfx.BIKE_BRAKE, 0.5f)
-                for (i in 0 until 4) {
-                    addParticle(
-                        player.cx, player.y + 15f,
+        .y + 15f,
                         (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
                         0.45f, Color.argb(120, 150, 132, 104), 3f, false
                     )
@@ -1586,7 +1616,8 @@ class WorldScene(
     private fun petCat(cat: Cat) {
         viewRig.kick(0f, 1f, 0.5f)
         state.luck = (state.luck + 1f).coerceAtMost(100f)
-        game.sfx(Audio.Sfx.SPARKLE, 0.5f, 1.15f)
+        game.sfx(randomMeow(), 0.7f)                 // 🐈 야옹~
+        game.sfx(Audio.Sfx.SPARKLE, 0.35f, 1.15f)    // 행운 +1 반짝
         repeat(3) {
             addParticle(
                 cat.cx, cat.cy - 6f,
@@ -1679,6 +1710,7 @@ class WorldScene(
         viewRig.freeze(0.08f)
         game.sfx(Audio.Sfx.WHOOSH, 0.95f, 0.82f)
         game.sfx(Audio.Sfx.TAP, 0.85f, 0.52f)
+        game.sfx(Audio.Sfx.CAT_PUNCH, 0.85f)     // 🐈👊 "냐앙—" 하고 날아간다
         repeat(8) {
             addParticle(
                 cat.cx, cat.cy - 4f,
@@ -1938,12 +1970,14 @@ class WorldScene(
         val levels = state.addExp(chapter.rewardExp)
         state.mainQuestStage++
         if (state.mainQuestStage >= MainStory.CHAPTERS.size) state.mainQuestFinished = true
+        val newRecipes = MainStory.newlyUnlockedPizzas(state.mainQuestStage)
         SaveManager.save(game.context, state)
         game.sfx(Audio.Sfx.REWARD, 0.9f)
         val reward = buildString {
             if (chapter.rewardMoney > 0) append("\n보상 ${won(chapter.rewardMoney)}")
             if (chapter.rewardExp > 0) append(" · 경험치 +${chapter.rewardExp}")
             if (levels > 0) append(" · 레벨 업!")
+            if (newRecipes.isNotEmpty()) append("\n📖 할머니의 피자 레시피 해금: ${newRecipes.joinToString(" · ") { it.name }}")
         }
         openOverlay(
             DialogOverlay(
@@ -2279,7 +2313,8 @@ class WorldScene(
                 val onFish = Healing.catTreats(state) > 0 && hypot(fishX - tap.x, fishY - tap.y) < 10f
                 if (onFish) {
                     if (Healing.feedCat(state)) {
-                        game.sfx(Audio.Sfx.SPARKLE, 0.6f, 1.2f)
+                        game.sfx(randomMeow(), 0.8f)         // 🐈 냠냠 야옹
+                        game.sfx(Audio.Sfx.SPARKLE, 0.4f, 1.2f)
                         repeat(6) {
                             addParticle(cat.cx + (rnd.nextFloat()-0.5f)*6f, cat.cy - 4f,
                                 (rnd.nextFloat()-0.5f)*18f, -22f - rnd.nextFloat()*10f, 1.2f,
@@ -3152,6 +3187,17 @@ class WorldScene(
         private const val BIRD_SPRITE_K = 0.5f
 
         /** 잔상용 위치 링버퍼 길이 */
+        private const val GHOSTS = 6
+
+        /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */
+        const val LIGHT_W = 1130
+        const val LIGHT_H = 664
+    }
+    override fun drawHud(c: Canvas) {
+        game.hud.draw(c)
+    }
+}
+       /** 잔상용 위치 링버퍼 길이 */
         private const val GHOSTS = 6
 
         /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */
