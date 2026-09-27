@@ -1,0 +1,60 @@
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:337:23 Unresolved reference 'cr'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:338:24 Unresolved reference 'value'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:338:31 Unresolved reference 'cr'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:338:56 Overload resolution ambiguity between candidates:
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:338:76 Unresolved reference 'value'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:446:64 Unresolved reference 'x'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:539:35 Unresolved reference 'x'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:541:22 Unresolved reference 'x'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:550:52 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:550:106 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:753:54 Unresolved reference 'x'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:755:51 Unresolved reference 'x'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:757:48 Unresolved reference 'x'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:913:19 Unresolved reference 'rowH'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:913:26 Unresolved reference 'gap'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:921:47 Too many arguments for 'fun row(id: Int, emoji: String, name: String, sub: String): Unit'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1313:35 Unresolved reference 'LevelUpOverlay'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1334:35 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1334:48 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1338:28 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1338:41 Overload resolution ambiguity between candidates:
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1338:59 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1338:82 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1338:108 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1345:28 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1345:53 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1345:77 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1345:103 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1380:25 Unresolved reference 'cx'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1380:29 Unresolved reference 'cy'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1381:31 Unresolved reference 'cx'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1381:35 Unresolved reference 'cy'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:26 Unresolved reference 'cx'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:31 Unresolved reference 'cardW'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:43 Unresolved reference 'cy'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:48 Unresolved reference 'cardH'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:60 Unresolved reference 'cx'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:65 Unresolved reference 'cardW'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:77 Unresolved reference 'cy'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1383:82 Unresolved reference 'cardH'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1402:22 Unresolved reference 'cardW'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1402:30 Unresolved reference 'inset'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1403:35 None of the following candidates is applicable:
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1403:44 Unresolved reference 'cardH'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1403:52 Unresolved reference 'inset'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1403:58 Overload resolution ambiguity between candidates:
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1404:39 Unresolved reference 'inset'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1404:57 Unresolved reference 'inset'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1404:76 Unresolved reference 'inset'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1404:103 Unresolved reference 'inset'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1405:9 Unresolved reference 'drawPhoto'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1434:18 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1435:65 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1439:27 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1439:43 Overload resolution ambiguity between candidates:
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1444:22 Unresolved reference 'cy'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1444:27 Unresolved reference 'cardH'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1444:38 Overload resolution ambiguity between candidates:
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1446:37 Unresolved reference 'r'.
+e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:1446:53 Overload resolution ambiguity between candidates:
