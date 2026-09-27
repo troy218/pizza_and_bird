@@ -1359,13 +1359,17 @@ class WorldScene(
             else -> "메인 이야기"
         }
         val sideLabel = if (state.questBird == null) "사진 의뢰 받기" else "사진 의뢰 확인"
+        // [P08+] 계절·날씨·밤에 따른 보리 박사의 한 마디 — 반복 대화가 매번 다르게 느껴지도록
+        val flavor = Dialogues.professorFlavor(
+            Dialogues.Ctx(map.region.id, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)
+        )
         openOverlay(
             DialogOverlay(
                 this, "보리 박사",
                 when {
                     state.mainQuestFinished -> "\"우리의 지도는 완성됐지만 새들의 계절은 계속되지. 사진 의뢰도, 도장 깨기도 언제든 찾아오게.\""
                     !state.mainQuestStarted -> "\"마침 잘 왔네. 자네 가족이 남긴 낡은 탐조 수첩에 관한 이야기가 있어. 물론 급한 일은 아니니 사진 의뢰부터 해도 좋고.\""
-                    else -> "\"메인 기록과 사진 의뢰는 서로 별개일세. 마음 가는 순서대로 천천히 하게.\""
+                    else -> "\"메인 기록과 사진 의뢰는 서로 별개일세. 마음 가는 순서대로 천천히 하게.\"" + flavor
                 },
                 buildList {
                     add(DialogOverlay.Choice(mainLabel) { showMainStory() })
@@ -1487,7 +1491,10 @@ class WorldScene(
         val lines = listOf(
             "\"어서 와! 지금 장비는 ${rig.title},\n환산 ${rig.teleMm}mm에 촬영 반경 ${rig.reach.fmt1()}칸이구먼.\n바디랑 렌즈는 따로 팔아. 천천히 골라 봐.\"",
             "\"새를 크게 찍고 싶으면 답은 하나야. 초점거리!\n다만 무거운 렌즈는 배가 금방 고파진다네.\"",
-            "\"센서가 크면 어두운 새벽에도 깨끗하지.\n대신 지갑이 어두워지지만 말이야. 허허.\""
+            "\"센서가 크면 어두운 새벽에도 깨끗하지.\n대신 지갑이 어두워지지만 말이야. 허허.\"",
+            "\"허허, 내 첫 손님이 카메라를 들던 소년이었다네.\n피자 한 판 시키면서 숲새 얘기를 하던 게 어제 같은데.\"",
+            "\"비 오는 날엔 렌즈에 물방울이 맺히기 쉽다네.\n레인 커버 하나가 오래 보는 비결이야.\"",
+            "\"카메라는 어깨에 매는 거지만, 기록은 가슴에 남는 법이야.\n무거운 건 어깨에, 가벼운 건 가슴에 두고 다니게.\""
         )
         openOverlay(
             DialogOverlay(
