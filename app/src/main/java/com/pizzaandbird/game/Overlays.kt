@@ -1200,8 +1200,43 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             }
         }
 
-        // 푸터 정보 카드
-        val ty = maxOf(yCol[0], yCol[1])
+        // [P05] 클라우드 없는 백업 — 코드 한 장으로 세이브를 다른 기기로 옮긴다.
+        // 세로가 넉넉한 화면(2열)에서는 두 버튼 카드로, 좁은 화면(1열)에서는 행 2개로 붙인다.
+        // 닫히면 왔던 자리(여행 가방)를 다시 열어 준다.
+        val openBackup = { m: BackupOverlay.Mode ->
+            scene.openOverlay(BackupOverlay(scene, m) { scene.openOverlay(MenuOverlay(scene)) })
+        }
+        val rowsEnd = maxOf(yCol[0], yCol[1])
+        val footRoom = contentBottom() - rowsEnd
+        var ty = rowsEnd
+        if (wide && footRoom > dp(scene, 56f)) {
+            val bh = dp(scene, 52f)
+            val bR = RectF(left, ty, right, ty + bh)
+            cuteCard(c, bR, UiKit.PASTEL_SAND)
+            UiKit.iconCircle(c, g, left + dp(scene, 22f), bR.centerY(), dp(scene, 13f), "🗄", 14f, UiKit.PASTEL_SKY)
+            val capW = dp(scene, 44f)
+            val bgap = dp(scene, 8f)
+            val bbw = (right - (left + capW) - bgap * 2f - dp(scene, 10f)) / 2f
+            val bbh = dp(scene, 30f)
+            val bby = bR.centerY() - bbh / 2f
+            val b1 = RectF(left + capW, bby, left + capW + bbw, bby + bbh)
+            val b2 = RectF(b1.right + bgap, bby, b1.right + bgap + bbw, bby + bbh)
+            cuteBtn(c, b1, "백업 코드 만들기", UiKit.PASTEL_MINT, UiKit.INK, 11f)
+            btnRects.add(Triple(b1, "backup-export") { openBackup(BackupOverlay.Mode.CREATE) })
+            cuteBtn(c, b2, "코드에서 불러오기", UiKit.PASTEL_PEACH, UiKit.INK, 11f)
+            btnRects.add(Triple(b2, "backup-import") { openBackup(BackupOverlay.Mode.RESTORE) })
+            ty += bh + dp(scene, 8f)
+        } else {
+            rowAt(c2, "🗄", "백업 코드 만들기", "진행 상황을 텍스트 코드로 복사해 다른 기기로", false, null) {
+                openBackup(BackupOverlay.Mode.CREATE)
+            }
+            rowAt(c2, "📥", "코드에서 불러오기", "복사해 둔 백업 코드를 클립보드에서 읽어 복원", false, null) {
+                openBackup(BackupOverlay.Mode.RESTORE)
+            }
+            ty = maxOf(yCol[0], yCol[1])
+        }
+
+        // 푸터 정보 카드 (남은 자리가 있을 때만 — 백업 카드가 우선)
         val footR = RectF(left, ty, right, contentBottom())
         if (footR.height() > dp(scene, 40f)) {
             cuteCard(c, footR, UiKit.PASTEL_SAND)

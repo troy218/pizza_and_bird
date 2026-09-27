@@ -463,8 +463,36 @@ ViewRig.update(dt, focus, vel, gait, teleZoom, map, viewport)
 ```
 TitleScene ──새 게임──> RegionSelectScene ──> WorldScene ⇄ HomeScene
      │이어하기                                (터널) ↕ 다른 지역 WorldScene
-     └─ overlay: Dialog / Menu(상태·피자·도감·설정) / CameraFx(화면 연출) / Bake / PhotoResult / Map / DecorShop / DecorPick / RegionSelect(이사)
+     └─ overlay: Dialog / Menu(상태·피자·도감·설정) / CameraFx(화면 연출) / Bake / PhotoResult / Map / DecorShop / DecorPick / RegionSelect(이사) / Backup(백업 코드)
 ```
+
+### 클라우드 없는 백업 — 백업 코드 (P05 · `Backup.kt` / `BackupOverlay.kt`)
+
+권한 0개·완전 오프라인 원칙을 지키면서 기기를 바꿀 수 있게, **세이브 전체를 텍스트 한 장**으로 옮긴다.
+
+```
+설정 › 🗄 백업 코드 만들기 ──> Backup.export()
+                                 ├ 1. 수집   prefs 의 `state` + `feat_*` 전부 (스키마를 모르는 투명 덤프)
+                                 ├ 2. 봉투   { meta:{created,app,keys,hasSave}, keys:{키:{t,v}} }  ← 타입 태그 s·b·i·l·f·S
+                                 ├ 3. 압축   UTF-8 → Deflater(BEST_COMPRESSION)
+                                 ├ 4. 인코딩 Base64(URL_SAFE|NO_WRAP|NO_PADDING)
+                                 └ 5. 코드   PBSAVE1.yyyyMMdd.adler32(8hex).payload  → 화면에는 48글자씩 줄바꿈
+설정 › 📥 코드에서 불러오기 ─> 클립보드 → normalize(공백 제거) → inspect(머리글·날짜·체크섬·압축·JSON 검증)
+                                 → 확인 카드(만든 날짜·앱 버전·항목 수·신버전 경고) → import
+                                 → 덤프에 있는 키만 덮어쓰기(commit) → Game.reloadState() → 그 자리에서 월드/집으로
+```
+
+| 설계 판단 | 이유 |
+|---|---|
+| **투명 덤프** (스키마를 모른다) | 세이브 포맷·마이그레이션을 절대 건드리지 않는다. 다른 파트는 `feat_*` 키만 지키면 자동으로 백업에 포함된다 |
+| `feat_` 접두사만 수집 | 기능별 저장소가 늘어나도 이 파일을 고칠 일이 없다. 접두사 밖의 키(설정성 실험 키 등)는 건드리지 않는다 |
+| Adler32 체크섬 + 날짜 + 앱 버전 봉투 | 한 글자만 바뀌어도 "코드가 손상됐어요"로 거부. 구버전 코드(`PBSAVE0`)는 "지원하지 않는 형식". 신버전 코드는 경고 후 진행 |
+| 검증 통과 **이후**에만 prefs 기록 | 잘못된 코드를 넣어도 기존 세이브는 무손상 (먼저 검사하고, 복원은 `commit()` 동기로) |
+| 클립보드 전용 UI | 픽셀 아트 화면에 글자 입력란은 어울리지 않는다. 복사/붙여넣기 + 「앱으로 보내기」(ACTION_SEND)로 충분 |
+| `Game.reloadState()` — 리플렉션 필드 복사 | `state`는 val이고 씬·HUD·Audio가 전부 그 한 객체를 붙잡고 있다 → 통째 교체 대신 필드를 복사해 참조 동일성을 지킨다 |
+| 코드 생성·검증은 백그라운드 스레드 | 앨범 수백 장(원본 51KB)도 9.4KB 코드로 1프레임 안에 끝나지만, 큰 세이브에서 UI가 굳지 않게 |
+
+검증: `bash tools/backup_test/run.sh` — **에뮬레이터 없이 JVM에서** 왕복(export→초기화→import), 6종 `feat_*` 타입 복원(String·Int·Boolean·Float·Long·StringSet), 손상/구버전/빈 코드 거부, 800장 앨범 압축률을 검사한다(68개 항목).
 
 ## 5. 추후 업데이트 계획 (요청 반영 대기)
 
@@ -474,5 +502,5 @@ TitleScene ──새 게임──> RegionSelectScene ──> WorldScene ⇄ Home
 4. 사진 앨범 — 찍은 사진 저장/열람, 평점에 따른 판매
 5. 배경음악/효과음 (지역별 테마)
 6. 업적 시스템, 통계 (총 이동 거리, 총 촬영 수 등)
-7. 클라우드 없는 백업(내보내기 코드)
+7. ~~클라우드 없는 백업(내보내기 코드)~~ — **완료 (P05)**: `Backup.kt`/`BackupOverlay.kt`, 설정 › 🗄 백업 코드 만들기 · 📥 코드에서 불러오기 (§4 「클라우드 없는 백업」)
 8. 태블릿/폴더블 대응, 세로 모드 검토

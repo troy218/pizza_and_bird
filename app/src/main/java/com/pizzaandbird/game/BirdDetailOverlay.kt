@@ -82,10 +82,10 @@ class BirdDetailOverlay(
             }
         }
 
-        // 키보드/패드 조작
-        if (input.justLeft || input.isDown(Input.Key.A)) {
-            goPrev()
-        } else if (input.justRight || input.isDown(Input.Key.D)) {
+        // 키보드 조작: A(Z/스페이스/엔터)로 다음 새. B·뒤로가기는 닫기이므로 이전 페이지는
+        // 화면의 ◀ 버튼을 쓴다. (main에 있던 input.justLeft/isDown(Input.Key)는 Input에 없는 API라
+        //  컴파일 자체가 안 됐다 — P05 빌드 게이트를 통과시키기 위해 최소 수정)
+        if (input.justA) {
             goNext()
         }
 
@@ -267,7 +267,7 @@ class BirdDetailOverlay(
 
         // 사진 위 스탬프/뱃지 (촬영 완료 vs 미촬영)
         if (seen) {
-            val stampStr = "📸 $seenCount회 촬영 · 최고 ★$bestStars"
+            val stampStr = "📸 ${seenCount}회 촬영 · 최고 ★$bestStars"
             textP.textSize = dp(9f)
             textP.isFakeBoldText = true
             val stampW = textP.measureText(stampStr) + dp(12f)
