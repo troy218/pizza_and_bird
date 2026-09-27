@@ -28,6 +28,80 @@ import kotlin.math.max
 import kotlin.math.min
 
 // ---------------------------------------------------------------------------
+// GfxStats (성능 프로브용 카운터 — 프리뷰 파이프라인 전용)
+// ---------------------------------------------------------------------------
+
+/**
+ * 한 프레임 동안 새로 만든 네이티브 객체와 드로우 콜을 센다.
+ * perf_smoke(tools/preview/perf_smoke.kt) 이 버튼 입력 병목을 재는 데 쓴다.
+ */
+object Trace {
+    @JvmStatic var on = false
+}
+
+object GfxStats {
+    @JvmStatic var gradients = 0L
+    @JvmStatic var dashes = 0L
+    @JvmStatic var blurFilters = 0L
+    @JvmStatic var bitmaps = 0L
+    @JvmStatic var rectfs = 0L
+    @JvmStatic var paths = 0L
+    @JvmStatic var paints = 0L
+    @JvmStatic var decodes = 0L
+    /** 그리기/입력 스레드(=게임 스레드)에서 일어난 디코드만 — 병목의 핵심 지표 */
+    @JvmStatic var decodesMain = 0L
+    @JvmStatic var drawPath = 0L
+    @JvmStatic var drawRoundRect = 0L
+    @JvmStatic var drawRect = 0L
+    @JvmStatic var drawCircle = 0L
+    @JvmStatic var drawText = 0L
+    @JvmStatic var drawBitmap = 0L
+    @JvmStatic var drawLine = 0L
+
+    @JvmStatic fun reset() {
+        gradients = 0L; dashes = 0L; blurFilters = 0L; bitmaps = 0L; rectfs = 0L
+        paths = 0L; paints = 0L; decodes = 0L; decodesMain = 0L
+        drawPath = 0L; drawRoundRect = 0L; drawRect = 0L; drawCircle = 0L
+        drawText = 0L; drawBitmap = 0L; drawLine = 0L
+    }
+
+    // ---- 디버그: 생성 지점 스택 기록 -------------------------------------
+    @JvmStatic var on = false
+    private val sites = LinkedHashMap<String, Int>()
+
+    @JvmStatic fun site(what: String) {
+        if (!on) return
+        val st = Thread.currentThread().stackTrace
+        val frames = st.filter { it.className.startsWith("com.pizzaandbird") && !it.className.contains("GfxStats") }
+            .joinToString(" <- ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+        sites[what + "  @  " + frames] = (sites[what + "  @  " + frames] ?: 0) + 1
+    }
+
+    @JvmStatic fun dump() {
+        for ((k, v) in sites.entries.sortedByDescending { it.value }) println("  $v x  $k")
+        sites.clear()
+    }
+
+    /** [n]프레임 합계를 n 프레임 평균으로 나눈다 (measure() 가 누적값을 출력하므로). */
+    @JvmStatic fun perFrame(n: Int): String {
+        val d = n.coerceAtLeast(1).toDouble()
+        val fmt =
+            "grad=%.1f dash=%.1f bmp=%.1f rectf=%.1f path=%.1f decode=%.1f(main %.1f) | dPath=%.0f dRR=%.0f " +
+                "dRect=%.0f dCir=%.0f dText=%.0f dBmp=%.0f dLine=%.0f"
+        return fmt.format(
+            gradients / d, dashes / d, bitmaps / d, rectfs / d, paths / d, decodes / d, decodesMain / d,
+            drawPath / d, drawRoundRect / d, drawRect / d, drawCircle / d,
+            drawText / d, drawBitmap / d, drawLine / d
+        )
+    }
+
+    @JvmStatic fun line(): String =
+        "grad=$gradients dash=$dashes blur=$blurFilters bmp=$bitmaps rectf=$rectfs " +
+            "path=$paths paint=$paints decode=$decodes(main $decodesMain) | dPath=$drawPath dRR=$drawRoundRect " +
+            "dRect=$drawRect dCir=$drawCircle dText=$drawText dBmp=$drawBitmap dLine=$drawLine"
+}
+
+// ---------------------------------------------------------------------------
 // Color
 // ---------------------------------------------------------------------------
 
@@ -104,6 +178,7 @@ class PointF(var x: Float = 0f, var y: Float = 0f) {
 }
 
 class RectF {
+    init { GfxStats.rectfs++ }
     var left: Float
     var top: Float
     var right: Float
@@ -204,6 +279,7 @@ class Matrix {
 // ---------------------------------------------------------------------------
 
 class Path {
+    init { GfxStats.paths++ }
     enum class Direction { CW, CCW }
 
     internal val p2d = Path2D.Float(Path2D.WIND_NON_ZERO)
@@ -279,6 +355,7 @@ open class Shader {
 typealias TileMode = Shader.TileMode
 
 class LinearGradient : Shader {
+    init { GfxStats.gradients++; GfxStats.site("LinearGradient") }
     internal val gp: java.awt.Paint
     override fun setLocalMatrix(matrix: Matrix?) {}
 
@@ -383,6 +460,7 @@ class PorterDuffColorFilter(val color: Int, val mode: PorterDuff.Mode) : ColorFi
 open class MaskFilter
 
 class BlurMaskFilter(val radius: Float, val blur: Blur) : MaskFilter() {
+    init { GfxStats.blurFilters++ }
     enum class Blur { NORMAL, SOLID, OUTER, INNER }
 }
 
@@ -395,6 +473,7 @@ class PorterDuffXfermode(val mode: PorterDuff.Mode) : Xfermode()
 open class PathEffect
 
 class DashPathEffect(intervals: FloatArray, phase: Float) : PathEffect() {
+    init { GfxStats.dashes++; GfxStats.site("Dash") }
     internal val intervals: FloatArray = intervals.copyOf()
     internal val phase: Float = phase
 }
@@ -502,6 +581,7 @@ object StubText {
 // ---------------------------------------------------------------------------
 
 class Paint {
+    init { GfxStats.paints++ }
     companion object {
         const val ANTI_ALIAS_FLAG = 1
         const val FILTER_BITMAP_FLAG = 2
@@ -514,7 +594,6 @@ class Paint {
     enum class Align { LEFT, CENTER, RIGHT }
 
     var color: Int = 0xFF000000.toInt()
-    var textAlign: Align = Align.LEFT
     var textSize: Float = 12f
     var strokeWidth: Float = 1f
     var isAntiAlias: Boolean = false
@@ -530,6 +609,7 @@ class Paint {
     var maskFilter: MaskFilter? = null
     var colorFilter: ColorFilter? = null
     var letterSpacing: Float = 0f
+    var textAlign: Align = Align.LEFT
 
     constructor()
 
@@ -554,7 +634,6 @@ class Paint {
         maskFilter = paint.maskFilter
         colorFilter = paint.colorFilter
         letterSpacing = paint.letterSpacing
-        textAlign = paint.textAlign
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -587,7 +666,7 @@ class Paint {
 // Bitmap
 // ---------------------------------------------------------------------------
 
-class Bitmap private constructor(val image: BufferedImage) {
+class Bitmap internal constructor(val image: BufferedImage) {
     enum class Config { ARGB_8888 }
 
     val width: Int get() = image.width
@@ -615,8 +694,10 @@ class Bitmap private constructor(val image: BufferedImage) {
 
     companion object {
         @JvmStatic
-        fun createBitmap(width: Int, height: Int, config: Config): Bitmap =
-            Bitmap(BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB))
+        fun createBitmap(width: Int, height: Int, config: Config): Bitmap {
+            GfxStats.bitmaps++
+            return Bitmap(BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB))
+        }
 
         @JvmStatic
         fun createBitmap(colors: IntArray, width: Int, height: Int, config: Config): Bitmap {
@@ -665,10 +746,6 @@ class Bitmap private constructor(val image: BufferedImage) {
             g.dispose()
             return Bitmap(out)
         }
-
-        /** 프리뷰 전용: BufferedImage 를 Bitmap 으로 감싼다 (BitmapFactory 스텁용). */
-        @JvmStatic
-        fun wrap(image: BufferedImage): Bitmap = Bitmap(image)
     }
 }
 
@@ -676,31 +753,64 @@ class Bitmap private constructor(val image: BufferedImage) {
 // BitmapFactory
 // ---------------------------------------------------------------------------
 
+/** JPEG/PNG 디코딩 스텁 — 실제 기기와 같은 자원을 같은 비트맵으로 풀어 준다. */
 object BitmapFactory {
-    /** 이미지 파일/스트림 디코딩 (ImageIO — jpg/png/gif 지원, 실패 시 null) */
-    @JvmStatic
-    fun decodeStream(stream: java.io.InputStream): Bitmap? =
-        try {
-            javax.imageio.ImageIO.read(stream)?.let { Bitmap.wrap(it) }
-        } catch (_: Exception) {
-            null
-        }
+    class Options {
+        @JvmField var inSampleSize: Int = 1
+        @JvmField var inPreferredConfig: Bitmap.Config? = null
+    }
 
     @JvmStatic
-    fun decodeFile(pathName: String): Bitmap? =
-        try {
-            javax.imageio.ImageIO.read(java.io.File(pathName))?.let { Bitmap.wrap(it) }
-        } catch (_: Exception) {
-            null
-        }
+    fun decodeStream(stream: java.io.InputStream): Bitmap? = decodeStream(stream, null)
 
     @JvmStatic
-    fun decodeByteArray(data: ByteArray, offset: Int, length: Int): Bitmap? =
-        try {
-            javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(data, offset, length))?.let { Bitmap.wrap(it) }
+    fun decodeStream(stream: java.io.InputStream, opts: Options?): Bitmap? {
+        GfxStats.decodes++
+        if (Thread.currentThread().name == "main") GfxStats.decodesMain++
+        GfxStats.site("Decode")
+        return try {
+            val img = javax.imageio.ImageIO.read(stream) ?: return null
+            var src: BufferedImage = img
+            var sample = opts?.inSampleSize ?: 1
+            while (sample > 1) {
+                val w = max(1, src.width / sample)
+                val h = max(1, src.height / sample)
+                val small = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+                val sg = small.createGraphics()
+                sg.setRenderingHint(
+                    RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR
+                )
+                sg.drawImage(src, 0, 0, w, h, null)
+                sg.dispose()
+                src = small
+                sample /= 2
+            }
+            val out = BufferedImage(src.width, src.height, BufferedImage.TYPE_INT_ARGB)
+            val og = out.createGraphics()
+            og.drawImage(src, 0, 0, null)
+            og.dispose()
+            Bitmap(out)
         } catch (_: Exception) {
             null
         }
+    }
+
+    @JvmStatic
+    fun decodeFile(path: String): Bitmap? = try {
+        val img = javax.imageio.ImageIO.read(java.io.File(path))
+        if (img == null) {
+            null
+        } else {
+            val out = BufferedImage(img.width, img.height, BufferedImage.TYPE_INT_ARGB)
+            val g = out.createGraphics()
+            g.drawImage(img, 0, 0, null)
+            g.dispose()
+            Bitmap(out)
+        }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -795,6 +905,7 @@ class Canvas {
     }
 
     fun drawRect(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) {
+        GfxStats.drawRect++
         colorize(paint)
         val shape = Rectangle2D.Float(min(left, right), min(top, bottom), kotlin.math.abs(right - left), kotlin.math.abs(bottom - top))
         when (paint.style) {
@@ -807,6 +918,7 @@ class Canvas {
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
 
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
+        GfxStats.drawRoundRect++
         colorize(paint)
         val r = max(rx, 0f); val rY = max(ry, 0f)
         val shape = RoundRectangle2D.Float(
@@ -821,6 +933,7 @@ class Canvas {
     }
 
     fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) {
+        GfxStats.drawCircle++
         colorize(paint)
         val shape = Ellipse2D.Float(cx - radius, cy - radius, radius * 2f, radius * 2f)
         when (paint.style) {
@@ -840,9 +953,6 @@ class Canvas {
         }
     }
 
-    fun drawOval(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) =
-        drawOval(RectF(left, top, right, bottom), paint)
-
     fun drawArc(oval: RectF, startAngle: Float, sweepAngle: Float, useCenter: Boolean, paint: Paint) {
         colorize(paint)
         val shape = Arc2D.Float(
@@ -857,12 +967,14 @@ class Canvas {
     }
 
     fun drawLine(startX: Float, startY: Float, stopX: Float, stopY: Float, paint: Paint) {
+        GfxStats.drawLine++
         colorize(paint)
         strokeOf(paint)
         g.draw(java.awt.geom.Line2D.Float(startX, startY, stopX, stopY))
     }
 
     fun drawPath(path: Path, paint: Paint) {
+        GfxStats.drawPath++
         colorize(paint)
         when (paint.style) {
             Paint.Style.FILL -> g.fill(path.p2d)
@@ -872,18 +984,13 @@ class Canvas {
     }
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
+        GfxStats.drawText++
         colorize(paint)
         val base = paint.awtFont()
-        // Paint.textAlign 반영 (LEFT가 기본 — 맵 라벨이 가운데 정렬을 쓴다)
-        val x0 = when (paint.textAlign) {
-            Paint.Align.CENTER -> x - paint.measureText(text) / 2f
-            Paint.Align.RIGHT -> x - paint.measureText(text)
-            Paint.Align.LEFT -> x
-        }
         // 글꼴에 없는 글자(이모지·기호)는 기기와 똑같이 시스템 글꼴로 대체해 그린다
         val runs = StubText.runs(text, base, paint.textSize, paint.isFakeBoldText)
         if (runs.size > 1 && paint.style != Paint.Style.STROKE) {
-            var cx = x0
+            var cx = x
             for ((part, font) in runs) {
                 g.font = font
                 g.drawString(part, cx, y)
@@ -896,11 +1003,11 @@ class Canvas {
             // 스티커 글자의 테두리 — 글리프 외곽선을 따 와서 실제로 선을 긋는다
             strokeOf(paint)
             val gv = g.font.createGlyphVector(g.fontRenderContext, text)
-            g.draw(AffineTransform.getTranslateInstance(x0.toDouble(), y.toDouble())
+            g.draw(AffineTransform.getTranslateInstance(x.toDouble(), y.toDouble())
                 .createTransformedShape(gv.outline))
             return
         }
-        g.drawString(text, x0, y)
+        g.drawString(text, x, y)
     }
 
     // PixelFont uses a white bitmap tinted with SRC_IN. Preserve its real text color
@@ -919,6 +1026,7 @@ class Canvas {
     }
 
     fun drawBitmap(bitmap: Bitmap, matrix: Matrix, paint: Paint?) {
+        GfxStats.drawBitmap++
         val image = filteredImage(bitmap, paint)
         val oldComp = g.composite
         g.composite = compOf(paint, (paint?.alpha ?: 255) / 255f)
@@ -943,6 +1051,7 @@ class Canvas {
     }
 
     fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
+        GfxStats.drawBitmap++
         val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
@@ -952,10 +1061,12 @@ class Canvas {
     }
 
     fun drawBitmap(bitmap: Bitmap, src: Rect, dst: Rect, paint: Paint?) {
+        GfxStats.drawBitmap++
         drawBitmap(bitmap, src, RectF(dst.left.toFloat(), dst.top.toFloat(), dst.right.toFloat(), dst.bottom.toFloat()), paint)
     }
 
     fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
+        GfxStats.drawBitmap++
         val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
@@ -1008,6 +1119,9 @@ class Canvas {
     fun rotate(degrees: Float, px: Float, py: Float) {
         g.translate(px.toDouble(), py.toDouble()); g.rotate(Math.toRadians(degrees.toDouble())); g.translate(-px.toDouble(), -py.toDouble())
     }
+
+    fun drawOval(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) =
+        drawOval(RectF(left, top, right, bottom), paint)
 
     fun clipRect(rect: RectF) = clipRect(rect.left, rect.top, rect.right, rect.bottom)
 

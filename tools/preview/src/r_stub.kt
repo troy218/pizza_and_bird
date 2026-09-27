@@ -10,27 +10,19 @@ object R {
     object raw {
         val amb_birds = 1
         val amb_fire = 2
-        val amb_forest = 29
         val amb_hum = 3
-        val amb_night = 30
-        val amb_sea = 31
         val amb_wind = 4
         val bgm_home = 6
         val bgm_mountain = 5
         val bgm_sea = 28
         val bgm_title = 7
         val bgm_world = 8
-        val sfx_bag_open = 32
         val sfx_bike_bell = 9
         val sfx_bike_brake = 10
         val sfx_bird_chirp1 = 11
         val sfx_bird_chirp2 = 12
         val sfx_bird_flee = 13
-        val sfx_book_open = 33
         val sfx_buy = 14
-        val sfx_crow = 34
-        val sfx_cuckoo1 = 35
-        val sfx_cuckoo2 = 36
         val sfx_eat = 15
         val sfx_fail = 16
         val sfx_notify = 17
@@ -44,6 +36,14 @@ object R {
         val sfx_success = 25
         val sfx_tap = 26
         val sfx_whoosh = 27
+        val amb_forest = 29
+        val amb_night = 30
+        val amb_sea = 31
+        val sfx_bag_open = 32
+        val sfx_book_open = 33
+        val sfx_crow = 34
+        val sfx_cuckoo1 = 35
+        val sfx_cuckoo2 = 36
     }
 
     object drawable {

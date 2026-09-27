@@ -3,9 +3,6 @@
 /** tools/preview — android.view 이벤트 스텁. Input.kt 컴파일용 (실제 이벤트는 발생시키지 않는다). */
 package android.view
 
-import android.content.Context
-import android.graphics.Canvas
-
 class MotionEvent(
     val actionMasked: Int = ACTION_DOWN,
     val actionIndex: Int = 0,
@@ -55,24 +52,13 @@ class KeyEvent {
     }
 }
 
-// ---------------------------------------------------------------------------
-// View — BootView 같은 화면 스텁용 (실제로는 그리지 않는다)
-// ---------------------------------------------------------------------------
-
-open class View(val context: Context) {
-    open var width: Int = 0
-    open var height: Int = 0
-    var isAttachedToWindow: Boolean = false
-
-    protected open fun onDraw(canvas: Canvas) {}
-
+/** tools/preview — android.view.View 스텁 (BootView 컴파일용). 실제 화면에는 뜨지 않는다. */
+open class View(val context: android.content.Context) {
+    var width: Int = 0
+    var height: Int = 0
+    val isAttachedToWindow: Boolean = false
+    open fun onDraw(c: android.graphics.Canvas) {}
+    fun postInvalidateDelayed(delayMillis: Long) {}
+    fun postInvalidate() {}
     fun invalidate() {}
-
-    fun postInvalidateDelayed(delayMilliseconds: Long) {}
-
-    fun setOnClickListener(l: OnClickListener?) {}
-
-    fun interface OnClickListener {
-        fun onClick(v: View)
-    }
 }

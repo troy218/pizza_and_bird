@@ -1,43 +1,58 @@
 @file:Suppress("unused")
 
 /**
- * tools/preview — android.util 스텁 (Xml · Log · LruCache).
+ * tools/preview — android.util.Xml / LruCache 스텁.
  */
 package android.util
 
 import org.xmlpull.v1.MiniXmlPullParser
 import org.xmlpull.v1.XmlPullParser
 
+object Log {
+    @JvmStatic fun v(tag: String, msg: String): Int { println("V/$tag: $msg"); return 0 }
+    @JvmStatic fun d(tag: String, msg: String): Int { println("D/$tag: $msg"); return 0 }
+    @JvmStatic fun i(tag: String, msg: String): Int { println("I/$tag: $msg"); return 0 }
+    @JvmStatic fun w(tag: String, msg: String): Int { println("W/$tag: $msg"); return 0 }
+    @JvmStatic fun e(tag: String, msg: String): Int { println("E/$tag: $msg"); return 0 }
+    @JvmStatic fun e(tag: String, msg: String, tr: Throwable?): Int { println("E/$tag: $msg"); return 0 }
+}
+
 object Xml {
     @JvmStatic
     fun newPullParser(): XmlPullParser = MiniXmlPullParser()
 }
 
-/** 프리뷰에서는 콘솔로만 흘려보낸다 */
-object Log {
-    @JvmStatic fun d(tag: String, msg: String): Int = println("D/$tag: $msg").let { 0 }
-    @JvmStatic fun i(tag: String, msg: String): Int = println("I/$tag: $msg").let { 0 }
-    @JvmStatic fun w(tag: String, msg: String): Int = println("W/$tag: $msg").let { 0 }
-    @JvmStatic fun e(tag: String, msg: String): Int = println("E/$tag: $msg").let { 0 }
-    @JvmStatic fun d(tag: String, msg: String, tr: Throwable?): Int = d(tag, msg)
-    @JvmStatic fun i(tag: String, msg: String, tr: Throwable?): Int = i(tag, msg)
-    @JvmStatic fun w(tag: String, msg: String, tr: Throwable?): Int = w(tag, msg)
-    @JvmStatic fun e(tag: String, msg: String, tr: Throwable?): Int = e(tag, msg)
-}
-
-/** 도감 사진/썸네일 캐시용 최소 구현 (LRU 동작은 프리뷰에서 중요하지 않다) */
-open class LruCache<K, V>(maxSize: Int) {
+/** android.util.LruCache 스텁 (기기와 동일하게 모든 메서드가 동기화된다). */
+class LruCache<K : Any, V : Any>(private val maxSize: Int) {
     private val map = LinkedHashMap<K, V>()
 
-    operator fun get(key: K): V? = map[key]
+    @Synchronized
+    fun get(key: K): V? = map[key]
 
-    fun put(key: K, value: V): V? = map.put(key, value)
+    @Synchronized
+    fun put(key: K, value: V): V? {
+        val prev = map.put(key, value)
+        trim()
+        return prev
+    }
 
+    @Synchronized
     fun remove(key: K): V? = map.remove(key)
 
-    fun evictAll() = map.clear()
+    @Synchronized
+    fun clear() = map.clear()
 
+    @Synchronized
     fun size(): Int = map.size
 
-    fun resize(maxSize: Int) {}
+    @Synchronized
+    fun maxSize(): Int = maxSize
+
+    private fun trim() {
+        val it = map.keys.iterator()
+        while (map.size > maxSize && it.hasNext()) {
+            it.next()
+            it.remove()
+        }
+    }
 }

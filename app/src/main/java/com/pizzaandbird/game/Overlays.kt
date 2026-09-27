@@ -18,6 +18,17 @@ abstract class Overlay(val scene: Scene) {
     /** 등장 애니메이션 기준 시각 */
     val bornAt: Long = SystemClock.uptimeMillis()
 
+    /**
+     * true 면 이 오버레이가 화면 대부분을 덮어, 뒤 월드가 두드러지지 않는다
+     * (가방·지도·상점처럼 큰 패널이 뜨는 화면).
+     *
+     * true 인 동안 Game.render() 는 월드 비트맵을 매 프레임 다시 그리지 않고
+     * 몇 프레임에 한 번만 갱신한다. 월드는 프레임마다 수천 번 drawBitmap 을 하므로,
+     * 메뉴가 떠 있는 동안 이것을 줄이는 것이 버튼이 붙는 지를 살리는 핵심이다.
+     * (부분창 대화상자처럼 뒤 화면이 그대로 보이는 오버레이는 false 로 둔다)
+     */
+    open val coversWorld: Boolean get() = false
+
     open fun update(dt: Float) {}
     open fun handleInput(input: Input) {}
     open fun draw(c: Canvas) {}
@@ -203,6 +214,10 @@ class DialogOverlay(
 // ---------------------------------------------------------------------------
 
 class MenuOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     init {
         scene.game.sfx(Audio.Sfx.BAG_OPEN, 0.6f)   // 🎒 가방 지퍼 열리는 소리
@@ -1002,6 +1017,8 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val rects = LinkedHashMap<String, RectF>()
         val startIndex = bookPage * pageSize
         val pageItems = Birds.ALL.drop(startIndex).take(pageSize)
+        // 이 페이지의 사진을 미리 받는다 (디코드는 로더 스레드가, 여기는 그리기만)
+        for (def in pageItems) a.prefetchBirdThumb(def.birdNum)
         for ((i, def) in pageItems.withIndex()) {
             val col = i % cols
             val row = i / cols
@@ -1281,6 +1298,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
  * 흔들림은 4단계로 줄이거나 완전히 끌 수 있다. 바꾸면 바로 저장된다.
  */
 class CameraFxOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     private val rowRects = ArrayList<Pair<RectF, () -> Unit>>()
     private var closeRect = RectF()
@@ -1394,6 +1415,10 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class DecorShopOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     private var buyRects = ArrayList<Pair<RectF, Int>>()
     private var closeRect = RectF()
@@ -1553,6 +1578,9 @@ class DecorPickOverlay(
     private val slot: Int,
     private val onPick: (Int) -> Unit
 ) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
 
     private var pickRects = ArrayList<Pair<RectF, Int>>()
     private var closeRect = RectF()
@@ -1682,6 +1710,10 @@ class DecorPickOverlay(
 // ---------------------------------------------------------------------------
 
 class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     private var closeRect = RectF()
     private var autoRect = RectF()
@@ -1824,6 +1856,9 @@ class HouseStyleOverlay(
     scene: Scene,
     private val onApply: (String) -> Unit
 ) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
 
     private val styleRects = ArrayList<Pair<RectF, String>>()
     private var closeRect = RectF()
@@ -1939,6 +1974,10 @@ class HouseStyleOverlay(
 // ---------------------------------------------------------------------------
 
 class BikeShopOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     private enum class Tab(val label: String) {
         MODEL("모델"), PAINT("도색"), PARTS("부속품")
@@ -2258,6 +2297,10 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     private var step = 0                 // 0 메뉴 선택, 1 타이밍, 2 결과
     private var pizzaId = Pizzas.representative(kind).id
@@ -3092,6 +3135,7 @@ class PhotoResultOverlay(
                 }
                 b
             } catch (_: Exception) {
+
                 null
             }
         }
@@ -3106,6 +3150,9 @@ class LevelUpOverlay(
     private val fromLevel: Int,
     private val toLevel: Int
 ) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
 
     private var t = 0f
 
@@ -3188,6 +3235,10 @@ class LevelUpOverlay(
  * 손가락으로 끌어 이동, 두 손가락으로 확대/축소, 지역을 누르면 상세 정보.
  */
 class MapOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
+
 
     private var mapR = RectF()
     private var scale = 1f          // 정규화 1단위 -> 화면 px
@@ -3895,6 +3946,7 @@ private fun gearSpecLine(gear: CamGear): String = when (gear) {
 
 /** 장비 목록에 쓰는 보조 설명 */
 private fun gearSubLine(gear: CamGear): String = when (gear) {
+
     is CompactCam ->
         "줌 ${gear.zoomX.fmt1()}배 · 반경 ${CameraRigs.reachFor(gear.teleMm).fmt1()}칸 · ${gear.burst.fmt1()}fps · ${gear.weightG}g" +
             (if (gear.weatherProof) " · 방진방적" else "")
@@ -3909,6 +3961,9 @@ private fun gearSubLine(gear: CamGear): String = when (gear) {
 }
 
 class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
 
     private enum class Tab(val label: String) {
         COMPACT("컴팩트"), BODY("바디"), LENS("렌즈"), ACC("액세서리")
@@ -4155,7 +4210,8 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val pg = "${page + 1} / ${maxPage + 1}  ·  항목을 누르면 자세한 성능"
+        val pg = "${
+page + 1} / ${maxPage + 1}  ·  항목을 누르면 자세한 성능"
         c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
     }
 }
@@ -4165,6 +4221,9 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
 // ---------------------------------------------------------------------------
 
 class GearBagOverlay(scene: Scene) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
 
     init {
         scene.game.sfx(Audio.Sfx.BAG_OPEN, 0.7f)   // 🎒 장비 가방 열기
@@ -4338,7 +4397,8 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         y += dp(scene, 2f)
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF6B5A48.toInt()
-        val accs = CameraGear.ACCESSORIES.filter { it.id in s.ownedGear }
+        val accs = CameraGear.ACCESSORIES.filter {
+ it.id in s.ownedGear }
         val accTxt = if (accs.isEmpty()) "보유 액세서리: 없음 (상점 액세서리 탭)"
             else "보유 액세서리: " + accs.joinToString(", ") { it.name }
         for (ln in g.hud.wrapText(accTxt, textP, panelR.width() - dp(scene, 28f)).take(2)) {
@@ -4353,6 +4413,9 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    override val coversWorld: Boolean get() = true
+
 
     private val pickRects = ArrayList<Pair<RectF, String>>()
     private var closeRect = RectF()

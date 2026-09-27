@@ -20,6 +20,9 @@ class BirdDetailOverlay(
     scene: Scene,
     initialBirdNum: Int = 1
 ) : Overlay(scene) {
+    /** 액자 전체를 덮는 상세 도감 — 뒤 월드는 재사용한다 */
+    override val coversWorld: Boolean get() = true
+
 
     private var currentNum: Int = initialBirdNum.coerceIn(1, Birds.ALL.size.coerceAtLeast(1))
 
@@ -31,6 +34,11 @@ class BirdDetailOverlay(
     private var prevRect = RectF()
     private var nextRect = RectF()
     private var descPage = 0
+
+    init {
+        // 첫 사진을 미리 받는다 — 패널이 열릴 때쯤에는 이미 준비돼 있다
+        scene.game.assets.prefetchBirdPhoto(currentNum)
+    }
 
     private val textP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -50,6 +58,8 @@ class BirdDetailOverlay(
             currentNum--
             descPage = 0
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
+            // 사진은 미리 받아둔다 (디코드는 로더 스레드가)
+            scene.game.assets.prefetchBirdPhoto(currentNum)
         }
     }
 
@@ -58,6 +68,7 @@ class BirdDetailOverlay(
             currentNum++
             descPage = 0
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
+            scene.game.assets.prefetchBirdPhoto(currentNum)
         }
     }
 

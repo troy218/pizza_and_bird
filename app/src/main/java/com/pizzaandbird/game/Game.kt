@@ -38,6 +38,15 @@ private const val WORLD_BITMAP_MAX_PIXELS = 13_000_000L
 private const val OVERLAY_ENTER_SEC = 0.09f
 
 /**
+ * 화면을 덮는 오버레이가 떠 있는 동안 월드를 몇 프레임에 한 번 다시 그릴지.
+ *
+ * 1 = 매 프레임(원래 동작), 3 = 20Hz 로 줄인다. 월드는 비싸고(프레임당 비트맵 드로우
+ * 약 2000회) 오버레이가 떠 있는 동안에는 뒤에서 거의 보이지 않으므로, 눈에 띄지 않을
+ * 간격으로만 줄이는 편이 화면과 성능 둘 다 안전하다.
+ */
+private const val WORLD_COVER_REDRAW_EVERY = 3
+
+/**
  * 게임 전역 컨텍스트: 씬 관리, 2K 기준 가상 해상도 스케일링, 페이드 전환.
  *
  * ## 2K 렌더링 아키텍처 (v0.4)
@@ -94,6 +103,13 @@ class Game(val context: Context) {
     private var overlayLayer: Bitmap? = null
     private var overlayLayerCanvas: Canvas? = null
     private val overlayFadePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    // 월드 비트맵을 다시 그려야 하는 상태인지 (크기 변경으로 새 비트맵이 생겼을 때)
+    private var worldStale = true
+    // 직전 프레임에 월드를 건너뛰었는지 — 오버레이가 닫히는 순간 한 장 되돌린다
+    private var worldSkipped = false
+    // 가리는 오버레이가 떠 있는 동안, 몇 프레임에 한 번 월드를 다시 그릴지 센다
+    private var worldSkipTick = 0
 
     val density: Float = context.resources.displayMetrics.density
 
@@ -157,6 +173,8 @@ class Game(val context: Context) {
         val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
         worldBitmap = bmp
         worldCanvas = Canvas(bmp)
+        // 새 비트맵은 비어 있다 — 오버레이가 떠 있어도 이 프레임은 반드시 월드를 그린다
+        worldStale = true
     }
 
     /** 화질 설정 변경 후 호출 — 배율/보간을 다시 적용한다 */
@@ -191,14 +209,11 @@ class Game(val context: Context) {
     }
 
     /** 짧은 햅틱 피드백 (버튼 누름 등) — 탭 효과음도 함께 */
-    @Suppress("DEPRECATION")
     fun haptic() {
-        try {
-            val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-            v?.vibrate(10L)
-        } catch (_: Exception) {
-        }
         audio.play(Audio.Sfx.TAP, 0.5f)
+        // 진동은 시스템 서비스 호출이라 기기마다 1~수 ms 걸린다.
+        // 버튼을 누른 그 프레임을 막지 않도록 전용 스레드로 뺀다.
+        Haptics.tap(context)
     }
 
     /** 효과음 재생 (편의 함수) */
@@ -248,12 +263,31 @@ class Game(val context: Context) {
     }
 
     fun render(c: Canvas) {
-        // 월드: 가상 좌표계로 그리고 worldScale배 슈퍼샘플 비트맵에 기록
-        val wc = worldCanvas
-        wc.save()
-        wc.scale(worldScale.toFloat(), worldScale.toFloat())
-        scene.drawWorld(wc)
-        wc.restore()
+        // 월드 재렌더는 이 게임에서 가장 비싼 한 번이다(프레임당 2000회 가까운 비트맵 드로우).
+        // 화면을 덮는 오버레이(가방·지도·상점·베이킹…)가 떠 있으면 시선이 이미 오버레이에
+        // 머물러 있어 월드 비트맵을 매 프레임 다시 그릴 필요가 없다.
+        // 대신 [WORLD_COVER_REDRAW_EVERY] 프레임에 한 번은 다시 그린다 —
+        // 완전히 멈추면 뒤 월드가 뚝뚝한 화면으로 보이고, 오버레이를 닫은 뒤에야
+        // 반영되어야 할 변화(장식 배치 등)가 늦게 나타나기 때문이다.
+        val ov = scene.overlay
+        val covered = ov != null && ov.coversWorld && transition == null
+        // 오버레이가 닫혔다면 곧바로 한 장을 다시 그린다
+        if (worldSkipped && !covered) worldStale = true
+        if (covered && !worldStale && ++worldSkipTick >= WORLD_COVER_REDRAW_EVERY) worldStale = true
+        val redrawWorld = !covered || worldStale
+        if (redrawWorld) {
+            // 월드: 가상 좌표계로 그리고 worldScale배 슈퍼샘플 비트맵에 기록
+            val wc = worldCanvas
+            wc.save()
+            wc.scale(worldScale.toFloat(), worldScale.toFloat())
+            scene.drawWorld(wc)
+            wc.restore()
+            worldStale = false
+            worldSkipped = false
+            worldSkipTick = 0
+        } else {
+            worldSkipped = true
+        }
         // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())
         val dst = RectF(
@@ -261,6 +295,8 @@ class Game(val context: Context) {
             viewOffX + virtW * viewScale, viewOffY + virtH * viewScale
         )
         c.drawBitmap(worldBitmap, null, dst, assets.pxPaint)
+        // HUD는 오버레이 아래에도 보인다(조이스틱·액션 버튼·가방 바가 그대로 살아 있다)
+        // 그래서 오버레이를 열어도 항상 그린다.
         scene.drawHud(c)
         drawOverlay(c)
         transition?.draw(c, screenW.toFloat(), screenH.toFloat())
@@ -391,5 +427,51 @@ class Transition(private val action: () -> Unit) {
 
     companion object {
         private val fadePaint = Paint()
+    }
+}
+
+/**
+ * 버튼 진동 피드백 전용 스레드.
+ *
+ * Vibrator.vibrate() 은 시스템 서비스 호출이라 게임 스레드에서 부르면
+ * 버튼을 누른 프레임이 그대로 밀린다. 여기서는 30ms 안에 연속으로 들어온
+ * 요청은 한 번으로 합쳐(연타해도 과하지 않게) 별도 스레드에서 처리한다.
+ */
+private object Haptics {
+    private val pending = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    @Suppress("DEPRECATION")
+    fun tap(context: Context) {
+        if (!started.compareAndSet(false, true)) {
+            // 이미 스레드가 돌고 있으면 "한 번 더" 만 표시한다 (연타 Rate limit)
+            pending.set(true)
+            return
+        }
+        Thread({
+            val vib = try {
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            } catch (_: Exception) {
+                null
+            }
+            if (vib != null) {
+                while (true) {
+                    try { vib.vibrate(10L) } catch (_: Exception) { }
+                    if (!pending.getAndSet(false)) break
+                    // 연속 입력은 30ms 간격으로만 울린다
+                    try {
+                        Thread.sleep(30L)
+                    } catch (_: InterruptedException) {
+                        started.set(false)
+                        return@Thread
+                    }
+                }
+            }
+            started.set(false)
+        }, "PizzaAndBirdHaptic").apply {
+            isDaemon = true
+            priority = Thread.MIN_PRIORITY
+            start()
+        }
     }
 }
