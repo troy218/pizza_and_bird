@@ -1,6 +1,7 @@
 package com.pizzaandbird.game
 
 import android.graphics.PointF
+import android.graphics.RectF
 import android.view.KeyEvent
 import android.view.MotionEvent
 import kotlin.math.sqrt
@@ -235,6 +236,20 @@ class Input(private val game: Game) {
         justMap = false
         tapScreen = null
         rawEvents.clear()
+    }
+
+    /**
+     * 화면 좌표 영역이 지금 눌려 있는지 (시각 피드백용).
+     * 오버레이 버튼이 손끝에서 눌리는 순간 어두워지도록 공통으로 쓴다.
+     */
+    fun isPressedIn(r: RectF): Boolean {
+        synchronized(lock) {
+            for ((id, p) in pointerPos) {
+                if (pointerCtrl[id] != Ctrl.NONE) continue
+                if (r.contains(p.x, p.y)) return true
+            }
+        }
+        return false
     }
 
     /** 현재 눌린 컨트롤 목록 (시각 피드백용) */

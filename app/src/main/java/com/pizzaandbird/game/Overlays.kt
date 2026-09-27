@@ -40,19 +40,21 @@ private fun dim(c: Canvas, scene: Scene, alpha: Int = 130) {
     c.drawRect(0f, 0f, scene.game.screenW.toFloat(), scene.game.screenH.toFloat(), fillP)
 }
 
-/** 공통 버튼 그리기/등록 */
+/** 공통 버튼 그리기/등록 — 손끝이 닿는 순간 살짝 어두워져 눌리는 느낌을 준다 */
 private fun drawButton(
     c: Canvas, scene: Scene, r: RectF, label: String,
     fillCol: Int, textCol: Int, textSize: Float
 ) {
-    fillP.color = fillCol
+    val pressed = scene.game.input.isPressedIn(r)
+    fillP.color = if (pressed) blendToward(fillCol, 0xFF6B4F35.toInt(), 0.16f) else fillCol
     c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), fillP)
     strokeP.color = 0xFFB5651D.toInt()
     strokeP.strokeWidth = dp(scene, 1.8f)
     c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
     textP.textSize = dp(scene, textSize)
     textP.color = textCol
-    c.drawText(label, r.centerX() - textP.measureText(label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+    val dy = if (pressed) dp(scene, 1.5f) else 0f
+    c.drawText(label, r.centerX() - textP.measureText(label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2 + dy, textP)
 }
 
 // ---------------------------------------------------------------------------
@@ -174,18 +176,32 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, t) in tabRects) {
-            if (r.contains(tap.x, tap.y)) { tab = t; resetArmed = false; return }
+            if (r.contains(tap.x, tap.y)) {
+                g.sfx(Audio.Sfx.TAP, 0.45f)
+                tab = t
+                resetArmed = false
+                return
+            }
         }
         for ((r, _, action) in btnRects) {
-            if (r.contains(tap.x, tap.y)) { action(); return }
+            if (r.contains(tap.x, tap.y)) {
+                g.sfx(Audio.Sfx.TAP, 0.5f)
+                action()
+                return
+            }
         }
         if (tab == Tab.BOOK && panelR.contains(tap.x, tap.y)) {
             // 도감 셀 탭 -> 새 정보
             for (def in Birds.ALL) {
                 val cell = bookCell(def) ?: continue
                 if (cell.contains(tap.x, tap.y)) {
+                    g.sfx(Audio.Sfx.TAP, 0.5f)
                     showBirdInfo(def)
                     return
                 }
@@ -530,7 +546,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 Tier.RARE -> 0xFF3F6FB0.toInt()
                 Tier.LEGEND -> 0xFFD9403A.toInt()
             }
-            fillP.color = if (seen) Color.argb(230, 250, 243, 226) else Color.argb(180, 226, 218, 204)
+            fillP.color = when {
+                scene.game.input.isPressedIn(r) -> blendToward(0xFFFAF3E2.toInt(), 0xFF6B4F35.toInt(), 0.12f)
+                seen -> Color.argb(230, 250, 243, 226)
+                else -> Color.argb(180, 226, 218, 204)
+            }
             c.drawRoundRect(r, dp(scene, 7f), dp(scene, 7f), fillP)
             strokeP.color = tierColor
             strokeP.strokeWidth = if (seen) dp(scene, 2f) else dp(scene, 1f)
@@ -622,7 +642,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         button("타이틀로 가기") {
             SaveManager.save(g.context, g.state)
             finished = true
-            g.scene = TitleScene(g)
+            g.fadeTo { g.scene = TitleScene(g) }
         }
         button(if (resetArmed) "정말 초기화할까요? (되돌릴 수 없어요)" else "처음부터 다시 시작") {
             if (!resetArmed) {
@@ -632,7 +652,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 g.state.reset("seoul")
                 g.state.started = false
                 finished = true
-                g.scene = TitleScene(g)
+                g.fadeTo { g.scene = TitleScene(g) }
             }
         }
 
@@ -661,7 +681,11 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, id) in buyRects) {
             if (r.contains(tap.x, tap.y)) {
                 buy(id)
@@ -766,9 +790,14 @@ class DecorPickOverlay(
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, id) in pickRects) {
             if (r.contains(tap.x, tap.y)) {
+                scene.game.sfx(Audio.Sfx.TAP, 0.5f)
                 finished = true
                 onPick(id)
                 return
@@ -802,7 +831,7 @@ class DecorPickOverlay(
 
         fun row(id: Int, emoji: String, name: String, sub: String) {
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + dp(scene, 50f))
-            fillP.color = 0xFFFDF6E8.toInt()
+            fillP.color = if (scene.game.input.isPressedIn(r)) 0xFFE9DFC8.toInt() else 0xFFFDF6E8.toInt()
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), fillP)
             strokeP.color = 0xFFC9A87B.toInt()
             strokeP.strokeWidth = dp(scene, 1.5f)
@@ -846,7 +875,11 @@ class HouseStyleOverlay(
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, id) in styleRects) {
             if (!r.contains(tap.x, tap.y)) continue
             val style = HouseStyles.of(id)
@@ -898,7 +931,11 @@ class HouseStyleOverlay(
         for (style in HouseStyles.ALL) {
             val r = RectF(panelR.left + dp(scene, 12f), y, panelR.right - dp(scene, 12f), y + dp(scene, 58f))
             val owned = style.id in s.ownedHouseStyles
-            fillP.color = if (style.id == s.houseStyleId) 0xFFFDF3D8.toInt() else 0xFFFDF6E8.toInt()
+            fillP.color = when {
+                scene.game.input.isPressedIn(r) -> blendToward(0xFFFDF6E8.toInt(), 0xFF6B4F35.toInt(), 0.12f)
+                style.id == s.houseStyleId -> 0xFFFDF3D8.toInt()
+                else -> 0xFFFDF6E8.toInt()
+            }
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), fillP)
             strokeP.color = if (style.id == s.houseStyleId) style.accentTint else 0xFFC9A87B.toInt()
             strokeP.strokeWidth = dp(scene, if (style.id == s.houseStyleId) 2.5f else 1.5f)
@@ -964,7 +1001,10 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                         return
                     }
                 }
-                if (cancelRect.contains(tap.x, tap.y)) finished = true
+                if (cancelRect.contains(tap.x, tap.y)) {
+                    scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+                    finished = true
+                }
             }
             1 -> {
                 if (input.justA || tap != null) stopBake()
@@ -1022,7 +1062,7 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                         r.left + dp(scene, 16f) + i * (cardW + dp(scene, 16f)), r.top + dp(scene, 44f),
                         r.left + dp(scene, 16f) + i * (cardW + dp(scene, 16f)) + cardW, r.top + dp(scene, 150f)
                     )
-                    fillP.color = 0xFFFDF6E8.toInt()
+                    fillP.color = if (g.input.isPressedIn(cr)) 0xFFE9DFC8.toInt() else 0xFFFDF6E8.toInt()
                     c.drawRoundRect(cr, dp(scene, 10f), dp(scene, 10f), fillP)
                     strokeP.color = 0xFFB5651D.toInt()
                     strokeP.strokeWidth = dp(scene, 2f)
@@ -1281,9 +1321,40 @@ class PhotoResultOverlay(
 
         textP.textSize = dp(scene, 15f)
         textP.color = 0xFFB5651D.toInt()
-        val starTxt = "★".repeat(stars) + "☆".repeat(3 - stars)
         val y1 = r.top + dp(scene, 171f)
-        c.drawText(starTxt, r.centerX() - textP.measureText(starTxt) / 2, y1, textP)
+
+        // 별이 하나씩 튀어 오르며 채워진다 (별점 사운드와 맞춰짐)
+        val starSize = dp(scene, 15f)
+        textP.textSize = starSize
+        val slotW = FloatArray(3)
+        var starTotalW = 0f
+        for (i in 0 until 3) {
+            slotW[i] = textP.measureText(if (i < stars) "★" else "☆")
+            starTotalW += slotW[i]
+        }
+        var slotX = r.centerX() - starTotalW / 2f
+        for (i in 0 until 3) {
+            val ch = if (i < stars) "★" else "☆"
+            var s = 1f
+            if (i < stars) {
+                val p = ((t - 0.30f - 0.12f * i) / 0.16f).coerceIn(0f, 1f)
+                // easeOutBack — 살짝 오버슛했다 제자리로
+                val q = p - 1f
+                s = 1f + 2.70158f * q * q * q + 1.70158f * q * q
+            }
+            if (s > 0.02f) {
+                val tw = textP.measureText(ch)
+                val cxStar = slotX + slotW[i] / 2f
+                val gy = y1 + (textP.descent() + textP.ascent()) / 2f
+                c.save()
+                c.translate(cxStar, gy)
+                c.scale(s, s)
+                c.drawText(ch, -tw / 2f, y1 - gy, textP)
+                c.restore()
+            }
+            slotX += slotW[i]
+        }
+        textP.textSize = dp(scene, 15f)
 
         textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF8A7360.toInt()
@@ -1571,16 +1642,30 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
     private fun onTap(x: Float, y: Float) {
         val g = scene.game
-        if (closeR.contains(x, y)) { close(); return }
-        if (zoomInR.contains(x, y)) { zoomAt(1.4f, mapR.centerX(), mapR.centerY()); return }
-        if (zoomOutR.contains(x, y)) { zoomAt(1f / 1.4f, mapR.centerX(), mapR.centerY()); return }
+        if (closeR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            close()
+            return
+        }
+        if (zoomInR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
+            zoomAt(1.4f, mapR.centerX(), mapR.centerY())
+            return
+        }
+        if (zoomOutR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
+            zoomAt(1f / 1.4f, mapR.centerX(), mapR.centerY())
+            return
+        }
         if (resetR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
             scale = fitScale
             centerOn(KoreaMap.southBounds.centerX(), KoreaMap.southBounds.centerY())
             selected = null
             return
         }
         if (homeR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
             val cur = Regions.byId[g.state.region]
             if (cur != null) {
                 scale = (fitScale * 3.2f).coerceAtMost(fitScale * 16f)
@@ -1640,9 +1725,14 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFFF8EFDC.toInt()
         val t1 = "🗺 대한민국 탐조 지도"
         c.drawText(t1, dp(scene, 14f), dp(scene, 30f), textP)
+        val t1w = textP.measureText(t1)
         textP.textSize = dp(scene, 10.5f)
         val t2 = "방문 ${s.visited.size}/${Regions.ALL.size} · 두 손가락으로 확대 · 끌어서 이동 · 지역을 누르면 정보"
-        c.drawText(t2, dp(scene, 170f), dp(scene, 29f), textP)
+        val t2x = maxOf(dp(scene, 170f), t1w + dp(scene, 16f))
+        // 닫기 버튼에 닿기 전까지만 부가 정보를 그린다 (화면이 좁으면 알아서 숨김)
+        if (t2x + textP.measureText(t2) < w - dp(scene, 56f)) {
+            c.drawText(t2, t2x, dp(scene, 29f), textP)
+        }
 
         drawButtons(c)
         drawLegend(c)

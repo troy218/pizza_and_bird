@@ -433,12 +433,23 @@ class HomeScene(game: Game) : Scene(game) {
 
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
-        // 조작 힌트
+        // 조작 힌트 — 밝은 바닥 위에서도 또렷하도록 어두운 알약 받침을 깐다
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
-        tp.textSize = 11f * game.density
-        tp.color = 0x99F8EFDC.toInt()
+        val d = game.density
+        tp.textSize = 11f * d
+        tp.color = 0xFFF4EAD8.toInt()
         val hint = "A: 상호작용 · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
         val w = game.screenW.toFloat()
-        c.drawText(hint, w / 2f - tp.measureText(hint) / 2, game.screenH - game.density * 10f, tp)
+        val baseline = game.screenH - d * 12f
+        val tw = tp.measureText(hint)
+        val cx = w / 2f
+        val pill = RectF(
+            cx - tw / 2f - d * 10f, baseline - tp.textSize - d * 5f,
+            cx + tw / 2f + d * 10f, baseline + tp.descent() + d * 7f
+        )
+        val bg = Paint()
+        bg.color = Color.argb(140, 43, 38, 58)
+        c.drawRoundRect(pill, d * 12f, d * 12f, bg)
+        c.drawText(hint, cx - tw / 2f, baseline, tp)
     }
 }

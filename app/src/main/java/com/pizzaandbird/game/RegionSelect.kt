@@ -183,9 +183,10 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val t2 = "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요"
         c.drawText(t2, w / 2f - tp.measureText(t2) / 2, dp * 48f, tp)
 
-        area = RectF(
-            dp * 56f, dp * 70f, w - dp * 56f, h - dp * 88f
-        )
+        // 카드는 화면을 가득 채우지 않도록 가운데에 알맞은 크기로 배치
+        val cardW = minOf(w - dp * 112f, dp * 520f)
+        val cardH = minOf(h - dp * 158f, dp * 280f)
+        area = RectF((w - cardW) / 2f, dp * 70f, (w + cardW) / 2f, dp * 70f + cardH)
         cardRects = listOf(area)
         RegionCards.draw(c, game, cardRects, regions, selected.id)
 
@@ -214,22 +215,27 @@ class RegionSelectScene(game: Game) : Scene(game) {
             strokeWidth = dp * 2f
             color = 0xFFB5651D.toInt()
         }
-        fill.color = 0xFFF2B63C.toInt()
+        val pressed = game.input.isPressedIn(confirmRect)
+        fill.color = if (pressed) blendToward(0xFFF2B63C.toInt(), 0xFF6B4F35.toInt(), 0.16f) else 0xFFF2B63C.toInt()
         c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, fill)
         c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, btnStroke)
         tp.textSize = dp * 14f
         tp.color = 0xFF4A3728.toInt()
         val label = "서울에서 시작!"
-        c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
+        val labelDy = if (pressed) dp * 1.5f else 0f
+        c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2 + labelDy, tp)
     }
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
-        if (input.justBack) {
-            game.scene = TitleScene(game)
+        if (input.justBack || input.justB) {
+            game.fadeTo { game.scene = TitleScene(game) }
             return
         }
-        if (tap != null && confirmRect.contains(tap.x, tap.y)) startGame(selected)
+        if (tap != null && confirmRect.contains(tap.x, tap.y)) {
+            game.haptic()
+            startGame(selected)
+        }
         if (input.justA) startGame(selected)
     }
 
@@ -272,18 +278,31 @@ class RegionSelectOverlay(
         }
         if (selected == null) {
             val pages = RegionCards.pageCount(allRegions.size)
-            if (prevRect.contains(tap.x, tap.y)) { page = (page - 1 + pages) % pages; return }
-            if (nextRect.contains(tap.x, tap.y)) { page = (page + 1) % pages; return }
+            if (prevRect.contains(tap.x, tap.y)) {
+                scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+                page = (page - 1 + pages) % pages
+                return
+            }
+            if (nextRect.contains(tap.x, tap.y)) {
+                scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+                page = (page + 1) % pages
+                return
+            }
             val hit = RegionCards.hit(cardRects, regions, tap.x, tap.y)
-            if (hit != null) selected = hit
+            if (hit != null) {
+                scene.game.haptic()
+                selected = hit
+            }
             if (input.justB || input.justBack) finished = true
             return
         }
         if (cancelRect.contains(tap.x, tap.y)) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             selected = null
             return
         }
         if (confirmRect.contains(tap.x, tap.y)) {
+            scene.game.haptic()
             val r = selected
             selected = null
             if (r != null) {
@@ -336,12 +355,14 @@ class RegionSelectOverlay(
             prevRect = RectF(panelR.centerX() - dp * 130f, navY, panelR.centerX() - dp * 54f, navY + navH)
             nextRect = RectF(panelR.centerX() + dp * 54f, navY, panelR.centerX() + dp * 130f, navY + navH)
             for ((rr, lbl) in listOf(prevRect to "◀ 이전", nextRect to "다음 ▶")) {
-                panelFill.color = 0xFFF2E3C2.toInt()
+                val pressed = game.input.isPressedIn(rr)
+                panelFill.color = if (pressed) blendToward(0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 0.16f) else 0xFFF2E3C2.toInt()
                 c.drawRoundRect(rr, dp * 8f, dp * 8f, panelFill)
                 c.drawRoundRect(rr, dp * 8f, dp * 8f, panelStroke)
                 tp.textSize = dp * 11.5f
                 tp.color = 0xFF4A3728.toInt()
-                c.drawText(lbl, rr.centerX() - tp.measureText(lbl) / 2, rr.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
+                val dy = if (pressed) dp * 1.5f else 0f
+                c.drawText(lbl, rr.centerX() - tp.measureText(lbl) / 2, rr.centerY() - (tp.descent() + tp.ascent()) / 2 + dy, tp)
             }
             tp.textSize = dp * 12f
             tp.color = 0xFF4A3728.toInt()
@@ -367,19 +388,23 @@ class RegionSelectOverlay(
         confirmRect = RectF(bar.right - bw - dp * 10f, bar.top + dp * 8f, bar.right - dp * 10f, bar.bottom - dp * 8f)
         cancelRect = RectF(confirmRect.left - bw - dp * 8f, bar.top + dp * 8f, confirmRect.left - dp * 8f, bar.bottom - dp * 8f)
 
-        panelFill.color = 0xFFF2B63C.toInt()
+        val confirmPressed = game.input.isPressedIn(confirmRect)
+        panelFill.color = if (confirmPressed) blendToward(0xFFF2B63C.toInt(), 0xFF6B4F35.toInt(), 0.16f) else 0xFFF2B63C.toInt()
         c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, panelFill)
         c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, panelStroke)
         tp.textSize = dp * 13f
         tp.color = 0xFF4A3728.toInt()
         var label = if (houseCost > 0) "매입 & 이사" else "이사!"
-        c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
+        var dy = if (confirmPressed) dp * 1.5f else 0f
+        c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2 + dy, tp)
 
-        panelFill.color = 0xFFF2E3C2.toInt()
+        val cancelPressed = game.input.isPressedIn(cancelRect)
+        panelFill.color = if (cancelPressed) blendToward(0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 0.16f) else 0xFFF2E3C2.toInt()
         c.drawRoundRect(cancelRect, dp * 10f, dp * 10f, panelFill)
         c.drawRoundRect(cancelRect, dp * 10f, dp * 10f, panelStroke)
         label = "취소"
-        c.drawText(label, cancelRect.centerX() - tp.measureText(label) / 2, cancelRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
+        dy = if (cancelPressed) dp * 1.5f else 0f
+        c.drawText(label, cancelRect.centerX() - tp.measureText(label) / 2, cancelRect.centerY() - (tp.descent() + tp.ascent()) / 2 + dy, tp)
     }
 
     companion object {

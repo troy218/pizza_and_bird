@@ -33,6 +33,9 @@ class WorldScene(
     var photoMode = false
         private set
 
+    /** 카메라 뷰파인더 등장/퇴장 연출 (0→1) */
+    private var photoAnim = 0f
+
     private var camX = 0f
     private var camY = 0f
     private var spawnTimer = 1.5f
@@ -133,6 +136,9 @@ class WorldScene(
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        // 뷰파인더 열림/닫힘 연출 (오버레이 위에서도 계속 진행)
+        photoAnim += if (photoMode) dt / 0.18f else -dt / 0.16f
+        photoAnim = photoAnim.coerceIn(0f, 1f)
         if (overlay != null) {
             game.audio.stopSteps()
             return   // 대화상자/메뉴 중에는 세계 정지
@@ -944,7 +950,7 @@ class WorldScene(
         drawParticles(c, camXv, camYv)
         drawDayNight(c)
         drawNightGlow(c, camXv, camYv)
-        if (photoMode) drawPhotoOverlay(c)
+        if (photoMode || photoAnim > 0f) drawPhotoOverlay(c)
     }
 
     private fun sortY(e: Any): Float = when (e) {
@@ -1147,24 +1153,28 @@ class WorldScene(
     private fun drawPhotoOverlay(c: Canvas) {
         val vw = game.virtW.toFloat()
         val vh = game.virtH.toFloat()
-        uiFill.color = Color.argb(88, 20, 16, 28)
-        c.drawRect(0f, 0f, vw, 42f, uiFill)
-        c.drawRect(0f, vh - 48f, vw, vh, uiFill)
-        c.drawRect(0f, 0f, 34f, vh, uiFill)
-        c.drawRect(vw - 34f, 0f, vw, vh, uiFill)
+        val e = photoAnim
+        if (e <= 0.01f) return
+        val ev = 1f - (1f - e) * (1f - e)      // ease-out: 바가 가장자리에서 밀려 들어옴
+
+        uiFill.color = Color.argb((88 * e).toInt(), 20, 16, 28)
+        c.drawRect(0f, 0f, vw, 42f * ev, uiFill)
+        c.drawRect(0f, vh - 48f * ev, vw, vh, uiFill)
+        c.drawRect(0f, 0f, 34f * ev, vh, uiFill)
+        c.drawRect(vw - 34f * ev, 0f, vw, vh, uiFill)
 
         // 비네트
-        uiFill.color = Color.argb(36, 16, 12, 24)
-        c.drawRect(0f, 0f, vw, 14f, uiFill)
-        c.drawRect(0f, vh - 14f, vw, vh, uiFill)
-        c.drawRect(0f, 0f, 12f, vh, uiFill)
-        c.drawRect(vw - 12f, 0f, vw, vh, uiFill)
+        uiFill.color = Color.argb((36 * e).toInt(), 16, 12, 24)
+        c.drawRect(0f, 0f, vw, 14f * ev, uiFill)
+        c.drawRect(0f, vh - 14f * ev, vw, vh, uiFill)
+        c.drawRect(0f, 0f, 12f * ev, vh, uiFill)
+        c.drawRect(vw - 12f * ev, 0f, vw, vh, uiFill)
 
-        // 뷰파인더 코너
+        // 뷰파인더 코너 — 짧게 시작해 펼쳐진다
         uiStroke.strokeWidth = 3f
-        uiStroke.color = Color.argb(220, 255, 250, 235)
+        uiStroke.color = Color.argb((220 * e).toInt(), 255, 250, 235)
         val m = 64f
-        val l = 26f
+        val l = 26f * ev
         val path = Path()
         path.moveTo(m, m + l); path.lineTo(m, m); path.lineTo(m + l, m)
         path.moveTo(vw - m - l, m); path.lineTo(vw - m, m); path.lineTo(vw - m, m + l)
@@ -1174,6 +1184,7 @@ class WorldScene(
 
         // 촬영 반경
         val range = CameraDefs.range(state.cameraLevel) * 16f * WORLD_SCALE
+        dashPaint.color = Color.argb((200 * e).toInt(), 255, 250, 235)
         c.drawCircle((player.cx - camX) * WORLD_SCALE, (player.cy - camY) * WORLD_SCALE, range, dashPaint)
 
         // 새별 거리 힌트
@@ -1192,9 +1203,9 @@ class WorldScene(
             val bx = (b.cx - camX) * WORLD_SCALE
             val by = (b.y - camY) * WORLD_SCALE - 16f
             uiText.textSize = 12f
-            uiText.color = 0xFFF8EFDC.toInt()
+            uiText.color = Color.argb((255 * e).toInt(), 248, 239, 220)
             val tw = uiText.measureText(label)
-            uiFill.color = Color.argb(190, Color.red(col), Color.green(col), Color.blue(col))
+            uiFill.color = Color.argb((190 * e).toInt(), Color.red(col), Color.green(col), Color.blue(col))
             c.drawRoundRect(RectF(bx - tw / 2 - 6f, by - 10f, bx + tw / 2 + 6f, by + 5f), 5f, 5f, uiFill)
             c.drawText(label, bx - tw / 2, by + 2f, uiText)
         }

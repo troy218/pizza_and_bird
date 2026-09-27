@@ -6,7 +6,14 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
+import kotlin.math.sin
 import kotlin.math.sqrt
+
+/** 토스트 메시지가 머무는 시간(초) */
+private const val MESSAGE_LIFE = 2.8f
+
+/** 지역 배너가 머무는 시간(초) */
+private const val BANNER_LIFE = 2.6f
 
 /**
  * 화면 좌표(실제 해상도) 기반 HUD.
@@ -41,7 +48,7 @@ class Hud(private val game: Game) {
     private var bannerText: String? = null
     private var bannerT = 0f
 
-    private class Message(var text: String, var t: Float)
+    private class Message(var text: String, var t: Float, val life: Float)
 
     // ----- 페인트 캐시 -----
     private val fill = Paint()
@@ -132,7 +139,7 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun toast(msg: String) {
-        messages.add(Message(msg, 2.8f))
+        messages.add(Message(msg, MESSAGE_LIFE, MESSAGE_LIFE))
         if (messages.size > 3) messages.removeAt(0)
     }
 
@@ -172,8 +179,8 @@ class Hud(private val game: Game) {
         drawMessages(c)
     }
 
-    private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(150f) + dp(18f)
+    private fun questChipX(): Float = dp(12f) + dp(162f) / 2f
+    private fun questChipY(): Float = dp(204f)   // 스탯 패널 아래 여유 있게
 
     private fun drawStats(c: Canvas) {
         val s = game.state
@@ -192,12 +199,19 @@ class Hud(private val game: Game) {
 
         val a = game.assets
 
-        // 배고픔
+        // 배고픔 (위험하면 맥동해 알린다)
         val iy1 = top + dp(12f)
         val iconSz = dp(16f)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy1, left + dp(12f) + iconSz, iy1 + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger,
-            if (s.hunger < 25f) 0xFFE2574C.toInt() else 0xFFF2913C.toInt())
+        val hungerColor = when {
+            s.hunger >= 25f -> 0xFFF2913C.toInt()
+            s.hunger >= 15f -> 0xFFE2574C.toInt()
+            else -> blendToward(
+                0xFFE2574C.toInt(), 0xFFFFE9C9.toInt(),
+                (0.5f + 0.5f * sin(game.time * 6f)) * 0.5f
+            )
+        }
+        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
 
         // 행운
         val iy2 = iy1 + dp(22f)
@@ -231,8 +245,8 @@ class Hud(private val game: Game) {
         text.textSize = dp(11.5f)
         c.drawText("${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(94f), text)
 
-        // 레벨 + 경험치 바
-        val ly = iy2 + dp(82f)
+        // 레벨 + 경험치 바 (날씨 줄과 겹치지 않도록 그 아래에 배치)
+        val ly = iy2 + dp(100f)
         text.textSize = dp(11.5f)
         text.color = 0xFF4A3728.toInt()
         c.drawText("Lv.${s.level}", left + dp(12f), ly + dp(8f), text)
@@ -290,22 +304,51 @@ class Hud(private val game: Game) {
 
     private fun drawMessages(c: Canvas) {
         text.textSize = dp(12.5f)
-        var y = dp(20f)
+        val w = game.screenW.toFloat()
+        val h = game.screenH.toFloat()
+
+        // 스탯 패널·배너·사진 힌트와 겹치지 않도록 중앙 상단 열을 비워 두고 쌓는다
+        var y = if (photoModeHint) dp(52f) else dp(20f)
+        if (bannerText != null && bannerT > 0f) {
+            y = maxOf(y, h * 0.24f + dp(24f) + dp(10f))
+        }
+
+        // 좌우 HUD(스탯 패널/미니맵)를 피해 폭을 제한하고, 넘치면 줄바꿈
+        val maxW = (if (showStats) w - dp(360f) else w - dp(40f))
+            .coerceIn(dp(200f), (w - dp(40f)).coerceAtLeast(dp(200f)))
+
         for (m in messages) {
-            val tw = text.measureText(m.text)
-            val cx = game.screenW / 2f
+            val pIn = ((m.life - m.t) / 0.22f).coerceIn(0f, 1f)     // 서서히 나타남
+            val pOut = (m.t / 0.4f).coerceIn(0f, 1f)                // 마지막 0.4초 페이드아웃
+            val alpha = (255 * pIn * pOut).toInt()
+            val easedIn = 1f - (1f - pIn) * (1f - pIn) * (1f - pIn)
+            val slide = (1f - easedIn) * dp(8f)                      // 아래에서 떠오름
+
+            val lines = wrapText(m.text, text, maxW).take(2)
+            val lineH = dp(16f)
             val pad = dp(9f)
-            val alpha = (255 * (m.t.coerceIn(0f, 0.4f) / 0.4f)).toInt()
-            fill.color = Color.argb((alpha * 0.82f).toInt(), 248, 239, 220)
-            val r = RectF(cx - tw / 2 - pad, y - dp(12f), cx + tw / 2 + pad, y + dp(13f))
+            val boxH = lineH * lines.size + pad * 2f - dp(4f)
+            val cx = w / 2f
+            var textW = 0f
+            for (ln in lines) textW = maxOf(textW, text.measureText(ln))
+            val boxW = textW + pad * 2f
+            val r = RectF(
+                cx - boxW / 2f, y - pad + slide,
+                cx + boxW / 2f, y - pad + slide + boxH
+            )
+
+            fill.color = Color.argb((alpha * 0.86f).toInt(), 248, 239, 220)
             c.drawRoundRect(r, dp(12f), dp(12f), fill)
             stroke.color = Color.argb((alpha * 0.9f).toInt(), 107, 79, 53)
             stroke.strokeWidth = dp(1.5f)
             c.drawRoundRect(r, dp(12f), dp(12f), stroke)
             text.color = Color.argb(alpha, 74, 55, 40)
-            val ty = y - (text.descent() + text.ascent()) / 2f
-            c.drawText(m.text, cx - tw / 2, ty, text)
-            y += dp(28f)
+            var ty = r.top + pad - text.ascent() - dp(1f)
+            for (ln in lines) {
+                c.drawText(ln, cx - text.measureText(ln) / 2f, ty, text)
+                ty += lineH
+            }
+            y += boxH + dp(8f)
         }
     }
 
@@ -314,20 +357,33 @@ class Hud(private val game: Game) {
         if (bannerT <= 0f) return
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
-        val fadeIn = (bannerT - 2.1f).coerceIn(0f, 1f)      // 마지막 0.5초 페이드아웃
-        val alpha = (255 * fadeIn).toInt()
+
+        // 등장 0.35초는 페이드인, 마지막 0.55초는 페이드아웃 — 그전엔 항상 보인다
+        val elapsed = BANNER_LIFE - bannerT
+        val pIn = (elapsed / 0.35f).coerceAtMost(1f)
+        val pOut = (bannerT / 0.55f).coerceAtMost(1f)
+        val alpha = (255 * pIn * pOut).toInt()
+        val easedIn = 1f - (1f - pIn) * (1f - pIn) * (1f - pIn)
+        val slide = (1f - easedIn) * -dp(8f)               // 위에서 살짝 내려옴
 
         text.textSize = dp(26f)
-        text.color = Color.argb(alpha, 248, 239, 220)
+        // 좌우 HUD를 피해 폭이 넘치면 폰트를 줄여 한 줄에 맞춘다
+        val maxW = (if (showStats) w - dp(360f) else w - dp(40f))
+            .coerceIn(dp(200f), (w - dp(40f)).coerceAtLeast(dp(200f)))
+        while (text.measureText(bt) + dp(40f) > maxW && text.textSize > dp(16f)) {
+            text.textSize -= dp(1f)
+        }
+
         val tw = text.measureText(bt)
         val cx = w / 2f
-        val cy = h * 0.24f
-        val r = RectF(cx - tw / 2 - dp(20f), cy - dp(24f), cx + tw / 2 + dp(20f), cy + dp(24f))
-        fill.color = Color.argb((alpha * 0.72f).toInt(), 43, 38, 58)
+        val cy = h * 0.24f + slide
+        val r = RectF(cx - tw / 2f - dp(20f), cy - dp(24f), cx + tw / 2f + dp(20f), cy + dp(24f))
+        fill.color = Color.argb((alpha * 0.74f).toInt(), 43, 38, 58)
         c.drawRoundRect(r, dp(16f), dp(16f), fill)
         stroke.color = Color.argb((alpha * 0.9f).toInt(), 242, 208, 107)
         stroke.strokeWidth = dp(2f)
         c.drawRoundRect(r, dp(16f), dp(16f), stroke)
+        text.color = Color.argb(alpha, 248, 239, 220)
         val ty = cy - (text.descent() + text.ascent()) / 2f
         c.drawText(bt, cx - tw / 2, ty, text)
     }

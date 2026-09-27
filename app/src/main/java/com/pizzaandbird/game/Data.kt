@@ -33,6 +33,20 @@ const val START_REGION_ID = "seoul"
 /** 게임 안의 모든 금액을 대한민국 원으로 표시한다. */
 fun won(v: Int): String = "₩${fmtMoney(v)}"
 
+/**
+ * 두 색을 섞는다. k=0 이면 원래 색, k=1 이면 대상 색.
+ * 버튼을 눌렀을 때 살짝 어두워지는 피드백 등에 공통으로 쓴다.
+ */
+fun blendToward(color: Int, target: Int, k: Float): Int {
+    val t = k.coerceIn(0f, 1f)
+    fun ch(shift: Int): Int {
+        val a = (color shr shift) and 0xFF
+        val b = (target shr shift) and 0xFF
+        return (a + (b - a) * t).toInt().coerceIn(0, 255)
+    }
+    return (ch(24) shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+}
+
 /** 이동 방향 (지도 기준) */
 enum class Dir { N, E, S, W }
 
