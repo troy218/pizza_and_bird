@@ -178,7 +178,8 @@ class Viewfinder(private val game: Game) {
             val fade = (1f - ((clock - 8f) / 2f).coerceIn(0f, 1f))
             val a = (255 * fade).toInt().coerceIn(0, 255)
             val bob = sin(clock * 2.2f) * 3f
-            hudLine(c, w / 2f, h * 0.60f + bob, "새를 탭해 촬영하세요", 15f, Color.argb(a, 255, 250, 235), true)
+            // 안내는 둥근 고딕(비례 폰트)으로 — 모노스페이스는 장비 정보에만 쓴다
+            hudLine(c, w / 2f, h * 0.60f + bob, "새를 탭해 촬영하세요", 15f, Color.argb(a, 255, 250, 235), false)
             hudLine(c, w / 2f, h * 0.60f + 22f + bob, "카메라 버튼을 다시 누르면 나갑니다", 11.5f, Color.argb((a * 0.75f).toInt(), 226, 220, 206), false)
         }
     }
