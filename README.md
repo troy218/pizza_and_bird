@@ -477,6 +477,7 @@ tools/typecheck.sh       안드로이드 SDK 없이 Kotlin 소스만 빠르게 �
 - 월드 BGM은 지역 성격(`RegionKind`/`habitats`)에 따라 `WorldScene.regionBgm()`이 골라 줍니다 — 산·숲은 산 곡, 해안·섬·갯벌은 바다 곡
 - 효과음 이벤트 매핑은 `Audio.kt`의 `Sfx` enum 주석 참고
 - 메뉴(☰) → 설정에서 음악/효과음을 각각 켜고 끌 수 있고, 설정은 세이브에 저장됩니다
+- 아직 소리가 없는 순간들의 **발주 목록·스펙**은 `docs/AUDIO_WISHLIST.md` 에 있습니다 (`python3 tools/audio_check.py` 로 채움/남음 확인)
 
 ### ✍️ 글꼴 (타이포그래피)
 
