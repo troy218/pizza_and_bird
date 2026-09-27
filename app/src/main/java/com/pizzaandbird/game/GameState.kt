@@ -71,6 +71,10 @@ class GameState {
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
+    // ----- 조작 설정 (진행 상황이 아닌 개인 설정 — '처음부터 다시' 해도 유지) -----
+    var floatStick = true        // 움직이는 조이스틱: 왼쪽 아래를 드래그하면 그 자리에 스틱
+    var analogStick = true       // 아날로그 이동: 스틱을 민 만큼 속도 조절
+
     // 화면 연출 (몰입 카메라) — 멀미(3D Motion Sickness)에 민감하면 끌 수 있다 ----------
     var camShake = 2           // 카메라 흔들림 0 끔 / 1 약하게 / 2 보통 / 3 강하게
     var camBob = true          // 헤드 밥 & 바디 스웨이 (걸음 주기 출렁임)
@@ -475,6 +479,8 @@ class GameState {
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
+        put("floatStick", floatStick)
+        put("analogStick", analogStick)
         put("camShake", camShake)
         put("camBob", camBob)
         put("camBlur", camBlur)
@@ -623,7 +629,11 @@ class GameState {
                 }
             }
 
-            // v3 이하 세이브에는 화면 연출 설정이 없다 → 기본값(보통/전부 켬)으로 시작
+            // v0.4.1 조이스틱 설정 (없으면 새 기본값 = 켬)
+            s.floatStick = j.optBoolean("floatStick", true)
+            s.analogStick = j.optBoolean("analogStick", true)
+
+            // 옛 세이브에는 화면 연출 설정이 없다 → 기본값(보통/전부 켬)으로 시작
             s.camShake = j.optInt("camShake", 2).coerceIn(0, 3)
             s.camBob = j.optBoolean("camBob", true)
             s.camBlur = j.optBoolean("camBlur", true)

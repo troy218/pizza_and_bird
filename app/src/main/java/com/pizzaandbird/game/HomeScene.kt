@@ -149,7 +149,7 @@ class HomeScene(game: Game) : Scene(game) {
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
             val vx = if (len > 0.01f) dx / len else 0f
             val vy = if (len > 0.01f) dy / len else 0f
-            val speed = if (state.hunger <= 0f) 34f else 55f
+            val speed = (if (state.hunger <= 0f) 34f else 55f) * input.moveScale
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.play(Anim.WALK, dt, (speed / 55f).coerceIn(0.5f, 1.6f))
@@ -175,6 +175,18 @@ class HomeScene(game: Game) : Scene(game) {
 
         state.px = player.x
         state.py = player.y
+
+        // 메인 버튼 맥락 아이콘 (근처 상호작용 대상)
+        game.hud.contextIcon = nearestInteract()?.let { (target, _) ->
+            when (target) {
+                "oven" -> "🔥"
+                "range" -> "🍕"
+                "bed" -> "🛏"
+                "box" -> "📦"
+                "interior" -> "🎨"
+                else -> "🪴"
+            }
+        }
     }
 
     private fun updateRig(dt: Float, vx: Float, vy: Float, gait: Gait) {
@@ -385,7 +397,7 @@ class HomeScene(game: Game) : Scene(game) {
             if (near != null) {
                 interact(near.first, near.second)
             } else {
-                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 A를 눌러보세요!")
+                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 육각 메인 버튼을 눌러보세요!")
             }
             return
         }
