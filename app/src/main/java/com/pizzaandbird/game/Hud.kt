@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -25,6 +26,8 @@ class Hud(private val game: Game) {
     var showMinimap = false
     var regionLabel = ""
     var questLabel: String? = null
+
+    /** 카메라 모드 활성 (뷰파인더가 세계를 덮고 있다) */
     var photoModeHint = false
 
     // ----- 레이아웃(px) -----
@@ -167,7 +170,6 @@ class Hud(private val game: Game) {
             drawChip(c, questChipX(), questChipY(), "🔍 $questLabel")
         }
         if (showControls) drawControls(c)
-        if (photoModeHint) drawPhotoHint(c)
         drawBanner(c)
         drawMessages(c)
     }
@@ -253,7 +255,9 @@ class Hud(private val game: Game) {
 
     private fun drawMessages(c: Canvas) {
         text.textSize = dp(12.5f)
-        var y = dp(20f)
+        // 카메라 모드에선 상단 뷰파인더 바를 가리지 않도록 조금 내려서 표시
+        // 카메라 모드에선 상단 뷰파인더 바를 가리지 않도록 조금 내려서 표시
+        var y = dp(20f) + if (photoModeHint) dp(62f) else 0f
         for (m in messages) {
             val tw = text.measureText(m.text)
             val cx = game.screenW / 2f
@@ -295,13 +299,6 @@ class Hud(private val game: Game) {
         c.drawText(bt, cx - tw / 2, ty, text)
     }
 
-    private fun drawPhotoHint(c: Canvas) {
-        drawChip(c, game.screenW / 2f, dp(24f), "카메라 모드! 새를 탭해서 촬영하세요")
-    }
-
-    // ------------------------------------------------------------------
-    // 컨트롤
-    // ------------------------------------------------------------------
 
     private fun drawControls(c: Canvas) {
         val active = game.input.activeControls()
@@ -523,4 +520,5 @@ class Hud(private val game: Game) {
         }
         return lines
     }
+
 }
