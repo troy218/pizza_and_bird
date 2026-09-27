@@ -270,31 +270,19 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
     exit $PB_EXIT
 fi
 
-
-# ------------------------------------------------------------------
-# [임시 진단] arena/01a0e111 분기의 빌드 로그를 브랜치에 커밋한다.
-# 이 샌드박스에서는 CI 로그 blob 호스트에 접근할 수 없어, 오류 내용을
-# 저장소 안(ci_build_log.txt)에 남겨 git 으로 가져온다. 디버깅 후 제거.
-# ------------------------------------------------------------------
-if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_REF:-}" = "refs/heads/arena/01a0e111-pizza-and-bird" ]; then
-    PB_ROOT="$(cd "$(dirname "$0")" && pwd)"
-    "$JAVACMD" "$@" > /tmp/pb_build.log 2>&1
+# CI 오류 요약을 Checks 어노테이션에도 노출한다. Actions 로그 다운로드가
+# 차단된 환경에서도 컴파일 오류 위치와 원인을 확인할 수 있다.
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    PB_BUILD_LOG="$(mktemp)"
+    "$JAVACMD" "$@" > "$PB_BUILD_LOG" 2>&1
     PB_EXIT=$?
-    {
-        echo "# gradle exit code: $PB_EXIT"
-        echo "===== ERROR LINES ====="
-        grep -n -E "^e: |error:|What went wrong|Execution failed|> Task .*FAILED|Caused by:" /tmp/pb_build.log | head -80
-        echo "===== TAIL 150 ====="
-        tail -n 150 /tmp/pb_build.log
-    } > "$PB_ROOT/ci_build_log.txt"
-    cd "$PB_ROOT"
-    git config user.name "arena-ci-bot" >/dev/null 2>&1
-    git config user.email "arena-ci-bot@users.noreply.github.com" >/dev/null 2>&1
-    git add -f ci_build_log.txt >/dev/null 2>&1
-    git commit -m "ci: capture build log [skip ci]" >/dev/null 2>&1
-    git push >/dev/null 2>&1 || echo "ci-log: push failed"
-    cat /tmp/pb_build.log
-    exit $PB_EXIT
+    cat "$PB_BUILD_LOG"
+    if [ "$PB_EXIT" -ne 0 ]; then
+        grep -E '(^e: |^error:|^FAILURE:|^\* What went wrong:|^> (Could not|Execution failed|A failure|Failed)|^Caused by:)' "$PB_BUILD_LOG" \
+            | tail -30 | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+    fi
+    rm -f "$PB_BUILD_LOG"
+    exit "$PB_EXIT"
 fi
 
 exec "$JAVACMD" "$@"

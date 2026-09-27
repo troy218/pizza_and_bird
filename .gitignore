@@ -31,3 +31,6 @@ tools/grass_trample_strip.png
 # 파이썬 미리보기 도구
 __pycache__/
 *.pyc
+
+# 임시 CI 진단 산출물
+ci_build_log.txt
