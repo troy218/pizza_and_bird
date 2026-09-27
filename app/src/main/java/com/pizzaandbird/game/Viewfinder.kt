@@ -105,7 +105,7 @@ class Viewfinder(private val game: Game) {
 
     private val fill = Paint()
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+    private val text = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true)
     private val mono = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.MONOSPACE
         isFakeBoldText = true

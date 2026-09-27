@@ -20,9 +20,17 @@ build/
 /tools/preview/fonts/
 /tools/preview/.kotlinc/
 
-# 에셋 미리보기용 생성 이미지 (tools/preview_grass.py 실행 결과)
+# 에셋 미리보기용 생성 이미지 (tools/preview_grass*.py 실행 결과)
 tools/grass_preview.png
+tools/grass_rig_sheet.png
+tools/grass_live_still.png
+tools/grass_live_anim.gif
+tools/grass_wave_strip.png
+tools/grass_trample_strip.png
 
 # 파이썬 도구 캐시
 __pycache__/
 *.pyc
+
+# 임시 CI 진단 산출물
+ci_build_log.txt

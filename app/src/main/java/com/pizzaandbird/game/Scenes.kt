@@ -3,6 +3,7 @@ package com.pizzaandbird.game
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import kotlin.math.sin
 
@@ -17,6 +18,8 @@ abstract class Scene(val game: Game) {
     open fun drawHud(c: Canvas) {}
     open fun handleInput(input: Input) {}
     open fun onLayout() {}
+    /** drawWorld에서 사용 중인 카메라의 논리 월드 좌표. 메뉴 씬은 (0, 0). */
+    open fun cameraOffset(): PointF = PointF(0f, 0f)
 
     fun openOverlay(o: Overlay) {
         overlay = o
@@ -160,33 +163,16 @@ class TitleScene(game: Game) : Scene(game) {
         fun dp(v: Float): Float = v * game.density
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
-
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            isFakeBoldText = true
-            textSize = dp(38f)
-            color = 0xFF4A3728.toInt()
-        }
-        val shadow = Paint(titlePaint).apply { color = Color.argb(80, 74, 55, 40) }
         val cx = w / 2f
 
-        val t1 = "PIZZA and BIRD"
-        val t2 = "피자와 새"
+        // 로고 — 라틴이라 5x7 픽셀 폰트 + 크림색 테두리(스티커 느낌)
+        Type.sticker(c, "PIZZA and BIRD", cx, dp(58f), Role.HERO, Type.INK)
 
-        var ty = dp(52f)
-        c.drawText(t1, cx - titlePaint.measureText(t1) / 2 + dp(2.5f), ty + dp(2.5f), shadow)
-        c.drawText(t1, cx - titlePaint.measureText(t1) / 2, ty, titlePaint)
+        // 한글로도 크게
+        Type.sticker(c, "피자와 새", cx, dp(96f), Role.DISPLAY, Type.CARAMEL)
 
-        titlePaint.textSize = dp(22f)
-        titlePaint.color = 0xFF6B4F35.toInt()
-        ty += dp(34f)
-        c.drawText(t2, cx - titlePaint.measureText(t2) / 2 + dp(1.5f), ty + dp(1.5f), shadow)
-        c.drawText(t2, cx - titlePaint.measureText(t2) / 2, ty, titlePaint)
-
-        titlePaint.textSize = dp(12.5f)
-        titlePaint.color = 0xFF6FAE6F.toInt()
         val sub = "피자를 굽고, 자전거를 타고, 새를 찍는 힐링 여행"
-        ty += dp(24f)
-        c.drawText(sub, cx - titlePaint.measureText(sub) / 2, ty, titlePaint)
+        Type.text(c, sub, cx, dp(122f), Role.CAPTION, Type.LEAF, 0.5f)
 
         // 버튼
         val bw = dp(210f)
@@ -201,43 +187,28 @@ class TitleScene(game: Game) : Scene(game) {
             strokeWidth = dp(2.5f)
             color = 0xFF6B4F35.toInt()
         }
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            isFakeBoldText = true
-            textSize = dp(16f)
-            color = 0xFF4A3728.toInt()
-        }
 
         // 시작 버튼에 은은하게 흐르는 빛 — 게임 초입의 분위기를 살려준다
         fun button(rect: RectF, label: String, enabled: Boolean) {
-            if (enabled && rect == startRect) {   // 주요 버튼(새로 시작)에만 빛 흐름
-                val pulse = 0.5f + 0.5f * kotlin.math.sin(t * 2.4f)
-                fill.color = Color.argb((46 + 46 * pulse).toInt(), 242, 208, 107)
-                c.drawRoundRect(
-                    RectF(rect.left - dp(5f), rect.top - dp(5f), rect.right + dp(5f), rect.bottom + dp(5f)),
-                    dp(15f), dp(15f), fill
-                )
-            }
-
             val pressed = enabled && game.input.isPressedIn(rect)
             fill.color = if (!enabled) Color.argb(120, 200, 190, 175)
             else if (pressed) blendToward(0xFFF8EFDC.toInt(), 0xFF6B4F35.toInt(), 0.16f)
             else 0xFFF8EFDC.toInt()
-            c.drawRoundRect(rect, dp(12f), dp(12f), fill)
-            c.drawRoundRect(rect, dp(12f), dp(12f), border)
-            tp.color = if (enabled) 0xFF4A3728.toInt() else Color.argb(140, 74, 55, 40)
-            val dy = if (pressed) dp(1.5f) else 0f
-            val tw = tp.measureText(label)
-            c.drawText(label, rect.centerX() - tw / 2, rect.centerY() - (tp.descent() + tp.ascent()) / 2 + dy, tp)
+            c.drawRoundRect(rect, dp(13f), dp(13f), fill)
+            c.drawRoundRect(rect, dp(13f), dp(13f), border)
+            val col = if (enabled) Type.INK else Color.argb(140, 74, 55, 40)
+            val p = Type.paintAt(16f, true, 0.06f, col)
+            val by2 = rect.centerY() - (p.descent() + p.ascent()) / 2
+            if (enabled) c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + dp(1.2f), Type.paintAt(16f, true, 0.06f, Type.DROP))
+            c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + if (pressed) dp(1.5f) else 0f, p)
         }
 
         button(startRect, "새로 시작하기", true)
         button(contRect, "이어하기", game.state.started)
 
-        // 하단 정보
-        tp.textSize = dp(10f)
-        tp.color = Color.argb(180, 74, 55, 40)
+        // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
         val info = "v0.3.2 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
-        c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
+        Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
     }
 
     override fun handleInput(input: Input) {
@@ -279,190 +250,73 @@ class TitleScene(game: Game) : Scene(game) {
 /** 스폰 위치 종류 */
 enum class SpawnKind { SAVED, TUNNEL, HOME }
 
-/** 첫 플레이 시 아바타 선택 화면 */
+/** 첫 플레이 시 아바타 선택 화면. 카드는 가상 캔버스, 버튼은 실제 화면 좌표로 그린다. */
 class CharacterSelectScene(game: Game) : Scene(game) {
-
-    private var maleRect = RectF()
-    private var femaleRect = RectF()
-
+    private val male = RectF(180f, 245f, 450f, 390f)
+    private val female = RectF(510f, 245f, 780f, 390f)
+    private var nextRect = RectF()
+    private var backRect = RectF()
     init {
         game.hud.showControls = false
         game.hud.showStats = false
         game.hud.showMinimap = false
-        game.hud.questLabel = null
-        game.hud.photoModeHint = false
-        game.hud.regionLabel = ""
-        if (game.state.gender != "male" && game.state.gender != "female") game.state.gender = "male"
-    }
-
-    override fun update(dt: Float) {
-        game.hud.update(dt)
     }
 
     override fun drawWorld(c: Canvas) {
-        val p = Paint()
-        val a = game.assets
-
-        // 하늘
         c.drawColor(0xFFA4E4EE.toInt())
-        p.color = 0xFFBCEAF0.toInt()
-        c.drawRect(0f, 180f, 960f, 540f, p)
-
-        // 구름
-        p.color = Color.argb(200, 255, 255, 255)
-        c.drawCircle(120f, 60f, 16f, p); c.drawCircle(146f, 52f, 20f, p); c.drawCircle(174f, 62f, 15f, p)
-        c.drawRect(104f, 60f, 190f, 78f, p)
-        c.drawCircle(760f, 90f, 14f, p); c.drawCircle(784f, 82f, 18f, p); c.drawCircle(808f, 92f, 13f, p)
-        c.drawRect(748f, 90f, 822f, 106f, p)
-
-        // 언덕
-        p.color = 0xFF8CCB8C.toInt()
-        c.drawCircle(180f, 600f, 260f, p)
-        c.drawCircle(780f, 630f, 300f, p)
-        p.color = 0xFF7ABC7A.toInt()
-        c.drawCircle(470f, 620f, 240f, p)
-
-        // 풀 타일 바닥
-        val grass = a.tiles[T.GRASS.ordinal]
-        for (row in 13..16) for (col in 0 until 30) {
-            val variant = a.tileVariant(T.GRASS.ordinal, col, row)
-            c.drawBitmap(grass[variant], col * 32f, row * 32f, a.sprPaint)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        // 이 화면은 가상 해상도(960x540) 월드 캔버스에 그려지므로 px 단위로 지정한다
+        c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, Type.paintPx(30f, true, 0.05f, Type.BROWN))
+        c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, Type.paintPx(16f, false, 0f, Type.SOFT))
+        fun card(r: RectF, label: String, selected: Boolean, bmp: android.graphics.Bitmap) {
+            p.color = if (selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt()
+            c.drawRoundRect(r, 18f, 18f, p)
+            p.style = Paint.Style.STROKE; p.strokeWidth = if (selected) 5f else 2f
+            p.color = 0xFF6B4F35.toInt()
+            c.drawRoundRect(r, 18f, 18f, p)
+            p.style = Paint.Style.FILL
+            c.drawBitmap(bmp, null, RectF(r.centerX()-32f, r.top+18f, r.centerX()+32f, r.top+82f), p)
+            val lp = Type.paintPx(22f, true, 0.04f, Type.INK)
+            c.drawText(label, r.centerX()-lp.measureText(label)/2f, r.bottom-25f, lp)
         }
-
-        // 날아가는 새들
         val t = game.time
-        val birds = listOf("sparrow", "gull", "greattit", "egret")
-        for (i in 0 until 4) {
-            val bx = (t * (16f + i * 6f) + i * 240f) % 1120f - 80f
-            val by = 60f + i * 34f + sin(t * 1.8f + i * 2f) * 9f
-            c.drawBitmap(a.bird(birds[i]), bx, by, a.sprPaint)
-        }
-
-        // 코너 장식
-        c.drawBitmap(a.pizzaIcon, 34f, 474f + sin(t * 2f) * 3f, a.sprPaint)
-        c.drawBitmap(a.birdFlipped("magpie"), 894f, 470f + sin(t * 2.4f) * 3f, a.sprPaint)
-        c.drawBitmap(a.bird("crane"), 26f, 428f + sin(t * 1.6f) * 3f, a.sprPaint)
+        val maleIdle = game.assets.playerSet("male", 0).idle
+        val femaleIdle = game.assets.playerSet("female", 0).idle
+        card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
+        card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
+        c.drawText("캐릭터를 탭해서 선택한 뒤 계속하기를 누르세요", 322f, 448f, Type.paintPx(15f, false, 0f, Type.SOFT))
     }
 
     override fun drawHud(c: Canvas) {
-        fun dp(v: Float): Float = v * game.density
+        val d = game.density
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
-        val cx = w / 2f
-
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
-        val fill = Paint()
-        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-
-        // 제목
-        tp.textSize = dp(26f)
-        tp.color = 0xFF4A3728.toInt()
-        val title = "여행할 캐릭터를 골라 주세요"
-        c.drawText(title, cx - tp.measureText(title) / 2, dp(56f), tp)
-        tp.textSize = dp(12f)
-        tp.color = 0xFF4F6B4F.toInt()
-        val sub = "선택한 캐릭터는 게임 내내 함께 여행해요"
-        c.drawText(sub, cx - tp.measureText(sub) / 2, dp(78f), tp)
-
-        // 카드 2장 (화면 중앙)
-        val cw = dp(230f)
-        val ch = dp(160f)
-        val gap = dp(30f)
-        val x0 = cx - (cw * 2f + gap) / 2f
-        val cardTop = maxOf(dp(104f), (h - ch) / 2f - dp(6f))
-        maleRect = RectF(x0, cardTop, x0 + cw, cardTop + ch)
-        femaleRect = RectF(x0 + cw + gap, cardTop, x0 + cw * 2f + gap, cardTop + ch)
-
-        fun card(r: RectF, label: String, gender: String) {
-            val selected = game.state.gender == gender
-            val pressed = game.input.isPressedIn(r)
-
-            // 선택된 카드는 은은하게 맥동하는 테두리를 그린다
-            if (selected) {
-                val pulse = (170 + 70 * (0.5 + 0.5 * sin(game.time * 3f))).toInt()
-                stroke.color = Color.argb(pulse, 226, 87, 76)
-                stroke.strokeWidth = dp(5f)
-                c.drawRoundRect(r, dp(16f), dp(16f), stroke)
-            }
-
-            fill.color = when {
-                pressed -> blendToward(0xFFFDF3D8.toInt(), 0xFF6B4F35.toInt(), 0.14f)
-                selected -> 0xFFFDF3D8.toInt()
-                else -> 0xFFF8EFDC.toInt()
-            }
-            c.drawRoundRect(r, dp(14f), dp(14f), fill)
-            stroke.color = if (selected) 0xFFE2574C.toInt() else 0xFF6B4F35.toInt()
-            stroke.strokeWidth = dp(if (selected) 3f else 2f)
-            c.drawRoundRect(r, dp(14f), dp(14f), stroke)
-
-            // 스프라이트 (관절 애니메이션 idle 클립 + 비율 유지 + 살짝 흔들)
-            val idleClip = game.assets.playerSet(gender, 0).idle
-            val bmp = idleClip.frame(
-                Dir.S,
-                ((game.time + if (gender == "female") 0.8f else 0f) / Anim.IDLE.frameTime).toInt()
-            )
-            val k = minOf(dp(74f) / bmp.height, dp(90f) / bmp.width)
-            val bw = bmp.width * k
-            val bh = bmp.height * k
-            val bob = sin(game.time * 2.2f + if (gender == "female") 1.2f else 0f) * dp(3f)
-            val bx = r.centerX() - bw / 2f
-            val by = r.top + dp(16f) + bob
-            fill.color = Color.argb(60, 30, 40, 30)
-            c.drawOval(RectF(bx + dp(6f), by + bh - dp(3f), bx + bw - dp(6f), by + bh + dp(4f)), fill)
-            c.drawBitmap(bmp, null, RectF(bx, by, bx + bw, by + bh), game.assets.sprPaint)
-
-            // 이름
-            tp.textSize = dp(17f)
-            tp.color = 0xFF4A3728.toInt()
-            c.drawText(label, r.centerX() - tp.measureText(label) / 2, r.bottom - dp(24f), tp)
-
-            // 선택됨 뱃지
-            if (selected) {
-                val badgeW = dp(46f)
-                val badgeH = dp(17f)
-                val br = RectF(r.right - badgeW - dp(8f), r.top + dp(8f), r.right - dp(8f), r.top + dp(8f) + badgeH)
-                fill.color = 0xFFE2574C.toInt()
-                c.drawRoundRect(br, dp(8f), dp(8f), fill)
-                tp.textSize = dp(9.5f)
-                tp.color = 0xFFFFF8E8.toInt()
-                val bt = "선택됨"
-                c.drawText(bt, br.centerX() - tp.measureText(bt) / 2, br.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
-            }
-        }
-
-        card(maleRect, "남자", "male")
-        card(femaleRect, "여자", "female")
-
-        // 조작 안내
-        tp.textSize = dp(11.5f)
-        tp.isFakeBoldText = false
-        tp.color = Color.argb(190, 74, 55, 40)
-        val hint = "태그해서 선택 · A 버튼(또는 Z): 출발 · 시스템 뒤로가기: 돌아가기"
-        c.drawText(hint, cx - tp.measureText(hint) / 2, h - dp(22f), tp)
+        val bw = minOf(d * 170f, w * 0.36f)
+        val bh = d * 40f
+        nextRect = RectF((w - bw) / 2f, h - d * 16f - bh, (w + bw) / 2f, h - d * 16f)
+        backRect = RectF(d * 14f, d * 14f, d * 90f, d * 50f)
+        UiKit.button(c, game, nextRect, "계속하기 ▶", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
+        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
     }
 
     override fun handleInput(input: Input) {
+        if (input.justBack || input.justB) { game.fadeTo { game.scene = TitleScene(game) }; return }
         val tap = input.consumeTapScreen()
         if (tap != null) {
+            if (backRect.contains(tap.x, tap.y)) {
+                game.fadeTo { game.scene = TitleScene(game) }
+                return
+            }
+            if (nextRect.contains(tap.x, tap.y)) {
+                game.fadeTo { game.scene = RegionSelectScene(game) }
+                return
+            }
+            val v = game.screenToVirtual(tap)
             when {
-                maleRect.contains(tap.x, tap.y) -> {
-                    game.state.gender = "male"
-                    game.haptic()
-                }
-                femaleRect.contains(tap.x, tap.y) -> {
-                    game.state.gender = "female"
-                    game.haptic()
-                }
+                male.contains(v.x, v.y) -> { game.state.gender = "male"; game.haptic() }
+                female.contains(v.x, v.y) -> { game.state.gender = "female"; game.haptic() }
             }
         }
-        if (input.justA &&
-            (game.state.gender == "male" || game.state.gender == "female")
-        ) {
-            game.haptic()
-            game.fadeTo { game.scene = RegionSelectScene(game) }
-        }
-        if (input.justB || input.justBack) {
-            game.fadeTo { game.scene = TitleScene(game) }
-        }
+        if (input.justA) game.fadeTo { game.scene = RegionSelectScene(game) }
     }
 }
