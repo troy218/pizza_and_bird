@@ -9,11 +9,38 @@
 | 종류 | 개수 | 폴더 | 용량 |
 |---|---|---|---|
 | BGM (`bgm_*`) | 5 | `app/src/main/res/raw/` | 약 9.2 MB |
-| 환경음 (`amb_*`) | 7 | 〃 | 약 3.9 MB |
-| 효과음 (`sfx_*`) | 24 | 〃 | 약 1.4 MB |
+| 환경음 (`amb_*`) | 10 (비 3종 추가) | 〃 | 약 5.7 MB |
+| 효과음 (`sfx_*`) | 34 (발소리 5·고양이 4·레벨업 추가) | 〃 | 약 1.7 MB |
 
-효과음 24종은 **모두 같은 소리를 여러 상황에서 돌려 쓰는 중**입니다 (예: 도감 신규 · 걸작 · 행운 상승 · 버섯 채집 전부 `sfx_sparkle`).
+효과음은 여전히 **한 소리를 여러 상황에서 돌려 쓰는 곳이 많습니다**(예: 도감 신규 · 걸작 · 행운 상승 · 허브 줍기 전부 `sfx_sparkle`).
 볼륨·피치(`rate`)로만 차이를 주고 있어서, **소리가 늘어날수록 체감 품질이 가장 크게 오르는 구간**입니다.
+
+---
+
+## ✅ 진행 상황 (2026-09-27 — 올려주신 11개 파일 반영 완료)
+
+받은 소리 13개 파일로 다듬어 **게임에 연결까지 끝냈습니다.** (`tools/build_audio.py` → `app/src/main/res/raw/`, 원본은 `audio_src/` 보관)
+
+| 올려주신 원본 | 만든 파일 | 게임에서 |
+|---|---|---|
+| boons_freak-rain-sound | `amb_rain.mp3` (58초 루프) | 비 오는 날 월드 (여름 장마 제외) |
+| kanematsutei-heavy-rain | `amb_rain_heavy.mp3` (40초 루프) | **여름 장맛비** — 비 중에서도 세차게 |
+| kanematsutei-rain-on-umbrella | `amb_rain_roof.mp3` (58초 루프) | 비 오는 날 **집·랜드마크 실내** (지붕에 떨어지는 소리) |
+| universfield-level-up-05 | `sfx_levelup.mp3` | 🎉 레벨업 화면 (지금까지 무음이던 곳) |
+| dragon-studio-meowing-cat | `sfx_cat_meow1~3.mp3` | 🐈 쓰다듬기·간식 (3종 무작위) |
+| dragon-studio-cat-meow-punched | `sfx_cat_punch.mp3` | 👊 펀치 맞고 날아가는 야옹 |
+| joentnt-walk-on-grass | `sfx_step_grass.mp3` | 풀·꽃밭 발소리 |
+| freesound_community-sand_step | `sfx_step_sand.mp3` | 갯벌·모래 발소리 |
+| dragon-studio-footsteps-in-snow | `sfx_step_snow.mp3` | 눈 쌓인 길 (눈이 0.3 이상 쌓이면 자동) |
+| freesound_community-stone-steps | `sfx_step_stone.mp3` | 광장·실내 돌바닥 |
+| nematoki-walking-puddles | `sfx_step_water.mp3` | 물웅덩이·갈대 |
+
+**아직 남은 것(가장 아쉬운 순서):** ① 새 울음 체형별 12종(아래 §3 — 598종이 아직 6종 소리를 나눠 씁니다)
+② `sfx_focus`(AF)·`sfx_polaroid`(인화)·`sfx_thunder`·`sfx_stamp`(도장)·`sfx_tea`(허브차)·`sfx_door_open`(문) ③ 지역 BGM 4~7곡 ④ 여름밤 풀벌레 `amb_insects`
+→ 나머지 목록은 아래 표 그대로입니다. **파일 이름만 맞춰 `audio_src/`(또는 `res/raw/`)에 넣으면 코드 연결은 바로 이어서 합니다.**
+
+> 원본을 다듬는 규칙은 `tools/build_audio.py` 안에 코드로 들어 있습니다(트림·하이패스·루프 크로스페이드·RMS 정규화).
+> 발주 대비 진행률은 `python3 tools/audio_check.py` 로 언제든 확인할 수 있습니다.
 
 ---
 
@@ -58,7 +85,9 @@
 
 | 파일 | 루프 | 길이 | 무엇을 | 지금은 | 붙일 곳 |
 |---|---|---|---|---|---|
-| `amb_rain.mp3` ⭐ | 🔁 | 60초 | 창밖에 비 내리는 소리. 물웅덩이·빗줄기 연출과 함께 | **무음** (비 전용 분기 없음) | `WorldScene.updateAmbience()` |
+| ~~`amb_rain.mp3`~~ ⭐ ✅ | 🔁 | 60초 | 창밖에 비 내리는 소리. 물웅덩이·빗줄기 연출과 함께 | **무음** → **연결 완료** | `WorldScene.updateAmbience()` |
+| ~~`amb_rain_heavy.mp3`~~ ✅ (추가 제안) | 🔁 | 40초 | 여름 장맛비 — 같은 '비'라도 계절에 따라 세기를 나눔 | 무음 → **연결 완료** | 〃 (여름 분기) |
+| ~~`amb_rain_roof.mp3`~~ ✅ (추가 제안) | 🔁 | 60초 | 지붕·우산에 떨어지는 비 — 실내가 완전 무음이던 문제도 함께 해결 | 무음 → **연결 완료** | `Scene.applyIndoorAmbience()` |
 | `amb_insects.mp3` ⭐ | 🔁 | 60초 | 여름밤 풀벌레 (숲·습지) | `amb_night` 재사용 | 〃 (밤 + 여름 + 숲/습지) |
 | `sfx_thunder.mp3` | ▶️ | 2.5초 | 장마철 비 올 때 가끔 멀리서 '우르릉' | 없음 | `WorldScene` 날씨 타이머 (30~60초 랜덤) |
 | `sfx_wind_gust.mp3` | ▶️ | 1.5초 | 강풍 날씨 돌풍 — 풀이 물결치는 연출은 있는데 소리가 없음 | `amb_wind`만 | `Grass` 돌풍 트리거 |
@@ -68,7 +97,7 @@
 
 | 파일 | 루프 | 길이 | 무엇을 | 지금은 | 붙일 곳 |
 |---|---|---|---|---|---|
-| `sfx_levelup.mp3` ⭐ | ▶️ | 1.5~2.5초 | 짧고 따뜻한 팡파레 (과하지 않게, 힐링 톤) | **무음** | `LevelUpOverlay` 등장 |
+| ~~`sfx_levelup.mp3`~~ ⭐ ✅ | ▶️ | 1.5~2.5초 | 짧고 따뜻한 팡파레 (과하지 않게, 힐링 톤) | **무음** | `LevelUpOverlay` 등장 |
 | `sfx_stamp.mp3` | ▶️ | 0.4초 | 도장 '쿵' — 작은 기념 / 업적 / 라이퍼 등급 | `sfx_notify`·`sfx_reward` 재사용 | `Healing.unlock`(18곳), `Achievements.tick` |
 | `sfx_money.mp3` | ▶️ | 0.5초 | 동전 짤랑 (구매·매입·보수) | `sfx_buy` / `sfx_reward` 재사용 | `Overlays` 상점, 의뢰 보수 |
 | `sfx_rankup.mp3` | ▶️ | 1초 | 라이퍼 등급·칭호 상승 전용 (선택) | `sfx_reward` | `StatsOverlay` |
@@ -77,8 +106,9 @@
 
 | 파일 | 루프 | 길이 | 무엇을 | 지금은 | 붙일 곳 |
 |---|---|---|---|---|---|
-| `sfx_cat_meow.mp3` ⭐ | ▶️ | 0.6초 | 야옹 (쓰다듬기·간식·벤치) | `sfx_sparkle` | `WorldScene.petCat()`, `feedCat()` |
-| `sfx_cat_purr.mp3` | 🔁 | 2초 | 그르렁 (쓰다듬는 동안) | 없음 | `petCat()` |
+| ~~`sfx_cat_meow1~3.mp3`~~ ⭐ ✅ | ▶️ | 0.6초 | 야옹 (쓰다듬기·간식·벤치) | `sfx_sparkle` | `WorldScene.petCat()`, `feedCat()` |
+| `sfx_cat_purr.mp3` (미수령) | 🔁 | 2초 | 그르렁 (쓰다듬는 동안) | 없음 | `petCat()` |
+| ~~`sfx_cat_punch.mp3`~~ ✅ (추가 제안) | ▶️ | 1.2초 | 펀치 맞고 '냐앙—' 하고 날아가는 소리 | `sfx_whoosh`+`sfx_tap` → **연결 완료** | `WorldScene.tryPunch()` |
 | `sfx_cat_hiss.mp3` | ▶️ | 0.7초 | 하악 — 새를 노릴 때 긴장 | 없음 | `WorldScene` 고양이 잠복 시작 |
 | `sfx_flock_wings.mp3` | ▶️ | 1.5초 | 철새 V자 떼의 날갯짓 | **무음** (`CritterType.FLOCK`) | `Healing.updateCritters` |
 | `sfx_gull_cry.mp3` | ▶️ | 1초 | 갈매기 울음 한 마디 (먼 갈매기 연출) | `amb_sea`에 섞여 있음 | 〃 (`FAR_GULL`) |
@@ -110,11 +140,11 @@
 |---|---|---|---|---|---|
 | `sfx_bike_roll.mp3` | 🔁 | 2~4초 | 자전거 굴러가는 소리(타이어 + 체인) — **속도에 따라 재생 속도를 올려 씁니다** | **무음** ("자전거는 소리 없이 쌩~") | `WorldScene` `player.bike` |
 | `sfx_bike_skid.mp3` | ▶️ | 0.6초 | 급제동 '끼익~' (충돌 직전) | `sfx_bike_brake` 재사용 | 충돌 판정 |
-| `sfx_step_grass.mp3` ⭐ | 🔁성 | 0.6초 | 풀·꽃밭 발소리 (사각사각) | **자갈 소리로 통일** | `WorldScene` 타일별 발소리 |
-| `sfx_step_sand.mp3` ⭐ | 🔁성 | 0.6초 | 모래·갯벌 (사박사박) | 〃 | 〃 (`T.SAND`, `T.REED`) |
-| `sfx_step_snow.mp3` ⭐ | 🔁성 | 0.6초 | 눈 밟는 소리 (뽀득뽀득, 겨울) | 〃 | 〃 (겨울 눈 덮인 타일) |
-| `sfx_step_water.mp3` ⭐ | 🔁성 | 0.6초 | 얕은 물·습지 (철퍽) | 〃 | 〃 (`T.WATER` 변두리) |
-| `sfx_step_stone.mp3` ⭐ | 🔁성 | 0.6초 | 돌바닥·광장·실내 (또각또각) | 나무(`_wood`) 하나 | 〃 (`T.PLAZA`, `T.FLOOR`) |
+| ~~`sfx_step_grass.mp3`~~ ⭐ ✅ | 🔁성 | 0.6초 | 풀·꽃밭 발소리 (사각사각) | **자갈 소리로 통일** | `WorldScene` 타일별 발소리 |
+| ~~`sfx_step_sand.mp3`~~ ⭐ ✅ | 🔁성 | 0.6초 | 모래·갯벌 (사박사박) | 〃 | 〃 (`T.SAND`, `T.REED`) |
+| ~~`sfx_step_snow.mp3`~~ ⭐ ✅ | 🔁성 | 0.6초 | 눈 밟는 소리 (뽀득뽀득, 겨울) | 〃 | 〃 (겨울 눈 덮인 타일) |
+| ~~`sfx_step_water.mp3`~~ ⭐ ✅ | 🔁성 | 0.6초 | 얕은 물·습지 (철퍽) | 〃 | 〃 (`T.WATER` 변두리) |
+| ~~`sfx_step_stone.mp3`~~ ⭐ ✅ | 🔁성 | 0.6초 | 돌바닥·광장·실내 (또각또각) | 나무(`_wood`) 하나 | 〃 (`T.PLAZA`, `T.FLOOR`) |
 
 > 발소리는 기존 `sfx_step_gravel1/2` 규칙처럼 **걷기/달리기 2벌(`_1`/`_2`)** 로 주시면 가장 좋고,
 > 1벌만 주셔도 제가 `rate`로 걷기/달리기를 구분해 붙이겠습니다.
@@ -201,10 +231,10 @@
 올리실 때 여기에 체크해 두시면 진행 상황을 서로 바로 알 수 있습니다. `python3 tools/audio_check.py` 로도 확인됩니다.
 
 ```
-[ ] amb_rain.mp3            [ ] sfx_levelup.mp3        [ ] sfx_focus.mp3
-[ ] sfx_polaroid.mp3        [ ] sfx_cat_meow.mp3       [ ] sfx_step_grass.mp3
-[ ] sfx_step_sand.mp3       [ ] sfx_step_snow.mp3      [ ] sfx_step_water.mp3
-[ ] sfx_step_stone.mp3      [ ] amb_insects.mp3        [ ] sfx_door_open.mp3
+[x] amb_rain.mp3  ✅            [x] sfx_levelup.mp3  ✅        [ ] sfx_focus.mp3
+[ ] sfx_polaroid.mp3        [x] sfx_cat_meow.mp3  ✅       [x] sfx_step_grass.mp3  ✅
+[x] sfx_step_sand.mp3  ✅       [x] sfx_step_snow.mp3  ✅      [x] sfx_step_water.mp3  ✅
+[x] sfx_step_stone.mp3  ✅      [ ] amb_insects.mp3        [ ] sfx_door_open.mp3
 [ ] sfx_tea.mp3             [ ] sfx_money.mp3          [ ] sfx_stamp.mp3
 [ ] sfx_thunder.mp3         [ ] sfx_wind_gust.mp3      [ ] amb_snow.mp3
 [ ] sfx_cat_purr.mp3        [ ] sfx_cat_hiss.mp3       [ ] sfx_flock_wings.mp3
@@ -230,7 +260,7 @@
 
 ## 6. 파일을 올리면 제가 하는 일
 
-1. `Audio.kt`의 `Sfx` enum / `Steps` enum에 새 항목 추가 (기존 순서는 건드리지 않습니다)
+1. `Audio.kt`의 `Sfx` enum / `Steps` enum에 새 항목 추가 (기존 순서는 건드리지 않습니다) — 2차분은 `LEVELUP`·`CAT_MEOW1~3`·`CAT_PUNCH`, `Steps`에 `GRASS`·`SAND`·`SNOW`·`WATER`·`STONE`
 2. 위 표의 "붙일 곳"에 맞춰 호출 지점 연결 — 발소리는 타일 종류, 새 울음은 `template`·종 ID로 분기
 3. `sfxOn`/`musicOn` 설정 토글과 페이드 규칙 그대로 유지 (환경음은 `playAmb`, BGM은 `playBgm`)
 4. `README.md`의 🔊 사운드 표·`P04` 문서 갱신, `tools/audio_check.py`로 누락 파일 확인

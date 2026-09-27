@@ -22,7 +22,7 @@ RAW = ROOT / "app" / "src" / "main" / "res" / "raw"
 WISHLIST = ROOT / "docs" / "AUDIO_WISHLIST.md"
 
 # 발주서 표에서 뽑을 파일 이름 (백틱 안의 실제 파일명만)
-NAME_RE = re.compile(r"`((?:sfx|amb|bgm)_[a-z0-9_]+\.(?:mp3|m4a))`")
+NAME_RE = re.compile(r"`((?:sfx|amb|bgm)_[a-z0-9_~]+\.(?:mp3|m4a))`")
 # Android res/raw 규칙: 소문자로 시작, 소문자·숫자·밑줄, 확장자는 오디오만
 VALID_RE = re.compile(r"^[a-z][a-z0-9_]*\.(mp3|m4a|ogg|wav|opus|flac)$")
 
@@ -37,8 +37,18 @@ def wanted_from_doc() -> dict[str, str]:
         if not line.lstrip().startswith("|"):
             continue
         for name in NAME_RE.findall(line):
-            names.setdefault(name, line.strip())
+            for real in expand_ranges(name):
+                names.setdefault(real, line.strip())
     return names
+
+
+def expand_ranges(name: str) -> list[str]:
+    """`sfx_cat_meow1~3.mp3` 처럼 묶어 쓴 이름을 개별 파일로 편다."""
+    m = re.match(r"^(.*?)(\d)~(\d)(\.[a-z0-9]+)$", name)
+    if not m:
+        return [name]
+    head, a, b, ext = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)
+    return [f"{head}{i}{ext}" for i in range(a, b + 1)]
 
 
 def size_mb(path: Path) -> float:
