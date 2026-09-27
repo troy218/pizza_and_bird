@@ -166,13 +166,15 @@ class DialogOverlay(
 
         // 본문 줄 수에 딱 맞춰 패널 높이를 잡는다 — 짧은 대사에 군더더기 공간이
         // 남지 않고, 긴 대사는 줄 수만큼 늘어나 선택지와 겹치지도 않는다.
-        //   상단 여백(제목 칩 + 첫 줄) 24 + 마지막 줄 하단 + 숨결 간격 14
-        //   + 선택지 버튼 30 + 하단 여백 10
+        //   상단 여백(제목 칩 + 숨 쉴 틈) 32 + 본문 블록 + 본문·버튼 사이 12
+        //   + 선택지 버튼 30 + 하단 여백 12
+        // 본문 블록은 제목 칩과 버튼 사이 공간의 세로 가운데에 둔다 (가로는 좌측 정렬).
+        // 한 줄짜리 짧은 대사는 1.6줄 분량의 여유를 줘서 위쪽에 달라붙지 않게 한다.
         val bodyPaint = Type.paint(Role.BODY, Type.INK)
         val maxW = w - margin * 2f - dp(scene, 28f)
         val lineH = Type.lineHeight(Role.BODY)
         val wrapped = Type.wrap(body, bodyPaint, maxW)
-        val chromeH = dp(scene, 24f) + bodyPaint.descent() + dp(scene, 14f) + dp(scene, 40f)
+        val chromeH = dp(scene, 32f + 12f + 30f + 12f)
         // 아무리 길어도 화면의 78%까지만 — 넘치는 줄은 … 로 마무리
         val maxLines = (((h * 0.78f - margin - chromeH) / lineH).toInt() + 1).coerceAtLeast(1)
         var lines = if (wrapped.size > maxLines) wrapped.take(maxLines) else wrapped
@@ -181,7 +183,8 @@ class DialogOverlay(
             while (last.isNotEmpty() && bodyPaint.measureText("$last…") > maxW) last = last.dropLast(1)
             lines = lines.dropLast(1) + listOf("$last…")
         }
-        val panelH = chromeH + lineH * ((lines.size - 1).coerceAtLeast(0))
+        val zoneH = maxOf(lineH * lines.size, lineH * 1.6f)
+        val panelH = chromeH + zoneH
         val r = RectF(margin, h - margin - panelH, w - margin, h - margin)
 
         // 등장: 아래에서 위로 부드럽게
@@ -197,17 +200,23 @@ class DialogOverlay(
             UiKit.button(c, g, chip, title, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 11f)
         }
 
-        // 본문 — 한 줄에 Type.lineHeight 만큼만 내려간다(줄 간격 통일)
-        var ty = r.top + dp(scene, 24f)
+        // 본문 — 제목 칩과 버튼 사이 공간의 세로 가운데에, 가로는 좌측 정렬로.
+        // 한 줄에 Type.lineHeight 만큼만 내려간다(줄 간격 통일).
+        val textTop = r.top + dp(scene, 32f)
+        val textBottom = r.bottom - dp(scene, 12f + 30f + 12f)
+        val blockH = lineH * lines.size
+        val blockTop = textTop + maxOf(0f, (textBottom - textTop) - blockH) / 2f
+        var ty = blockTop + (lineH - bodyPaint.descent() - bodyPaint.ascent()) / 2f
+        val tx = r.left + dp(scene, 14f)
         for (ln in lines) {
-            c.drawText(ln, r.left + dp(scene, 14f), ty, bodyPaint)
-            ty += Type.lineHeight(Role.BODY)
+            c.drawText(ln, tx, ty, bodyPaint)
+            ty += lineH
         }
 
         // 선택지 — 첫 번째(긍정) 버튼은 골드 프라이머리, 나머지는 크림 세컨더리
         val n = choices.size
         val bw = (r.width() - dp(scene, 10f) * (n + 1)) / n
-        val bty = r.bottom - dp(scene, 40f)
+        val bty = r.bottom - dp(scene, 42f)
         val rects = ArrayList<RectF>()
         for (i in 0 until n) {
             val br = RectF(
