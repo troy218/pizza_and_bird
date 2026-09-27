@@ -784,9 +784,16 @@ object CharacterArt {
             // 치마 차림은 정면에서 맨다리 (종아리만 피부색)
             val bare = look.bottom == BOTTOM_SKIRT && direction == FRONT
             val shinCol = if (bare) (if (back) pal.skin2 else pal.skin) else pants
-            g.seg(x0, hipY, kx, ky, 2.15f * sc * lw, 1.8f * sc * lw, pal.line)
+            // 관절(FK)은 hipY 에서 시작하지만, 눈에 보이는 허벅지는 몸통 밑단에서
+            // 시작하게 잘라 낸다 — 몸통 위에 그려지는 앞다리가 상체 한가운데서
+            // 튀어나와 보이던 문제 방지.
+            val legTop = hipY + 1.7f * sc
+            val t = if (ky - hipY > 0.001f) ((legTop - hipY) / (ky - hipY)).coerceIn(0f, 0.85f) else 0f
+            val sx = x0 + (kx - x0) * t
+            val sy = hipY + (ky - hipY) * t
+            g.seg(sx, sy, kx, ky, 2.15f * sc * lw, 1.8f * sc * lw, pal.line)
             g.seg(kx, ky, ax, ay, 1.75f * sc * lw, 1.45f * sc * lw, pal.line)
-            g.seg(x0, hipY - 0.3f, kx, ky, 1.7f * sc * lw, 1.4f * sc * lw, pants)
+            g.seg(sx, sy - 0.3f, kx, ky, 1.7f * sc * lw, 1.4f * sc * lw, pants)
             g.seg(kx, ky, ax, ay, 1.35f * sc * lw, 1.1f * sc * lw, shinCol)
             if (direction == SIDE) {
                 val pitch = foot * PI.toFloat() / 180f

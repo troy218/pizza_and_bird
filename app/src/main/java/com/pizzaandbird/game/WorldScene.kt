@@ -123,7 +123,8 @@ class WorldScene(
     // 파티클
     private class Pt(
         var x: Float, var y: Float, var vx: Float, var vy: Float,
-        var life: Float, var max: Float, var col: Int, var size: Float, var sway: Boolean
+        var life: Float, var max: Float, var col: Int, var size: Float, var sway: Boolean,
+        val petal: Boolean
     )
 
     private val particles = ArrayList<Pt>()
@@ -370,7 +371,10 @@ class WorldScene(
         grass.setSeason(seasonNow)
         fx.season = seasonNow
         DayCycle.season = seasonNow
-        seasonFx.update(dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(), state.isNight())
+        seasonFx.update(
+            dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(),
+            night = state.isNight(), blossomIntensity = state.cherryBlossomIntensity()
+        )
 
         updatePlayer(dt)
         finishGuidedArrival()
@@ -454,7 +458,10 @@ class WorldScene(
             game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
             game.sfx(Audio.Sfx.NOTIFY, 0.45f, 1.3f)
         }
-        Healing.updateScents(dt, state.season(), player.cx, player.cy, rnd)
+        Healing.updateScents(
+            dt, seasonNow, player.cx, player.cy, rnd,
+            blossomIntensity = state.cherryBlossomIntensity()
+        )
         if (player.bike && player.moving) {
             dustT -= dt
             if (dustT <= 0f) {
@@ -1487,15 +1494,23 @@ class WorldScene(
     // 파티클
     // -------------------------------------------------------------------
 
-    private fun addParticle(x: Float, y: Float, vx: Float, vy: Float, life: Float, col: Int, size: Float, sway: Boolean) {
+    private fun addParticle(
+        x: Float, y: Float, vx: Float, vy: Float, life: Float, col: Int, size: Float, sway: Boolean,
+        petal: Boolean = false
+    ) {
         if (particles.size > 100) return
-        particles.add(Pt(x, y, vx, vy, life, life, col, size, sway))
+        particles.add(Pt(x, y, vx, vy, life, life, col, size, sway, petal))
     }
 
     private fun updateParticles(dt: Float) {
+        val blossomsVisible = state.cherryBlossomIntensity() > 0f
         val it = particles.iterator()
         while (it.hasNext()) {
             val p = it.next()
+            if (p.petal && !blossomsVisible) {
+                it.remove()
+                continue
+            }
             p.x += p.vx * dt
             p.y += p.vy * dt
             if (p.sway) p.x += sin((p.max - p.life) * 3f) * 4f * dt
@@ -1510,12 +1525,12 @@ class WorldScene(
     //    비/눈을 월드 입자로 옮기면 카메라에 붙어 같이 밀리므로 절대 옮기지 않는다.
     /**
      * 월드 공간 주변 입자 — 계절이 먼저 정해진다.
-     * 봄 벚꽃잎 · 여름 빛가루(밤 습지엔 반딧불) · 가을 단풍잎 · 겨울 눈 반짝임.
+     * 봄 꽃바람(개화기 낮의 짧은 시간만) · 여름 빛가루(밤 습지엔 반딧불) · 가을 단풍잎 · 겨울 눈 반짝임.
      */
     private fun ambientKind(): String = when {
         weather == Weather.RAIN || weather == Weather.SNOW -> "none"
         weather == Weather.WIND -> "wind"
-        state.season() == Season.SPRING -> "petal"
+        state.season() == Season.SPRING -> if (state.cherryBlossomIntensity() > 0f) "petal" else "none"
         state.season() == Season.AUTUMN -> "leaf"
         state.season() == Season.SUMMER -> {
             val wet = "wetland" in region.habitats || "water" in region.habitats || "forest" in region.habitats
@@ -1523,7 +1538,7 @@ class WorldScene(
         }
         state.season() == Season.WINTER -> "glint"
         "coast" in region.habitats -> "sparkle"
-        else -> "petal"
+        else -> "none"
     }
 
     private fun spawnAmbient(dt: Float) {
@@ -1560,7 +1575,7 @@ class WorldScene(
                     0 -> Color.argb(170, 242, 163, 179)
                     1 -> Color.argb(170, 255, 194, 212)
                     else -> Color.argb(170, 255, 242, 245)
-                }, 3f, true
+                }, 3f, true, petal = true
             )
             "pollen" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
@@ -1951,7 +1966,7 @@ class WorldScene(
         }
         // "보름달"은 실제 보름(28일 중 4일, 시계에 표시) 밤에만 해금
         if (state.isNight() && state.isFullMoon()) Healing.unlock(state, "full_moon")
-        if (state.season() == Season.SPRING) Healing.unlock(state, "spring_picnic")
+        if (state.cherryBlossomIntensity() > 0f) Healing.unlock(state, "spring_picnic")
         if (state.season() == Season.AUTUMN) Healing.unlock(state, "autumn_maple")
         if (state.weather() == Weather.RAIN) Healing.unlock(state, "rain_walk")
         // 벤치 옆에 고양이가 있으면 벤치 위 고양이 기념
@@ -3102,8 +3117,10 @@ class WorldScene(
     }
 
     private fun drawParticles(c: Canvas, camXv: Float, camYv: Float) {
+        val blossomIntensity = state.cherryBlossomIntensity()
         for (p in particles) {
-            val k = (p.life / p.max).coerceIn(0f, 1f)
+            val k = (p.life / p.max).coerceIn(0f, 1f) * if (p.petal) blossomIntensity else 1f
+            if (k <= 0f) continue
             uiFill.color = Color.argb(
                 (Color.alpha(p.col) * k).toInt().coerceIn(0, 255),
                 Color.red(p.col), Color.green(p.col), Color.blue(p.col)

@@ -62,6 +62,37 @@ java -cp tools/preview/out/classes-preview:$KOTLIN_HOME/lib/kotlin-stdlib.jar \
   com.pizzaandbird.preview.PreviewMain tools/preview/out
 ```
 
+### 한반도 윤곽 회귀 테스트
+
+`korea_map_smoke.kt`는 북한 윤곽의 꼭짓점 밀도가 남한과 비슷한지, 휴전선이 틈·겹침 없이
+이어지는지, 황해도 남단과 전체 경계가 유지되는지, 자기 교차가 없는지 검사합니다.
+실제 `KoreaMap.drawLand`로 미니맵/확대 지도 배율과 낮·밤·종이 해도 스타일도 확인합니다.
+게임 전체가 아닌 지도와 그래픽 스텁만 컴파일하면 됩니다 (JDK 17 + kotlinc).
+
+```bash
+kotlinc tools/preview/src/android_stubs_graphics.kt tools/preview/src/android_stubs_res.kt \
+  app/src/main/java/com/pizzaandbird/game/KoreaMap.kt tools/preview/korea_map_smoke.kt \
+  -d tools/preview/out/classes-korea-map -jvm-target 17
+java -Djava.awt.headless=true -cp "tools/preview/out/classes-korea-map:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.KoreaMapSmoke
+```
+
+### 벚꽃 연출 회귀 테스트
+
+`cherry_blossom_smoke.kt`는 두 해의 날짜·시각·날씨를 분 단위로 훑어 개화기 낮의
+짧은 꽃바람만 허용하는지 검사합니다. 실제 `WorldScene`에서 화면/월드/분홍 향 입자가
+동시에 멈추는지, 밤·비·눈·연출 종료 후 남은 꽃잎이 제거되는지, 씬 재진입 시
+시간표가 유지되는지와 다른 계절의 효과·벤치 기념도 확인합니다.
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/cherry_blossom_smoke.kt $SRCS \
+  -d tools/preview/out/classes-blossom -jvm-target 17
+java -Djava.awt.headless=true -cp "tools/preview/out/classes-blossom:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.CherryBlossomSmoke
+```
+
 ### 입력 회귀 테스트
 
 동일한 프리뷰 스텁으로 실제 `Input`/`Game`/`Scene`을 구동해 **타이틀 → 캐릭터 선택 → 서울 시작 → 월드**, 레터박스 좌표·집/월드 카메라·모달 터치·일시정지 입력 해제를 검사합니다 (JDK 17 + kotlinc 필요).

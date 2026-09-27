@@ -394,9 +394,14 @@ def render(direction, pose, look):
         # 치마 차림은 정면에서 맨다리 (종아리만 피부색)
         bare = look.bottom == BOTTOM_SKIRT and direction == FRONT
         shin_col = (pal.skin2 if back else pal.skin) if bare else pants
-        g.seg(x0, hipY, kx, ky, 2.15 * sc * lw, 1.8 * sc * lw, pal.line)
+        # 보이는 허벅지는 몸통 밑단에서 시작 (CharacterArt.kt 와 동일)
+        legTop = hipY + 1.7 * sc
+        t = min(0.85, max(0.0, (legTop - hipY) / (ky - hipY))) if ky - hipY > 0.001 else 0.0
+        sx = x0 + (kx - x0) * t
+        sy = hipY + (ky - hipY) * t
+        g.seg(sx, sy, kx, ky, 2.15 * sc * lw, 1.8 * sc * lw, pal.line)
         g.seg(kx, ky, ax, ay, 1.75 * sc * lw, 1.45 * sc * lw, pal.line)
-        g.seg(x0, hipY - 0.3, kx, ky, 1.7 * sc * lw, 1.4 * sc * lw, pants)
+        g.seg(sx, sy - 0.3, kx, ky, 1.7 * sc * lw, 1.4 * sc * lw, pants)
         g.seg(kx, ky, ax, ay, 1.35 * sc * lw, 1.1 * sc * lw, shin_col)
         # 발
         if direction == SIDE:

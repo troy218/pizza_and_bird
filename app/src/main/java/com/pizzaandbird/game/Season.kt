@@ -29,6 +29,28 @@ enum class Season(val id: String, val icon: String, val label: String, val descr
 fun GameState.season(): Season = Season.forDay(day)
 fun GameState.seasonLabel(): String = "${season().label} ${Season.dayInSeason(day)}일째"
 
+/**
+ * 벚꽃은 상시 날씨가 아니라 잠깐 지나가는 꽃바람이다.
+ * 봄 3~5일째, 게임 시각 09~10시 / 14~15시에만 보인다 (한 번에 실제 약 12.5초).
+ * 밤·비·눈에는 없고, 시작과 끝은 약 1.9초 동안 부드럽게 나타나고 사라진다.
+ * 날짜/시계만으로 정하므로 씬 이동·저장 복귀로 연출이 다시 시작되지 않는다.
+ */
+fun cherryBlossomIntensity(day: Int, hour: Float, weather: Weather): Float {
+    val season = Season.forDay(day)
+    if (season != Season.SPRING || Season.dayInSeason(day) !in 3..5) return 0f
+    if (weather == Weather.RAIN || weather == Weather.SNOW) return 0f
+    if (DayCycle.sunAltitude(hour, season) <= 0f) return 0f
+    val elapsed = when {
+        hour >= 9f && hour < 10f -> hour - 9f
+        hour >= 14f && hour < 15f -> hour - 14f
+        else -> return 0f
+    }
+    val fadeHours = 0.15f
+    return minOf(elapsed / fadeHours, (1f - elapsed) / fadeHours, 1f).coerceIn(0f, 1f)
+}
+
+fun GameState.cherryBlossomIntensity(): Float = cherryBlossomIntensity(day, worldTime, weather())
+
 /** 계절별 날씨 확률표 (맑음, 흐림, 비, 강풍, 눈). 합은 1. */
 fun seasonWeatherTable(season: Season): List<Pair<Weather, Float>> = when (season) {
     Season.SPRING -> listOf(Weather.SUNNY to 0.42f, Weather.CLOUDY to 0.22f, Weather.RAIN to 0.18f, Weather.WIND to 0.17f, Weather.SNOW to 0.01f)
@@ -118,8 +140,8 @@ fun multiplyTint(a: Int, b: Int): Int = Color.rgb(
 
 /**
  * 계절 화면 연출 — 스크린 좌표로 그린다.
- * 봄 벚꽃잎 · 여름 빛 알갱이(낮) · 가을 단풍잎 · 겨울 가루눈 반짝임.
- * 비·눈 오는 날에도 계절 입자는 조금 남겨 계절감이 끊기지 않게 한다.
+ * 봄 꽃바람 · 여름 빛 알갱이(낮) · 가을 단풍잎 · 겨울 가루눈 반짝임.
+ * 봄 꽃잎은 [cherryBlossomIntensity]로 제한하고, 다른 계절의 입자는 기존 날씨별 양을 유지한다.
  */
 class SeasonFx {
     private class Flake(var x: Float, var y: Float, var vx: Float, var vy: Float, var rot: Float,
@@ -139,12 +161,16 @@ class SeasonFx {
     private val rnd = Random(7)
     private var t = 0f
 
-    fun update(dt: Float, season: Season, weather: Weather, w: Float, h: Float, night: Boolean = false) {
+    fun update(
+        dt: Float, season: Season, weather: Weather, w: Float, h: Float,
+        night: Boolean = false, blossomIntensity: Float = 0f
+    ) {
         t += dt
         val stormy = weather == Weather.RAIN || weather == Weather.SNOW
         val windy = weather == Weather.WIND
+        val petals = if (night || stormy) 0f else blossomIntensity.coerceIn(0f, 1f)
         val (want, shape) = when (season) {
-            Season.SPRING -> (if (stormy) 10 else 30) to S_PETAL
+            Season.SPRING -> (if (petals > 0f) 30 else 0) to S_PETAL
             Season.AUTUMN -> (if (stormy) 10 else 26) to S_LEAF
             Season.SUMMER -> when {
                 night -> 5 to S_MOTE
@@ -153,6 +179,11 @@ class SeasonFx {
                 else -> 9 to S_MOTE
             }
             Season.WINTER -> (if (weather == Weather.SNOW) 8 else 22) to S_GLINT
+        }
+        // 시간대·날씨가 바뀌면 이미 떠 있는 꽃잎도 즉시 정리한다.
+        if (want == 0) {
+            flakes.clear()
+            return
         }
         val windK = if (windy) 2.6f else 1f
         while (flakes.size < want) flakes.add(spawn(shape, w, h, rnd.nextFloat() * h))
@@ -197,6 +228,7 @@ class SeasonFx {
                     f.x = n.x; f.y = n.y; f.color = n.color; f.size = n.size; f.alpha = n.alpha
                 } else { it.remove(); continue }
             }
+            if (f.shape == S_PETAL) f.alpha = (235 * petals).toInt()
             alive++
         }
         // 계절이 바뀌어 목표보다 많으면 초과분부터 정리
