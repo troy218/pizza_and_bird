@@ -28,6 +28,30 @@ private const val GRASS_CURL_UNIT = 1.25f
 /** 자전거 페달 애니메이션 프레임 수 */
 const val BIKE_FRAMES = 8
 
+/**
+ * 플레이어 캐릭터 스프라이트를 그리는 해상도(px, 한 변).
+ *
+ * 32(= [CharacterArt.SIZE])의 정수배여야 픽셀 격자가 어긋나지 않는다.
+ * 96 = 3배 — 월드 슈퍼샘플 배율([Game.worldScale])이 2~3일 때 원래 크기(32 도트)로
+ * 줄여 그리므로 픽셀 굵기는 예전 그대로면서, 옷 주름·머리 윤기·눈 반짝임·AA 윤곽이
+ * 살아남는다. 프레임 한 장이 4KB → 36KB 로 늘어나므로 캐시 개수를 LRU 로 묶어 둔다.
+ */
+const val CHARACTER_PX = CharacterArt.SIZE * 3
+
+/** 자전거(라이더 포함) 스프라이트 해상도 — [CHARACTER_PX] 와 같은 규칙 */
+const val BIKE_PX = CHARACTER_PX
+
+/**
+ * 레벨업 축하 동작(만세!) 해상도.
+ *
+ * 이 화면은 캐릭터를 화면 가득(약 300px) 띄우므로 3배로는 부족하다 —
+ * 정면 8프레임만 크게 그려 두면 "확대한 도트"가 아니라 진짜 그림이 된다.
+ */
+const val CHEER_PX = CharacterArt.SIZE * 8
+
+/** 캐릭터 선택 카드용 미리보기 해상도 (카드는 화면에서 3배쯤 크게 그려진다) */
+const val AVATAR_PX = CharacterArt.SIZE * 4
+
 /** NPC 대기 애니메이션 프레임 수 / 프레임 길이(초) */
 const val NPC_FRAMES = 12
 
@@ -158,9 +182,9 @@ class Assets(private val context: Context) {
     // 카메라 장비 아트 캐시 (init 보다 먼저 만들어져야 한다)
     private val camIconCache = HashMap<CamLook, Bitmap>()
     private val camProfileCache = HashMap<CamLook, Bitmap>()
-    private val camHeldCache = HashMap<HeldKey, Bitmap>()
+    private val camHeldCache = SpriteLru<HeldKey, Bitmap>(24)
 
-    private data class HeldKey(val look: CamLook, val dir: Int, val raised: Boolean)
+    private data class HeldKey(val look: CamLook, val dir: Int, val raised: Boolean, val px: Int)
 
     private val camOutline = c(0xFF191920)
     private val camGlass = c(0xFF3E6B8C)
@@ -412,49 +436,145 @@ class Assets(private val context: Context) {
         val sideL: Array<Bitmap> get() = idle.sideL
     }
 
-    private val playerCache = HashMap<Int, PlayerSet>()
+    /**
+     * 생성 비용이 큰 스프라이트 세트를 담아 두는 LRU 캐시.
+     *
+     * HD 캐릭터 한 세트는 프레임 176장(약 6MB)이라 무한정 쌓아 두면 안 된다.
+     * 가장 오래 안 쓴 것부터 버린다 — 동시에 필요한 세트는 언제나 1~2개뿐이다
+     * (플레이 중 1개, 캐릭터 선택 화면에서 남녀 2개).
+     */
+    private class SpriteLru<K, V>(private val max: Int) : LinkedHashMap<K, V>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean = size > max
+    }
 
-    private fun buildClip(look: CharacterArt.Look, frames: Int, pose: (Float) -> CharacterArt.Pose): Clip {
-        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look) }
-        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look) }
-        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look) }
+    private val playerCache = SpriteLru<Int, PlayerSet>(4)
+
+    // -----------------------------------------------------------------------
+    // 백그라운드 스프라이트 준비(warm-up)
+    //
+    // HD 프레임 한 장은 도트보다 5~10배 비싸다(캐릭터 한 벌 ≈ 0.2초, 만세 8장 ≈ 25ms).
+    // 그 벌을 **처음 필요해진 순간** 만들면 화면이 그대로 멈춘다 — 특히 레벨업은
+    // 장비 등급이 바뀌는 순간이라 정확히 그 화면에서 새 세트를 만들게 된다.
+    // 그래서 "곧 필요해질" 세트(다음 등급·현재 자전거)를 미리 전용 스레드에서 만들어 둔다.
+    //
+    // 캐시는 [synchronized] 로만 만지고, 무거운 생성은 **잠금 밖에서** 한다 —
+    // 준비 스레드가 0.2초 동안 그리는 동안 게임 스레드는 이미 있는 세트를 계속 쓴다.
+    // -----------------------------------------------------------------------
+
+    private val warmQueue = LinkedBlockingQueue<() -> Unit>()
+
+    private val warmThread = Thread({
+        while (true) {
+            val job = try {
+                warmQueue.take()
+            } catch (_: InterruptedException) {
+                continue
+            }
+            try {
+                job()
+            } catch (_: Exception) {
+                // 준비 실패는 치명적이지 않다 — 필요해지면 그때 만든다
+            }
+        }
+    }, "PizzaAndBirdSpriteWarm").apply { isDaemon = true; start() }
+
+    /** 곧 쓸 스프라이트를 백그라운드에서 미리 만들어 둔다(이미 밀려 있으면 무시) */
+    fun warmSprites(job: () -> Unit) {
+        if (warmQueue.size >= 4) return
+        warmQueue.offer(job)
+    }
+
+    /** 지금 준비 큐가 비어 있는가 (프리뷰/테스트에서 "다 됐는지" 확인용) */
+    fun warmIdle(): Boolean = warmQueue.isEmpty()
+
+    private fun buildClip(
+        look: CharacterArt.Look, frames: Int, px: Int, pose: (Float) -> CharacterArt.Pose
+    ): Clip {
+        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look, px) }
+        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look, px) }
+        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look, px) }
         val sideL = Array(frames) { flipH(side[it]) }
         return Clip(down, up, side, sideL)
     }
 
-    /** 성별 + 레벨 등급으로 동작 세트 얻기 (첫 사용 시 생성) */
-    fun playerSet(gender: String, tier: Int): PlayerSet {
+    /**
+     * 성별 + 레벨 등급으로 동작 세트 얻기 (첫 사용 시 생성).
+     *
+     * @param hd true = HD([CHARACTER_PX]) — 월드 슈퍼샘플 2배 이상 · UI 확대용.
+     *   false = 원본 32px 도트 — 화질 1×(저사양·저해상 기기)에서 예전 느낌 그대로.
+     */
+    fun playerSet(gender: String, tier: Int, hd: Boolean = true): PlayerSet {
         val t = tier.coerceIn(0, gearTiers.size - 1)
-        val key = (if (gender == "female") 1 else 0) * 64 + t
-        playerCache[key]?.let { return it }
+        val key = (if (gender == "female") 1 else 0) * 64 + t + (if (hd) 0 else 32)
+        synchronized(playerCache) { playerCache[key]?.let { return it } }
         val lk = look(gender, t)
+        val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
         val set = PlayerSet(
-            idle = buildClip(lk, Anim.IDLE.frames) { CharacterArt.idlePose(it) },
-            walk = buildClip(lk, Anim.WALK.frames) { CharacterArt.walkPose(it, CharacterArt.WALK) },
-            run = buildClip(lk, Anim.RUN.frames) { CharacterArt.walkPose(it, CharacterArt.RUN) },
-            sneak = buildClip(lk, Anim.SNEAK.frames) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
-            aim = buildClip(lk, Anim.AIM.frames) { CharacterArt.aimPose(it) },
-            punch = buildClip(lk, 4) { CharacterArt.punchPose(it) }
+            idle = buildClip(lk, Anim.IDLE.frames, px) { CharacterArt.idlePose(it) },
+            walk = buildClip(lk, Anim.WALK.frames, px) { CharacterArt.walkPose(it, CharacterArt.WALK) },
+            run = buildClip(lk, Anim.RUN.frames, px) { CharacterArt.walkPose(it, CharacterArt.RUN) },
+            sneak = buildClip(lk, Anim.SNEAK.frames, px) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
+            aim = buildClip(lk, Anim.AIM.frames, px) { CharacterArt.aimPose(it) },
+            punch = buildClip(lk, 4, px) { CharacterArt.punchPose(it) }
         )
-        playerCache[key] = set
+        synchronized(playerCache) {
+            playerCache[key]?.let { return it }      // 그 사이 다른 스레드가 만들었으면 그걸 쓴다
+            playerCache[key] = set
+        }
         return set
     }
 
     /** 레벨 등급으로 (남자) */
     fun playerSet(tier: Int): PlayerSet = playerSet("male", tier)
 
-    private val cheerCache = HashMap<Int, Array<Bitmap>>()
+    private val cheerCache = SpriteLru<Int, Array<Bitmap>>(2)
 
-    /** 레벨업 축하 동작 (정면 8프레임) */
+    /**
+     * 레벨업 축하 동작 (정면 8프레임 · [CHEER_PX] = 256px).
+     *
+     * 이 화면은 캐릭터를 화면 가득 띄우므로 여기만 아주 크게 그린다.
+     * 프레임 8장뿐이라 메모리 부담도 작다(장당 256KB).
+     */
     fun cheerFrames(gender: String, tier: Int): Array<Bitmap> {
         val t = tier.coerceIn(0, gearTiers.size - 1)
         val key = (if (gender == "female") 1 else 0) * 64 + t
-        cheerCache[key]?.let { return it }
+        synchronized(cheerCache) { cheerCache[key]?.let { return it } }
         val lk = look(gender, t)
         val frames = Array(8) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.cheerPose(it / 8f), lk)
+            CharacterArt.render(CharacterArt.FRONT, CharacterArt.cheerPose(it / 8f), lk, CHEER_PX)
         }
-        cheerCache[key] = frames
+        synchronized(cheerCache) {
+            cheerCache[key]?.let { return it }
+            cheerCache[key] = frames
+        }
+        return frames
+    }
+
+    private val avatarCache = SpriteLru<Int, Array<Bitmap>>(4)
+
+    /**
+     * 캐릭터 선택 카드용 — 정면 서 있는 동작 12프레임만 [AVATAR_PX] 로 그려 둔다.
+     *
+     * (세트 전체는 프레임 176장이라 카드 두 장 때문에 만들기엔 너무 무겁다.
+     *  정면 12프레임이면 한 벌 1.5MB 로 끝나고 카드도 그대로 움직인다)
+     */
+    fun playerAvatarFrames(gender: String, tier: Int): Array<Bitmap> {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = (if (gender == "female") 1 else 0) * 64 + t
+        synchronized(avatarCache) { avatarCache[key]?.let { return it } }
+        val lk = look(gender, t)
+        val frames = Array(Anim.IDLE.frames) {
+            try {
+                CharacterArt.render(CharacterArt.FRONT, CharacterArt.idlePose(it / Anim.IDLE.frames.toFloat()), lk, AVATAR_PX)
+            } catch (_: Exception) {
+                // 못 만들면 서 있는 세트의 같은 프레임으로 대체한다(화면이 비지 않게)
+                playerSet(gender, t).idle.down[it % playerSet(gender, t).idle.down.size]
+            }
+        }
+        synchronized(avatarCache) {
+            avatarCache[key]?.let { return it }
+            avatarCache[key] = frames
+        }
         return frames
     }
 
@@ -462,6 +582,54 @@ class Assets(private val context: Context) {
     fun playerBitmap(gender: String, tier: Int, anim: Anim, dir: Dir, animT: Float): Bitmap {
         val clip = playerSet(gender, tier).clip(anim)
         return clip.frame(dir, (animT / anim.frameTime).toInt())
+    }
+
+    /**
+     * 캐릭터·자전거처럼 **32 도트 격자** 위에 그려진 스프라이트를 월드에 그린다.
+     *
+     * 스프라이트가 원본 도트(32px)든 HD([CHARACTER_PX])든 화면에서 차지하는 크기는
+     * 언제나 똑같이 32 도트 — 즉 HD 그림은 살짝 줄여서 붙기 때문에 픽셀 크기는 그대로고
+     * 옷 주름·머리 윤기·눈 반짝임 같은 결만 새로 보인다.
+     * (레벨업 축하 화면처럼 크게 띄우는 곳에서 "확대한 도트"가 아니라 "진짜 그림"이 된다)
+     *
+     * @param dotScale 월드 비트맵에서 **도트 하나가 차지하는 기기 픽셀 수** (= [Game.worldScale]).
+     */
+    fun drawPlayer(
+        c: Canvas, bmp: Bitmap, x: Float, y: Float,
+        dotScale: Float, alpha: Int = 255
+    ) {
+        val k = dotScale * CharacterArt.SIZE / bmp.width
+        // 정수배 확대만 픽셀 느낌(최근접)으로, 그 외(축소·어중간한 배율)는 보간으로 그린다.
+        // HD 스프라이트는 축소되므로 필터가 켜져야 디테일이 살아남는다.
+        val p = if (isIntegerScale(k)) pxPaint else sprPaint
+        if (alpha != 255) {
+            val keep = p.alpha
+            p.alpha = alpha
+            drawScaled(c, bmp, x, y, k, p)
+            p.alpha = keep
+        } else {
+            drawScaled(c, bmp, x, y, k, p)
+        }
+    }
+
+    private fun isIntegerScale(k: Float): Boolean =
+        k > 0.999f && kotlin.math.abs(k - k.toInt()) < 0.02f
+
+    /** 확대(또는 축소)해서 그린다 — 크기가 1:1이면 비트맵을 그대로 붙인다 */
+    private fun drawScaled(c: Canvas, bmp: Bitmap, x: Float, y: Float, k: Float, p: Paint) {
+        if (k == 1f) {
+            c.drawBitmap(bmp, x, y, p)
+        } else {
+            c.drawBitmap(
+                bmp, null,
+                RectF(x, y, x + bmp.width * k, y + bmp.height * k), p
+            )
+        }
+    }
+
+    /** UI(가방 · 레벨업 · 캐릭터 선택)에서 캐릭터를 지정한 사각형에 꽉 차게 그린다 */
+    fun drawPlayerIn(c: Canvas, bmp: Bitmap, dst: RectF) {
+        c.drawBitmap(bmp, null, dst, sprPaint)
     }
 
     // -----------------------------------------------------------------------
@@ -485,57 +653,84 @@ class Assets(private val context: Context) {
         }
     }
 
-    private val bikeCache = LinkedHashMap<String, BikeSet>()
+    /**
+     * 자전거 세트 캐시 — 프레임 한 장이 HD(96px)라 40세트면 46MB까지 불어난다.
+     * 자전거 상점은 한 페이지에 5대를 보여 주고 월드는 한 대만 쓰므로 12세트면 충분하다.
+     */
+    private val bikeCache = SpriteLru<String, BikeSet>(12)
 
-    /** 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시) */
-    fun bikeSet(gender: String, tier: Int, style: BikeStyle): BikeSet {
+    /**
+     * 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시)
+     * @param hd [playerSet] 과 같은 규칙 — 라이더가 캐릭터와 같은 화질로 그려진다.
+     */
+    fun bikeSet(gender: String, tier: Int, style: BikeStyle, hd: Boolean = true): BikeSet {
         val t = tier.coerceIn(0, gearTiers.size - 1)
-        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
-        bikeCache[key]?.let { return it }
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}|$hd"
+        synchronized(bikeCache) { bikeCache[key]?.let { return it } }
         val lk = look(gender, t)
         val n = BIKE_FRAMES
-        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style) }
+        val px = if (hd) BIKE_PX else CharacterArt.SIZE
+        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style, px) }
         val set = BikeSet(
-            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style) },
-            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style) },
+            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style, px) },
+            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style, px) },
             side = side,
             sideL = Array(n) { flipH(side[it]) }
         )
-        bikeCache[key] = set
-        while (bikeCache.size > 40) {
-            val eldest = bikeCache.keys.first()
-            bikeCache.remove(eldest)
+        synchronized(bikeCache) {
+            bikeCache[key]?.let { return it }
+            bikeCache[key] = set
         }
         return set
     }
 
+    private val bikePreviewCache = SpriteLru<String, Bitmap>(16)
+
+    /**
+     * 자전거 상점 썸네일 — **옆모습 첫 프레임 한 장만** HD로 그린다.
+     *
+     * 세트를 통째로 만들면 32프레임이라 상점 한 쪽(5대)을 열 때 0.2초가 걸린다.
+     * 썸네일은 어차피 [Dir] 한 방향만 보여 주므로 한 장이면 충분하다.
+     */
+    fun bikePreviewFrame(gender: String, tier: Int, style: BikeStyle): Bitmap {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
+        synchronized(bikePreviewCache) { bikePreviewCache[key]?.let { return it } }
+        val bmp = CharacterArt.renderBike(CharacterArt.SIDE, 0f, look(gender, t), style, BIKE_PX)
+        synchronized(bikePreviewCache) { bikePreviewCache[key] = bmp }
+        return bmp
+    }
+
     /** 자전거 스프라이트 (pedalPhase: 페달 위상) */
-    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle): Bitmap {
-        val set = bikeSet(gender, tier, style)
+    fun bikeBitmap(
+        gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle, hd: Boolean = true
+    ): Bitmap {
+        val set = bikeSet(gender, tier, style, hd)
         val f = (pedalPhase * set.count).toInt()
         return set.frame(dir, f)
     }
 
     // 기존 코드 호환 접근자
     val playerTiers: Array<PlayerSet> get() = Array(gearTiers.size) { playerSet("male", it) }
-    val playerDown: Array<Bitmap> get() = playerSet("male", 0).down
-    val playerUp: Array<Bitmap> get() = playerSet("male", 0).up
-    val playerSide: Array<Bitmap> get() = playerSet("male", 0).side
-    val playerSideL: Array<Bitmap> get() = playerSet("male", 0).sideL
-    val femaleDown: Array<Bitmap> get() = playerSet("female", 0).down
-    val femaleUp: Array<Bitmap> get() = playerSet("female", 0).up
-    val femaleSide: Array<Bitmap> get() = playerSet("female", 0).side
-    val femaleSideL: Array<Bitmap> get() = playerSet("female", 0).sideL
+    val playerDown: Array<Bitmap> get() = playerSet("male", 0, false).down
+    val playerUp: Array<Bitmap> get() = playerSet("male", 0, false).up
+    // 호환 접근자는 원본 32px 도트를 돌려준다(HD는 playerSet(gender, tier, hd=true) 로).
+    val playerSide: Array<Bitmap> get() = playerSet("male", 0, false).side
+    val playerSideL: Array<Bitmap> get() = playerSet("male", 0, false).sideL
+    val femaleDown: Array<Bitmap> get() = playerSet("female", 0, false).down
+    val femaleUp: Array<Bitmap> get() = playerSet("female", 0, false).up
+    val femaleSide: Array<Bitmap> get() = playerSet("female", 0, false).side
+    val femaleSideL: Array<Bitmap> get() = playerSet("female", 0, false).sideL
     /** 기본 자전거 외형 (구 코드 호환 접근자용) */
     private val defaultBikeStyle = BikeStyle(
         "basic", BikeColors.frame(0), BikeColors.tire(0), BikeColors.saddle(0),
         basket = false, rack = false, light = false, streamers = false, bell = false
     )
 
-    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).down[0]
-    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).up[0]
-    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).side[0]
-    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).sideL[0]
+    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).down[0]
+    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).up[0]
+    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).side[0]
+    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).sideL[0]
 
     // -----------------------------------------------------------------------
     // NPC — 사람마다 다른 옷차림 + 성격이 드러나는 대기 동작 (12프레임)
@@ -588,31 +783,45 @@ class Assets(private val context: Context) {
      */
     private val npcCache = LruCache<String, Array<Bitmap>>(24)
 
-    /** 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프) */
-    fun npcFrames(person: NpcPerson): Array<Bitmap> {
-        npcCache.get(person.id)?.let { return it }
+    /**
+     * HD NPC 캐시 — 한 사람이 12프레임 × 36KB ≈ 432KB라 24명을 다 들고 있으면 10MB다.
+     * 지금 서 있는 지역의 사람(보통 2~4명)만 들고 있으면 충분하므로 8명으로 묶는다.
+     */
+    private val npcHdCache = SpriteLru<String, Array<Bitmap>>(8)
+
+    /**
+     * 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프).
+     * @param hd 플레이어와 같은 화질([CHARACTER_PX])로 그릴지 — 월드가 2배 이상 슈퍼샘플일 때 true.
+     */
+    fun npcFrames(person: NpcPerson, hd: Boolean = false): Array<Bitmap> {
+        synchronized(npcHdCache) {
+            if (hd) npcHdCache[person.id]?.let { return it } else npcCache.get(person.id)?.let { return it }
+        }
         val lk = npcLook(person.kind, person.look)
         val art = npcArtKind(person.kind)
+        val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
         val frames = Array(NPC_FRAMES) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk)
+            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk, px)
         }
-        npcCache.put(person.id, frames)
+        if (hd) synchronized(npcHdCache) { npcHdCache[person.id] = frames }
+        else npcCache.put(person.id, frames)
         return frames
     }
 
     /** 바디만 알고 있을 때(미리보기 도구·구 코드) — 그 바디의 대표 인물로 그린다 */
-    fun npcFrames(kind: NpcKind): Array<Bitmap> = npcFrames(NpcRoster.representative(kind))
+    fun npcFrames(kind: NpcKind, hd: Boolean = false): Array<Bitmap> =
+        npcFrames(NpcRoster.representative(kind), hd)
 
     /** 시간 -> NPC 스프라이트 (offset 으로 사람마다 위상을 다르게) */
-    fun npcBitmap(person: NpcPerson, time: Float, offset: Float = 0f): Bitmap {
-        val frames = npcFrames(person)
+    fun npcBitmap(person: NpcPerson, time: Float, offset: Float = 0f, hd: Boolean = false): Bitmap {
+        val frames = npcFrames(person, hd)
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
 
     /** 바디만 알고 있을 때(미리보기 도구·구 코드) */
-    fun npcBitmap(kind: NpcKind, time: Float, offset: Float = 0f): Bitmap {
-        val frames = npcFrames(kind)
+    fun npcBitmap(kind: NpcKind, time: Float, offset: Float = 0f, hd: Boolean = false): Bitmap {
+        val frames = npcFrames(kind, hd)
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
@@ -3085,12 +3294,13 @@ begin(T.LAMP)
 
     fun camProfile(look: CamLook): Bitmap = camProfileCache.getOrPut(look) { buildCamProfile(look) }
 
-    /** dir: 0 정면 / 1 뒤 / 2 오른쪽 / 3 왼쪽 */
-    fun camHeld(look: CamLook, dir: Int, raised: Boolean): Bitmap {
+    /** dir: 0 정면 / 1 뒤 / 2 오른쪽 / 3 왼쪽 — hd 면 캐릭터와 같은 해상도로 그린다 */
+    fun camHeld(look: CamLook, dir: Int, raised: Boolean, hd: Boolean = true): Bitmap {
+        val px = if (hd) CHARACTER_PX else 32
         if (dir == 3) {
-            return camHeldCache.getOrPut(HeldKey(look, 3, raised)) { flipH(camHeld(look, 2, raised)) }
+            return camHeldCache.getOrPut(HeldKey(look, 3, raised, px)) { flipH(camHeld(look, 2, raised, hd)) }
         }
-        return camHeldCache.getOrPut(HeldKey(look, dir, raised)) { buildCamHeld(look, dir, raised) }
+        return camHeldCache.getOrPut(HeldKey(look, dir, raised, px)) { buildCamHeld(look, dir, raised, px) }
     }
 
     private fun buildCamIcon(lk: CamLook): Bitmap {
@@ -3218,10 +3428,17 @@ begin(T.LAMP)
         return bmp
     }
 
-    private fun buildCamHeld(lk: CamLook, dir: Int, raised: Boolean): Bitmap {
-        val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+    private fun buildCamHeld(lk: CamLook, dir: Int, raised: Boolean, px: Int): Bitmap {
+        val k = px.toFloat() / 32f
+        val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
-        val p = Paint()
+        if (k != 1f) {
+            // HD: 32 도트 좌표계를 그대로 쓰되 캔버스를 늘려 그린다.
+            // 안티앨리어싱을 켜면 반 픽셀 단위 좌표가 부드럽게 래스터화되어
+            // 캐릭터(HD)와 같은 결로 보인다.
+            cv.scale(k, k)
+        }
+        val p = Paint().apply { isAntiAlias = k != 1f }
         fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
             p.color = col; cv.drawRect(l, t, rr, b, p)
         }

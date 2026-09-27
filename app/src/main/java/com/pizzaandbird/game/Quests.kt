@@ -23,6 +23,7 @@ object BirdingRanks {
     fun next(lifers: Int): Rank? = ALL.firstOrNull { it.min > lifers }
 }
 
+/** 한국 탐조식 "도장 깨기" 컬렉션. */
 object BirdingCollections {
     data class Collection(
         val name: String,
@@ -35,6 +36,7 @@ object BirdingCollections {
         fun progress(state: GameState): String = "${caught(state)}/${species.size}"
     }
 
+    /** 실제 목록에 없는 별칭은 표준 종명으로 바로잡았다. */
     val ALL = listOf(
         Collection("동네 첫 만남", "🏘", listOf("참새", "까치", "직박구리", "박새", "멧비둘기"),
             "가까운 공원에서 시작하는 가장 좋은 다섯 종"),

@@ -276,6 +276,8 @@ class Hud(private val game: Game) {
             if (hitMinimap(x, y)) return Ctrl.MAP
             return Ctrl.NONE
         }
+        // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 내용을 다시 읽는다
+        if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST
         // 버튼 최우선 (메뉴 클러스터가 조이스틱 구역과 겹치므로 먼저 판정)
         if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
@@ -461,6 +463,8 @@ class Hud(private val game: Game) {
 
     fun draw(c: Canvas) {
         if (showStats) drawStats(c)
+        // 계절 나침반 + 시계는 우상단(지도 나침반 왼쪽)에 따로 둔다 — 상태창이 화면을 덜 가리게
+        if (showStats || showMinimap) drawSeasonClock(c)
         if (showMinimap) {
             drawMinimap(c, mmCx, mmCy, mmR, false)
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
@@ -473,27 +477,66 @@ class Hud(private val game: Game) {
         drawMessages(c)
     }
 
+    /** 좌상단 상태창(레벨·체력·행운 바)의 높이(dp) */
+    private val statsPanelH = 80f
+
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(190f) + dp(22f)
+    private fun questChipY(): Float = dp(12f) + dp(statsPanelH) + dp(22f)
+
+    /** 진행 중 의뢰 칩의 화면 사각형 (탭 판정용) */
+    private fun questChipRect(): RectF? {
+        val label = questLabel ?: return null
+        val txt = "의뢰 · $label"
+        val tp = Type.paintAt(12f, true, 0.02f, Type.INK)
+        val tw = tp.measureText(txt)
+        val pad = dp(9f)
+        val cx = questChipX()
+        val cy = questChipY()
+        return RectF(cx - tw / 2f - pad, cy - dp(12f), cx + tw / 2f + pad, cy + dp(12f))
+    }
+
+    private fun hitQuestChip(x: Float, y: Float): Boolean {
+        val r = questChipRect() ?: return false
+        r.inset(-dp(6f), -dp(6f))
+        return r.contains(x, y)
+    }
+
+    /**
+     * 좌상단 상태창 — 화면을 적게 가리도록 핵심 게이지만 남긴다.
+     * 위에서부터: 레벨(경험치) 바 → 체력(배고픔) 바 → 행운 바.
+     * 돈·계절·시계·장비 정보는 이 창에서 빼고 각각 가방/우상단으로 옮겼다.
+     */
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(190f)
+        val h = dp(statsPanelH)
 
         // 프리미엄 패널
         val r = RectF(left, top, left + w, top + h)
         UiKit.panel(c, game, r, 12f)
 
         val a = game.assets
-
-        // 배고픔 — 아이콘 메달 + 그라데이션 바 (위험하면 맥동해 알린다)
-        val iy1 = top + dp(12f)
         val iconSz = dp(16f)
+
+        // 레벨 + 경험치 바 — 가장 위
+        Type.text(c, "Lv.${s.level}", left + dp(12f), top + dp(21f), Role.LABEL, Type.INK)
+        Type.text(c, s.title(), left + dp(46f), top + dp(20f), Role.CAPTION, Type.SOFT)
+        val bx = left + dp(12f)
+        val bw = w - dp(24f)
+        val expY = top + dp(26f)
+        if (s.level >= Progression.MAX_LEVEL) {
+            UiKit.bar(c, game, bx, expY, bw, dp(6f), 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
+        } else {
+            UiKit.bar(c, game, bx, expY, bw, dp(6f), s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+        }
+
+        // 체력(배고픔) — 레벨 바 아래 (위험하면 맥동해 알린다)
+        val hy = top + dp(40f)
         fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
-        c.drawCircle(left + dp(20f), iy1 + dp(8f), dp(11f), fill)
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy1, left + dp(12f) + iconSz, iy1 + iconSz), a.sprPaint)
+        c.drawCircle(left + dp(20f), hy + dp(8f), dp(11f), fill)
+        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), hy, left + dp(12f) + iconSz, hy + iconSz), a.sprPaint)
         val hungerColor = when {
             s.hunger >= 25f -> 0xFFF2913C.toInt()
             s.hunger >= 15f -> 0xFFE2574C.toInt()
@@ -502,78 +545,64 @@ class Hud(private val game: Game) {
                 (0.5f + 0.5f * sin(game.time * 6f)) * 0.5f
             )
         }
-        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
+        drawBar(c, left + dp(36f), hy + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
 
-        // 행운
-        val iy2 = iy1 + dp(22f)
+        // 행운 — 체력 바 아래
+        val ly = hy + dp(22f)
         fill.color = Color.argb(60, 111, 186, 107)
-        c.drawCircle(left + dp(20f), iy2 + dp(8f), dp(11f), fill)
-        c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), iy2, left + dp(12f) + iconSz, iy2 + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), iy2 + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
+        c.drawCircle(left + dp(20f), ly + dp(8f), dp(11f), fill)
+        c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), ly, left + dp(12f) + iconSz, ly + iconSz), a.sprPaint)
+        drawBar(c, left + dp(36f), ly + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
+    }
 
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(53f))
+    /**
+     * 우상단 클러스터 — 왼쪽부터 [시계] [계절 나침반] [지도 나침반] 순.
+     * 계절 나침반은 지도 나침반 바로 왼쪽, 시계는 계절 나침반 왼쪽에 둔다.
+     */
+    private fun drawSeasonClock(c: Canvas) {
+        val s = game.state
+        val gap = dp(9f)
 
-        // 돈 — 골드 도트 + 금액(숫자는 픽셀 폰트)
-        fill.color = 0xFFF2B63C.toInt()
-        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), fill)
-        stroke.color = 0xFFB5651D.toInt()
-        stroke.strokeWidth = dp(1.2f)
-        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), stroke)
-        Type.text(c, won(s.money), left + dp(28f), iy2 + dp(36f), Role.HEADING, Type.INK)
-
-        // 피자 / 카메라
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        Type.text(c, "×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), Role.LABEL, Type.INK)
-        val rig = s.rig()
-        c.drawBitmap(
-            a.camIcon(rig.look), null,
-            RectF(left + dp(52f), iy2 + dp(41f), left + dp(52f) + dp(19f), iy2 + dp(41f) + dp(15.5f)),
-            a.sprPaint
-        )
-        Type.text(c, "${rig.teleMm}mm", left + dp(75f), iy2 + dp(53f), Role.LABEL, Type.INK)
-
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(94f))
-
-        // 시각 + 사진
-        val night = s.isNight()
-        val clockIcon = if (night) a.moonIcon else a.sunIcon
-        c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
-        Type.text(c, s.timeLabel(), left + dp(30f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-        UiKit.icon(c, game, "camera", RectF(left + dp(79f), iy2 + dp(59f), left + dp(93f), iy2 + dp(73f)))
-        Type.text(c, s.photos.toString(), left + dp(98f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
-
-        // 계절 다이얼: 원형 사계절 판 위를 바늘이 가리킨다 (main 브랜치 최신 버전 유지)
+        // 계절 나침반 — 지도 나침반 왼쪽
+        val dialSize = dp(42f)
+        val dialCx = mmCx - mmR - gap - dialSize / 2f
+        val dialCy = mmCy
+        drawSeasonDial(c, s, dialCx - dialSize / 2f, dialCy - dialSize / 2f, dialSize)
         val weather = s.weather()
-        val dialSize = dp(36f)
-        val dialX = left + dp(12f)
-        val dialY = top + dp(118f)
-        drawSeasonDial(c, s, dialX, dialY, dialSize)
-        val dialCy = dialY + dialSize / 2f
-        val tx = dialX + dialSize + dp(9f)
         Type.textCentered(
-            c, "${s.season().icon} ${s.season().label} ${Season.dayInSeason(s.day)}일째",
-            tx, dialCy - dp(8f), Role.LABEL, Type.INK
+            c, "${s.season().icon}${s.season().label} ${Season.dayInSeason(s.day)}일 ${weather.icon}",
+            dialCx, dialCy + dialSize / 2f + dp(9f), Role.CAPTION, Type.INK, 0.5f
         )
-        Type.textCentered(c, "${weather.icon} ${weather.label}", tx, dialCy + dp(8.5f), Role.LABEL, 0xFF587083.toInt())
 
-        // 레벨 + 경험치 바 — 계절 다이얼 아래에 배치
-        val ly = top + dp(158f)
-        Type.text(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK)
-        Type.text(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT)
+        // 시계 — 계절 나침반 왼쪽
+        val clockSize = dp(38f)
+        val clockCx = dialCx - dialSize / 2f - gap - clockSize / 2f
+        drawClock(c, s, clockCx, mmCy, clockSize)
+    }
 
-        // 바 (프리미엄 그라데이션)
-        val bx = left + dp(12f)
-        val bw = w - dp(24f)
-        val by = ly + dp(16f)
-        val bh = dp(6f)
-        if (s.level >= Progression.MAX_LEVEL) {
-            UiKit.bar(c, game, bx, by, bw, bh, 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
-        } else {
-            UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
-        }
+    /** 회중시계 풍 원형 시계 — 해/달 아이콘 + 아래에 시각 */
+    private fun drawClock(c: Canvas, s: GameState, cx: Float, cy: Float, size: Float) {
+        val a = game.assets
+        val R = size / 2f
+        val night = s.isNight()
 
+        softShadow.color = Color.argb(46, 36, 24, 12)
+        c.drawCircle(cx + dp(0.7f), cy + dp(1.4f), R * 0.97f, softShadow)
+
+        fill.shader = null
+        fill.color = if (night) 0xFF33415C.toInt() else 0xFFFBF1D8.toInt()
+        c.drawCircle(cx, cy, R, fill)
+        // 유리 광택
+        fill.color = Color.argb(60, 255, 255, 255)
+        c.drawCircle(cx - R * 0.28f, cy - R * 0.30f, R * 0.5f, fill)
+        stroke.color = 0xFF6B4F35.toInt()
+        stroke.strokeWidth = dp(2f)
+        c.drawCircle(cx, cy, R, stroke)
+
+        val icon = if (night) a.moonIcon else a.sunIcon
+        val isz = size * 0.5f
+        c.drawBitmap(icon, null, RectF(cx - isz / 2f, cy - isz / 2f, cx + isz / 2f, cy + isz / 2f), a.sprPaint)
+        Type.textCentered(c, s.timeLabel(), cx, cy + R + dp(9f), Role.CAPTION, Type.INK, 0.5f)
     }
 
     /**
@@ -1302,9 +1331,9 @@ class Hud(private val game: Game) {
         c: Canvas, ox: Float, oy: Float, scale: Float, glass: Float, showNames: Boolean, s: GameState
     ) {
         val dot = maxOf(dp(2.35f), glass * 0.040f)
-        var homeX = 0f
-        var homeY = 0f
-        var hasHome = false
+        // 매입한 집은 여러 지역에 있을 수 있다. 정착지 하나만 표시하면 이전 집을
+        // 찾아 다시 들어갈 수 없으므로, 미니맵에도 모든 집 현관을 그린다.
+        val ownedHomeMarks = ArrayList<Pair<Float, Float>>()
         var curX = 0f
         var curY = 0f
         var hasCur = false
@@ -1314,8 +1343,8 @@ class Hud(private val game: Game) {
             val y = oy + reg.mmY * scale
             val visited = reg.id in s.visited
             val isCurrent = reg.id == s.region
-            val isHome = reg.id == s.homeRegion
-            if (isHome) { homeX = x; homeY = y; hasHome = true }
+            val hasOwnedHome = s.ownsHome(reg.id)
+            if (hasOwnedHome) ownedHomeMarks.add(x to y)
             if (isCurrent) { curX = x; curY = y; hasCur = true }
 
             if (visited && !isCurrent) {
@@ -1338,7 +1367,7 @@ class Hud(private val game: Game) {
                 c.drawCircle(x, y, dot * 0.68f, ink)
             }
 
-            if (showNames && (isCurrent || isHome)) {
+            if (showNames && (isCurrent || hasOwnedHome)) {
                 val nm = reg.name
                 val ip = Type.paintAt(8f, true, 0.01f, if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt())
                 val tw = ip.measureText(nm)
@@ -1372,7 +1401,7 @@ class Hud(private val game: Game) {
             c.drawCircle(curX - dp(0.45f), curY - dp(0.5f), dp(1.05f), fx)
         }
 
-        if (hasHome) {
+        for ((homeX, homeY) in ownedHomeMarks) {
             val hw = dp(7.2f)
             val above = if (hasCur && kotlin.math.abs(homeX - curX) < dp(4f) && kotlin.math.abs(homeY - curY) < dp(4f)) {
                 dot * 1.3f + dp(8f)

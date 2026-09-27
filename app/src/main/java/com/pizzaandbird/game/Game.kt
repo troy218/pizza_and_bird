@@ -105,6 +105,15 @@ class Game(val context: Context) {
     var worldScale = 1
         private set
 
+    /**
+     * 캐릭터·자전거를 HD 스프라이트로 그릴지.
+     *
+     * 월드가 2배 이상 슈퍼샘플이면 화면에 붙는 도트 하나가 2~3 기기 픽셀이라
+     * HD 그림을 원래 크기로 줄여 그려도 뭉개지지 않는다(디테일만 새로 보인다).
+     * 1배(저해상 기기 · 화질 1×)에서는 예전처럼 32px 도트를 그대로 쓴다.
+     */
+    val hdSprites: Boolean get() = worldScale >= 2
+
     var worldBitmap: Bitmap = Bitmap.createBitmap(virtW, virtH, Bitmap.Config.ARGB_8888)
         private set
     var worldCanvas = Canvas(worldBitmap)
@@ -127,12 +136,18 @@ class Game(val context: Context) {
     var scene: Scene = TitleScene(this)
     var transition: Transition? = null
 
+    /** 백그라운드 준비를 이미 요청한 장비 등급 (중복 요청 방지) */
+    private var warmedGearTier = -1
+
     var screenW = 0
     var screenH = 0
     var viewScale = 1f
     var viewOffX = 0f
     var viewOffY = 0f
     var time = 0f
+
+    /** 다음 장비 등급 준비 확인 타이머(초) */
+    private var warmCheck = 0f
 
     // 오버레이 등장 연출 (잠깐 입력을 막아 실수 입력을 방지하기도 한다)
     private var overlayAnimRef: Overlay? = null
@@ -154,14 +169,19 @@ class Game(val context: Context) {
 
     init {
         // 스프라이트 생성 비용을 부팅(백그라운드 스레드)에서 미리 치른다.
-        //  - 현재 캐릭터 동작 세트: 첫 프레임 렉 방지
-        //  - 양 성별 0티어: 캐릭터 선택 화면이 열리는 순간 다른 성별 세트(프레임 120장)를
-        //    만들며 얼던 것을 방지 — 카드 두 장(남/여 0티어)이 바로 움직인다.
+        //  - 현재 캐릭터 동작 세트(HD · 도트 두 벌): 첫 프레임 렉 방지
+        //  - 캐릭터 선택 카드(남/여): 카드가 열리는 순간 얼지 않게
+        //    (HD 세트를 통째로 만들면 프레임 176장 × 2 이라 무겁다 — 카드용은
+        //     정면 12프레임짜리 작은 세트를 따로 쓴다)
         val other = if (state.gender == "female") "male" else "female"
-        assets.playerSet(state.gender, state.gearTier())
-        assets.playerSet(other, state.gearTier())
-        assets.playerSet("male", 0)
-        assets.playerSet("female", 0)
+        assets.playerSet(state.gender, state.gearTier(), true)
+        assets.playerSet(state.gender, state.gearTier(), false)
+        assets.playerAvatarFrames(other, 0)
+        assets.playerAvatarFrames(state.gender, 0)
+        // 지금 타는 자전거 세트도 백그라운드에서 준비해 둔다 — 자전거를 처음 타는
+        // 순간(페달 첫 프레임)에 32프레임을 만들며 멈추지 않게.
+        warmNextGear()
+        assets.warmSprites { assets.bikeSet(state.gender, state.gearTier(), state.bikeStyle()) }
         // 타이틀/지역선택 화면의 새도 미리 만들어 둔다 — 598종 조류 데이터
         // 클래스 로딩까지 이 시점(백그라운드)에서 끝내 첫 프레임 히치를 없앤다.
         assets.bird("sparrow")
@@ -233,6 +253,27 @@ class Game(val context: Context) {
         old.recycle() // 설정/자동 조절 때 2K·4K 버퍼가 GC까지 중복 상주하지 않게 한다
         // 새 비트맵은 비어 있다 — 오버레이가 떠 있어도 이 프레임은 반드시 월드를 그린다
         worldStale = true
+    }
+
+    /**
+     * 다음 장비 등급(레벨 6·12·19·25)의 캐릭터 세트와 만세 동작을 **미리** 만들어 둔다.
+     *
+     * 레벨업 화면은 캐릭터를 가장 크게 띄우는 순간이라, 그때 처음 세트를 만들면
+     * 화면이 그대로 멈춘다(HD 한 벌 ≈ 0.2초). 다음 레벨에서 등급이 바뀌는 순간에
+     * 백그라운드로 준비해 두면 레벨업이 곧바로 뜬다.
+     */
+    private fun warmNextGear() {
+        val lv = state.level
+        if (lv >= Progression.MAX_LEVEL) return
+        val next = Progression.gearTier(lv + 1)
+        if (next == Progression.gearTier(lv) || next == warmedGearTier) return
+        warmedGearTier = next
+        val gender = state.gender
+        assets.warmSprites {
+            assets.playerSet(gender, next, true)
+            assets.playerSet(gender, next, false)
+        }
+        assets.warmSprites { assets.cheerFrames(gender, next) }
     }
 
     /** 화질 설정 변경 후 호출 — 배율/보간을 다시 적용한다 */
@@ -313,6 +354,12 @@ class Game(val context: Context) {
     @Synchronized
     fun update(dt: Float) {
         time += dt
+        // 다음 장비 등급 그림이 필요해지기 전에 미리 준비해 둔다 (1초에 한 번만 확인)
+        warmCheck -= dt
+        if (warmCheck <= 0f) {
+            warmCheck = 1f
+            warmNextGear()
+        }
         audio.update(dt)   // BGM/환경음 페이드 진행
         input.process()
         val tr = transition

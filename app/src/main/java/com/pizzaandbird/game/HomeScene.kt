@@ -14,10 +14,15 @@ import kotlin.math.sin
 
 /**
  * 우리 집 내부: 화덕(화덕피자 굽기), 가정용 오븐(일반 피자 굽기), 침대(수면), 이사 박스, 장식 칸.
+ *
+ * 매입한 집은 지역마다 다시 들어갈 수 있다. [enteredFromRegionId]는 이 실내에서
+ * 나갈 때 되돌아갈 지역이며, 저장 복원처럼 생략된 경우에는 마지막 월드 지역을 쓴다.
  */
-class HomeScene(game: Game) : Scene(game) {
+class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
 
     private val state = game.state
+    private var exitRegionId: String = (enteredFromRegionId ?: state.region)
+        .takeIf { state.ownsHome(it) } ?: state.homeRegion
     val map: GameMap = MapBuilder.buildHome()
     private val player = Player()
 
@@ -115,6 +120,9 @@ class HomeScene(game: Game) : Scene(game) {
     ) + decorSpots.map { (idx, dx0, dy0) -> Spot("decor", idx, dx0, dy0, 22f, 18f) }
 
     init {
+        // 실내에 머무르는 동안에도 저장에는 실제로 들어온 지역을 남긴다.
+        // 앱을 종료·복원하거나 현관으로 나갈 때 다른 정착지로 튀지 않는다.
+        state.region = exitRegionId
         state.inHome = true
         rig.snap(
             map.w * 8f, map.h * 8f, 1f,
@@ -236,10 +244,12 @@ class HomeScene(game: Game) : Scene(game) {
     }
 
     private fun exitHome() {
+        // 서울에 정착해 있어도 부산에 매입한 집에서 나왔다면 부산 현관 앞으로.
+        state.region = exitRegionId
         SaveManager.save(game.context, state)
         game.audio.stopSteps()
         game.fadeTo {
-            game.scene = WorldScene(game, state.homeRegion, SpawnKind.HOME)
+            game.scene = WorldScene(game, exitRegionId, SpawnKind.HOME)
         }
     }
 
@@ -460,6 +470,9 @@ class HomeScene(game: Game) : Scene(game) {
         s.ownedHomes.add(picked.id)
         s.homeRegion = picked.id
         s.region = picked.id
+        // 이사 직후에는 새로 고른 집의 실내에 있는 상태다. 현관을 나가면
+        // 이전에 들어온 지역이 아니라 새 정착지로 나가야 한다.
+        exitRegionId = picked.id
         if (picked.id !in s.visited) s.visited.add(picked.id)
         SaveManager.save(game.context, s)
         if (houseCost > 0) {
@@ -564,9 +577,10 @@ class HomeScene(game: Game) : Scene(game) {
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
-        val ps = a.playerSet(state.gender, state.gearTier())
+        val hd = game.hdSprites
+        val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 집 안에서도 카메라는 목에 걸고 다닌다
         val camDir = when (player.facing) {
             Dir.E -> 2
@@ -574,7 +588,7 @@ class HomeScene(game: Game) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, game.worldScale.toFloat())
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)

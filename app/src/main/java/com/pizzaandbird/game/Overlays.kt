@@ -860,14 +860,14 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val right = panelR.right - dp(scene, 16f)
         var ty = contentTop() + dp(scene, 6f)
 
-        // 레벨 / 칭호
+        // 레벨 / 칭호 — 아바타는 HD 세트(96px)를 32 도트 크기로 되돌려 그린다
         val a = g.assets
-        val ps = a.playerSet(s.gender, s.gearTier())
+        val ps = a.playerSet(s.gender, s.gearTier(), true)
         val avatar = ps.idle.frame(Dir.S, (g.time / Anim.IDLE.frameTime).toInt())
-        val ak = dp(scene, 2.2f)
-        c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
+        val ak = dp(scene, 2.2f) * CharacterArt.SIZE
+        a.drawPlayerIn(c, avatar, RectF(left, ty, left + ak, ty + ak))
 
-        val tx = left + avatar.width * ak + dp(scene, 12f)
+        val tx = left + ak + dp(scene, 12f)
         textP.textSize = textDp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("Lv.${s.level}  ${s.title()}", tx, ty + dp(scene, 16f), textP)
@@ -2473,7 +2473,11 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
     private var pageRects = ArrayList<Pair<RectF, Int>>()
     private var closeRect = RectF()
     private var panelR = RectF()
-    private val pixelPaint = Paint().apply { isAntiAlias = false; isFilterBitmap = false }
+    // 자전거 미리보기 — HD 스프라이트(96px)를 상점 칸 크기로 줄여 붙이므로 보간을 켠다
+    private val pixelPaint = Paint().apply { isAntiAlias = false; isFilterBitmap = true }
+
+    /** 월드용 자전거 세트를 마지막으로 배경 준비한 도색 조합 */
+    private var warmedBikeKey = ""
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
@@ -2642,10 +2646,13 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = dp(scene, if (equipped) 2.5f else 1.5f)
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
 
-            // 모델 미리보기 (현재 도색·부속품 그대로)
-            val set = g.assets.bikeSet(s.gender, s.gearTier(), s.bikeStyleOf(bike.id))
+            // 모델 미리보기 (현재 도색·부속품 그대로) — 옆모습 한 장만 그린다(HD)
             val iw = dp(scene, 44f)
-            c.drawBitmap(set.side[0], null, RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.left + dp(scene, 4f) + iw, r.top + dp(scene, 4f) + iw), pixelPaint)
+            c.drawBitmap(
+                g.assets.bikePreviewFrame(s.gender, s.gearTier(), s.bikeStyleOf(bike.id)), null,
+                RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.left + dp(scene, 4f) + iw, r.top + dp(scene, 4f) + iw),
+                pixelPaint
+            )
 
             textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
@@ -2692,12 +2699,23 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
         val s = g.state
         swatchRects = ArrayList()
 
-        // 큰 미리보기
-        val set = g.assets.bikeSet(s.gender, s.gearTier(), s.bikeStyle())
+        // 큰 미리보기 — 지금 고른 도색·부속품을 바로 보여 준다.
+        // (여기서도 한 장만 그린다. 타는 데 필요한 전체 세트는 배경에서 미리 만들어 둔다)
         val pv = dp(scene, 96f)
         val px = panelR.left + dp(scene, 20f)
         val py = panelR.top + dp(scene, 92f)
-        c.drawBitmap(set.side[0], null, RectF(px, py, px + pv, py + pv), pixelPaint)
+        c.drawBitmap(
+            g.assets.bikePreviewFrame(s.gender, s.gearTier(), s.bikeStyle()), null,
+            RectF(px, py, px + pv, py + pv), pixelPaint
+        )
+        // 도색을 바꾸면 월드에서 쓸 세트도 새로 필요하다 — 바뀐 순간에만 배경 준비를 건다
+        val warmKey = "${s.bikeFrameColor}|${s.bikeTireColor}|${s.bikeSaddleColor}|${s.bikeId}"
+        if (warmKey != warmedBikeKey) {
+            warmedBikeKey = warmKey
+            g.assets.warmSprites {
+                g.assets.bikeSet(s.gender, s.gearTier(), s.bikeStyle())
+            }
+        }
         textP.textSize = textDp(scene, 12.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText(s.bike().name, px + pv + dp(scene, 16f), py + dp(scene, 26f), textP)
@@ -3816,7 +3834,9 @@ class LevelUpOverlay(
         dim(c, scene, 150)
 
         val cw = minOf(w * 0.62f, dp(scene, 360f))
-        val chh = dp(scene, 244f)
+        // 높이는 캐릭터(32 도트 × 3.4dp)와 아래 3줄(레벨·칭호·숙련 포인트)에
+        // 장비 안내 한 줄까지 겹치지 않고 들어가는 값이다 (244dp 였을 때는 겹쳤다)
+        val chh = dp(scene, 268f)
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
@@ -3832,34 +3852,36 @@ class LevelUpOverlay(
 
         val a = g.assets
         // 레벨업 축하 — 폴짝폴짝 뛰며 만세!
+        // 여기는 캐릭터를 화면 가득(약 300px) 띄우는 순간이라 [CHEER_PX]=256px 로
+        // 따로 그려 둔 프레임을 쓴다 — "확대한 도트"가 아니라 진짜 그림이 된다.
         val cheer = a.cheerFrames(s.gender, s.gearTier())
         val bmp = cheer[(g.time / 0.1f).toInt() % cheer.size]
-        val k = dp(scene, 3.4f)
-        val bx = r.centerX() - bmp.width * k / 2f
+        val k = dp(scene, 3.4f) * CharacterArt.SIZE          // 32 도트 기준 크기(화면 px)
+        val bx = r.centerX() - k / 2f
         val by = r.top + dp(scene, 58f)
-        c.drawOval(RectF(bx + dp(scene, 6f), by + bmp.height * k - dp(scene, 4f), bx + bmp.width * k - dp(scene, 6f), by + bmp.height * k + dp(scene, 4f)), a.shadowPaint)
-        c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+        c.drawOval(RectF(bx + dp(scene, 6f), by + k - dp(scene, 4f), bx + k - dp(scene, 6f), by + k + dp(scene, 4f)), a.shadowPaint)
+        c.drawBitmap(bmp, null, RectF(bx, by, bx + k, by + k), a.sprPaint)
 
         textP.textSize = textDp(scene, 18f)
         textP.color = 0xFF4A3728.toInt()
         val lv = "Lv.$fromLevel  to  Lv.$toLevel"
-        c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + bmp.height * k + dp(scene, 26f), textP)
+        c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + k + dp(scene, 26f), textP)
 
         textP.textSize = textDp(scene, 13f)
         textP.color = 0xFF6FAE6F.toInt()
         val title = "「 ${Progression.title(toLevel)} 」"
-        c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + bmp.height * k + dp(scene, 46f), textP)
+        c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + k + dp(scene, 46f), textP)
 
         textP.textSize = textDp(scene, 11.5f)
         textP.color = 0xFF3F6FB0.toInt()
         val sp = "숙련 포인트 +${s.skillPoints}  (메뉴 › 성장 에서 능력 강화!)"
-        c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + bmp.height * k + dp(scene, 64f), textP)
+        c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + k + dp(scene, 64f), textP)
 
         if (Progression.gearTier(fromLevel) != Progression.gearTier(toLevel)) {
             textP.textSize = textDp(scene, 11f)
             textP.color = 0xFFB5651D.toInt()
             val gearMsg = "새 탐조 장비를 갖췄어요!"
-            c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 26f), textP)
+            c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 14f), textP)
         }
 
         textP.textSize = textDp(scene, 10f)
@@ -4226,8 +4248,6 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val showAllNames = scale > fitScale * 1.5f
         // 메인 퀘스트 자동 진행 — 추천 지역 위에 금색 ★ 표시
         val mainAdv = MainQuestAdvisor.advise(s)
-        // 현재 지역 출구 번호 — 지도에서 지하철 출입구처럼 표시
-        val currentExits = Regions.exitNumbered(s.region)
         for (reg in Regions.ALL) {
             val x = sx(reg.mmX)
             val y = sy(reg.mmY)
@@ -4237,7 +4257,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
             val visited = reg.id in s.visited
             val isCurrent = reg.id == s.region
-            val isHome = reg.id == s.homeRegion
+            val hasOwnedHome = s.ownsHome(reg.id)
             val r = dp(scene, if (isCurrent) 8f else 6f)
 
             if (isCurrent) {
@@ -4255,7 +4275,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = dp(scene, if (selected?.id == reg.id) 2.6f else 1.4f)
             c.drawCircle(x, y, r, strokeP)
 
-            if (isHome) {
+            if (hasOwnedHome) {
                 textP.textSize = textDp(scene, 11f)
                 textP.color = 0xFF4A3728.toInt()
                 UiKit.iconCenter(c, g, "house", x, y - r - dp(scene, 10f), dp(scene, 16f))
@@ -4272,41 +4292,9 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 UiKit.iconCenter(c, g, "star", x, y - r - dp(scene, 10f), dp(scene, 18f))
             }
 
-            // 현재 위치에서는 각 방향 출구 번호를 주변에 표시 — 지하철 출입구처럼
-            if (isCurrent) {
-                for (exit in currentExits) {
-                    val dirX = when (exit.dir) {
-                        Dir.N -> 0f
-                        Dir.S -> 0f
-                        Dir.E -> 1f
-                        Dir.W -> -1f
-                    }
-                    val dirY = when (exit.dir) {
-                        Dir.N -> -1f
-                        Dir.S -> 1f
-                        Dir.E -> 0f
-                        Dir.W -> 0f
-                    }
-                    val bx = x + dirX * dp(scene, 28f)
-                    val by = y + dirY * dp(scene, 28f)
+            // 출구 번호 뱃지는 링크(터널) 위에만 표시 — 현재 지역 점 주변(마을 중앙)에는 그리지 않는다
 
-                    // 번호 원
-                    fillP.color = Color.argb(40, 20, 14, 10)
-                    c.drawCircle(bx, by + dp(scene, 1f), dp(scene, 9f), fillP)
-                    fillP.color = 0xFFF2B63C.toInt()
-                    c.drawCircle(bx, by, dp(scene, 8f), fillP)
-                    strokeP.color = 0xFF4A2E12.toInt()
-                    strokeP.strokeWidth = dp(scene, 1.2f)
-                    c.drawCircle(bx, by, dp(scene, 8f), strokeP)
-
-                    textP.textSize = textDp(scene, 9f)
-                    textP.color = 0xFF4A2E12.toInt()
-                    val numTxt = exit.number.toString()
-                    c.drawText(numTxt, bx - textP.measureText(numTxt) / 2, by - (textP.descent() + textP.ascent()) / 2, textP)
-                }
-            }
-
-            if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
+            if (showAllNames || isCurrent || hasOwnedHome || reg.kind == RegionKind.TOWN) {
                 val nm = if (visited) reg.name else "? ${reg.name}"
                 textP.textSize = textDp(scene, if (isCurrent) 11.5f else 10.5f)
                 val tw = textP.measureText(nm)
@@ -4399,6 +4387,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val badgeTxt = when {
             reg.id == s.region -> "현재 위치"
             reg.id == s.homeRegion -> "우리 집"
+            s.ownsHome(reg.id) -> "보유한 집"
             reg.id in s.visited -> "방문함"
             else -> "미방문"
         }
@@ -4406,7 +4395,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val badgeW = textP.measureText(badgeTxt) + dp(scene, 12f)
         val badgeBg = when {
             reg.id == s.region -> 0xFFE2574C.toInt()
-            reg.id == s.homeRegion -> 0xFF6FBA6B.toInt()
+            reg.id == s.homeRegion || s.ownsHome(reg.id) -> 0xFF6FBA6B.toInt()
             reg.id in s.visited -> 0xFF3F6FB0.toInt()
             else -> 0xFF9AA0A8.toInt()
         }

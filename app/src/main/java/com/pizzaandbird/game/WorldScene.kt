@@ -36,7 +36,9 @@ class WorldScene(
 
     private val state = game.state
     val region: RegionDef = Regions.byId[regionId] ?: Regions.ALL.first()
-    val map: GameMap = MapBuilder.build(region, state.homeRegion)
+    // 매입한 지역마다 현관을 남긴다. homeRegion은 현재 정착지일 뿐,
+    // ownedHomes에 있는 이전 집도 여행 중 다시 들어갈 수 있어야 한다.
+    val map: GameMap = MapBuilder.build(region, state.homeRegion, state.ownedHomes)
     private val grass = GrassField(map)
     private val player = Player()
     private val birds = ArrayList<FieldBird>()
@@ -823,13 +825,15 @@ class WorldScene(
         }
     }
 
+    /** 이 지역의 매입한 집으로 들어간다. 나올 때도 같은 지역 현관 앞으로 돌아온다. */
     private fun enterHome() {
         state.px = player.x
         state.py = player.y
+        state.region = region.id
         SaveManager.save(game.context, state)
         game.audio.stopSteps()
         game.fadeTo {
-            game.scene = HomeScene(game)
+            game.scene = HomeScene(game, region.id)
         }
     }
 
@@ -1888,6 +1892,86 @@ class WorldScene(
         )
     }
 
+    /**
+     * 진행 중 의뢰 칩(HUD 좌상단)을 눌러 의뢰 내용을 다시 읽어 본다.
+     * 보상 지급·수락 없이 열람만 한다. 칩 표시 우선순위(의뢰 게시판 → 서브 사진 → 메인)를 그대로 따른다.
+     */
+    private fun showQuestLog() {
+        if (photoMode) return
+        // 1) 진행 중인 탐조 의뢰(게시판) — 칩이 가장 먼저 보여 주는 내용
+        val active = state.activeQuests
+        if (active.isNotEmpty()) {
+            val body = active.joinToString("\n\n") { q ->
+                "[${q.category.label}] ${q.title} (${q.progressText})\n${q.description}\n" +
+                    "보상 ${won(q.rewardMoney)} · 경험치 +${q.rewardExp}" +
+                    if (q.rewardLuck > 0) " · 행운 +${q.rewardLuck}" else ""
+            }
+            openOverlay(
+                DialogOverlay(
+                    this, "진행 중인 탐조 의뢰 (${active.size}/3)",
+                    body,
+                    listOf(DialogOverlay.Choice("계속할게요"))
+                )
+            )
+            return
+        }
+        val questBird = state.questBird
+        if (questBird != null) {
+            val def = Birds.byId[questBird]
+            openOverlay(
+                DialogOverlay(
+                    this, "진행 중인 사진 의뢰",
+                    "\"${def?.name ?: "그 새"} 사진을 찍어 오게.\n보수는 ${won(state.questReward)}일세.\"\n\n" +
+                        "메인 이야기와는 별개의 의뢰예요. 시간 제한은 없으니 원하는 때에 담아 오면 됩니다.",
+                    listOf(DialogOverlay.Choice("계속할게요"))
+                )
+            )
+            return
+        }
+        if (state.mainQuestFinished) {
+            openOverlay(
+                DialogOverlay(
+                    this, "메인 이야기 (완료)",
+                    "‘함께 사는 새 지도’를 모두 완성했어요. 이제 사진 의뢰와 도장 깨기를 자유롭게 즐겨 보세요.",
+                    listOf(DialogOverlay.Choice("좋아요"))
+                )
+            )
+            return
+        }
+        if (!state.mainQuestStarted) {
+            openOverlay(
+                DialogOverlay(
+                    this, "메인 이야기 시작",
+                    "${NpcRoster.professorRegionName}의 보리 박사를 찾아가 낡은 탐조 수첩 이야기를 들어보세요.",
+                    listOf(DialogOverlay.Choice("알겠어요"))
+                )
+            )
+            return
+        }
+        val chapter = MainStory.current(state) ?: return
+        val objective = chapter.objective(state)
+        val ready = chapter.isComplete(state)
+        val advice = MainQuestAdvisor.advise(state)
+        val adviceLine = advice?.let { adv ->
+            if (adv.alreadyThere) "\n${adv.tip}" else "\n추천 장소: ${adv.regionName}"
+        } ?: ""
+        openOverlay(
+            DialogOverlay(
+                this, chapter.title,
+                "\"${chapter.intro}\"\n\n목표: $objective" +
+                    (if (ready) "\n기록을 정리할 준비가 됐어요. 보리 박사를 찾아가 보고하세요." else "") + adviceLine,
+                buildList {
+                    advice?.let { adv ->
+                        if (!adv.alreadyThere && adv.regionId != state.region) {
+                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
+                        }
+                    }
+                    add(DialogOverlay.Choice("닫기"))
+                }
+            )
+        )
+    }
+
     /** 다양한 퀘스트 종류(지정 촬영, 서식지 탐사, 3성 촬영, 야간 탐조 등)를 선택할 수 있는 탐조 의뢰 게시판 */
     private fun showSideQuest() {
         QuestManager.ensureDailyQuests(state)
@@ -2020,6 +2104,10 @@ class WorldScene(
         }
         if (input.justMap) {
             openOverlay(MapOverlay(this))
+            return
+        }
+        if (input.justQuest) {
+            showQuestLog()
             return
         }
         if (input.justEat) {
@@ -2264,7 +2352,6 @@ class WorldScene(
         drawCatOverlays(c)
         drawImpact(c)
         drawTunnelOverlays(c)
-        drawExitHints(c)
         c.restore()
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
@@ -2322,10 +2409,8 @@ class WorldScene(
             val gy = (ghostY[idx] - camY) * WORLD_SCALE
             val alpha = ((78 - i * 26) * k).toInt().coerceIn(0, 255)
             if (alpha <= 3) continue
-            a.sprPaint.alpha = alpha
-            c.drawBitmap(bmp, gx, gy, a.sprPaint)
+            a.drawPlayer(c, bmp, gx, gy, game.worldScale.toFloat(), alpha)
         }
-        a.sprPaint.alpha = 255
     }
 
     private fun sortY(e: Any): Float = when (e) {
@@ -2341,12 +2426,12 @@ class WorldScene(
         when (e) {
             is Npc -> {
                 // 사람마다 옷차림이 다르고, 대기 동작 위상도 어긋나게 한다
-                val bmp = a.npcBitmap(e.person, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
+                val bmp = a.npcBitmap(e.person, game.time, e.tileX * 0.37f + e.tileY * 0.71f, game.hdSprites)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE
                 scratchRect.set(sx + 8f, sy + 26f, sx + 24f, sy + 32f)
                 c.drawOval(scratchRect, a.shadowPaint)
-                c.drawBitmap(bmp, sx, sy, a.sprPaint)
+                a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
                 // 메인 보고 가능 또는 새 서브 의뢰가 있으면 느낌표 표시
                 if (e.kind == NpcKind.PROFESSOR) {
                     val mainReady = !state.mainQuestFinished &&
@@ -2458,9 +2543,10 @@ class WorldScene(
             }
             is Player -> {
                 val punching = punchT > 0f && !player.bike
-                val set = a.playerSet(state.gender, state.gearTier())
+                val hd = game.hdSprites
+                val set = a.playerSet(state.gender, state.gearTier(), hd)
                 val bmp: android.graphics.Bitmap = if (player.bike) {
-                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal, state.bikeStyle())
+                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal, state.bikeStyle(), hd)
                 } else if (punching) {
                     val frame = ((punchT / PUNCH_DUR) * set.punch.count).toInt().coerceIn(0, set.punch.count - 1)
                     set.punch.frame(punchDir, frame)
@@ -2487,7 +2573,7 @@ class WorldScene(
                 scratchRect.set(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k)
                 c.drawOval(scratchRect, a.shadowPaint)
                 drawGhosts(c, bmp)
-                c.drawBitmap(bmp, sx, sy, a.sprPaint)
+                a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
                 if (punchT > 0f) drawPunchFist(c, sx, sy)
 
                 // 장착한 카메라를 몸에 겹쳐 그린다 (촬영 모드면 눈높이로 들어올린다)
@@ -2510,7 +2596,7 @@ class WorldScene(
                     }
                     val lift = if (raised) -1f else 0f
                     val ride = if (player.bike) 1.5f else 0f
-                    c.drawBitmap(a.camHeld(look, camDir, raised), sx, sy + bob + lift + ride, a.sprPaint)
+                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, sy + bob + lift + ride, game.worldScale.toFloat())
 
                     // 촬영 모드: 렌즈 앞알이 반짝인다
                     if (raised && camDir != 1) {
@@ -2965,38 +3051,6 @@ class WorldScene(
                 scratchRect.set(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f)
                 c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
                 c.drawText(label, badgeCx - lw / 2, scratchRect.centerY() - (lp.descent() + lp.ascent()) / 2f, lp)
-            }
-        }
-    }
-
-    /** 광장 근처에서만 전체 출구 안내판 표시 (캐릭터 옆 터널 방향 힌트는 띄우지 않는다) */
-    private fun drawExitHints(c: Canvas) {
-        if (map.tunnels.isEmpty()) return
-        // 광장 근처에서는 전체 출구 안내판 (지하철 출입구 종합 안내처럼)
-        val plazaCx = 21f * 16f + 8f
-        val plazaCy = 15f * 16f + 8f
-        val distPlaza = hypot(player.cx - plazaCx, player.cy - plazaCy)
-        if (distPlaza < 140f) {
-            val sx = (plazaCx - camX) * WORLD_SCALE + 16f
-            val sy = (plazaCy - camY) * WORLD_SCALE - 42f
-            var curY = sy
-            for (tunnel in map.tunnels) {
-                val target = Regions.byId[tunnel.targetId] ?: continue
-                val dirArrow = Regions.dirArrow(tunnel.dir)
-                val dirLabel = Regions.dirLabel(tunnel.dir)
-                val line = "${tunnel.number} $dirArrow $dirLabel -> ${target.name}"
-                val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
-                val lw = lp.measureText(line)
-                uiFill.color = Color.argb(210, 58, 52, 74)
-                scratchRect.set(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f)
-                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
-                bubbleFill.color = 0xFFF2B63C.toInt()
-                c.drawCircle(sx - lw / 2 - 4f, curY - 5f, 8f, bubbleFill)
-                val np = Type.paintPx(9f, true, 0.02f, 0xFF4A2E12.toInt())
-                val nt = tunnel.number.toString()
-                c.drawText(nt, sx - lw / 2 - 4f - np.measureText(nt) / 2, curY - 1.5f, np)
-                c.drawText(line, sx - lw / 2 + 10f, curY, lp)
-                curY += 18f
             }
         }
     }
