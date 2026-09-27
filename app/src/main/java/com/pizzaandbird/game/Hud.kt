@@ -269,10 +269,12 @@ class Hud(private val game: Game) {
         c.drawRoundRect(RectF(x, y, x + w, y + h), h / 2, h / 2, stroke)
     }
 
-    private fun drawChip(c: Canvas, cx: Float, cy: Float, txt: String) {
+    private fun drawChip(c: Canvas, cx0: Float, cy: Float, txt: String) {
         text.textSize = dp(12f)
         val tw = text.measureText(txt)
         val pad = dp(8f)
+        // 긴 라벨(지역명 · 날씨)이 화면 오른쪽 밖으로 나가지 않게 가운데 좌표를 당긴다
+        val cx = minOf(cx0, game.screenW - dp(8f) - tw / 2 - pad)
         val r = RectF(cx - tw / 2 - pad, cy - dp(12f), cx + tw / 2 + pad, cy + dp(12f))
         fill.color = Color.argb(200, 58, 52, 74)
         c.drawRoundRect(r, dp(12f), dp(12f), fill)
