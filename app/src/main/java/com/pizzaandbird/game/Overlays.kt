@@ -51,6 +51,21 @@ private fun drawFitText(c: Canvas, scene: Scene, text: String, x: Float, y: Floa
     c.drawText(text, x, y, textP)
 }
 
+/** 조리기구 일러스트 — 화덕은 SVG, 가정용 오븐은 타일 아트(RANGE, 불빛 깜빡임) */
+private fun drawStationArt(c: Canvas, scene: Scene, kind: PizzaKind, bounds: RectF) {
+    val g = scene.game
+    if (kind == PizzaKind.OVEN) {
+        g.illustrations.draw(c, "wood_fired_oven.svg", bounds)
+    } else {
+        val a = g.assets
+        val frames = a.tiles[T.RANGE.ordinal]
+        val bmp = frames[((g.time * 3.4f).toInt() % frames.size + frames.size) % frames.size]
+        val sz = minOf(bounds.width(), bounds.height())
+        val dst = RectF(bounds.centerX() - sz / 2f, bounds.centerY() - sz / 2f, bounds.centerX() + sz / 2f, bounds.centerY() + sz / 2f)
+        c.drawBitmap(bmp, null, dst, a.sprPaint)
+    }
+}
+
 /** 공통 버튼 그리기/등록 */
 private fun drawButton(
     c: Canvas, scene: Scene, r: RectF, label: String,
@@ -458,9 +473,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val x = panelR.left + dp(scene, 18f)
         val innerW = panelR.width() - dp(scene, 36f)
 
-        // 계열 서브탭: 🔥 화덕피자 / 🍕 일반 피자
+        // 계열 서브탭: 🔥 화덕피자 / 🍕 일반 피자 (오른쪽엔 선택한 계열의 조리기구 일러스트)
+        val artW = dp(scene, 56f)
         val kinds = PizzaKind.values()
-        val stW = (innerW - dp(scene, 8f) * (kinds.size - 1)) / kinds.size
+        val stW = (innerW - artW - dp(scene, 8f) * (kinds.size - 1)) / kinds.size
         for ((i, k) in kinds.withIndex()) {
             val r = RectF(x + i * (stW + dp(scene, 8f)), ty, x + i * (stW + dp(scene, 8f)) + stW, ty + dp(scene, 26f))
             val sel = k == pizzaKindTab
@@ -481,9 +497,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         ty += dp(scene, 34f)
 
         val kind = pizzaKindTab
+        drawStationArt(c, scene, kind, RectF(x + innerW - dp(scene, 48f), ty - dp(scene, 38f), x + innerW, ty + dp(scene, 10f)))
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF8A7360.toInt()
-        drawFitText(c, scene, "${kind.station}에서 구워요 · ${kind.desc}  (가방 ${s.pizzaCount}/${s.pizzaCapEff()}개)", x, ty + dp(scene, 4f), innerW, 10.5f)
+        drawFitText(c, scene, "${kind.station}에서 구워요 · ${kind.desc}  (가방 ${s.pizzaCount}/${s.pizzaCapEff()}개)", x, ty + dp(scene, 4f), innerW - artW, 10.5f)
         ty += dp(scene, 14f)
 
         // 2열 그리드 카드
@@ -1078,6 +1095,7 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
         panel(c, r, scene)
 
         val a = g.assets
+        drawStationArt(c, scene, kind, RectF(r.right - dp(scene, 52f), r.top + dp(scene, 3f), r.right - dp(scene, 8f), r.top + dp(scene, 45f)))
 
         when (step) {
             0 -> {

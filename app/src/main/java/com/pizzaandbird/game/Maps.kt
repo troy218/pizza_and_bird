@@ -142,7 +142,7 @@ class GameMap(
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
      * 레이어 순서: 지면 -> 포장(오토타일) -> 데칼 -> 구조물/소품 -> 접지 그림자.
-     * 물/화덕/오븐은 애니메이션, 물가에는 거품이 인다.
+     * 물과 가정용 오븐(RANGE)은 애니메이션, 집 화덕은 HomeScene의 SVG 일러스트로 렌더링하며 물가에는 거품이 인다.
      */
     fun draw(c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float) {
         val x0 = (camX / 32f).toInt().coerceAtLeast(0)
@@ -150,7 +150,7 @@ class GameMap(
         val x1 = ((camX + vw) / 32f).toInt().coerceAtMost(w - 1)
         val y1 = ((camY + vh) / 32f).toInt().coerceAtMost(h - 1)
         val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
-        val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2
+        val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2      // 가정용 오븐 불빛 깜빡임
 
         for (y in y0..y1) {
             for (x in x0..x1) {
@@ -161,7 +161,7 @@ class GameMap(
                 val pv = paving[y][x]
 
                 // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-                if (pv != Pave.NONE || tile.ground || tile.prop) {
+                if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
                     val gv = ground[y][x]
                     val gTile = T.ALL[gv]
                     val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
@@ -190,8 +190,8 @@ class GameMap(
                 else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
 
                 // 4) 구조물 / 소품
-                if (!tile.ground) {
-                    val bmp = if (tile == T.OVEN || tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
+                if (!tile.ground && tile != T.OVEN) {
+                    val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
                     else a.tiles[tv][a.tileVariant(tv, x, y)]
                     c.drawBitmap(bmp, fx, fy, a.sprPaint)
                 }
