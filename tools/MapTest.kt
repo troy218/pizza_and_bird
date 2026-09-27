@@ -60,15 +60,21 @@ fun main() {
         for (r in Regions.ALL) {
             val map = MapBuilder.build(r, home.id)
 
-            // 스폰 위치가 막히지 않았는지 (터널 스폰은 실제 출구 방향만, HOME 스폰은 홈 지역만)
+            check(map.w == 80 && map.h == 60, "지역 맵 크기 오류 ${r.id}: ${map.w}x${map.h}")
+            val centerX = map.w / 2
+            val centerY = map.h / 2
+
+            // 모든 진입점이 확장된 맵의 중앙 도로와 일치해야 한다.
             val spawns = ArrayList<Pair<String, Pair<Float, Float>>>()
-            if (r.id == home.id) spawns.add("HOME" to (376f to 12.2f * 16f))
+            if (r.id == home.id) {
+                spawns.add("HOME" to (((map.w / 2f + 1f) * 16f) to ((map.h / 2f - 3f) * 16f)))
+            }
             for (d in Regions.exits(r.id).keys) {
                 when (d) {
-                    Dir.N -> spawns.add("N" to (312f to 3f * 16f))
-                    Dir.S -> spawns.add("S" to (312f to (map.h - 4f) * 16f))
-                    Dir.W -> spawns.add("W" to (3f * 16f to 15.5f * 16f))
-                    Dir.E -> spawns.add("E" to ((map.w - 4f) * 16f to 15.5f * 16f))
+                    Dir.N -> spawns.add("N" to (((map.w / 2f - 0.5f) * 16f) to 3f * 16f))
+                    Dir.S -> spawns.add("S" to (((map.w / 2f - 0.5f) * 16f) to (map.h - 4f) * 16f))
+                    Dir.W -> spawns.add("W" to (3f * 16f to ((map.h / 2f - 0.5f) * 16f)))
+                    Dir.E -> spawns.add("E" to ((map.w - 4f) * 16f to ((map.h / 2f - 0.5f) * 16f)))
                 }
             }
             for ((name, sp) in spawns) {
@@ -85,21 +91,21 @@ fun main() {
             // 터널 타일 & 플라자까지 경로
             for ((d, _) in Regions.exits(r.id)) {
                 val tunnelTiles = when (d) {
-                    Dir.N -> listOf(19 to 0, 20 to 0)
-                    Dir.S -> listOf(19 to map.h - 1, 20 to map.h - 1)
-                    Dir.W -> listOf(0 to 15, 0 to 16)
-                    Dir.E -> listOf(map.w - 1 to 15, map.w - 1 to 16)
+                    Dir.N -> listOf(centerX - 1 to 0, centerX to 0)
+                    Dir.S -> listOf(centerX - 1 to map.h - 1, centerX to map.h - 1)
+                    Dir.W -> listOf(0 to centerY - 1, 0 to centerY)
+                    Dir.E -> listOf(map.w - 1 to centerY - 1, map.w - 1 to centerY)
                 }
                 for ((tx, ty) in tunnelTiles) {
                     check(map.t(tx, ty) == T.TUNNEL, "터널 타일 아님 ${r.id} $d ($tx,$ty)=${map.t(tx, ty)}")
                 }
                 val start = when (d) {
-                    Dir.N -> 19 to 1
-                    Dir.S -> 19 to (map.h - 2)
-                    Dir.W -> 1 to 15
-                    Dir.E -> (map.w - 2) to 15
+                    Dir.N -> centerX - 1 to 1
+                    Dir.S -> centerX - 1 to (map.h - 2)
+                    Dir.W -> 1 to centerY - 1
+                    Dir.E -> (map.w - 2) to centerY - 1
                 }
-                check(reach(map, start.first, start.second, 20, 15), "터널->플라자 경로 없음 ${r.id} $d")
+                check(reach(map, start.first, start.second, centerX, centerY), "터널->플라자 경로 없음 ${r.id} $d")
             }
 
             // 홈 지역: 집 문 & 경로
@@ -107,8 +113,8 @@ fun main() {
                 check(map.hasHouse, "집 없음 ${r.id}")
                 check(map.t(map.houseDoorX, map.houseDoorY) == T.HOUSE_DOOR, "집 문 오류 ${r.id}")
                 check(map.t(map.houseDoorX, map.houseDoorY + 1) == T.PLAZA, "집 문 아래가 플라자 아님 ${r.id} = ${map.t(map.houseDoorX, map.houseDoorY + 1)}")
-                check(!map.solidTile(20, 12), "세로길 상단 막힘 ${r.id} (20,12)=${map.t(20, 12)}")
-                check(reach(map, 19, 2, 20, 15), "북쪽 터널->플라자 경로 (집 배치 후) ${r.id}")
+                check(!map.solidTile(centerX, centerY - 3), "세로길 상단 막힘 ${r.id}")
+                check(reach(map, centerX - 1, 2, centerX, centerY), "북쪽 터널->플라자 경로 (집 배치 후) ${r.id}")
             } else {
                 check(!map.hasHouse, "집 있으면 안 됨 ${r.id} (홈=${home.id})")
             }
@@ -135,16 +141,25 @@ fun main() {
 
     // 4. 집 내부
     val hm = MapBuilder.buildHome()
-    check(!hm.solidBox(100f, 96f), "집 스폰 막힘")
-    check(hm.t(6, 8) == T.HOUSE_DOOR, "집 현관문 오류 (6,8)=${hm.t(6, 8)}")
-    check(reach(hm, 6, 7, 6, 6), "집 내부 이동 불가")
-    check(!hm.solidTile(9, 4) && !hm.solidTile(10, 4), "화덕 앞 막힘")
-    check(!hm.solidTile(2, 3) && !hm.solidTile(3, 3), "침대 앞 막힘")
-    check(!hm.solidTile(2, 5), "박스 앞 막힘")
-    check(hm.t(9, 2) == T.OVEN, "화덕 위치 오류")
-    check(hm.t(2, 2) == T.BED, "침대 위치 오류")
+    check(hm.w == 19 && hm.h == 13, "집 내부 크기 오류 ${hm.w}x${hm.h}")
+    check(!hm.solidBox(9 * 16f + 4f, 8 * 16f), "집 스폰 막힘")
+    check(hm.t(hm.houseDoorX, hm.houseDoorY) == T.HOUSE_DOOR, "집 현관문 오류")
+    check(reach(hm, 9, 11, 9, 10), "집 내부 이동 불가")
+    check(!hm.solidTile(12, 6) && !hm.solidTile(13, 6), "화덕 앞 막힘")
+    check(!hm.solidTile(5, 5) && !hm.solidTile(6, 5), "침대 앞 막힘")
+    check(!hm.solidTile(5, 9), "박스 앞 막힘")
+    check(hm.t(12, 4) == T.OVEN, "화덕 위치 오류")
+    check(hm.t(5, 4) == T.BED, "침대 위치 오류")
 
-    // 5. 게임 상태 로직
+    // 5. 실제 이동 거리 기반 보행 리듬
+    val walker = Player().apply { moving = true }
+    walker.advanceGait(5.5f)
+    check(walker.gaitFrame == 1 && walker.bodyLift > 1f, "걷기 보행 프레임/바운스 오류")
+    check(walker.advanceGait(5.5f) == 1, "발걸음 간격 이벤트 오류")
+    walker.moving = false
+    check(walker.bodyLift == 0f, "정지 상태에서 걷기 바운스 유지됨")
+
+    // 6. 게임 상태 로직
     val gs = GameState()
     gs.reset("jeju")
     check(gs.started && gs.homeRegion == "jeju" && "jeju" in gs.visited, "reset 오류")
@@ -157,7 +172,7 @@ fun main() {
     check(eaten != null && eaten.hunger == 60, "피자 먹기 오류")
     check(gs.money == 0, "초기 돈 오류")
 
-    // 6. JSON 직렬화 왕복 (org.json은 Android 런타임 필요 — 여기선 미실행)
+    // 7. JSON 직렬화 왕복 (org.json은 Android 런타임 필요 — 여기선 미실행)
 
     println(if (fails == 0) "OK: 모든 맵/로직 테스트 통과! (지역 9 x 홈 9 = 81개 맵 조합)" else "FAILURES: ${fails}건")
     if (fails > 0) kotlin.system.exitProcess(1)

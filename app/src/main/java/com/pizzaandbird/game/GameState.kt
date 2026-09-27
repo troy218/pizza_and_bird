@@ -136,6 +136,36 @@ class GameState {
             if (vs != null) {
                 for (i in 0 until vs.length()) s.visited.add(vs.optString(i))
             }
+
+            // Treat saved data as untrusted input: older, partial, or edited saves
+            // should never put the game into an impossible state or crash a scene.
+            s.money = s.money.coerceAtLeast(0)
+            s.hunger = s.hunger.takeIf { it.isFinite() }?.coerceIn(0f, 100f) ?: 100f
+            s.luck = s.luck.takeIf { it.isFinite() }?.coerceIn(0f, 100f) ?: 50f
+            s.cameraLevel = s.cameraLevel.coerceIn(1, CameraDefs.LEVELS.size)
+            s.playSeconds = s.playSeconds.takeIf { it.isFinite() && it >= 0f } ?: 0f
+            s.px = s.px.takeIf { it.isFinite() } ?: 0f
+            s.py = s.py.takeIf { it.isFinite() } ?: 0f
+            s.homeRegion = s.homeRegion.takeIf { it in Regions.byId } ?: "seoul"
+            s.region = s.region.takeIf { it in Regions.byId } ?: s.homeRegion
+            var remainingPizza = PIZZA_CAP
+            for (i in s.pizzas.indices) {
+                s.pizzas[i] = s.pizzas[i].coerceIn(0, remainingPizza)
+                remainingPizza -= s.pizzas[i]
+            }
+            val validCounts = s.birdCounts.filter { (id, count) -> id in Birds.byId && count > 0 }
+            s.birdCounts.clear()
+            s.birdCounts.putAll(validCounts)
+            s.visited.retainAll(Regions.byId.keys)
+            if (s.started) s.visited.add(s.homeRegion)
+            val questId = s.questBird
+            if (questId == null || questId !in Birds.byId) {
+                s.questBird = null
+                s.questReward = 0
+            } else {
+                s.questReward = s.questReward.coerceAtLeast(0)
+            }
+            if (!s.started) s.inHome = false
             return s
         }
     }

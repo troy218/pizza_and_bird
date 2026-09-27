@@ -225,55 +225,55 @@ object Regions {
             "seoul", "서울", "Seoul", setOf("city", "water", "field"),
             "한강이 흐르는 도시. 강가를 걷다 보면 물새들과 마주친다.",
             "서울은 넓어요. 강변을 따라 자전거를 타면 기분이 좋아져요.",
-            40, 30, emptySet(), emptySet(), 0.06, 0.02, 0.07, true, false, -0.05f, -0.30f
+            80, 60, emptySet(), emptySet(), 0.06, 0.02, 0.07, true, false, -0.05f, -0.30f
         ),
         RegionDef(
             "incheon", "인천", "Incheon", setOf("city", "coast", "water", "wetland"),
             "서해의 갯벌과 갈대밭. 철새들이 머무는 쉼터다.",
             "썰물 때 갯벌에 새들이 잔뜩 내려앉아요. 셔터를 준비하세요!",
-            40, 30, setOf(Dir.W), setOf(Dir.W), 0.05, 0.02, 0.06, true, false, -0.25f, -0.32f
+            80, 60, setOf(Dir.W), setOf(Dir.W), 0.05, 0.02, 0.06, true, false, -0.25f, -0.32f
         ),
         RegionDef(
             "chuncheon", "춘천", "Chuncheon", setOf("water", "wetland", "forest"),
             "호수의 도시. 맑은 물 위에 물새들이 한가로이 떠 있다.",
             "춘천엔 호수가 많아요. 물새 구경엔 여기만 한 곳이 없죠.",
-            40, 30, emptySet(), emptySet(), 0.10, 0.02, 0.06, false, true, 0.22f, -0.42f
+            80, 60, emptySet(), emptySet(), 0.10, 0.02, 0.06, false, true, 0.22f, -0.42f
         ),
         RegionDef(
             "gangneung", "강릉", "Gangneung", setOf("coast", "forest", "city"),
             "푸른 동해와 소나무 숲. 커피와 파도 소리의 도시.",
             "바닷바람에 소나무가 살랑살랑. 숲에도 새가 많아요.",
-            40, 30, setOf(Dir.E), setOf(Dir.E), 0.09, 0.02, 0.06, true, false, 0.48f, -0.28f
+            80, 60, setOf(Dir.E), setOf(Dir.E), 0.09, 0.02, 0.06, true, false, 0.48f, -0.28f
         ),
         RegionDef(
             "sokcho", "속초", "Sokcho", setOf("mountain", "forest", "coast"),
             "설악산과 동해가 만나는 곳. 산새의 천국.",
             "설악산 새소리는 약이에요. 등산 삼아 새 구경 어때요?",
-            40, 30, setOf(Dir.E), setOf(Dir.E), 0.13, 0.09, 0.05, false, false, 0.55f, -0.50f
+            80, 60, setOf(Dir.E), setOf(Dir.E), 0.13, 0.09, 0.05, false, false, 0.55f, -0.50f
         ),
         RegionDef(
             "daejeon", "대전", "Daejeon", setOf("city", "field", "forest"),
             "한반도의 한가운데. 어디로 떠나기 좋은 교통 요지.",
             "대전에서라면 어느 지역이든 하루면 다녀올 수 있어요.",
-            40, 30, emptySet(), emptySet(), 0.07, 0.02, 0.06, true, false, -0.02f, 0.02f
+            80, 60, emptySet(), emptySet(), 0.07, 0.02, 0.06, true, false, -0.02f, 0.02f
         ),
         RegionDef(
             "gwangju", "광주", "Gwangju", setOf("city", "forest", "wetland"),
             "산과 습지가 가까운 예술의 고장.",
             "남쪽은 새도 색이 곱지 뭐예요. 팔색조를 기대해 보세요.",
-            40, 30, emptySet(), emptySet(), 0.08, 0.02, 0.06, true, true, -0.30f, 0.18f
+            80, 60, emptySet(), emptySet(), 0.08, 0.02, 0.06, true, true, -0.30f, 0.18f
         ),
         RegionDef(
             "busan", "부산", "Busan", setOf("coast", "water", "mountain", "city"),
             "해운대와 낙동강 하구. 철새 여행의 끝자락.",
             "남쪽엔 해저 터널이 하나 있어요. 무모한 자전거 여행자를 위해서죠!",
-            40, 30, setOf(Dir.E, Dir.S), setOf(Dir.E, Dir.S), 0.06, 0.05, 0.05, true, false, 0.62f, 0.10f
+            80, 60, setOf(Dir.E, Dir.S), setOf(Dir.E, Dir.S), 0.06, 0.05, 0.05, true, false, 0.62f, 0.10f
         ),
         RegionDef(
             "jeju", "제주", "Jeju", setOf("coast", "mountain", "forest", "wetland"),
             "바람의 섬, 오름의 섬. 귀한 새들이 머무는 곳.",
             "제주엔 없는 게 없어요. 돌하르방처럼 어여쁜 새들도요.",
-            40, 30, setOf(Dir.S, Dir.E, Dir.W), setOf(Dir.S, Dir.E, Dir.W), 0.07, 0.12, 0.05, false, false, -0.12f, 0.48f
+            80, 60, setOf(Dir.S, Dir.E, Dir.W), setOf(Dir.S, Dir.E, Dir.W), 0.07, 0.12, 0.05, false, false, -0.12f, 0.48f
         )
     )
 

@@ -2,6 +2,8 @@ package com.pizzaandbird.game
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import kotlin.math.hypot
 import kotlin.math.sin
 
@@ -13,6 +15,15 @@ class HomeScene(game: Game) : Scene(game) {
     private val state = game.state
     val map: GameMap = MapBuilder.buildHome()
     private val player = Player()
+    private val ovenGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val cx = 12.5f * 16f + (game.virtW - map.w * 16f) / 2f
+        val cy = 5f * 16f + (game.virtH - map.h * 16f) / 2f
+        shader = RadialGradient(
+            cx, cy, 70f,
+            intArrayOf(0x38FF9B45, 0x1AFF9B45, 0x00FF9B45),
+            floatArrayOf(0f, 0.56f, 1f), Shader.TileMode.CLAMP
+        )
+    }
 
     private var camX = 0f
     private var camY = 0f
@@ -29,21 +40,21 @@ class HomeScene(game: Game) : Scene(game) {
     }
 
     // 상호작용 대상 위치 (월드 px)
-    private val ovenX = 10f * 16f
-    private val ovenY = 4f * 16f
-    private val bedX = 3f * 16f
-    private val bedY = 3f * 16f
-    private val boxX = 2.5f * 16f
-    private val boxY = 6.5f * 16f
+    private val ovenX = 12.5f * 16f
+    private val ovenY = 5f * 16f
+    private val bedX = 5.5f * 16f
+    private val bedY = 4f * 16f
+    private val boxX = 5.5f * 16f
+    private val boxY = 8f * 16f
     private val decorSpots = listOf(
-        5.5f * 16f to 3f * 16f,
-        7.5f * 16f to 3f * 16f,
-        11.5f * 16f to 6f * 16f
+        8.5f * 16f to 4f * 16f,
+        10.5f * 16f to 4f * 16f,
+        14.5f * 16f to 8f * 16f
     )
 
     init {
         state.inHome = true
-        player.set(6 * 16f + 4f, 6 * 16f)
+        player.set(9 * 16f + 4f, 8 * 16f)
 
         game.hud.showControls = true
         game.hud.showStats = true
@@ -63,9 +74,10 @@ class HomeScene(game: Game) : Scene(game) {
         val input = game.input
         val dx = input.dirX
         val dy = input.dirY
-        val moving = dx != 0f || dy != 0f
-        player.moving = moving
-        if (moving) {
+        val hasInput = dx != 0f || dy != 0f
+        val oldX = player.x
+        val oldY = player.y
+        if (hasInput) {
             if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
             else if (dy != 0f) player.facing = if (dy > 0) Dir.S else Dir.N
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
@@ -74,10 +86,10 @@ class HomeScene(game: Game) : Scene(game) {
             val speed = if (state.hunger <= 0f) 34f else 55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt
-        } else {
-            player.animT = 0f
         }
+        val distance = hypot(player.x - oldX, player.y - oldY)
+        player.moving = distance > 0.01f
+        player.advanceGait(distance)
 
         // 현관문
         if (map.feetTile(player.x, player.y) == T.HOUSE_DOOR) {
@@ -227,20 +239,25 @@ class HomeScene(game: Game) : Scene(game) {
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFF3A3040.toInt())
         map.draw(c, game.assets, camX, camY, game.virtW, game.virtH, game.time)
+        // A soft animated hearth glow adds warmth without breaking the pixel-art look.
+        val glowX = 12.5f * 16f - camX
+        val glowY = 5f * 16f - camY
+        c.drawCircle(glowX, glowY, 70f + kotlin.math.sin(game.time * 2.1f) * 2f, ovenGlowPaint)
 
         val a = game.assets
         c.drawOval(
             android.graphics.RectF(player.x - camX + 3f, player.y - camY + 12f, player.x - camX + 13f, player.y - camY + 16f),
             a.shadowPaint
         )
-        val frame = if (player.moving) ((player.animT / 0.16f).toInt() % 2) else 0
+        val frame = player.gaitFrame
+        val bob = player.bodyLift
         val bmp = when (player.facing) {
             Dir.E -> a.playerSide[frame]
             Dir.W -> a.playerSideL[frame]
             Dir.N -> a.playerUp[frame]
             else -> a.playerDown[frame]
         }
-        c.drawBitmap(bmp, player.x - camX, player.y - camY, a.sprPaint)
+        c.drawBitmap(bmp, player.x - camX, player.y - camY - bob, a.sprPaint)
 
         // 가까운 상호작용 대상 힌트
         val t = nearestInteract()
@@ -261,6 +278,7 @@ class HomeScene(game: Game) : Scene(game) {
             val tw = tinyPaint.measureText("!")
             c.drawText("!", bx - tw / 2, by + 3f, tinyPaint)
         }
+        WorldLighting.draw(c, state.playSeconds, game.virtW, game.virtH)
     }
 
     override fun drawHud(c: Canvas) {
