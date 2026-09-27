@@ -7,9 +7,10 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
+ * 세이브 형식 v4: 화면 연출(몰입 카메라) 설정을 추가했다.
+ * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
- * v1·v2 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
+ * v1~v3 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
  */
 class GameState {
 
@@ -49,6 +50,14 @@ class GameState {
 
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
+
+    // 화면 연출 (몰입 카메라) — 멀미(3D Motion Sickness)에 민감하면 끌 수 있다 ----------
+    var camShake = 2           // 카메라 흔들림 0 끔 / 1 약하게 / 2 보통 / 3 강하게
+    var camBob = true          // 헤드 밥 & 바디 스웨이 (걸음 주기 출렁임)
+    var camBlur = true         // 잔상 & 속도선 (모션 블러 느낌)
+    var camFov = true          // 다이내믹 시야각 (달리기 광각 / 카메라 모드 망원)
+    var camDof = true          // 다이내믹 포커싱 (심도 — 초점 밖 어둡게)
+    var camLead = true         // 예측 배치 (진행 방향 앞쪽을 더 보여주기)
 
     // ------------------------------------------------------------------
 
@@ -249,6 +258,7 @@ class GameState {
         exp = 0
         skillPoints = 0
         skills.clear()
+        // 화면 연출(camShake/camBob/...)은 플레이어 취향이라 새 게임에서도 유지한다.
     }
 
     // ------------------------------------------------------------------
@@ -256,7 +266,7 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 3)
+        put("v", 4)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
@@ -287,6 +297,12 @@ class GameState {
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
+        put("camShake", camShake)
+        put("camBob", camBob)
+        put("camBlur", camBlur)
+        put("camFov", camFov)
+        put("camDof", camDof)
+        put("camLead", camLead)
     }
 
     companion object {
@@ -383,6 +399,14 @@ class GameState {
                     if (id >= 0) s.decorOwned.add(id)
                 }
             }
+
+            // v3 이하 세이브에는 화면 연출 설정이 없다 → 기본값(보통/전부 켬)으로 시작
+            s.camShake = j.optInt("camShake", 2).coerceIn(0, 3)
+            s.camBob = j.optBoolean("camBob", true)
+            s.camBlur = j.optBoolean("camBlur", true)
+            s.camFov = j.optBoolean("camFov", true)
+            s.camDof = j.optBoolean("camDof", true)
+            s.camLead = j.optBoolean("camLead", true)
             return s
         }
     }

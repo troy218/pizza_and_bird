@@ -217,12 +217,8 @@ class Input(private val game: Game) {
         return t
     }
 
-    /** 가상 월드 좌표 탭 (씬이 소비) */
-    fun consumeTapWorld(): PointF? {
-        val t = tapScreen
-        tapScreen = null
-        return t?.let { game.screenToWorld(it) }
-    }
+    // consumeTapWorld()는 카메라 오프셋·줌을 반영하지 않아 제거했다.
+    // 월드 좌표가 필요하면 씬의 tapToWorld(consumeTapScreen())를 쓸 것. (WorldScene / HomeScene)
 
     /** 프레임 끝: 엣지 트리거 초기화 */
     fun endFrame() {

@@ -594,14 +594,83 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private fun drawSettings(c: Canvas) {
         val g = scene.game
-        val x = panelR.left + dp(scene, 18f)
-        var ty = contentTop() + dp(scene, 16f)
+        val st = g.state
+        val left = panelR.left + dp(scene, 16f)
+        val colW = ((panelR.width() - dp(scene, 46f)) * 0.55f).coerceAtMost(dp(scene, 250f))
+        val rightX = left + colW + dp(scene, 14f)
+        // 작은 화면에서도 6줄이 패널 안에 들어오도록 행 높이를 맞춘다
+        val step = ((contentBottom() - contentTop() - dp(scene, 38f)) / 6f).coerceAtMost(dp(scene, 32f))
+        val gap = dp(scene, 5f).coerceAtMost(step * 0.2f)
+        val rowH = step - gap
+
+        // ---------------- 왼쪽: 화면 연출 (몰입 카메라) ----------------
+        var ty = contentTop() + dp(scene, 2f)
+        textP.textSize = dp(scene, 12f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText("🎥 화면 연출 — 몰입감", left, ty + dp(scene, 10f), textP)
+        ty += dp(scene, 20f)
+
+        fun row(label: String, value: String, on: Boolean, action: () -> Unit) {
+            val r = RectF(left, ty, left + colW, ty + rowH)
+            fillP.color = 0xFFF2E3C2.toInt()
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), fillP)
+            strokeP.color = 0xFFB5651D.toInt()
+            strokeP.strokeWidth = dp(scene, 1.6f)
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), strokeP)
+
+            textP.textSize = dp(scene, 11f)
+            textP.color = 0xFF6B4F35.toInt()
+            c.drawText(label, r.left + dp(scene, 9f), r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+            textP.textSize = dp(scene, 10.5f)
+            val vw = textP.measureText(value)
+            val pill = RectF(
+                r.right - dp(scene, 7f) - vw - dp(scene, 14f), r.top + dp(scene, 4f),
+                r.right - dp(scene, 7f), r.bottom - dp(scene, 4f)
+            )
+            fillP.color = if (on) 0xFF6FBA6B.toInt() else 0xFFC0B2A0.toInt()
+            c.drawRoundRect(pill, dp(scene, 7f), dp(scene, 7f), fillP)
+            textP.color = 0xFFFDF8EC.toInt()
+            c.drawText(value, pill.centerX() - vw / 2, pill.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+            btnRects.add(Triple(r, label, {
+                action()
+                SaveManager.save(g.context, st)
+                g.haptic()
+            }))
+            ty += rowH + gap
+        }
+
+        row("카메라 흔들림", CamFx.shakeLabel(st), st.camShake > 0) {
+            st.camShake = (st.camShake + 1) % CamFx.SHAKE_LABELS.size
+            g.shake(0.5f)                                   // 바꾼 강도를 바로 체감해 볼 수 있게
+        }
+        row("헤드 밥 · 바디 스웨이", CamFx.onOff(st.camBob), st.camBob) { st.camBob = !st.camBob }
+        row("잔상 · 속도선", CamFx.onOff(st.camBlur), st.camBlur) { st.camBlur = !st.camBlur }
+        row("시야각 변동 (FOV)", CamFx.onOff(st.camFov), st.camFov) {
+            st.camFov = !st.camFov
+            if (st.camFov) g.punchZoom(0.06f)
+        }
+        row("심도 · 초점 흐림", CamFx.onOff(st.camDof), st.camDof) { st.camDof = !st.camDof }
+        row("예측 배치 (앞쪽 보기)", CamFx.onOff(st.camLead), st.camLead) { st.camLead = !st.camLead }
+
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("멀미(3D Motion Sickness)에 민감하면 흔들림을 '끔'으로!", left, ty + dp(scene, 10f), textP)
+
+        // ---------------- 오른쪽: 게임 ----------------
+        var ry = contentTop() + dp(scene, 2f)
+        textP.textSize = dp(scene, 12f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText("🎮 게임", rightX, ry + dp(scene, 10f), textP)
+        ry += dp(scene, 20f)
+        val bw = (panelR.right - dp(scene, 16f)) - rightX
 
         fun button(label: String, action: () -> Unit) {
-            val br = RectF(x, ty, x + dp(scene, 170f), ty + dp(scene, 32f))
-            drawButton(c, scene, br, label, 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12.5f)
+            val br = RectF(rightX, ry, rightX + bw, ry + dp(scene, 30f))
+            drawButton(c, scene, br, label, 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 11.5f)
             btnRects.add(Triple(br, label, action))
-            ty += dp(scene, 42f)
+            ry += dp(scene, 38f)
         }
 
         button("저장하기") {
@@ -613,7 +682,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             finished = true
             g.scene = TitleScene(g)
         }
-        button(if (resetArmed) "정말 초기화할까요? (되돌릴 수 없어요)" else "처음부터 다시 시작") {
+        button(if (resetArmed) "정말 초기화할까요?" else "처음부터 다시 시작") {
             if (!resetArmed) {
                 resetArmed = true
             } else {
@@ -625,14 +694,14 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             }
         }
 
-        textP.textSize = dp(scene, 10.5f)
+        textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        ty += dp(scene, 6f)
-        c.drawText("Pizza and Bird v0.3.0-beta01", x, ty, textP)
-        ty += dp(scene, 15f)
-        c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", x, ty, textP)
-        ty += dp(scene, 15f)
-        c.drawText("새를 찍어 경험치를 모으면 탐조가 레벨이 올라요!", x, ty, textP)
+        ry += dp(scene, 6f)
+        c.drawText("Pizza and Bird v0.3.2-beta01", rightX, ry, textP)
+        ry += dp(scene, 14f)
+        c.drawText("완전 오프라인 힐링 게임 · 자동 저장", rightX, ry, textP)
+        ry += dp(scene, 14f)
+        c.drawText("새를 찍어 경험치를 모으면 레벨이 올라요!", rightX, ry, textP)
     }
 }
 
@@ -970,6 +1039,12 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
             else -> 1
         }
         lostPizza = !scene.game.state.addPizza(topping, resultQ)
+        // 화덕의 충격을 몸으로 — 걸작일수록 크게 울린다
+        when (resultQ) {
+            2 -> { scene.game.shake(0.3f); scene.game.punchZoom(0.05f) }
+            1 -> scene.game.shake(0.16f)
+            else -> scene.game.kick(0f, 1f, 1.4f)
+        }
         SaveManager.save(scene.game.context, scene.game.state)
     }
 

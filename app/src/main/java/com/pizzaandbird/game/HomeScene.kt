@@ -16,8 +16,14 @@ class HomeScene(game: Game) : Scene(game) {
     val map: GameMap = MapBuilder.buildHome()
     private val player = Player()
 
+    /** 집 안에서도 같은 카메라 리그를 쓴다 (걸음 출렁임 · 화덕 충격) */
+    private val rig = CameraRig(game.state)
+
+    /** 캔버스 원점에 대응하는 월드 좌표 */
     private var camX = 0f
     private var camY = 0f
+    private var velX = 0f
+    private var velY = 0f
 
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         isFakeBoldText = true
@@ -53,6 +59,12 @@ class HomeScene(game: Game) : Scene(game) {
     init {
         state.inHome = true
         player.set(6 * 16f + 4f, 6 * 16f)
+        rig.snap(
+            map.w * 8f, map.h * 8f, 1f,
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE
+        )
+        syncCamera()
 
         game.hud.showControls = true
         game.hud.showStats = true
@@ -63,9 +75,15 @@ class HomeScene(game: Game) : Scene(game) {
         game.banner("🏠 우리 집")
     }
 
+    override fun camera(): CameraRig = rig
+
     override fun update(dt: Float) {
         game.hud.update(dt)
-        if (overlay != null) return   // 대화상자/메뉴 중에는 정지
+        if (overlay != null) {
+            // 화덕 미니게임 뒤에서도 카메라 여운은 이어진다
+            updateRig(dt, 0f, 0f, Gait.IDLE)
+            return
+        }
         state.playSeconds += dt * 0.4f
         state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
 
@@ -86,8 +104,12 @@ class HomeScene(game: Game) : Scene(game) {
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.animT += dt
+            velX = vx * speed
+            velY = vy * speed
         } else {
             player.animT = 0f
+            velX = 0f
+            velY = 0f
         }
 
         // 현관문
@@ -96,12 +118,44 @@ class HomeScene(game: Game) : Scene(game) {
             return
         }
 
-        // 카메라 (작은 맵 중앙 고정)
-        camX = (map.w * 16f - game.virtW / WORLD_SCALE) / 2f
-        camY = (map.h * 16f - game.virtH / WORLD_SCALE) / 2f
+        // 카메라 — 방이 화면보다 작아 중앙 고정이지만, 걸음 출렁임은 그대로 살아 있다
+        updateRig(dt, velX, velY, if (moving) Gait.WALK else Gait.IDLE)
 
         state.px = player.x
         state.py = player.y
+    }
+
+    private fun updateRig(dt: Float, vx: Float, vy: Float, gait: Gait) {
+        rig.update(
+            dt,
+            map.w * 8f, map.h * 8f,
+            vx, vy,
+            gait,
+            1f,
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE
+        )
+        syncCamera()
+    }
+
+    /** 캔버스 원점(0,0)에 대응하는 월드 좌표 (줌 보정 포함) */
+    private fun syncCamera() {
+        val z = rig.zoom
+        val hx = game.virtW / 2f
+        val hy = game.virtH / 2f
+        camX = (rig.x * WORLD_SCALE - hx + game.virtW / (2f * z)) / WORLD_SCALE
+        camY = (rig.y * WORLD_SCALE - hy + game.virtH / (2f * z)) / WORLD_SCALE
+    }
+
+    /** 화면(실제 px) 탭 → 월드 논리 좌표 */
+    private fun tapToWorld(p: android.graphics.PointF): android.graphics.PointF {
+        val vx = (p.x - game.viewOffX) / game.viewScale
+        val vy = (p.y - game.viewOffY) / game.viewScale
+        val hx = game.virtW / 2f
+        val hy = game.virtH / 2f
+        val ux = hx + (vx - hx) / rig.zoom
+        val uy = hy + (vy - hy) / rig.zoom
+        return android.graphics.PointF(ux / WORLD_SCALE + camX, uy / WORLD_SCALE + camY)
     }
 
     private fun moveBy(dx: Float, dy: Float) {
@@ -265,8 +319,9 @@ class HomeScene(game: Game) : Scene(game) {
             }
             return
         }
-        val tap = input.consumeTapWorld()
-        if (tap != null) {
+        val tapScreen = input.consumeTapScreen()
+        if (tapScreen != null) {
+            val tap = tapToWorld(tapScreen)
             if (hypot(ovenX - tap.x, ovenY - tap.y) < 26f) interact("oven", -1)
             else if (hypot(bedX - tap.x, bedY - tap.y) < 24f) interact("bed", -1)
             else if (hypot(boxX - tap.x, boxY - tap.y) < 22f) interact("box", -1)
@@ -290,6 +345,11 @@ class HomeScene(game: Game) : Scene(game) {
         c.drawColor(0xFF3A3040.toInt())
         val camXv = camX * WORLD_SCALE
         val camYv = camY * WORLD_SCALE
+        val hx = game.virtW / 2f
+        val hy = game.virtH / 2f
+        c.save()
+        if (rig.roll != 0f) c.rotate(rig.roll, hx, hy)
+        if (rig.zoom != 1f) c.scale(rig.zoom, rig.zoom, hx, hy)
         map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
         drawInteriorStyle(c)
 
@@ -321,7 +381,7 @@ class HomeScene(game: Game) : Scene(game) {
         // 밤: 창문 틴트 + 스탠드 조명 빛
         if (state.worldTime >= 18.5f || state.worldTime < 5f) {
             uiFill.color = Color.argb(30, 20, 26, 60)
-            c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiFill)
+            c.drawRect(-80f, -80f, game.virtW + 80f, game.virtH + 80f, uiFill)
             for (wx in listOf(2, 5, 8)) {
                 val wxx = (wx * 16f - camX) * WORLD_SCALE
                 val wyy = (1 * 16f - camY) * WORLD_SCALE
@@ -368,6 +428,7 @@ class HomeScene(game: Game) : Scene(game) {
             val tw = tinyPaint.measureText("!")
             c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
         }
+        c.restore()
     }
 
     /** 선택한 스타일에 따라 바닥·벽·포인트를 다시 칠해 네 가지 집 분위기를 보여준다. */

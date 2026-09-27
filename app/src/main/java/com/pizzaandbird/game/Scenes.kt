@@ -12,6 +12,9 @@ import kotlin.math.sin
 abstract class Scene(val game: Game) {
     var overlay: Overlay? = null
 
+    /** 이 씬의 몰입 카메라 리그 (없는 씬도 있다 — 타이틀/지역선택 등) */
+    open fun camera(): CameraRig? = null
+
     open fun update(dt: Float) {}
     open fun drawWorld(c: Canvas) {}
     open fun drawHud(c: Canvas) {}
@@ -217,7 +220,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
-        val info = "v0.3.0 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
+        val info = "v0.3.2 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 

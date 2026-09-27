@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>피자와 새 · 카메라 연출 실험실</title>
+<style>
+  :root{
+    --bg:#2e2a3a; --panel:#f8efdc; --ink:#4a3728; --line:#6b4f35;
+    --accent:#b5651d; --good:#6fba6b; --off:#c0b2a0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;}
+  #wrap{display:flex;height:100%;gap:10px;padding:10px}
+  #stage{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+  #screen{width:100%;background:#000;border:3px solid var(--line);border-radius:10px;
+    image-rendering:pixelated;touch-action:none;display:block;aspect-ratio:16/9}
+  #hint{color:#d9cdbb;font-size:12px;line-height:1.5}
+  #hint b{color:#f2d06b}
+  #panel{width:310px;background:var(--panel);border:3px solid var(--line);border-radius:12px;
+    padding:12px;overflow:auto;font-size:13px}
+  h1{font-size:15px;margin:0 0 4px}
+  h2{font-size:12.5px;margin:14px 0 6px;color:var(--line);
+    border-bottom:1.5px dashed #d8c6a6;padding-bottom:3px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:#f2e3c2;border:1.6px solid var(--accent);border-radius:8px;
+    padding:6px 8px;margin-bottom:5px;cursor:pointer;user-select:none}
+  .row:active{transform:translateY(1px)}
+  .pill{background:var(--good);color:#fdf8ec;border-radius:7px;padding:2px 9px;font-size:11.5px;
+    min-width:52px;text-align:center}
+  .pill.off{background:var(--off)}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  button{font:inherit;font-size:12px;padding:7px 4px;border-radius:8px;border:1.8px solid var(--accent);
+    background:#f2e3c2;color:var(--line);cursor:pointer}
+  button:active{transform:translateY(1px)}
+  button.wide{grid-column:1/-1}
+  button.mode{background:var(--line);color:#f8efdc}
+  .meter{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#6b5a48;
+    background:#efe2c8;border-radius:6px;padding:6px 8px;line-height:1.6}
+  .note{font-size:11px;color:#8a7360;line-height:1.5;margin-top:6px}
+  @media (max-width:860px){
+    #wrap{flex-direction:column;overflow:auto}
+    #panel{width:auto}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="screen" width="960" height="540"></canvas>
+    <div id="hint">
+      <b>WASD/방향키</b> 이동 · <b>Shift</b> 달리기 · <b>B</b> 자전거 · <b>C</b> 카메라 모드 ·
+      <b>화면 클릭</b> 촬영 · <b>스페이스</b> 충돌 — 오른쪽에서 연출을 켜고 끄며 비교해 보세요.
+    </div>
+  </div>
+
+  <div id="panel">
+    <h1>🎥 카메라 연출 실험실</h1>
+    <div class="note">게임(Kotlin <code>Camera.kt</code>)에 들어간 카메라 리그와 <b>같은 수식</b>을
+      자바스크립트로 옮겨 놓은 튜닝용 미리보기입니다.</div>
+
+    <h2>몰입 연출 (설정 탭과 동일)</h2>
+    <div class="row" data-toggle="shake"><span>카메라 흔들림</span><span class="pill" id="p-shake">보통</span></div>
+    <div class="row" data-toggle="bob"><span>헤드 밥 · 바디 스웨이</span><span class="pill" id="p-bob">켬</span></div>
+    <div class="row" data-toggle="blur"><span>잔상 · 속도선</span><span class="pill" id="p-blur">켬</span></div>
+    <div class="row" data-toggle="fov"><span>시야각 변동 (FOV)</span><span class="pill" id="p-fov">켬</span></div>
+    <div class="row" data-toggle="dof"><span>심도 · 초점</span><span class="pill" id="p-dof">켬</span></div>
+    <div class="row" data-toggle="lead"><span>예측 배치 (앞쪽 보기)</span><span class="pill" id="p-lead">켬</span></div>
+
+    <h2>충격 넣어 보기</h2>
+    <div class="btns">
+      <button data-fx="shutter">📷 셔터</button>
+      <button data-fx="bump">💥 충돌</button>
+      <button data-fx="flush">🐦 새 날아오름</button>
+      <button data-fx="level">⭐ 레벨업</button>
+      <button class="wide mode" id="btn-mode">🔁 기존 카메라와 비교 (지금: 몰입)</button>
+    </div>
+
+    <h2>상태</h2>
+    <div class="meter" id="meter"></div>
+    <div class="note">기존 카메라는 <code>lerp(k=dt*8)</code>로 플레이어를 그대로 따라가기만 합니다.
+      토글을 눌러 두 방식을 번갈아 보면 차이가 확실히 보여요.</div>
+  </div>
+</div>
+
+<script>
+// ===========================================================================
+//  Camera.kt 의 CameraRig 를 그대로 옮긴 미리보기
+//  (수식·상수를 바꾸면 Kotlin 쪽도 같이 고쳐 주세요)
+// ===========================================================================
+const VIRT_W = 960, VIRT_H = 540, WORLD_SCALE = 2, TILE = 16;
+const MAP_W = 40, MAP_H = 30;
+const PAD = 32;
+
+const settings = { shake: 2, bob: true, blur: true, fov: true, dof: true, lead: true };
+const SHAKE_LABELS = ["끔", "약하게", "보통", "강하게"];
+const SHAKE_MULT = [0, 0.55, 1, 1.6];
+let legacyCam = false;                     // true = 기존(단순 lerp) 카메라
+
+const smoothK = (dt, tau) => tau <= 1e-4 ? 1 : 1 - Math.exp(-dt / tau);
+const noise = (t, seed) =>
+  Math.sin(t * 1.93 + seed * 7.13) * 0.55 +
+  Math.sin(t * 4.71 + seed * 3.31) * 0.31 +
+  Math.sin(t * 9.37 + seed * 11.7) * 0.14;
+
+class Smooth1D {
+  constructor(){ this.pos = 0; this.vel = 0; }
+  snap(v){ this.pos = v; this.vel = 0; }
+  step(target, smoothTime, dt){
+    const st = Math.max(1e-4, smoothTime), omega = 2 / st, xv = omega * dt;
+    const e = 1 / (1 + xv + 0.48 * xv * xv + 0.235 * xv * xv * xv);
+    const change = this.pos - target;
+    const temp = (this.vel + omega * change) * dt;
+    this.vel = (this.vel - omega * temp) * e;
+    this.pos = target + (change + temp) * e;
+  }
+}
+
+class Impulse {
+  constructor(k, c){
+    this.v = 0; this.dv = 0;
+    this.w = Math.sqrt(k);
+    this.z = Math.min(0.999, c / (2 * this.w));
+    this.wd = this.w * Math.sqrt(1 - this.z * this.z);
+    const tp = Math.atan2(Math.sqrt(1 - this.z * this.z), this.z) / this.wd;
+    const peak = (1 / this.wd) * Math.exp(-this.z * this.w * tp) * Math.sin(this.wd * tp);
+    this.gain = peak > 1e-4 ? 1 / peak : 1;
+  }
+  hit(peak){ this.dv += peak * this.gain; }
+  step(dt){                                   // 감쇠 진동의 해석해 (프레임 독립)
+    if (this.v === 0 && this.dv === 0) return;
+    const e = Math.exp(-this.z * this.w * dt);
+    const cs = Math.cos(this.wd * dt), sn = Math.sin(this.wd * dt);
+    const x0 = this.v, v0 = this.dv;
+    this.v = e * (x0 * cs + (v0 + this.z * this.w * x0) / this.wd * sn);
+    this.dv = e * (v0 * cs - (this.w * this.w * x0 + this.z * this.w * v0) / this.wd * sn);
+    if (Math.abs(this.v) < 4e-4 && Math.abs(this.dv) < 4e-4){ this.v = 0; this.dv = 0; }
+  }
+  reset(){ this.v = 0; this.dv = 0; }
+}
+
+class CameraRig {
+  constructor(){
+    this.x = 0; this.y = 0; this.zoom = 1; this.roll = 0;
+    this.viewW = 0; this.viewH = 0; this.flash = 0; this.speedFx = 0;
+    this.hitstop = 0; this.stepped = false; this.bobPhase = 0;
+    this.trackX = new Smooth1D(); this.trackY = new Smooth1D();
+    this.kickX = new Impulse(230, 17); this.kickY = new Impulse(230, 17);
+    this.punch = new Impulse(190, 13);
+    this.leadX = 0; this.leadY = 0; this.trauma = 0; this.shakeT = 0;
+    this.bobAmt = 0; this.zoomBase = 1; this.t = 0; this.stepIdx = 0;
+    this.fxOffX = 0; this.fxOffY = 0;
+  }
+  shakeMult(){ return SHAKE_MULT[settings.shake]; }
+  shake(a){ if (settings.shake <= 0) return; this.trauma = Math.min(1, this.trauma + a); }
+  kick(dx, dy, peak, respect = true){
+    const len = Math.hypot(dx, dy); if (len < 1e-4) return;
+    const m = respect ? this.shakeMult() : 1; if (m <= 0) return;
+    this.kickX.hit(dx / len * peak * m);
+    this.kickY.hit(dy / len * peak * m);
+  }
+  punchZoom(a){ if (!settings.fov) return; this.punch.hit(a); }
+  flashScreen(a){ this.flash = Math.max(this.flash, a); }
+  freeze(s){ this.hitstop = Math.max(this.hitstop, s); }
+  worldDt(dt){ return this.hitstop > 0 ? dt * 0.12 : dt; }
+
+  refSpeed(g){ return g === "BIKE" ? 97 : g === "RUN" ? 80 : 55; }
+  bobVertAmp(g){ return g === "RUN" ? 2.35 : g === "BIKE" ? 0.85 : 1.25; }
+  bobHorzAmp(g){ return g === "RUN" ? 1.35 : g === "BIKE" ? 1.9 : 0.85; }
+
+  update(dt, fx, fy, vx, vy, gait, teleZoom, mapW, mapH, baseW, baseH, allowRoll = true){
+    this.t += dt; this.stepped = false;
+    if (this.hitstop > 0) this.hitstop = Math.max(0, this.hitstop - dt);
+    if (this.flash > 0) this.flash = Math.max(0, this.flash - dt * 6.4);
+
+    const speed = Math.hypot(vx, vy), ref = this.refSpeed(gait);
+
+    // 1) 다이내믹 시야각
+    let zT = 1;
+    if (settings.fov){
+      zT = gait === "BIKE" ? 0.925 : gait === "RUN" ? 0.955 : 1;
+      zT *= teleZoom;
+    }
+    this.zoomBase += (zT - this.zoomBase) * smoothK(dt, teleZoom > 1.001 ? 0.24 : 0.40);
+    this.punch.step(dt);
+    this.zoom = Math.min(2.2, Math.max(0.7, this.zoomBase * (1 + this.punch.v)));
+
+    // 2) 셰이크
+    this.trauma = Math.max(0, this.trauma - dt * 1.4);
+    this.shakeT += dt;
+    const s = this.trauma * Math.sqrt(this.trauma) * this.shakeMult();
+    let shX = 0, shY = 0;
+    if (s > 1e-4){
+      shX = noise(this.shakeT * 13.5, 1.7) * 16 * s;
+      shY = noise(this.shakeT * 12.1, 5.3) * 14 * s;
+      this.roll = allowRoll ? noise(this.shakeT * 9.4, 9.1) * 1.4 * s : 0;
+    } else this.roll = 0;
+    this.kickX.step(dt); this.kickY.step(dt);
+
+    // 3) 헤드 밥 & 바디 스웨이
+    const moving = gait !== "IDLE" && speed > 1;
+    const speedK = ref > 0 ? Math.min(1.5, speed / ref) : 0;
+    const strideHz = (gait === "RUN" ? 2.85 : gait === "WALK" ? 2.05 : gait === "BIKE" ? 1.45 : 0)
+      * (0.78 + 0.22 * speedK);
+    const ampT = (!settings.bob || !moving) ? 0 : (gait === "RUN" ? 1 : gait === "BIKE" ? 0.8 : 0.62);
+    this.bobAmt += (ampT - this.bobAmt) * smoothK(dt, 0.18);
+    if (moving) this.bobPhase = (this.bobPhase + 2 * Math.PI * strideHz * dt) % (2 * Math.PI);
+    const idx = Math.floor(this.bobPhase / Math.PI);
+    if (idx !== this.stepIdx){
+      this.stepIdx = idx;
+      if (moving && this.bobAmt > 0.25){
+        this.stepped = true;
+        if (settings.bob) this.kickY.hit(gait === "RUN" ? 0.30 : gait === "BIKE" ? 0.10 : 0.14);
+      }
+    }
+    const bobV = -Math.abs(Math.sin(this.bobPhase)) * this.bobVertAmp(gait) * this.bobAmt;
+    const bobH = Math.sin(this.bobPhase * 0.5) * this.bobHorzAmp(gait) * this.bobAmt;
+    const rumble = (gait === "BIKE" && settings.bob) ? noise(this.t * 26, 3.3) * 0.5 * this.bobAmt : 0;
+    const breath = settings.bob ? Math.sin(this.t * 0.85) * 0.45 * (1 - this.bobAmt) : 0;
+
+    // 4) 레이트 트래킹 + 예측 배치
+    const leadDist = !settings.lead ? 0 : (gait === "BIKE" ? 34 : gait === "RUN" ? 22 : gait === "WALK" ? 14 : 0);
+    let ltx = 0, lty = 0;
+    if (speed > 1 && leadDist > 0){
+      const k = Math.min(1, speedK);
+      ltx = vx / speed * leadDist * k;
+      lty = vy / speed * leadDist * k * 0.72;
+    }
+    this.leadX += (ltx - this.leadX) * smoothK(dt, 0.55);
+    this.leadY += (lty - this.leadY) * smoothK(dt, 0.55);
+
+    let tx = fx + this.leadX, ty = fy + this.leadY;
+    const ddx = tx - this.trackX.pos, ddy = ty - this.trackY.pos, dd = Math.hypot(ddx, ddy), dz = 2.2;
+    if (dd <= dz){ tx = this.trackX.pos; ty = this.trackY.pos; }
+    else { const f = (dd - dz) / dd; tx = this.trackX.pos + ddx * f; ty = this.trackY.pos + ddy * f; }
+    const st = gait === "BIKE" ? 0.19 : gait === "RUN" ? 0.22 : 0.26;
+    this.trackX.step(tx, st, dt); this.trackY.step(ty, st, dt);
+
+    // 5) 속도 연출
+    const fxBase = gait === "BIKE" ? 1 : gait === "RUN" ? 0.75 : 0;
+    const fxT = !settings.blur ? 0 : fxBase * Math.min(1, Math.max(0, (speedK - 0.5) / 0.5));
+    this.speedFx += (fxT - this.speedFx) * smoothK(dt, 0.25);
+
+    this.fxOffX = shX + this.kickX.v + bobH;
+    this.fxOffY = shY + this.kickY.v + bobV + rumble + breath;
+    this.viewW = baseW / this.zoom; this.viewH = baseH / this.zoom;
+    this.x = place(this.trackX.pos - this.viewW / 2, this.fxOffX, mapW, this.viewW);
+    this.y = place(this.trackY.pos - this.viewH / 2, this.fxOffY, mapH, this.viewH);
+  }
+
+  snap(fx, fy, mapW, mapH, baseW, baseH){
+    this.trackX.snap(fx); this.trackY.snap(fy);
+    this.zoomBase = 1; this.zoom = 1; this.roll = 0; this.trauma = 0;
+    this.viewW = baseW; this.viewH = baseH;
+    this.x = place(fx - baseW / 2, 0, mapW, baseW);
+    this.y = place(fy - baseH / 2, 0, mapH, baseH);
+  }
+}
+function place(base, fx, mapSize, view){
+  if (mapSize <= view) return (mapSize - view) / 2 + fx;
+  return Math.min(Math.max(base + fx, 0), mapSize - view);
+}
+
+// ===========================================================================
+//  아주 단순한 목업 월드 (게임 아트의 느낌만 흉내)
+// ===========================================================================
+const map = [];
+(function buildMap(){
+  for (let y = 0; y < MAP_H; y++){
+    const row = [];
+    for (let x = 0; x < MAP_W; x++){
+      let t = "grass";
+      if (y > 25) t = "water";
+      else if (y === 15 || y === 16 || x === 20) t = "road";
+      else if (((x * 7 + y * 13) % 23) === 0) t = "tree";
+      else if (x < 2 || y < 2 || x > MAP_W - 3 || y > MAP_H - 3) t = "tree";
+      row.push(t);
+    }
+    map.push(row);
+  }
+})();
+const solid = (tx, ty) => tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H ||
+  map[ty][tx] === "tree" || map[ty][tx] === "water";
+
+// 타일맵을 한 번만 그려 두고 필요한 부분만 잘라 쓴다
+const world = document.createElement("canvas");
+world.width = MAP_W * TILE * WORLD_SCALE; world.height = MAP_H * TILE * WORLD_SCALE;
+(function paintWorld(){
+  const g = world.getContext("2d");
+  const S = TILE * WORLD_SCALE;
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++){
+    const t = map[y][x], px = x * S, py = y * S;
+    if (t === "water"){
+      g.fillStyle = "#4a86a8"; g.fillRect(px, py, S, S);
+      g.fillStyle = "#5c9bbd";
+      for (let i = 0; i < 4; i++) g.fillRect(px + ((x * 5 + i * 7) % 24), py + ((y * 3 + i * 9) % 26), 6, 2);
+    } else if (t === "road"){
+      g.fillStyle = "#b9a888"; g.fillRect(px, py, S, S);
+      g.fillStyle = "#ab9a7c";
+      for (let i = 0; i < 6; i++) g.fillRect(px + ((x * 11 + i * 5) % 28), py + ((y * 7 + i * 11) % 28), 3, 3);
+    } else {
+      g.fillStyle = "#6fae57"; g.fillRect(px, py, S, S);
+      g.fillStyle = "#63a04d";
+      for (let i = 0; i < 7; i++) g.fillRect(px + ((x * 13 + i * 9) % 30), py + ((y * 17 + i * 6) % 30), 2, 4);
+      if (t === "tree"){
+        g.fillStyle = "#6b4f35"; g.fillRect(px + 13, py + 18, 6, 12);
+        g.fillStyle = "#3f7a3a"; g.fillRect(px + 3, py + 2, 26, 20);
+        g.fillStyle = "#4d9146"; g.fillRect(px + 6, py + 4, 20, 12);
+      }
+    }
+  }
+})();
+
+// ===========================================================================
+//  플레이어 · 새 · 입력
+// ===========================================================================
+const player = { x: 20 * TILE, y: 12 * TILE, facing: "S", moving: false, bike: false, animT: 0 };
+const cx = () => player.x + 8, cy = () => player.y + 13;
+const birds = [
+  { x: 26 * TILE, y: 9 * TILE, t: Math.random() * 2, fly: 0, vx: 0, vy: 0 },
+  { x: 14 * TILE, y: 19 * TILE, t: Math.random() * 2, fly: 0, vx: 0, vy: 0 },
+  { x: 24 * TILE, y: 21 * TILE, t: Math.random() * 2, fly: 0, vx: 0, vy: 0 },
+];
+const keys = {};
+addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === " "){ bump(); e.preventDefault(); }
+  if (e.key.toLowerCase() === "b") toggleBike();
+  if (e.key.toLowerCase() === "c") togglePhoto();
+  if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
+});
+addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+const rig = new CameraRig();
+rig.snap(cx(), cy(), MAP_W * TILE, MAP_H * TILE, VIRT_W / WORLD_SCALE, VIRT_H / WORLD_SCALE);
+const legacy = { x: 0, y: 0 };
+let photoMode = false, camX = 0, camY = 0, velX = 0, velY = 0, prevSpeed = 0, bumpCd = 0;
+let lastDirX = 0, lastDirY = 1;
+let focusBird = null, subjX = cx(), subjY = cy(), focusK = 0, focusR = 0;
+const ghosts = Array.from({ length: 6 }, () => ({ x: player.x, y: player.y }));
+let ghostHead = 0, ghostT = 0;
+const streaks = [];
+let streakAcc = 0;
+
+function toggleBike(){
+  player.bike = !player.bike;
+  rig.kick(0, player.bike ? -1 : 1, 1.2);
+  rig.punchZoom(player.bike ? -0.02 : 0.02);
+}
+function togglePhoto(){
+  photoMode = !photoMode;
+  rig.punchZoom(photoMode ? 0.022 : -0.022);
+  streaks.length = 0;
+}
+function bump(){
+  rig.shake(player.bike ? 0.34 : 0.14);
+  rig.kick(-lastDirX, -lastDirY, player.bike ? 2.6 : 1.1);
+}
+function shutter(){
+  rig.flashScreen(0.8); rig.shake(0.3); rig.kick(0, -1, 1.6);
+  rig.punchZoom(0.05); rig.freeze(0.09);
+  const b = focusBird || birds[0];
+  if (b){ b.fly = 1; b.vx = 60; b.vy = -75; }
+}
+function flush(){
+  const b = birds.find(b => !b.fly) || birds[0];
+  if (!b) return;
+  const d = Math.hypot(b.x - cx(), b.y - cy());
+  const k = Math.min(1, Math.max(0, 1 - d / 80));
+  rig.shake(0.08 + 0.17 * k);
+  rig.kick(cx() - b.x, cy() - b.y, 1.2 * k);
+  b.fly = 1; b.vx = 85; b.vy = -60;
+}
+function levelUp(){ rig.punchZoom(0.06); rig.shake(0.22); }
+
+function gait(){
+  if (!player.moving) return "IDLE";
+  if (player.bike) return "BIKE";
+  if (keys["shift"]) return "RUN";
+  return "WALK";
+}
+const teleZoom = () => photoMode ? 1.06 + 0.035 * 2 : 1;   // 미러리스(3등급) 기준
+
+function movePlayer(dt){
+  let dx = 0, dy = 0;
+  if (keys["a"] || keys["arrowleft"]) dx -= 1;
+  if (keys["d"] || keys["arrowright"]) dx += 1;
+  if (keys["w"] || keys["arrowup"]) dy -= 1;
+  if (keys["s"] || keys["arrowdown"]) dy += 1;
+  if (touchDir.active){ dx += touchDir.x; dy += touchDir.y; }
+  if (photoMode){ dx *= 0.5; dy *= 0.5; }
+  const moving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+  player.moving = moving;
+  if (bumpCd > 0) bumpCd -= dt;
+  let blocked = false;
+  if (moving){
+    if (Math.abs(dx) > Math.abs(dy)) player.facing = dx > 0 ? "E" : "W";
+    else player.facing = dy > 0 ? "S" : "N";
+    const len = Math.hypot(dx, dy); const vx = dx / len, vy = dy / len;
+    const sprint = keys["shift"] && !player.bike;
+    let sp = player.bike ? 97 : 55;
+    if (sprint) sp *= 1.45;
+    if (!step(vx * sp * dt, 0)) blocked = true;
+    if (!step(0, vy * sp * dt)) blocked = true;
+    player.animT += dt * (sprint ? 1.4 : 1);
+    velX = vx * sp; velY = vy * sp; lastDirX = vx; lastDirY = vy;
+  } else { player.animT = 0; velX = 0; velY = 0; }
+
+  const sp = Math.hypot(velX, velY);
+  if (blocked && sp > 30 && bumpCd <= 0){ bumpCd = 0.42; bump(); }
+  if (prevSpeed > 72 && sp < 6){ rig.kick(lastDirX, lastDirY, 1.7); rig.shake(0.08); }
+  prevSpeed = sp;
+}
+function step(dx, dy){
+  const nx = player.x + dx, ny = player.y + dy;
+  const pts = [[nx + 3, ny + 10], [nx + 13, ny + 10], [nx + 3, ny + 16], [nx + 13, ny + 16]];
+  for (const [ax, ay] of pts) if (solid(Math.floor(ax / TILE), Math.floor(ay / TILE))) return false;
+  player.x = nx; player.y = ny; return true;
+}
+
+function updateBirds(dt){
+  for (const b of birds){
+    if (b.fly > 0){
+      b.x += b.vx * dt; b.y += b.vy * dt; b.fly += dt;
+      if (b.fly > 2.2){ // 다시 태어난다
+        b.fly = 0; b.vx = 0; b.vy = 0;
+        b.x = (4 + Math.random() * 30) * TILE; b.y = (4 + Math.random() * 18) * TILE;
+      }
+    } else {
+      b.t -= dt;
+      if (b.t <= 0){
+        b.t = 0.8 + Math.random() * 1.6;
+        const d = [[TILE,0],[-TILE,0],[0,TILE],[0,-TILE]][Math.floor(Math.random()*4)];
+        const nx = b.x + d[0], ny = b.y + d[1];
+        if (!solid(Math.floor(nx/TILE), Math.floor(ny/TILE))){ b.x = nx; b.y = ny; }
+      }
+      const d = Math.hypot(b.x - cx(), b.y - cy());
+      if (d < 34 && !photoMode){    // 너무 가까우면 놀라서 날아오른다
+        const k = Math.min(1, Math.max(0, 1 - d / 80));
+        rig.shake(0.08 + 0.17 * k);
+        rig.kick(cx() - b.x, cy() - b.y, 1.2 * k);
+        b.fly = 1; b.vx = (b.x - cx()) * 2.2; b.vy = -70;
+      }
+    }
+  }
+}
+
+function updateFocus(dt){
+  let best = null, bestD = 1e9;
+  if (photoMode){
+    const range = 7.5 * TILE;
+    for (const b of birds){
+      if (b.fly > 0) continue;
+      const d = Math.hypot(b.x - cx(), b.y - cy());
+      if (d <= range && d < bestD){ best = b; bestD = d; }
+    }
+  }
+  if (best && focusK < 0.02){ subjX = best.x; subjY = best.y; }
+  focusBird = best;
+  const tx = best ? best.x : cx(), ty = best ? best.y : cy();
+  const k = smoothK(dt, 0.2);
+  subjX += (tx - subjX) * k; subjY += (ty - subjY) * k;
+  focusK += (((photoMode && best) ? 1 : 0) - focusK) * smoothK(dt, 0.3);
+  const rT = !photoMode ? 0 : (best ? 30 + (bestD / 16) * 6 : 150);
+  focusR += (rT - focusR) * smoothK(dt, 0.26);
+}
+
+function updateStreaks(dt){
+  const len = Math.hypot(velX, velY), inten = rig.speedFx;
+  if (inten > 0.02 && len > 0.001){
+    const nx = velX / len, ny = velY / len;
+    streakAcc += dt * (8 + 52 * inten);
+    while (streakAcc >= 1 && streaks.length < 34){
+      streakAcc -= 1;
+      const edge = 0.62 + Math.random() * 0.5, ang = Math.random() * Math.PI * 2;
+      const life = 0.2 + Math.random() * 0.18;
+      streaks.push({
+        x: VIRT_W / 2 + Math.sin(ang) * VIRT_W * 0.5 * edge + nx * VIRT_W * 0.18,
+        y: VIRT_H / 2 + Math.cos(ang) * VIRT_H * 0.5 * edge + ny * VIRT_H * 0.18,
+        life, max: life, w: 1 + Math.random() * 1.6,
+        len: 26 + Math.random() * 54 * (0.4 + inten)
+      });
+    }
+  }
+  const fx = -velX * (0.9 + 1.1 * inten), fy = -velY * (0.9 + 1.1 * inten);
+  for (let i = streaks.length - 1; i >= 0; i--){
+    const p = streaks[i];
+    p.x += fx * dt; p.y += fy * dt; p.life -= dt;
+    if (p.life <= 0) streaks.splice(i, 1);
+  }
+}
+
+// ===========================================================================
+//  그리기
+// ===========================================================================
+const cvs = document.getElementById("screen");
+const ctx = cvs.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+function syncCam(){
+  if (legacyCam){ camX = legacy.x; camY = legacy.y; return; }
+  const z = rig.zoom, hx = VIRT_W / 2, hy = VIRT_H / 2;
+  camX = (rig.x * WORLD_SCALE - hx + VIRT_W / (2 * z)) / WORLD_SCALE;
+  camY = (rig.y * WORLD_SCALE - hy + VIRT_H / (2 * z)) / WORLD_SCALE;
+}
+const scrX = wx => VIRT_W / 2 + ((wx - camX) * WORLD_SCALE - VIRT_W / 2) * (legacyCam ? 1 : rig.zoom);
+const scrY = wy => VIRT_H / 2 + ((wy - camY) * WORLD_SCALE - VIRT_H / 2) * (legacyCam ? 1 : rig.zoom);
+
+function drawFigure(g, sx, sy, frame, facing, bike, alpha){
+  g.globalAlpha = alpha;
+  if (bike){ g.fillStyle = "#3b3b46"; g.fillRect(sx + 1, sy + 24, 30, 5); }
+  const bounce = frame === 1 ? -1 : 0;
+  g.fillStyle = "#2f2a36"; g.fillRect(sx + 9, sy + 26 + bounce, 5, 6);
+  g.fillRect(sx + 18, sy + 26 + bounce, 5, 6);
+  g.fillStyle = "#d2604a"; g.fillRect(sx + 7, sy + 12 + bounce, 18, 15);      // 몸
+  g.fillStyle = "#f0c9a0"; g.fillRect(sx + 9, sy + 3 + bounce, 14, 11);       // 얼굴
+  g.fillStyle = "#4a3728"; g.fillRect(sx + 7, sy + 1 + bounce, 18, 5);        // 모자
+  g.fillStyle = "#3a3040";
+  if (facing !== "N"){
+    g.fillRect(sx + 12, sy + 8 + bounce, 2, 2);
+    g.fillRect(sx + 18, sy + 8 + bounce, 2, 2);
+  }
+  g.fillStyle = "#2b2b33"; g.fillRect(sx + 11, sy + 17 + bounce, 10, 6);      // 카메라
+  g.globalAlpha = 1;
+}
+
+function render(){
+  const z = legacyCam ? 1 : rig.zoom;
+  const hx = VIRT_W / 2, hy = VIRT_H / 2;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#3a3040";
+  ctx.fillRect(0, 0, VIRT_W, VIRT_H);
+
+  ctx.save();
+  if (!legacyCam && rig.roll !== 0){ ctx.translate(hx, hy); ctx.rotate(rig.roll * Math.PI / 180); ctx.translate(-hx, -hy); }
+  if (z !== 1){ ctx.translate(hx, hy); ctx.scale(z, z); ctx.translate(-hx, -hy); }
+
+  // 지형 (여유분 PAD 만큼 넓게)
+  const camXv = camX * WORLD_SCALE, camYv = camY * WORLD_SCALE;
+  const seeW = VIRT_W / z, seeH = VIRT_H / z;
+  ctx.drawImage(world,
+    camXv - PAD, camYv - PAD, seeW + PAD * 2, seeH + PAD * 2,
+    -PAD, -PAD, seeW + PAD * 2, seeH + PAD * 2);
+
+  // 새
+  for (const b of birds){
+    const bx = (b.x - camX) * WORLD_SCALE, by = (b.y - camY) * WORLD_SCALE - (b.fly ? 6 : 0);
+    ctx.globalAlpha = b.fly ? Math.max(0, 1 - (b.fly - 1) / 1.2) : 1;
+    ctx.fillStyle = "rgba(30,40,30,0.25)";
+    ctx.beginPath(); ctx.ellipse(bx + 8, by + 18, 8, 3, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#8b6b4a"; ctx.fillRect(bx + 2, by + 4, 13, 9);
+    ctx.fillStyle = "#c9a227"; ctx.fillRect(bx + 14, by + 6, 4, 2);
+    ctx.fillStyle = "#3a3040"; ctx.fillRect(bx + 11, by + 6, 2, 2);
+    if (b.fly){ ctx.fillStyle = "#a88358"; ctx.fillRect(bx + 3, by + (Math.floor(b.fly * 11) % 2 ? 0 : 8), 10, 4); }
+    ctx.globalAlpha = 1;
+  }
+
+  // 잔상 → 플레이어
+  const sx = (player.x - camX) * WORLD_SCALE, sy = (player.y - camY) * WORLD_SCALE;
+  const frame = player.moving ? Math.floor(player.animT / 0.14) % 3 : 0;
+  ctx.fillStyle = "rgba(30,40,30,0.28)";
+  ctx.beginPath(); ctx.ellipse(sx + 16, sy + 30, 11, 4, 0, 0, 7); ctx.fill();
+  if (settings.blur && !legacyCam && rig.speedFx > 0.08){
+    for (let i = 1; i <= 2; i++){
+      const gd = ghosts[((ghostHead - i * 2) % 6 + 6) % 6];
+      drawFigure(ctx, (gd.x - camX) * WORLD_SCALE, (gd.y - camY) * WORLD_SCALE,
+        frame, player.facing, player.bike, ((78 - i * 26) * rig.speedFx) / 255);
+    }
+  }
+  drawFigure(ctx, sx, sy, frame, player.facing, player.bike, 1);
+
+  // 촬영 반경 / 포커스 링
+  if (photoMode){
+    ctx.strokeStyle = "rgba(255,250,235,0.78)"; ctx.setLineDash([6, 6]); ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc((cx() - camX) * WORLD_SCALE, (cy() - camY) * WORLD_SCALE, 7.5 * TILE * WORLD_SCALE, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+    if (focusBird && focusK > 0.05){
+      const fx = (subjX + 8 - camX) * WORLD_SCALE, fy = (subjY + 7 - camY) * WORLD_SCALE;
+      const r = Math.max(14, focusR * WORLD_SCALE);
+      ctx.strokeStyle = `rgba(255,250,232,${0.6 * focusK})`; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(fx, fy, r, 0, 7); ctx.stroke();
+      ctx.lineWidth = 2;
+      for (const [ax, ay] of [[-1,0],[1,0],[0,-1],[0,1]]){
+        ctx.beginPath();
+        ctx.moveTo(fx + ax * (r - 5), fy + ay * (r - 5));
+        ctx.lineTo(fx + ax * (r + 5), fy + ay * (r + 5));
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+
+  // ---- 스크린 공간 연출 ----
+  if (!legacyCam && rig.speedFx > 0.02){
+    // 속도 비네트 (띠)
+    for (let i = 0; i < 5; i++){
+      const k = (i + 1) / 5, a = 0.12 * rig.speedFx * k * k;
+      const bx = VIRT_W * 0.11 * (0.6 + 0.4 * rig.speedFx) * (1 - i / 5);
+      const by = VIRT_H * 0.13 * (0.6 + 0.4 * rig.speedFx) * (1 - i / 5);
+      ctx.fillStyle = `rgba(8,8,16,${a})`;
+      ctx.fillRect(0, 0, bx, VIRT_H); ctx.fillRect(VIRT_W - bx, 0, bx, VIRT_H);
+      ctx.fillRect(bx, 0, VIRT_W - bx * 2, by); ctx.fillRect(bx, VIRT_H - by, VIRT_W - bx * 2, by);
+    }
+    // 속도선
+    const len = Math.hypot(velX, velY);
+    if (len > 0.001){
+      const nx = velX / len, ny = velY / len;
+      ctx.lineCap = "round";
+      for (const p of streaks){
+        const k = p.life / p.max, a = 0.38 * rig.speedFx * k;
+        ctx.strokeStyle = `rgba(255,253,246,${a})`; ctx.lineWidth = p.w;
+        const l = p.len * (0.5 + 0.5 * rig.speedFx);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - nx * l, p.y - ny * l); ctx.stroke();
+      }
+    }
+  }
+
+  if (photoMode){
+    // 심도
+    if (settings.dof && !legacyCam){
+      const fcx = focusBird ? scrX(subjX + 8) : scrX(cx());
+      const fcy = focusBird ? scrY(subjY + 7) : scrY(cy());
+      const r = focusBird ? Math.min(520, Math.max(90, focusR * WORLD_SCALE * rig.zoom * 2.6)) : 430;
+      const a = (86 + 2 * 12) / 255 * (0.45 + 0.55 * focusK);
+      const gr = ctx.createRadialGradient(fcx, fcy, 0, fcx, fcy, r);
+      gr.addColorStop(0, "rgba(9,9,18,0)");
+      gr.addColorStop(0.44, "rgba(9,9,18,0)");
+      gr.addColorStop(1, `rgba(9,9,18,${a})`);
+      ctx.fillStyle = gr; ctx.fillRect(0, 0, VIRT_W, VIRT_H);
+    }
+    ctx.fillStyle = "rgba(20,16,28,0.35)";
+    ctx.fillRect(0, 0, VIRT_W, 42); ctx.fillRect(0, VIRT_H - 48, VIRT_W, 48);
+    ctx.fillRect(0, 0, 34, VIRT_H); ctx.fillRect(VIRT_W - 34, 0, 34, VIRT_H);
+    ctx.strokeStyle = "rgba(255,250,235,0.86)"; ctx.lineWidth = 3;
+    const m = 64 + 10 * (1 - focusK), l = 26;
+    ctx.beginPath();
+    ctx.moveTo(m, m + l); ctx.lineTo(m, m); ctx.lineTo(m + l, m);
+    ctx.moveTo(VIRT_W - m - l, m); ctx.lineTo(VIRT_W - m, m); ctx.lineTo(VIRT_W - m, m + l);
+    ctx.moveTo(VIRT_W - m, VIRT_H - m - l); ctx.lineTo(VIRT_W - m, VIRT_H - m); ctx.lineTo(VIRT_W - m - l, VIRT_H - m);
+    ctx.moveTo(m + l, VIRT_H - m); ctx.lineTo(m, VIRT_H - m); ctx.lineTo(m, VIRT_H - m - l);
+    ctx.stroke();
+  }
+
+  if (rig.flash > 0.001 && !legacyCam){
+    ctx.fillStyle = `rgba(255,252,244,${0.92 * rig.flash})`;
+    ctx.fillRect(0, 0, VIRT_W, VIRT_H);
+  }
+
+  // 모드 배지
+  ctx.fillStyle = legacyCam ? "rgba(178,60,60,0.85)" : "rgba(60,120,80,0.85)";
+  ctx.fillRect(12, 12, legacyCam ? 168 : 152, 26);
+  ctx.fillStyle = "#fdf8ec"; ctx.font = "bold 15px sans-serif";
+  ctx.fillText(legacyCam ? "기존 카메라 (비교용)" : "몰입 카메라 ON", 22, 30);
+}
+
+// ===========================================================================
+//  루프
+// ===========================================================================
+let last = performance.now();
+function frame(now){
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.05) dt = 0.05;
+
+  movePlayer(dt);
+  const wdt = legacyCam ? dt : rig.worldDt(dt);
+  updateBirds(wdt);
+  updateFocus(dt);
+
+  ghostT -= dt;
+  if (ghostT <= 0){ ghostT = 0.035; ghosts[ghostHead].x = player.x; ghosts[ghostHead].y = player.y; ghostHead = (ghostHead + 1) % 6; }
+
+  rig.update(dt, focusX(), focusY(), velX, velY, gait(), teleZoom(),
+    MAP_W * TILE, MAP_H * TILE, VIRT_W / WORLD_SCALE, VIRT_H / WORLD_SCALE, !photoMode);
+
+  // 비교용 기존 카메라: 단순 lerp + 경계 클램프
+  {
+    const halfW = VIRT_W / (2 * WORLD_SCALE), halfH = VIRT_H / (2 * WORLD_SCALE);
+    const tx = Math.min(Math.max(cx() - halfW, 0), MAP_W * TILE - halfW * 2);
+    const ty = Math.min(Math.max(cy() - halfH, 0), MAP_H * TILE - halfH * 2);
+    const k = Math.min(1, dt * 8);
+    legacy.x += (tx - legacy.x) * k; legacy.y += (ty - legacy.y) * k;
+  }
+
+  updateStreaks(dt);
+  syncCam();
+  render();
+  meter();
+  requestAnimationFrame(frame);
+}
+const focusX = () => cx() + (subjX + 8 - cx()) * 0.34 * focusK;
+const focusY = () => cy() + (subjY + 7 - cy()) * 0.34 * focusK;
+
+function meter(){
+  document.getElementById("meter").innerHTML =
+    `보행: <b>${gait()}</b> · 속도 ${Math.hypot(velX, velY).toFixed(0)} px/s<br>` +
+    `zoom ${rig.zoom.toFixed(3)} · roll ${rig.roll.toFixed(2)}°<br>` +
+    `trauma ${rig.trauma.toFixed(2)} · 속도연출 ${rig.speedFx.toFixed(2)}<br>` +
+    `카메라 오프셋 ${rig.fxOffX.toFixed(2)}, ${rig.fxOffY.toFixed(2)} px<br>` +
+    `예측 배치 ${rig.leadX.toFixed(1)}, ${rig.leadY.toFixed(1)} px`;
+}
+
+// ---- UI ----
+function paintPills(){
+  document.getElementById("p-shake").textContent = SHAKE_LABELS[settings.shake];
+  document.getElementById("p-shake").className = "pill" + (settings.shake ? "" : " off");
+  for (const k of ["bob", "blur", "fov", "dof", "lead"]){
+    const el = document.getElementById("p-" + k);
+    el.textContent = settings[k] ? "켬" : "끔";
+    el.className = "pill" + (settings[k] ? "" : " off");
+  }
+}
+document.querySelectorAll("[data-toggle]").forEach(el => {
+  el.addEventListener("click", () => {
+    const k = el.dataset.toggle;
+    if (k === "shake"){ settings.shake = (settings.shake + 1) % 4; rig.shake(0.5); }
+    else { settings[k] = !settings[k]; if (k === "fov" && settings.fov) rig.punchZoom(0.06); }
+    paintPills();
+  });
+});
+document.querySelectorAll("[data-fx]").forEach(el => {
+  el.addEventListener("click", () => ({ shutter, bump, flush, level: levelUp })[el.dataset.fx]());
+});
+document.getElementById("btn-mode").addEventListener("click", e => {
+  legacyCam = !legacyCam;
+  e.target.textContent = legacyCam ? "🔁 기존 카메라와 비교 (지금: 기존)" : "🔁 기존 카메라와 비교 (지금: 몰입)";
+});
+paintPills();
+
+// 터치/클릭: 화면을 누르면 촬영, 드래그하면 이동
+const touchDir = { active: false, x: 0, y: 0 };
+let downAt = null;
+cvs.addEventListener("pointerdown", e => {
+  cvs.setPointerCapture(e.pointerId);
+  downAt = { x: e.offsetX, y: e.offsetY, t: performance.now() };
+  touchDir.active = false;
+});
+cvs.addEventListener("pointermove", e => {
+  if (!downAt) return;
+  const dx = e.offsetX - downAt.x, dy = e.offsetY - downAt.y;
+  if (Math.hypot(dx, dy) > 18){
+    const l = Math.hypot(dx, dy);
+    touchDir.active = true; touchDir.x = dx / l; touchDir.y = dy / l;
+  }
+});
+cvs.addEventListener("pointerup", () => {
+  if (downAt && !touchDir.active && performance.now() - downAt.t < 400){
+    if (!photoMode) togglePhoto(); else shutter();
+  }
+  downAt = null; touchDir.active = false; touchDir.x = 0; touchDir.y = 0;
+});
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

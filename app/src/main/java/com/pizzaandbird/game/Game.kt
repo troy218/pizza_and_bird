@@ -108,6 +108,25 @@ class Game(val context: Context) {
         if (transition == null) transition = Transition(action)
     }
 
+    // ---------------------------------------------------------------------
+    // 화면 연출 단축 호출 — 오버레이/미니게임에서도 현재 씬의 카메라를 흔들 수 있다.
+    // ---------------------------------------------------------------------
+
+    /** 충격 (0~1) */
+    fun shake(amount: Float) {
+        scene.camera()?.shake(amount)
+    }
+
+    /** 시야각 펀치 (+확대 / -축소) */
+    fun punchZoom(amount: Float) {
+        scene.camera()?.punchZoom(amount)
+    }
+
+    /** 방향성 킥 */
+    fun kick(dirX: Float, dirY: Float, peakPx: Float) {
+        scene.camera()?.kick(dirX, dirY, peakPx)
+    }
+
     fun toast(msg: String) = hud.toast(msg)
 
     /** 지역 도착 배너 */
