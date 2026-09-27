@@ -606,7 +606,13 @@ class Hud(private val game: Game) {
         c.drawCircle(cx, cy, R, stroke)
 
         val icon = if (night) a.moonIcon else a.sunIcon
-        val isz = size * 0.5f
+        // 보름달 밤엔 달이 밝게 빛난다 (28일 중 4일 — "보름달" 기념과 같은 판정)
+        val fullMoon = night && s.isFullMoon()
+        if (fullMoon) {
+            fill.color = Color.argb(90, 250, 244, 200)
+            c.drawCircle(cx, cy, R * 0.78f, fill)
+        }
+        val isz = size * (if (fullMoon) 0.58f else 0.5f)
         c.drawBitmap(icon, null, RectF(cx - isz / 2f, cy - isz / 2f, cx + isz / 2f, cy + isz / 2f), a.sprPaint)
         Type.textCentered(c, s.timeLabel(), cx, cy + R + dp(9f), Role.CAPTION, Type.INK, 0.5f)
     }

@@ -452,12 +452,24 @@ object Birds {
     val byName: Map<String, BirdDef> = ALL.associateBy { it.name }
     val byNum: Map<Int, BirdDef> = ALL.associateBy { it.birdNum }
 
+    /**
+     * 시간대 판정: 구체적 시각(hour)이 주어지면 시간창(timeWindows)이 밤낮을 대신 판정한다.
+     * 올빼미류{황혼·밤·새벽}가 새벽/황혼에도 나오고, 시각 없이 밤낮만 물을 땐 active로 가른다.
+     */
+    private fun timeOk(def: BirdDef, night: Boolean, window: BirdTimeWindow?): Boolean {
+        if (window != null) return true   // 아래 window 필터가 판정
+        return def.active == "any" || (if (night) def.active == "night" else def.active == "day")
+    }
+
     /** 종별 분포 범위·지역 서식지 + 밤낮/계절/시간대에 맞는 새 풀 */
     fun poolFor(region: RegionDef, night: Boolean = false, day: Int? = null, hour: Float? = null): List<BirdDef> {
         val season = day?.let { BirdSeason.ofDay(it) }
         val window = hour?.let { BirdTimeWindow.ofHour(it) }
         return ALL.filter { def ->
             BirdEcology.regionAllows(def, region) &&
+                    // 시간창이 있을 땐 시간창 판정(아래 `window in def.timeWindows`)에 맡기고,
+                    // active(밤 전용/주간 전용)는 [activeOk]가 밤낮을 대신 강제한다 — 둘 다 통과해야 풀에 들어온다.
+                    timeOk(def, night, window) &&
                     activeOk(def, night, window) &&
                     (season == null || season in def.seasons) &&
                     (window == null || window in def.timeWindows)
@@ -581,7 +593,10 @@ object Birds {
 
         val seasons = when {
             // Family-wide migration defaults must not hide these Korean resident birds.
-            name in setOf("흰뺨검둥오리", "원앙", "괭이갈매기", "왜가리", "쇠백로", "논병아리", "흰목물떼새", "검은머리물떼새") -> BirdSeason.ALL
+            name in setOf("흰뺨검둥오리", "청둥오리", "원앙", "괭이갈매기", "왜가리", "쇠백로", "논병아리", "검은머리물떼새") -> BirdSeason.ALL
+            // 한반도에서 번식하는 여름 물떼새 — 봄·가을 통과 + 여름 번식 (겨울 제외)
+            name in setOf("흰목물떼새", "꼬마물떼새", "흰물떼새") ->
+                setOf(BirdSeason.SPRING, BirdSeason.SUMMER, BirdSeason.AUTUMN)
             family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과", "호사도요과", "물꿩과", "제비물떼새과") ->
                 setOf(BirdSeason.SPRING, BirdSeason.AUTUMN)
             family == "오리과" || hasAny(text, "기러기", "고니", "두루미", "Crane", "Goose", "Swan", "Duck", "Teal") ->

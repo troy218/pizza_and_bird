@@ -178,7 +178,7 @@ class DoughOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) :
         UiKit.button(c, g, cancelRect, "그만두기", 0xFFF2E3C2.toInt(), UiKit.BROWN_MID, 12f)
         tp.textSize = dp(9.5f)
         tp.color = UiKit.MUTED
-        val hint = "도우 카드를 탭하면 바로 결제되고 피자 선택으로 넘어가요"
+        val hint = "탭하면 결제 후 피자 선택으로 · 굽기 전 취소하면 환불"
         c.drawText(hint, r.right - dp(14f) - tp.measureText(hint), r.bottom - dp(44f), tp)
     }
 

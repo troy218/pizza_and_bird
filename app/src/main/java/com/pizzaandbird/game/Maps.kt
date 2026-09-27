@@ -373,9 +373,26 @@ class GameMap(
         return bmp
     }
 
+    /**
+     * 촬영용 3D 지면 텍스처. 구조물은 사진 렌더러가 높이를 주어 따로 세우므로
+     * 건물 밑 지면까지 채운다. 도로 오토타일·물가·지역 팔레트는 월드와 공유한다.
+     * 16px/칸으로 제한해 셔터 한 번에 전체 해상도 월드 비트맵을 만들지 않는다.
+     */
+    internal fun photoGroundTexture(a: Assets, time: Float): Bitmap {
+        val bitmap = Bitmap.createBitmap(w * 16, h * 16, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.scale(0.5f, 0.5f)
+        val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
+        for (y in 0 until h) for (x in 0 until w) {
+            drawGroundTile(canvas, a, x, y, 0f, 0f, time, waterFrame, coveredGround = true)
+        }
+        return bitmap
+    }
+
     /** 지면 → 포장 → 데칼 순서는 캐시와 움직이는 물 모두 동일해야 한다. */
     private fun drawGroundTile(c: Canvas, a: Assets, x: Int, y: Int,
-                               camX: Float, camY: Float, time: Float, waterFrame: Int) {
+                               camX: Float, camY: Float, time: Float, waterFrame: Int,
+                               coveredGround: Boolean = false) {
         val fx = x * 32f - camX
         val fy = y * 32f - camY
         val tv = tiles[y][x]
@@ -383,7 +400,7 @@ class GameMap(
         val pv = paving[y][x]
 
         // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-        if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
+        if (coveredGround || pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
             // 겨울엔 꽃밭이 진다 — 마른 잔디로 읽힌다 (눈은 WorldFx가 덮는다)
             var gv = ground[y][x]
             var gTile = T.ALL[gv]
@@ -2430,7 +2447,7 @@ class Cat(var x: Float, var y: Float) {
     var pouncing = false
     var pounceCued = false
     var pounceT = 0f
-    /** 잡아먹거나 길이 막힌 뒤 잠시 쉬는 시간 */
+    /** 새를 놀라게 한 뒤나 길이 막힌 뒤 잠시 쉬는 시간 */
     var calmT = 0f
     /** 지금 노리는 새 (알림이 같은 새에 반복되지 않게) */
     var preyId: String? = null
@@ -2651,7 +2668,7 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
     /** 지형지물 뒤 — 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
     var hiddenFromPlayer = false
-    var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
+    var facing = BirdFacing.LEFT     // 월드 방향 — 사진에서는 촬영자의 방위에 맞게 변환한다
     var renderPose = BirdPose.PERCHED
     /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
     var faceLeft: Boolean
