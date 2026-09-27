@@ -126,6 +126,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
     private var cardRects: List<RectF> = emptyList()
     private var area = RectF()
     private var confirmRect = RectF()
+    private var backRect = RectF()
     private val regions = listOf(selected)
 
     init {
@@ -179,6 +180,8 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val dp = game.density
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
+        backRect = RectF(dp * 14f, dp * 14f, dp * 90f, dp * 50f)
+        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
 
         Type.sticker(c, "서울에서 시작해볼까요?", w / 2f, dp * 32f, Role.DISPLAY, Type.INK)
         Type.text(c, "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요",
@@ -205,11 +208,14 @@ class RegionSelectScene(game: Game) : Scene(game) {
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
-        if (input.justBack) {
-            game.scene = TitleScene(game)
+        if (input.justBack || (tap != null && backRect.contains(tap.x, tap.y))) {
+            game.scene = CharacterSelectScene(game)
             return
         }
-        if (tap != null && confirmRect.contains(tap.x, tap.y)) startGame(selected)
+        if (tap != null && confirmRect.contains(tap.x, tap.y)) {
+            startGame(selected)
+            return
+        }
         if (input.justA) startGame(selected)
     }
 
