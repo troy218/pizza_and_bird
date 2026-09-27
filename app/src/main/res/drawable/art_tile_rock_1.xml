@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 자동 생성: tools/build_art.py (원본: art/svg/tiles_nature.svg) — 직접 수정하지 말 것 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#24000000"
+        android:pathData="M32,47C39.18,47,45,48.343,45,50C45,51.657,39.18,53,32,53C24.82,53,19,51.657,19,50C19,48.343,24.82,47,32,47Z"/>
+    <path
+        android:fillColor="#FF5A626C"
+        android:pathData="M16,48L19,34L29,27L42,30L48,40L47,48Z"/>
+    <path
+        android:fillColor="#FF7C8590"
+        android:pathData="M18,46.6L20.6,34.8L29.6,28.4L40.8,31.4L46.4,40L45.6,46.6Z"/>
+    <path
+        android:fillColor="#FF9AA3AD"
+        android:pathData="M23,36L29,30.6L37,32.6L41,38L32,40Z"/>
+    <path
+        android:fillColor="#FFB5BDC6"
+        android:pathData="M26,33.4L30,31L34,33L30.6,35Z"/>
+    <path
+        android:fillColor="#FF6FAE57"
+        android:pathData="M19,42C22,38.4,26,40,27,42.4C25.4,44.4,21,44.6,19,42Z"/>
+    <path
+        android:fillColor="#FF8CC46C"
+        android:pathData="M22.4,39.3C23.228,39.3,23.9,39.972,23.9,40.8C23.9,41.628,23.228,42.3,22.4,42.3C21.572,42.3,20.9,41.628,20.9,40.8C20.9,39.972,21.572,39.3,22.4,39.3Z"/>
+    <path
+        android:fillColor="#FF6FAE57"
+        android:pathData="M40,45C42.4,42.6,45.4,43.6,45.8,45.6C44,47.4,41,47.2,40,45Z"/>
+    <path
+        android:fillColor="#FF8B9384"
+        android:pathData="M14,52.3C15.436,52.3,16.6,53.061,16.6,54C16.6,54.939,15.436,55.7,14,55.7C12.564,55.7,11.4,54.939,11.4,54C11.4,53.061,12.564,52.3,14,52.3Z"/>
+    <path
+        android:fillColor="#FFA8B0A0"
+        android:pathData="M50,53.6C51.215,53.6,52.2,54.227,52.2,55C52.2,55.773,51.215,56.4,50,56.4C48.785,56.4,47.8,55.773,47.8,55C47.8,54.227,48.785,53.6,50,53.6Z"/>
+</vector>

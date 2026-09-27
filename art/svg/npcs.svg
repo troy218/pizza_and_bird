@@ -1,0 +1,317 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- ================================================================
+       NPC 5인 — 64x64 (최종 32x32). 앞모습 기본 골격 공용.
+       ================================================================ -->
+
+  <!-- ============ 보리 박사 (조류학자, 안경+흰 가운) ============ -->
+  <symbol id="art_npc_professor" viewBox="0 0 64 64">
+    <rect x="22.6" y="50" width="7.6" height="8.2" fill="#5D6470"/>
+    <rect x="33.8" y="50" width="7.6" height="8.2" fill="#5D6470"/>
+    <rect x="37.6" y="50" width="3.8" height="8.2" fill="#4A505A"/>
+    <rect x="31" y="50.6" width="1.6" height="7.6" fill="#4A505A"/>
+    <rect x="21.6" y="58.6" width="9.6" height="4.2" rx="1.6" fill="#23232B"/>
+    <rect x="21.6" y="58.2" width="9.6" height="3.8" rx="1.6" fill="#3A3A44"/>
+    <rect x="32.8" y="58.6" width="9.6" height="4.2" rx="1.6" fill="#23232B"/>
+    <rect x="32.8" y="58.2" width="9.6" height="3.8" rx="1.6" fill="#3A3A44"/>
+    <!-- 가운 -->
+    <rect x="18.6" y="30.8" width="26.8" height="22.6" rx="6" fill="#33241C"/>
+    <rect x="19.4" y="31.6" width="25.2" height="21.4" rx="5" fill="#F5F2EA"/>
+    <rect x="38" y="32.4" width="6.6" height="19.8" rx="2" fill="#D8D2C4"/>
+    <rect x="28.8" y="31.6" width="6.4" height="17" fill="#8FC3E3"/>
+    <rect x="28.8" y="31.6" width="6.4" height="3" fill="#7FB2D8"/>
+    <polygon points="26,31.6 28.8,31.6 28.8,44 26.6,36" fill="#F5F2EA"/>
+    <polygon points="38,31.6 35.2,31.6 35.2,44 37.4,36" fill="#F5F2EA"/>
+    <rect x="19.4" y="50.8" width="25.2" height="2.2" fill="#D8D2C4"/>
+    <rect x="21.8" y="42.4" width="5" height="4.8" rx="1" fill="#E8E4DA"/>
+    <rect x="37.4" y="42.4" width="5" height="4.8" rx="1" fill="#E8E4DA"/>
+    <rect x="38.2" y="40.6" width="1.2" height="3" fill="#E2574C"/>
+    <rect x="39.8" y="40.6" width="1.2" height="3" fill="#3F6FB0"/>
+    <circle cx="28.2" cy="37" r="0.9" fill="#C9C2B2"/>
+    <circle cx="28.2" cy="41" r="0.9" fill="#C9C2B2"/>
+    <!-- 새 브로치 -->
+    <circle cx="24.6" cy="34.8" r="2.1" fill="#F2D06B"/>
+    <ellipse cx="24.4" cy="35.2" rx="1.2" ry="0.9" fill="#33241C"/>
+    <circle cx="25.3" cy="34.2" r="0.5" fill="#33241C"/>
+    <!-- 팔 -->
+    <rect x="15.2" y="32.8" width="5.8" height="9.4" rx="2.4" fill="#D8D2C4"/>
+    <rect x="15.8" y="32.2" width="5.4" height="8.6" rx="2.2" fill="#F5F2EA"/>
+    <rect x="16.2" y="41" width="4.6" height="4.2" rx="1.8" fill="#FFD9B0"/>
+    <rect x="42.6" y="32.8" width="5.8" height="9.4" rx="2.4" fill="#D8D2C4"/>
+    <rect x="42.8" y="32.2" width="5.4" height="8.6" rx="2.2" fill="#F5F2EA"/>
+    <rect x="43.2" y="41" width="4.6" height="4.2" rx="1.8" fill="#FFD9B0"/>
+    <rect x="29.4" y="29.8" width="5.2" height="3.4" fill="#E8B88C"/>
+    <!-- 머리: 은발 -->
+    <circle cx="32" cy="19.4" r="13" fill="#33241C"/>
+    <circle cx="32" cy="20.2" r="12.2" fill="#FFD9B0"/>
+    <circle cx="32" cy="13.8" r="12.2" fill="#CFD2D8"/>
+    <polygon points="22.4,8.6 19.6,3.4 25,6.2" fill="#CFD2D8"/>
+    <polygon points="41.6,8.6 44.4,3.4 39,6.2" fill="#CFD2D8"/>
+    <polygon points="30.4,3.2 32.4,0.6 33.8,3.4" fill="#CFD2D8"/>
+    <rect x="19.8" y="13.8" width="4.8" height="12.4" rx="2.2" fill="#CFD2D8"/>
+    <rect x="19.8" y="20.6" width="4.8" height="5.6" rx="2.2" fill="#A8ADB8"/>
+    <rect x="39.4" y="13.8" width="4.8" height="12.4" rx="2.2" fill="#CFD2D8"/>
+    <rect x="39.4" y="20.6" width="4.8" height="5.6" rx="2.2" fill="#A8ADB8"/>
+    <path d="M21.8,11 A11.6,11.6 0 0 1 30.6,2.3 L30.2,4.6 A9.3,9.3 0 0 0 23.8,12 Z" fill="#ECEFF4"/>
+    <rect x="20.6" y="14.8" width="22.8" height="2" fill="#CFD2D8"/>
+    <rect x="22" y="16.6" width="4.4" height="2" fill="#CFD2D8"/>
+    <rect x="28" y="16.6" width="4.6" height="2.6" fill="#CFD2D8"/>
+    <rect x="34.2" y="16.6" width="4.2" height="2" fill="#CFD2D8"/>
+    <rect x="24.4" y="20" width="3.8" height="1.1" rx="0.5" fill="#A8ADB8"/>
+    <rect x="35.8" y="20" width="3.8" height="1.1" rx="0.5" fill="#A8ADB8"/>
+    <!-- 눈 + 안경 -->
+    <rect x="25.8" y="22.8" width="2.6" height="3.4" rx="0.7" fill="#2E2620"/>
+    <rect x="35.6" y="22.8" width="2.6" height="3.4" rx="0.7" fill="#2E2620"/>
+    <rect x="23.9" y="21.3" width="7" height="6" rx="1.7" fill="#DFF1F8" fill-opacity="0.35"/>
+    <rect x="33.1" y="21.3" width="7" height="6" rx="1.7" fill="#DFF1F8" fill-opacity="0.35"/>
+    <path d="M23.2,21 h7.4 v6.6 h-7.4 Z M33,21 h7.4 v6.6 h-7.4 Z" fill="none"/>
+    <rect x="23.2" y="20.6" width="7.4" height="1.4" rx="0.7" fill="#33241C"/>
+    <rect x="23.2" y="26.6" width="7.4" height="1.4" rx="0.7" fill="#33241C"/>
+    <rect x="23.2" y="20.6" width="1.4" height="7.4" rx="0.7" fill="#33241C"/>
+    <rect x="29.2" y="20.6" width="1.4" height="7.4" rx="0.7" fill="#33241C"/>
+    <rect x="33.4" y="20.6" width="7.4" height="1.4" rx="0.7" fill="#33241C"/>
+    <rect x="33.4" y="26.6" width="7.4" height="1.4" rx="0.7" fill="#33241C"/>
+    <rect x="33.4" y="20.6" width="1.4" height="7.4" rx="0.7" fill="#33241C"/>
+    <rect x="39.4" y="20.6" width="1.4" height="7.4" rx="0.7" fill="#33241C"/>
+    <rect x="30.6" y="22.8" width="2.8" height="1.2" fill="#33241C"/>
+    <rect x="23.6" y="28" width="3.6" height="1.8" rx="0.9" fill="#F2A58C"/>
+    <rect x="36.8" y="28" width="3.6" height="1.8" rx="0.9" fill="#F2A58C"/>
+    <polygon points="30.8,29.4 33.2,29.4 32,30.6" fill="#C2603A"/>
+  </symbol>
+
+  <!-- ============ 사진용품점 주인 (앞치마+칼라) ============ -->
+  <symbol id="art_npc_shop" viewBox="0 0 64 64">
+    <rect x="22.6" y="48.6" width="7.6" height="9.6" fill="#8A6A4F"/>
+    <rect x="33.8" y="48.6" width="7.6" height="9.6" fill="#8A6A4F"/>
+    <rect x="37.6" y="48.6" width="3.8" height="9.6" fill="#6E523D"/>
+    <rect x="31" y="49.4" width="1.6" height="8.8" fill="#6E523D"/>
+    <rect x="22.6" y="56.6" width="7.6" height="1.6" fill="#6E523D"/>
+    <rect x="33.8" y="56.6" width="7.6" height="1.6" fill="#6E523D"/>
+    <rect x="21.6" y="58.6" width="9.6" height="4.2" rx="1.6" fill="#23232B"/>
+    <rect x="21.6" y="58.2" width="9.6" height="3.8" rx="1.6" fill="#3A3A44"/>
+    <rect x="32.8" y="58.6" width="9.6" height="4.2" rx="1.6" fill="#23232B"/>
+    <rect x="32.8" y="58.2" width="9.6" height="3.8" rx="1.6" fill="#3A3A44"/>
+    <!-- 셔츠 -->
+    <rect x="18.6" y="30.8" width="26.8" height="19.4" rx="6" fill="#33241C"/>
+    <rect x="19.4" y="31.6" width="25.2" height="18.2" rx="5" fill="#FDF6E8"/>
+    <rect x="38" y="32.4" width="6.6" height="15.6" rx="2" fill="#E8DFC8"/>
+    <rect x="29.4" y="29.8" width="5.2" height="3.4" fill="#E8B88C"/>
+    <!-- 앞치마 -->
+    <polygon points="25,32 27.8,32 24,41.6 22,41.6" fill="#4F7D3F"/>
+    <polygon points="39,32 36.2,32 40,41.6 42,41.6" fill="#4F7D3F"/>
+    <rect x="21.8" y="38.4" width="20.4" height="13.8" rx="3" fill="#6FAE57"/>
+    <rect x="38.6" y="39" width="3.6" height="12" rx="1.4" fill="#4F7D3F"/>
+    <rect x="21.8" y="38.4" width="20.4" height="2.6" rx="1.2" fill="#5D984A"/>
+    <rect x="19.8" y="45.4" width="24.4" height="2.6" rx="1.2" fill="#4F7D3F"/>
+    <rect x="25.8" y="44.6" width="12.4" height="6.6" rx="1.4" fill="#4F7D3F"/>
+    <rect x="26.8" y="45.4" width="10.4" height="4.8" rx="1" fill="#6FAE57"/>
+    <rect x="26.8" y="45.4" width="10.4" height="1.2" fill="#86C87E"/>
+    <!-- 가슴 칼라 -->
+    <rect x="27.2" y="35.8" width="9.6" height="6.8" rx="1.4" fill="#23232B"/>
+    <rect x="29.8" y="34.6" width="4.4" height="2" rx="0.8" fill="#23232B"/>
+    <rect x="28.2" y="36.8" width="7.6" height="2.2" fill="#4A4A55"/>
+    <circle cx="32" cy="39.6" r="2.6" fill="#3A6E93"/>
+    <circle cx="32" cy="39.4" r="2" fill="#8FC3E3"/>
+    <circle cx="31.2" cy="38.6" r="0.8" fill="#C3E4F2"/>
+    <rect x="34.6" y="37.6" width="1.4" height="1.2" fill="#E2574C"/>
+    <!-- 팔 -->
+    <rect x="15.2" y="32.8" width="5.8" height="9.4" rx="2.4" fill="#E8DFC8"/>
+    <rect x="15.8" y="32.2" width="5.4" height="8.6" rx="2.2" fill="#FDF6E8"/>
+    <rect x="16.2" y="41" width="4.6" height="4.2" rx="1.8" fill="#FFD9B0"/>
+    <rect x="42.6" y="32.8" width="5.8" height="9.4" rx="2.4" fill="#E8DFC8"/>
+    <rect x="42.8" y="32.2" width="5.4" height="8.6" rx="2.2" fill="#FDF6E8"/>
+    <rect x="43.2" y="41" width="4.6" height="4.2" rx="1.8" fill="#FFD9B0"/>
+    <!-- 머리 + 작업모 -->
+    <circle cx="32" cy="19.4" r="13" fill="#33241C"/>
+    <circle cx="32" cy="20.2" r="12.2" fill="#FFD9B0"/>
+    <rect x="19.8" y="13.8" width="4.8" height="12.4" rx="2.2" fill="#4A2F1D"/>
+    <rect x="39.4" y="13.8" width="4.8" height="12.4" rx="2.2" fill="#4A2F1D"/>
+    <circle cx="32" cy="13.4" r="12" fill="#6FAE57"/>
+    <path d="M22.4,10.6 A11.2,11.2 0 0 1 30.6,3 L30.2,5.2 A9,9 0 0 0 24.4,11.4 Z" fill="#8FC98F"/>
+    <rect x="20" y="14.6" width="24" height="2.8" rx="1.4" fill="#4F7D3F"/>
+    <rect x="23.4" y="17" width="17.2" height="2.6" rx="1.3" fill="#4A2F1D"/>
+    <circle cx="32" cy="3.6" r="1.8" fill="#4F7D3F"/>
+    <rect x="25.4" y="22" width="3.2" height="4.8" rx="0.8" fill="#2E2620"/>
+    <rect x="26" y="22.4" width="1.1" height="1.5" fill="#FDFDF8"/>
+    <rect x="35.4" y="22" width="3.2" height="4.8" rx="0.8" fill="#2E2620"/>
+    <rect x="36" y="22.4" width="1.1" height="1.5" fill="#FDFDF8"/>
+    <rect x="23.6" y="27" width="3.6" height="2" rx="1" fill="#F2A58C"/>
+    <rect x="36.8" y="27" width="3.6" height="2" rx="1" fill="#F2A58C"/>
+    <polygon points="30.6,28.4 33.4,28.4 32,29.8" fill="#C2603A"/>
+  </symbol>
+
+  <!-- ============ 동네 주민 (볼라 가디건+갈래머리) ============ -->
+  <symbol id="art_npc_villager" viewBox="0 0 64 64">
+    <rect x="22.6" y="48.6" width="7.6" height="9.6" fill="#4A6FA5"/>
+    <rect x="33.8" y="48.6" width="7.6" height="9.6" fill="#4A6FA5"/>
+    <rect x="37.6" y="48.6" width="3.8" height="9.6" fill="#3A5A8A"/>
+    <rect x="31" y="49.4" width="1.6" height="8.8" fill="#3A5A8A"/>
+    <rect x="22.6" y="56.6" width="7.6" height="1.6" fill="#3A5A8A"/>
+    <rect x="33.8" y="56.6" width="7.6" height="1.6" fill="#3A5A8A"/>
+    <rect x="21.6" y="58.6" width="9.6" height="4.2" rx="1.6" fill="#23232B"/>
+    <rect x="21.6" y="58.2" width="9.6" height="3.8" rx="1.6" fill="#3A3A44"/>
+    <rect x="32.8" y="58.6" width="9.6" height="4.2" rx="1.6" fill="#23232B"/>
+    <rect x="32.8" y="58.2" width="9.6" height="3.8" rx="1.6" fill="#3A3A44"/>
+    <!-- 가디건 -->
+    <rect x="18.6" y="30.8" width="26.8" height="21.8" rx="6" fill="#33241C"/>
+    <rect x="19.4" y="31.6" width="25.2" height="20.6" rx="5" fill="#C3A3E8"/>
+    <rect x="38" y="32.4" width="6.6" height="18.6" rx="2" fill="#9F7FC8"/>
+    <rect x="28.8" y="31.6" width="6.4" height="20.6" fill="#FDF6E8"/>
+    <rect x="19.4" y="49.6" width="25.2" height="2.6" fill="#9F7FC8"/>
+    <rect x="29.4" y="29.8" width="5.2" height="3.4" fill="#E8B88C"/>
+    <circle cx="30" cy="37.4" r="1" fill="#9F7FC8"/>
+    <circle cx="30" cy="42" r="1" fill="#9F7FC8"/>
+    <circle cx="30" cy="46.6" r="1" fill="#9F7FC8"/>
+    <!-- 꼴 브로치 -->
+    <circle cx="37" cy="35.6" r="2.4" fill="#E87A93"/>
+    <circle cx="35.2" cy="34.6" r="1.5" fill="#F2A3B3"/>
+    <circle cx="38.8" cy="34.6" r="1.5" fill="#F2A3B3"/>
+    <circle cx="37" cy="35" r="1" fill="#F7CE5B"/>
+    <!-- 팔 -->
+    <rect x="15.2" y="32.8" width="5.8" height="9.4" rx="2.4" fill="#9F7FC8"/>
+    <rect x="15.8" y="32.2" width="5.4" height="8.6" rx="2.2" fill="#C3A3E8"/>
+    <rect x="16" y="40.2" width="5" height="1.8" rx="0.8" fill="#FDF6E8"/>
+    <rect x="16.2" y="41.6" width="4.6" height="4.2" rx="1.8" fill="#FFD9B0"/>
+    <rect x="42.6" y="32.8" width="5.8" height="9.4" rx="2.4" fill="#9F7FC8"/>
+    <rect x="42.8" y="32.2" width="5.4" height="8.6" rx="2.2" fill="#C3A3E8"/>
+    <rect x="43" y="40.2" width="5" height="1.8" rx="0.8" fill="#FDF6E8"/>
+    <rect x="43.2" y="41.6" width="4.6" height="4.2" rx="1.8" fill="#FFD9B0"/>
+    <!-- 머리: 갈래 뒕 -->
+    <circle cx="32" cy="19.4" r="13" fill="#33241C"/>
+    <circle cx="32" cy="20.2" r="12.2" fill="#FFD9B0"/>
+    <circle cx="32" cy="13.6" r="12.2" fill="#2E2620"/>
+    <rect x="19.8" y="13.8" width="4.8" height="13.4" rx="2.2" fill="#2E2620"/>
+    <rect x="39.4" y="13.8" width="4.8" height="13.4" rx="2.2" fill="#2E2620"/>
+    <path d="M21.8,11.2 A11.6,11.6 0 0 1 30.6,2.1 L30.2,4.4 A9.3,9.3 0 0 0 23.8,12.2 Z" fill="#4A3F38"/>
+    <rect x="20.6" y="14.8" width="22.8" height="2" fill="#2E2620"/>
+    <rect x="22" y="16.6" width="4.4" height="2" fill="#2E2620"/>
+    <rect x="28" y="16.6" width="4.6" height="2.6" fill="#2E2620"/>
+    <rect x="34.2" y="16.6" width="4.2" height="2" fill="#2E2620"/>
+    <!-- 갈래 -->
+    <rect x="18.6" y="25.4" width="4.8" height="1.8" rx="0.9" fill="#E2574C"/>
+    <rect x="18.8" y="27.2" width="4.4" height="3" rx="1.6" fill="#2E2620"/>
+    <rect x="19.2" y="30.2" width="3.6" height="3" rx="1.6" fill="#2E2620"/>
+    <rect x="19.6" y="33.2" width="2.8" height="3.4" rx="1.4" fill="#2E2620"/>
+    <rect x="40.6" y="25.4" width="4.8" height="1.8" rx="0.9" fill="#E2574C"/>
+    <rect x="40.8" y="27.2" width="4.4" height="3" rx="1.6" fill="#2E2620"/>
+    <rect x="41.2" y="30.2" width="3.6" height="3" rx="1.6" fill="#2E2620"/>
+    <rect x="41.6" y="33.2" width="2.8" height="3.4" rx="1.4" fill="#2E2620"/>
+    <!-- 얼굴 -->
+    <rect x="25.4" y="22" width="3.2" height="4.8" rx="0.8" fill="#2E2620"/>
+    <rect x="26" y="22.4" width="1.1" height="1.5" fill="#FDFDF8"/>
+    <rect x="35.4" y="22" width="3.2" height="4.8" rx="0.8" fill="#2E2620"/>
+    <rect x="36" y="22.4" width="1.1" height="1.5" fill="#FDFDF8"/>
+    <rect x="23.6" y="27" width="3.6" height="2" rx="1" fill="#F2A58C"/>
+    <rect x="36.8" y="27" width="3.6" height="2" rx="1" fill="#F2A58C"/>
+    <polygon points="30.6,28.4 33.4,28.4 32,29.8" fill="#C2603A"/>
+  </symbol>
+
+  <!-- ============ 꼬마 (빨간 티+노랑 선) ============ -->
+  <symbol id="art_npc_kid" viewBox="0 0 64 64">
+    <rect x="24.2" y="50.6" width="6.4" height="7.6" fill="#3F6FB0"/>
+    <rect x="33.4" y="50.6" width="6.4" height="7.6" fill="#3F6FB0"/>
+    <rect x="36.6" y="50.6" width="3.2" height="7.6" fill="#2F5A94"/>
+    <rect x="24.2" y="56.8" width="6.4" height="1.4" fill="#2F5A94"/>
+    <rect x="33.4" y="56.8" width="6.4" height="1.4" fill="#2F5A94"/>
+    <rect x="23.4" y="58.6" width="8.2" height="3.8" rx="1.5" fill="#23232B"/>
+    <rect x="23.4" y="58.2" width="8.2" height="3.4" rx="1.5" fill="#3A3A44"/>
+    <rect x="32.6" y="58.6" width="8.2" height="3.8" rx="1.5" fill="#23232B"/>
+    <rect x="32.6" y="58.2" width="8.2" height="3.4" rx="1.5" fill="#3A3A44"/>
+    <!-- 티셔츠 -->
+    <rect x="20.4" y="37.8" width="23.2" height="14.6" rx="5" fill="#33241C"/>
+    <rect x="21" y="38.4" width="22" height="13.4" rx="4.4" fill="#E2574C"/>
+    <rect x="37" y="39" width="6" height="11.2" rx="1.8" fill="#B23F44"/>
+    <polygon points="32,41.2 33.2,43.8 36,43.9 33.8,45.6 34.6,48.4 32,46.8 29.4,48.4 30.2,45.6 28,43.9 30.8,43.8" fill="#FDF6E8"/>
+    <rect x="29.4" y="36.8" width="5.2" height="3.4" fill="#E8B88C"/>
+    <!-- 팔 -->
+    <rect x="17" y="39.4" width="5" height="7.4" rx="2.2" fill="#B23F44"/>
+    <rect x="17.4" y="39" width="4.6" height="6.6" rx="2" fill="#E2574C"/>
+    <rect x="17.6" y="46" width="4.2" height="4" rx="1.7" fill="#FFD9B0"/>
+    <rect x="42" y="39.4" width="5" height="7.4" rx="2.2" fill="#B23F44"/>
+    <rect x="42" y="39" width="4.6" height="6.6" rx="2" fill="#E2574C"/>
+    <rect x="42.2" y="46" width="4.2" height="4" rx="1.7" fill="#FFD9B0"/>
+    <!-- 머리 + 뒤로 숀帽 -->
+    <circle cx="32" cy="26" r="10.6" fill="#33241C"/>
+    <circle cx="32" cy="26.6" r="10" fill="#FFD9B0"/>
+    <rect x="21.6" y="21.4" width="3.2" height="5.6" rx="1.4" fill="#5B3A29"/>
+    <rect x="39.2" y="21.4" width="3.2" height="5.6" rx="1.4" fill="#5B3A29"/>
+    <circle cx="32" cy="21.4" r="10.4" fill="#F2B63C"/>
+    <path d="M23.4,18.4 A10,10 0 0 1 31,11.6 L30.6,13.6 A8,8 0 0 0 25.2,19.2 Z" fill="#F7CE5B"/>
+    <rect x="21.6" y="20.6" width="20.8" height="3" rx="1.5" fill="#D99B26"/>
+    <rect x="29.8" y="9.2" width="4.4" height="2" rx="1" fill="#D99B26"/>
+    <circle cx="32" cy="17.6" r="2.6" fill="#FDF6E8"/>
+    <circle cx="32" cy="17.6" r="1.2" fill="#E2574C"/>
+    <!-- 얼굴 -->
+    <rect x="25.4" y="26.2" width="3.6" height="5" rx="0.9" fill="#2E2620"/>
+    <rect x="26" y="26.6" width="1.2" height="1.6" fill="#FDFDF8"/>
+    <rect x="35" y="26.2" width="3.6" height="5" rx="0.9" fill="#2E2620"/>
+    <rect x="35.6" y="26.6" width="1.2" height="1.6" fill="#FDFDF8"/>
+    <circle cx="25" cy="30.6" r="0.7" fill="#D9A37A"/>
+    <circle cx="23.4" cy="29.4" r="0.6" fill="#D9A37A"/>
+    <circle cx="39" cy="30.6" r="0.7" fill="#D9A37A"/>
+    <circle cx="40.6" cy="29.4" r="0.6" fill="#D9A37A"/>
+    <rect x="23.2" y="31.4" width="3.4" height="1.9" rx="0.9" fill="#F2A58C"/>
+    <rect x="37.4" y="31.4" width="3.4" height="1.9" rx="0.9" fill="#F2A58C"/>
+    <rect x="30" y="31.8" width="4" height="2.4" rx="1.1" fill="#8F3F2B"/>
+    <rect x="30.7" y="31.8" width="2.6" height="1.1" rx="0.5" fill="#FDFDF8"/>
+  </symbol>
+
+  <!-- ============ 할머니 (치마+조끼+지팡이) ============ -->
+  <symbol id="art_npc_elder" viewBox="0 0 64 64">
+    <!-- 지팡이 (몸 뒤) -->
+    <rect x="46.2" y="36.6" width="2.6" height="22.6" fill="#8A5A33"/>
+    <path d="M46.2,36.8 C46.2,33.2 44.4,31.8 42.6,31.8 C40.8,31.8 40.2,33.4 40.2,34.8 L42,34.8 C42,34 42.4,33.4 43.2,33.6 C44.2,33.8 44.6,35 44.6,36.8 Z" fill="#6B431F"/>
+    <rect x="45.8" y="58.2" width="3.4" height="1.8" fill="#6B431F"/>
+    <!-- 롱치마 -->
+    <polygon points="19.4,42 44.6,42 48,58.4 16,58.4" fill="#4A505A"/>
+    <polygon points="20.6,41.4 43.4,41.4 46.6,57.6 17.4,57.6" fill="#5D6470"/>
+    <polygon points="38,41.4 43.4,41.4 46.6,57.6 40.6,57.6" fill="#4A505A"/>
+    <rect x="19" y="54.8" width="28.4" height="2.8" fill="#4A505A"/>
+    <rect x="30.8" y="43" width="1.6" height="12" fill="#4A505A"/>
+    <!-- 조끼 -->
+    <rect x="18.6" y="31.2" width="26.8" height="12.4" rx="5" fill="#33241C"/>
+    <rect x="19.4" y="31.8" width="8.6" height="11.4" rx="3.4" fill="#8A7360"/>
+    <rect x="36" y="31.8" width="8.6" height="11.4" rx="3.4" fill="#8A7360"/>
+    <rect x="36" y="32.4" width="3.4" height="10.4" rx="1.6" fill="#6B5A48"/>
+    <rect x="28.6" y="31.8" width="6.8" height="11.4" fill="#F5F2EA"/>
+    <polygon points="28.6,31.8 32,36.4 35.4,31.8" fill="#F5F2EA"/>
+    <!-- 리본 -->
+    <polygon points="32,35.6 28.4,37.8 28.4,34" fill="#F2D06B"/>
+    <polygon points="32,35.6 35.6,37.8 35.6,34" fill="#F2D06B"/>
+    <circle cx="32" cy="35.6" r="1.6" fill="#E8C33C"/>
+    <!-- 팔 -->
+    <rect x="14.8" y="33.2" width="5.8" height="8.8" rx="2.4" fill="#4A505A"/>
+    <rect x="15.4" y="32.6" width="5.4" height="8" rx="2.2" fill="#5D6470"/>
+    <rect x="16.2" y="41" width="4.4" height="4" rx="1.8" fill="#FFD9B0"/>
+    <rect x="43" y="33.2" width="5.4" height="8.8" rx="2.4" fill="#4A505A"/>
+    <rect x="43.2" y="32.6" width="5" height="8" rx="2.2" fill="#5D6470"/>
+    <circle cx="47.6" cy="37.2" r="2.8" fill="#FFD9B0"/>
+    <rect x="29.4" y="29.8" width="5.2" height="3.4" fill="#E8B88C"/>
+    <!-- 머리: 올림머리 -->
+    <circle cx="32" cy="19.4" r="13" fill="#33241C"/>
+    <circle cx="32" cy="20.2" r="12.2" fill="#FFD9B0"/>
+    <circle cx="32" cy="13.8" r="12" fill="#E8E4DC"/>
+    <circle cx="32" cy="4.8" r="4.8" fill="#CFC9BE"/>
+    <circle cx="31.4" cy="4.4" r="3.8" fill="#E8E4DC"/>
+    <path d="M21.6,10.6 A11.4,11.4 0 0 1 30.4,2.3 L30,4.5 A9.2,9.2 0 0 0 23.6,11.6 Z" fill="#F5F2EA"/>
+    <path d="M42.4,10.6 A11.4,11.4 0 0 0 33.6,2.3 L34,4.5 A9.2,9.2 0 0 1 40.4,11.6 Z" fill="#CFC9BE"/>
+    <rect x="19.8" y="13.6" width="4.8" height="12.6" rx="2.2" fill="#E8E4DC"/>
+    <rect x="39.4" y="13.6" width="4.8" height="12.6" rx="2.2" fill="#E8E4DC"/>
+    <rect x="20.8" y="14.6" width="22.4" height="2" fill="#E8E4DC"/>
+    <rect x="24" y="16.4" width="4.4" height="2.2" fill="#E8E4DC"/>
+    <rect x="30" y="16.4" width="4.4" height="2.6" fill="#E8E4DC"/>
+    <rect x="36" y="16.4" width="4.4" height="2.2" fill="#E8E4DC"/>
+    <!-- 얼굴 (부드러운 인상) -->
+    <rect x="25.4" y="21.6" width="3.2" height="1.4" rx="0.7" fill="#CFC9BE"/>
+    <rect x="35.4" y="21.6" width="3.2" height="1.4" rx="0.7" fill="#CFC9BE"/>
+    <rect x="25.8" y="23" width="2.8" height="3.8" rx="0.8" fill="#2E2620"/>
+    <rect x="35.4" y="23" width="2.8" height="3.8" rx="0.8" fill="#2E2620"/>
+    <rect x="23.8" y="27.6" width="3.2" height="0.9" rx="0.45" fill="#E8B88C"/>
+    <rect x="37" y="27.6" width="3.2" height="0.9" rx="0.45" fill="#E8B88C"/>
+    <rect x="23.6" y="29" width="3.4" height="1.8" rx="0.9" fill="#F2A58C" fill-opacity="0.8"/>
+    <rect x="37" y="29" width="3.4" height="1.8" rx="0.9" fill="#F2A58C" fill-opacity="0.8"/>
+    <polygon points="30.4,30 33.6,30 32,31.8" fill="#C97B50"/>
+    <!-- 신발 -->
+    <rect x="22" y="58.6" width="7.6" height="3.4" rx="1.5" fill="#23232B"/>
+    <rect x="34.4" y="58.6" width="7.6" height="3.4" rx="1.5" fill="#23232B"/>
+  </symbol>
+</svg>
