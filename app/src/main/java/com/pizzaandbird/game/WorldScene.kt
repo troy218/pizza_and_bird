@@ -120,6 +120,13 @@ class WorldScene(
     private val vignettePaint = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
+    // 매 프레임 할당을 없애기 위한 공용 스크래치 — 그리기 중에만 쓰고 보관하지 않는다.
+    private val scratchRect = RectF()
+    private val scratchPath = Path()
+    // 새벽/노을 빛줄기 그라디언트 — 높이가 변할 때만 다시 만든다.
+    private var shaftShader: LinearGradient? = null
+    private var shaftShaderH = -1f
+
     init {
         state.region = region.id
         state.inHome = false
@@ -1736,13 +1743,6 @@ class WorldScene(
 
     /**
      * 다이내믹 포커싱(심도) — 초점 반경 밖을 부드럽게 눌러 시선을 피사체로 모은다.
-     *  255), 255, 252, 244)
-            c.drawRect(0f, 0f, vw, vh, uiFill)
-        }
-    }
-
-    /**
-     * 다이내믹 포커싱(심도) — 초점 반경 밖을 부드럽게 눌러 시선을 피사체로 모은다.
      * 렌즈(카메라 등급)가 좋을수록 심도가 얕아진다.
      */
     private fun drawDepthOfField(c: Canvas, vw: Float, vh: Float) {
@@ -1799,10 +1799,8 @@ class WorldScene(
                 val bmp = a.npcBitmap(e.kind, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE
-                c.drawOval(
-                    RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f),
-                    a.shadowPaint
-                )
+                scratchRect.set(sx + 8f, sy + 26f, sx + 24f, sy + 32f)
+                c.drawOval(scratchRect, a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 메인 보고 가능 또는 새 서브 의뢰가 있으면 느낌표 표시
                 if (e.kind == NpcKind.PROFESSOR) {
@@ -1834,7 +1832,8 @@ class WorldScene(
                 val bmp = a.catBitmap(e.walking, e.phase, e.faceLeft)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
-                c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
+                scratchRect.set(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f)
+                c.drawOval(scratchRect, a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 밤에 웅크린 고양이는 쿨쿨
                 if (e.state == 0 && state.isNight()) {
@@ -1863,13 +1862,11 @@ class WorldScene(
                     val shadowCx = bx + bmp.width * 0.5f
                     val shadowHalf = bmp.width * 0.4f * shadowK
                     val groundY = (e.y + e.sprH - camY) * WORLD_SCALE
-                    c.drawOval(
-                        RectF(
-                            shadowCx - shadowHalf, groundY - 2f,
-                            shadowCx + shadowHalf, groundY + 4f
-                        ),
-                        a.shadowPaint
+                    scratchRect.set(
+                        shadowCx - shadowHalf, groundY - 2f,
+                        shadowCx + shadowHalf, groundY + 4f
                     )
+                    c.drawOval(scratchRect, a.shadowPaint)
                 }
                 if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
@@ -1897,7 +1894,8 @@ class WorldScene(
                     else -> 1f
                 }
                 val half = 10f * k
-                c.drawOval(RectF(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k), a.shadowPaint)
+                scratchRect.set(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k)
+                c.drawOval(scratchRect, a.shadowPaint)
                 drawGhosts(c, bmp)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
@@ -1953,7 +1951,8 @@ class WorldScene(
             val span = map.w * 32f + 800f
             val cxw = ((game.time * speed + i * 430f) % span) - 400f
             val cyw = 110f + (i % 3) * 200f + (i / 3) * 110f + sin(game.time * 0.13f + i * 2f) * 50f
-            c.drawOval(RectF(cxw - camXv - w / 2f, cyw - camYv - 60f, cxw - camXv + w / 2f, cyw - camYv + 60f), cloudPaint)
+            scratchRect.set(cxw - camXv - w / 2f, cyw - camYv - 60f, cxw - camXv + w / 2f, cyw - camYv + 60f)
+            c.drawOval(scratchRect, cloudPaint)
         }
     }
 
@@ -2092,23 +2091,30 @@ class WorldScene(
         }
         if (warm > 0.02f) {
             val a = (52f * warm).toInt().coerceIn(0, 255)
-            glowFill.shader = LinearGradient(
-                0f, 0f, 0f, vh * 0.72f,
-                Color.argb(a, 255, 178, 96), Color.argb(0, 255, 178, 96),
-                Shader.TileMode.CLAMP
-            )
+            // 그라디언트는 한 번만 만들고, 밝기는 페인트 알파로 조절한다 —
+            // 새벽/노을 동안 매 프레임 LinearGradient를 새로 만들지 않는다.
+            var sh = shaftShader
+            if (sh == null || shaftShaderH != vh) {
+                sh = LinearGradient(
+                    0f, 0f, 0f, vh * 0.72f,
+                    Color.argb(255, 255, 178, 96), Color.argb(0, 255, 178, 96),
+                    Shader.TileMode.CLAMP
+                )
+                shaftShader = sh
+                shaftShaderH = vh
+            }
+            glowFill.shader = sh
+            glowFill.alpha = a
             c.drawRect(0f, 0f, vw, vh, glowFill)
+            glowFill.alpha = 255
             glowFill.shader = null
         }
     }
 
     /** 비네트 — 화면 가장자리를 은은하게 어둡게 */
     private fun drawVignette(c: Canvas) {
-        c.drawBitmap(
-            game.assets.vignette, null,
-            RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()),
-            vignettePaint
-        )
+        scratchRect.set(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat())
+        c.drawBitmap(game.assets.vignette, null, scratchRect, vignettePaint)
     }
 
 
@@ -2154,7 +2160,8 @@ class WorldScene(
                 val tw = np.measureText(n.name)
                 val cx = sx + 16f
                 uiFill.color = Color.argb(200, 58, 52, 74)
-                c.drawRoundRect(RectF(cx - tw / 2 - 6f, top - 15f, cx + tw / 2 + 6f, top), 7f, 7f, uiFill)
+                scratchRect.set(cx - tw / 2 - 6f, top - 15f, cx + tw / 2 + 6f, top)
+                c.drawRoundRect(scratchRect, 7f, 7f, uiFill)
                 c.drawText(n.name, cx - tw / 2, top - 4f, np)
                 top -= 18f
             }
@@ -2165,13 +2172,14 @@ class WorldScene(
             val cx = sx + 16f
             val by = top - 4f - (1f - appear) * 4f + sin(game.time * 3f) * 1.2f
             uiFill.color = Color.argb(a, 253, 250, 240)
-            c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiFill)
-            val tail = Path()
-            tail.moveTo(cx - 4f, by - 1f); tail.lineTo(cx, by + 5f); tail.lineTo(cx + 4f, by - 1f); tail.close()
-            c.drawPath(tail, uiFill)
+            scratchRect.set(cx - 12f, by - 18f, cx + 12f, by)
+            c.drawRoundRect(scratchRect, 7f, 7f, uiFill)
+            scratchPath.reset()
+            scratchPath.moveTo(cx - 4f, by - 1f); scratchPath.lineTo(cx, by + 5f); scratchPath.lineTo(cx + 4f, by - 1f); scratchPath.close()
+            c.drawPath(scratchPath, uiFill)
             uiStroke.strokeWidth = 1.4f
             uiStroke.color = Color.argb(a, 107, 79, 53)
-            c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiStroke)
+            c.drawRoundRect(scratchRect, 7f, 7f, uiStroke)
             val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
             val ew = ep.measureText(em)
             c.drawText(em, cx - ew / 2, by - 5f, ep)
@@ -2217,7 +2225,8 @@ class WorldScene(
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(label)
                 uiFill.color = Color.argb(200, 58, 52, 74)
-                c.drawRoundRect(RectF(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f), 6f, 6f, uiFill)
+                scratchRect.set(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f)
+                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
                 c.drawText(label, badgeCx - lw / 2, badgeCy + 21f, lp)
             }
         }
@@ -2242,7 +2251,8 @@ class WorldScene(
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(line)
                 uiFill.color = Color.argb(210, 58, 52, 74)
-                c.drawRoundRect(RectF(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f), 6f, 6f, uiFill)
+                scratchRect.set(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f)
+                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
                 bubbleFill.color = 0xFFF2B63C.toInt()
                 c.drawCircle(sx - lw / 2 - 4f, curY - 5f, 8f, bubbleFill)
                 val np = Type.paintPx(9f, true, 0.02f, 0xFF4A2E12.toInt())
