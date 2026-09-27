@@ -8,6 +8,16 @@ package org.json
 
 class JSONException(message: String) : RuntimeException(message)
 
+/** 파서가 만든 원시 Map/List 를 JSONObject/JSONArray 로 재귀 변환한다 */
+private fun normalizeJson(v: Any?): Any = when (v) {
+    null -> JSONObject.NULL
+    is JSONObject, is JSONArray, is Int, is Long, is Double, is Boolean, is String -> v
+    is Float -> v.toDouble()
+    is Map<*, *> -> JSONObject(v)
+    is List<*> -> JSONArray(v.map { normalizeJson(it) })
+    else -> v.toString()
+}
+
 class JSONObject {
     private val map = LinkedHashMap<String, Any>()
 
@@ -16,19 +26,11 @@ class JSONObject {
     constructor(json: String) {
         val v = JsonParser.parse(json.trim())
         if (v !is Map<*, *>) throw JSONException("JSONObject expected")
-        @Suppress("UNCHECKED_CAST")
-        map.putAll(v as Map<String, Any>)
+        for ((k, value) in v) map[k.toString()] = normalizeJson(value)
     }
 
     constructor(m: Map<*, *>) {
-        for ((k, v) in m) map[k.toString()] = normalize(v)
-    }
-
-    private fun normalize(v: Any?): Any = when (v) {
-        is Int, is Long, is Boolean, is Double, is String, is JSONObject, is JSONArray -> v
-        is Float -> v.toDouble()
-        null -> JSONObject.NULL
-        else -> v.toString()
+        for ((k, v) in m) map[k.toString()] = normalizeJson(v)
     }
 
     fun put(key: String, value: Int): JSONObject {
@@ -103,6 +105,53 @@ class JSONObject {
 
     fun length(): Int = map.size
 
+    // ----- get* (없으면 JSONException) — 도감/외부 JSON 읽기용 -----
+
+    private fun require(key: String): Any =
+        map[key] ?: throw JSONException("No value for $key")
+
+    fun getString(key: String): String = when (val v = require(key)) {
+        is String -> v
+        JSONObject.NULL -> throw JSONException("Value for $key is null")
+        else -> v.toString()
+    }
+
+    fun getInt(key: String): Int = when (val v = require(key)) {
+        is Int -> v
+        is Long -> v.toInt()
+        is Double -> v.toInt()
+        is String -> v.toDoubleOrNull()?.toInt() ?: throw JSONException("Can't convert $key to int")
+        else -> throw JSONException("Value for $key is not a number")
+    }
+
+    fun getLong(key: String): Long = when (val v = require(key)) {
+        is Int -> v.toLong()
+        is Long -> v
+        is Double -> v.toLong()
+        is String -> v.toLongOrNull() ?: throw JSONException("Can't convert $key to long")
+        else -> throw JSONException("Value for $key is not a number")
+    }
+
+    fun getDouble(key: String): Double = when (val v = require(key)) {
+        is Int -> v.toDouble()
+        is Long -> v.toDouble()
+        is Double -> v
+        is String -> v.toDoubleOrNull() ?: throw JSONException("Can't convert $key to double")
+        else -> throw JSONException("Value for $key is not a number")
+    }
+
+    fun getBoolean(key: String): Boolean = when (val v = require(key)) {
+        is Boolean -> v
+        is String -> v.toBooleanStrictOrNull() ?: throw JSONException("Can't convert $key to boolean")
+        else -> throw JSONException("Value for $key is not a boolean")
+    }
+
+    fun getJSONObject(key: String): JSONObject = require(key) as? JSONObject
+        ?: throw JSONException("Value for $key is not a JSONObject")
+
+    fun getJSONArray(key: String): JSONArray = require(key) as? JSONArray
+        ?: throw JSONException("Value for $key is not a JSONArray")
+
     override fun toString(): String {
         val sb = StringBuilder("{")
         var first = true
@@ -130,7 +179,12 @@ class JSONArray {
     constructor(json: String) {
         val v = JsonParser.parse(json.trim())
         if (v !is List<*>) throw JSONException("JSONArray expected")
-        for (e in v) list.add(e ?: JSONObject.NULL)
+        for (e in v) list.add(normalizeJson(e))
+    }
+
+    /** 중첩 값 정규화용 — normalizeJson 이 원시 List 를 감쌀 때 쓴다 */
+    constructor(values: List<*>) {
+        for (e in values) list.add(normalizeJson(e))
     }
 
     fun put(value: Int): JSONArray {
@@ -188,6 +242,31 @@ class JSONArray {
     fun optString(index: Int, def: String = ""): String = (list.getOrNull(index) as? String) ?: def
 
     fun optJSONObject(index: Int): JSONObject? = list.getOrNull(index) as? JSONObject
+
+    // ----- get* (없으면 JSONException) -----
+
+    private fun require(index: Int): Any = list.getOrNull(index)
+        ?: throw JSONException("No value at $index")
+
+    fun getString(index: Int): String = when (val v = require(index)) {
+        is String -> v
+        JSONObject.NULL -> throw JSONException("Value at $index is null")
+        else -> v.toString()
+    }
+
+    fun getInt(index: Int): Int = when (val v = require(index)) {
+        is Int -> v
+        is Long -> v.toInt()
+        is Double -> v.toInt()
+        is String -> v.toDoubleOrNull()?.toInt() ?: throw JSONException("Can't convert value at $index to int")
+        else -> throw JSONException("Value at $index is not a number")
+    }
+
+    fun getJSONObject(index: Int): JSONObject = require(index) as? JSONObject
+        ?: throw JSONException("Value at $index is not a JSONObject")
+
+    fun getJSONArray(index: Int): JSONArray = require(index) as? JSONArray
+        ?: throw JSONException("Value at $index is not a JSONArray")
 
     override fun toString(): String {
         val sb = StringBuilder("[")

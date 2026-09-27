@@ -511,8 +511,10 @@ class Paint {
     enum class Style { FILL, STROKE, FILL_AND_STROKE }
     enum class Cap { BUTT, ROUND, SQUARE }
     enum class Join { MITER, ROUND, BEVEL }
+    enum class Align { LEFT, CENTER, RIGHT }
 
     var color: Int = 0xFF000000.toInt()
+    var textAlign: Align = Align.LEFT
     var textSize: Float = 12f
     var strokeWidth: Float = 1f
     var isAntiAlias: Boolean = false
@@ -552,6 +554,7 @@ class Paint {
         maskFilter = paint.maskFilter
         colorFilter = paint.colorFilter
         letterSpacing = paint.letterSpacing
+        textAlign = paint.textAlign
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -662,7 +665,42 @@ class Bitmap private constructor(val image: BufferedImage) {
             g.dispose()
             return Bitmap(out)
         }
+
+        /** 프리뷰 전용: BufferedImage 를 Bitmap 으로 감싼다 (BitmapFactory 스텁용). */
+        @JvmStatic
+        fun wrap(image: BufferedImage): Bitmap = Bitmap(image)
     }
+}
+
+// ---------------------------------------------------------------------------
+// BitmapFactory
+// ---------------------------------------------------------------------------
+
+object BitmapFactory {
+    /** 이미지 파일/스트림 디코딩 (ImageIO — jpg/png/gif 지원, 실패 시 null) */
+    @JvmStatic
+    fun decodeStream(stream: java.io.InputStream): Bitmap? =
+        try {
+            javax.imageio.ImageIO.read(stream)?.let { Bitmap.wrap(it) }
+        } catch (_: Exception) {
+            null
+        }
+
+    @JvmStatic
+    fun decodeFile(pathName: String): Bitmap? =
+        try {
+            javax.imageio.ImageIO.read(java.io.File(pathName))?.let { Bitmap.wrap(it) }
+        } catch (_: Exception) {
+            null
+        }
+
+    @JvmStatic
+    fun decodeByteArray(data: ByteArray, offset: Int, length: Int): Bitmap? =
+        try {
+            javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(data, offset, length))?.let { Bitmap.wrap(it) }
+        } catch (_: Exception) {
+            null
+        }
 }
 
 // ---------------------------------------------------------------------------
@@ -802,6 +840,9 @@ class Canvas {
         }
     }
 
+    fun drawOval(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) =
+        drawOval(RectF(left, top, right, bottom), paint)
+
     fun drawArc(oval: RectF, startAngle: Float, sweepAngle: Float, useCenter: Boolean, paint: Paint) {
         colorize(paint)
         val shape = Arc2D.Float(
@@ -833,10 +874,16 @@ class Canvas {
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         colorize(paint)
         val base = paint.awtFont()
+        // Paint.textAlign 반영 (LEFT가 기본 — 맵 라벨이 가운데 정렬을 쓴다)
+        val x0 = when (paint.textAlign) {
+            Paint.Align.CENTER -> x - paint.measureText(text) / 2f
+            Paint.Align.RIGHT -> x - paint.measureText(text)
+            Paint.Align.LEFT -> x
+        }
         // 글꼴에 없는 글자(이모지·기호)는 기기와 똑같이 시스템 글꼴로 대체해 그린다
         val runs = StubText.runs(text, base, paint.textSize, paint.isFakeBoldText)
         if (runs.size > 1 && paint.style != Paint.Style.STROKE) {
-            var cx = x
+            var cx = x0
             for ((part, font) in runs) {
                 g.font = font
                 g.drawString(part, cx, y)
@@ -849,11 +896,11 @@ class Canvas {
             // 스티커 글자의 테두리 — 글리프 외곽선을 따 와서 실제로 선을 긋는다
             strokeOf(paint)
             val gv = g.font.createGlyphVector(g.fontRenderContext, text)
-            g.draw(AffineTransform.getTranslateInstance(x.toDouble(), y.toDouble())
+            g.draw(AffineTransform.getTranslateInstance(x0.toDouble(), y.toDouble())
                 .createTransformedShape(gv.outline))
             return
         }
-        g.drawString(text, x, y)
+        g.drawString(text, x0, y)
     }
 
     // PixelFont uses a white bitmap tinted with SRC_IN. Preserve its real text color

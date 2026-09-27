@@ -77,7 +77,7 @@ object InputSmoke {
             }
         }
         world.openOverlay(modal)
-        tap(g, g.hud.aCx, g.hud.aCy)
+        tap(g, g.hud.mainCx, g.hud.mainCy)
         check(modalTap != null && !pressedUnderlyingA)
         world.closeOverlay()
 

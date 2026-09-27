@@ -29,9 +29,10 @@ private const val BANNER_LIFE = 2.6f
 
 /**
  * 화면 좌표(실제 해상도) 기반 HUD.
- * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
- * - 우상단: 황동 회중 나침반 미니맵 (낡은 종이 해도, 탭하면 큰 지도)
- * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/달리기/간식) + 메뉴
+ * - 좌상단: 레벨/배고픔/행운 바 + 날씨·상태 (패널 배경 없이 월드 위에) · 피자/시각/사진
+ * - 우상단: 가방 버튼 + 황동 회중 나침반 미니맵 (낡은 종이 해도, 탭하면 큰 지도)
+ * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/달리기/간식)
+ * - 돈(골드)은 가방(상태 탭)을 열었을 때만 지갑으로 보인다
  */
 class Hud(private val game: Game) {
 
@@ -71,7 +72,7 @@ class Hud(private val game: Game) {
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
     var runCx = 0f; var runCy = 0f; var runR = 0f             // 달리기 (아크)
     var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
-    var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
+    var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 가방 버튼(우상단, 미니맵 왼쪽)
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
 
     private val messages = ArrayList<Message>()
@@ -194,14 +195,15 @@ class Hud(private val game: Game) {
         runR = arcR; val (rx, ry) = arc(144f); runCx = rx; runCy = ry
         eatR = arcR; val (ex, ey) = arc(183f); eatCx = ex; eatCy = ey
 
-        // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
-        menuR = dp(17f)
-        menuCx = dp(18f) + menuR
-        menuCy = hf - dp(18f) - menuR
-
+        // --- 황동 회중 나침반 미니맵 (오른쪽 위 구석) ---
         mmR = dp(68f)
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
+
+        // --- 가방 버튼 (오른쪽 위, 미니맵 왼쪽에 나란히) ---
+        menuR = dp(17f)
+        menuCx = mmCx - mmR - dp(4f) - menuR
+        menuCy = dp(8f) + menuR
         softShadow.maskFilter = BlurMaskFilter(dp(3.4f), BlurMaskFilter.Blur.NORMAL)
         buildStickShaders(stickBaseR)
     }
@@ -221,7 +223,7 @@ class Hud(private val game: Game) {
             if (hitMinimap(x, y)) return Ctrl.MAP
             return Ctrl.NONE
         }
-        // 버튼 최우선 (메뉴 클러스터가 조이스틱 구역과 겹치므로 먼저 판정)
+        // 버튼 최우선 (조이스틱보다 먼저 판정)
         if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
@@ -412,22 +414,39 @@ class Hud(private val game: Game) {
     }
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(170f) + dp(22f)
+    private fun questChipY(): Float = dp(12f) + statsHeight() + dp(18f)
+
+    /** 좌상단 스택 높이 — drawStats 의 줄 배치와 반드시 맞춰서 쓴다 (패널 없음) */
+    private fun statsHeight(): Float = dp(116f)
+
+    /**
+     * 좌상단 상태 표시 — 배경 패널 없이월드 바로 위에 놓는다.
+     * 순서: 레벨(배고픔보다 위) → 배고픔(체력)·행운 바 → 날씨 → 상태 → 피자/시각/사진.
+     * 돈(골드)은 여기서 빼고 가방을 열었을 때 지갑으로만 보여준다.
+     * 글자 위는 라이트 아웃라인 + 그림자를 얹어 밤·낮 어디서든 읽히게 한다.
+     */
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
-        val w = dp(162f)
-        val h = dp(170f)
-
-        // 프리미엄 패널
-        val r = RectF(left, top, left + w, top + h)
-        UiKit.panel(c, game, r, 12f)
-
         val a = game.assets
 
-        // 배고픔 — 아이콘 메달 + 그라데이션 바 (위험하면 맥동해 알린다)
-        val iy1 = top + dp(12f)
+        // 1) 레벨 + 경험치 — 배고픔바보다 위에
+        val ly = top
+        Type.sticker(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK, 0f)
+        Type.sticker(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT, 0f)
+        val bx = left + dp(12f)
+        val bw = dp(138f)
+        val by = ly + dp(16f)
+        val bh = dp(6f)
+        if (s.level >= Progression.MAX_LEVEL) {
+            UiKit.bar(c, game, bx, by, bw, bh, 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
+        } else {
+            UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+        }
+
+        // 2) 배고픔(체력) — 아이콘 메달 + 그라데이션 바 (위험하면 맥동해 알린다)
+        val iy1 = top + dp(26f)
         val iconSz = dp(16f)
         fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
         c.drawCircle(left + dp(20f), iy1 + dp(8f), dp(11f), fill)
@@ -442,66 +461,29 @@ class Hud(private val game: Game) {
         }
         drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
 
-        // 행운
+        // 3) 행운
         val iy2 = iy1 + dp(22f)
         fill.color = Color.argb(60, 111, 186, 107)
         c.drawCircle(left + dp(20f), iy2 + dp(8f), dp(11f), fill)
         c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), iy2, left + dp(12f) + iconSz, iy2 + iconSz), a.sprPaint)
         drawBar(c, left + dp(36f), iy2 + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
 
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(53f))
-
-        // 돈 — 골드 도트 + 금액(숫자는 픽셀 폰트)
-        fill.color = 0xFFF2B63C.toInt()
-        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), fill)
-        stroke.color = 0xFFB5651D.toInt()
-        stroke.strokeWidth = dp(1.2f)
-        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), stroke)
-        Type.text(c, won(s.money), left + dp(28f), iy2 + dp(36f), Role.HEADING, Type.INK)
-
-        // 피자 / 카메라
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        Type.text(c, "×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), Role.LABEL, Type.INK)
-        val rig = s.rig()
-        c.drawBitmap(
-            a.camIcon(rig.look), null,
-            RectF(left + dp(52f), iy2 + dp(41f), left + dp(52f) + dp(19f), iy2 + dp(41f) + dp(15.5f)),
-            a.sprPaint
-        )
-        Type.text(c, "${rig.teleMm}mm", left + dp(75f), iy2 + dp(53f), Role.LABEL, Type.INK)
-
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(94f))
-
-        // 시각 + 사진
-        val night = s.isNight()
-        val clockIcon = if (night) a.moonIcon else a.sunIcon
-        c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
-        Type.text(c, s.timeLabel(), left + dp(30f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-        Type.text(c, "📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
-
-        // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
+        // 4) 날씨 — (지금은 가방 지갑에만 보이는) 골드 자리 바로 아래에
+        val wy = iy2 + dp(20f)
         val weather = s.weather()
-        Type.text(c, "${s.season().icon}${s.season().label} · ${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
+        Type.sticker(c, "${s.season().icon}${s.season().label} · ${weather.icon} ${weather.label}", left + dp(12f), wy + dp(11f), Role.LABEL, 0xFF587083.toInt(), 0f)
 
-        // 레벨 + 경험치 바
-        // 날씨 줄과 겹치지 않도록 그 아래에 배치
-        val ly = iy2 + dp(100f)
-        Type.text(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK)
-        Type.text(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT)
+        // 5) 상태 — 지금 날씨가 월드와 새 출현에 거는 효과 한 줄
+        Type.sticker(c, weather.description, left + dp(12f), wy + dp(26f), Role.CAPTION, Type.SOFT, 0f)
 
-        // 바 (프리미엄 그라데이션)
-        val bx = left + dp(12f)
-        val bw = w - dp(24f)
-        val by = ly + dp(16f)
-        val bh = dp(6f)
-        if (s.level >= Progression.MAX_LEVEL) {
-            UiKit.bar(c, game, bx, by, bw, bh, 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
-        } else {
-            UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
-        }
-
+        // 6) 피자 / 시각 / 사진 (카메라 정보는 화면에 적지 않는다)
+        val iy3 = wy + dp(32f)
+        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy3, left + dp(12f) + dp(14f), iy3 + dp(14f)), a.sprPaint)
+        Type.sticker(c, "×${s.pizzaCount}", left + dp(30f), iy3 + dp(12f), Role.LABEL, Type.INK, 0f)
+        val clockIcon = if (s.isNight()) a.moonIcon else a.sunIcon
+        c.drawBitmap(clockIcon, null, RectF(left + dp(58f), iy3, left + dp(58f) + dp(14f), iy3 + dp(14f)), a.sprPaint)
+        Type.sticker(c, s.timeLabel(), left + dp(76f), iy3 + dp(12f), Role.LABEL, Type.MUTED, 0f)
+        Type.sticker(c, "📷 ${s.photos}", left + dp(116f), iy3 + dp(12f), Role.LABEL, Type.MUTED, 0f)
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {
@@ -722,8 +704,8 @@ class Hud(private val game: Game) {
             c.drawText(nt, bx - np.measureText(nt) / 2, Type.midBaseline(np, by), np)
         }
 
-        // ------------------------------------------------------------
-        // 4) 메뉴 클러스터 (왼쪽 아래 구석, 모서리 둥근 사각형)
+        // ------------------------------------------------------------ 
+        // 4) 가방 버튼 (오른쪽 위 구석 — 미니맵 왼쪽, 모서리 둥근 사각형)
         // ------------------------------------------------------------
         val menuPressed = Ctrl.MENU in active
         val ms = menuR
