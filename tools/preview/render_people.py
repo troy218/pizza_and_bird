@@ -74,43 +74,80 @@ def clip(kind, direction, look, n):
 COUNTS = {"idle": 12, "walk": 8, "run": 8, "sneak": 8, "aim": 4}
 
 
+def npc_pal(hair, top, top2, pants, pack):
+    return P.Pal(hair=hair, hair2=P.shade(hair, 0.75), skin=0xFFFFD9B0, skin2=0xFFE8B88C,
+                 top=top, top2=top2, pants=pants, pants2=P.shade(pants, 0.75), shoe=0xFF3A3A44,
+                 line=0xFF33241C, pack=pack, pack2=P.shade(pack, 0.75), eye=0xFF2E2620,
+                 blush=0xFFF2A58C)
+
+
+NPC_LOOKS = [
+    P.Look(npc_pal(0xFFCFD2D8, 0xFFF5F2EA, 0xFFD8D2C4, 0xFF5D6470, 0xFF9AA3AD), glasses=True),
+    P.Look(npc_pal(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A), apron=True),
+    P.Look(npc_pal(0xFF2E2620, 0xFFC3A3E8, 0xFF9F7FC8, 0xFF4A6FA5, 0xFF8A5A33)),
+    P.Look(npc_pal(0xFF5B3A29, 0xFFE2574C, 0xFFB23F44, 0xFF3F6FB0, 0xFFF2B63C), small=True),
+    P.Look(npc_pal(0xFFE8E4DC, 0xFF8A7360, 0xFF6B5A48, 0xFF5D6470, 0xFF4F463F), cane=True, longHair=True),
+]
+
+
+def labelled_sheet(rows, scale=4, pad=2, label_w=104, bg=(150, 200, 146, 255)):
+    """[(라벨, [비트맵...])] 를 한 장의 PNG 로."""
+    from PIL import ImageDraw
+    cell = P.SIZE + pad
+    cols = max(len(r[1]) for r in rows)
+    w = label_w + cols * cell * scale
+    h = len(rows) * cell * scale
+    img = Image.new("RGBA", (w, h), bg)
+    d = ImageDraw.Draw(img)
+    for ry, (label, frames) in enumerate(rows):
+        y = ry * cell * scale
+        d.text((6, y + cell * scale // 2 - 4), label, fill=(40, 36, 28, 255))
+        for cx, bmp in enumerate(frames):
+            im = to_img(bmp).resize((bmp.w * scale, bmp.h * scale), Image.NEAREST)
+            img.alpha_composite(im, (label_w + cx * cell * scale, y))
+    return img
+
+
+def gif(path, frames, dur, scale=6, bg=(150, 200, 146, 255)):
+    imgs = []
+    for b in frames:
+        im = to_img(b).resize((b.w * scale, b.h * scale), Image.NEAREST)
+        base = Image.new("RGBA", im.size, bg)
+        base.alpha_composite(im)
+        imgs.append(base.convert("P", palette=Image.ADAPTIVE))
+    imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=dur, loop=0)
+
+
 def main():
     outdir = sys.argv[1] if len(sys.argv) > 1 else "/tmp/people"
     os.makedirs(outdir, exist_ok=True)
 
     look = P.Look(MALE, gear=GEARS[3])
-    rows = []
-    for kind in ("idle", "walk", "run", "sneak", "aim"):
-        for d in (P.FRONT, P.SIDE, P.BACK):
-            rows.append(clip(kind, d, look, COUNTS[kind]))
-    sheet(rows).save(os.path.join(outdir, "player_tier3.png"))
-
     look0 = P.Look(MALE)
-    rows = []
-    for kind in ("idle", "walk", "run"):
-        for d in (P.FRONT, P.SIDE, P.BACK):
-            rows.append(clip(kind, d, look0, COUNTS[kind]))
-    sheet(rows).save(os.path.join(outdir, "player_tier0.png"))
-
     lookF = P.Look(FEMALE, gear=GEARS[2], longHair=True)
-    rows = []
-    for kind in ("idle", "walk", "run"):
-        for d in (P.FRONT, P.SIDE, P.BACK):
-            rows.append(clip(kind, d, lookF, COUNTS[kind]))
-    sheet(rows).save(os.path.join(outdir, "player_female.png"))
 
-    # GIF (걷기/달리기 측면 + 정면)
+    rows = []
     for kind in ("idle", "walk", "run", "sneak", "aim"):
-        for d, dn in ((P.FRONT, "front"), (P.SIDE, "side"), (P.BACK, "back")):
-            fr = clip(kind, d, look, COUNTS[kind])
-            imgs = [to_img(b).resize((P.SIZE * 6, P.SIZE * 6), Image.NEAREST) for b in fr]
-            base = [Image.new("RGBA", im.size, (158, 208, 152, 255)) for im in imgs]
-            for bg, im in zip(base, imgs):
-                bg.alpha_composite(im)
-            dur = {"idle": 150, "walk": 90, "run": 70, "sneak": 140, "aim": 200}[kind]
-            base[0].convert("P").save(
-                os.path.join(outdir, f"{kind}_{dn}.gif"), save_all=True,
-                append_images=[b.convert("P") for b in base[1:]], duration=dur, loop=0)
+        for d, dn in ((P.SIDE, "side"), (P.FRONT, "front"), (P.BACK, "back")):
+            rows.append((f"{kind} {dn}", clip(kind, d, look, COUNTS[kind])))
+    rows.append(("bike side", [P.render_bike(P.SIDE, i / 8, look) for i in range(8)]))
+    rows.append(("bike front", [P.render_bike(P.FRONT, i / 8, look) for i in range(8)]))
+    rows.append(("cat sit", [P.render_cat(False, i / 8) for i in range(8)]))
+    rows.append(("cat walk", [P.render_cat(True, i / 6) for i in range(6)]))
+    for i, name in enumerate(("professor", "shopkeeper", "villager", "kid", "elder")):
+        rows.append((name, [P.render(P.FRONT, P.npc_pose(i, f / 8), NPC_LOOKS[i]) for f in range(8)]))
+    labelled_sheet(rows).save(os.path.join(outdir, "character_anim.png"))
+
+    rows = []
+    for tier, lk in ((0, look0), (2, P.Look(MALE, gear=GEARS[2])), (3, look), (2, lookF)):
+        rows.append((f"tier{tier} walk", clip("walk", P.SIDE, lk, 8)))
+    labelled_sheet(rows).save(os.path.join(outdir, "character_tiers.png"))
+
+    gif(os.path.join(outdir, "anim_walk.gif"), clip("walk", P.SIDE, look, 8), 90)
+    gif(os.path.join(outdir, "anim_run.gif"), clip("run", P.SIDE, look, 8), 65)
+    gif(os.path.join(outdir, "anim_idle.gif"), clip("idle", P.FRONT, look, 12), 170)
+    gif(os.path.join(outdir, "anim_bike.gif"), [P.render_bike(P.SIDE, i / 8, look) for i in range(8)], 80)
+    gif(os.path.join(outdir, "anim_cat.gif"), [P.render_cat(True, i / 6) for i in range(6)], 110)
     print("saved ->", outdir)
 
 
