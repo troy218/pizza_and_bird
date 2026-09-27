@@ -89,6 +89,13 @@ data class TunnelInfo(
     val number: Int
 )
 
+data class ViewpointInfo(
+    val tileX: Int,
+    val tileY: Int,
+    val label: String,
+    val height: Int
+)
+
 class GameMap(
     val region: RegionDef,
     val w: Int,
@@ -105,7 +112,10 @@ class GameMap(
     val tunnels: List<TunnelInfo> = emptyList(),
     val hasLandmark: Boolean = false,
     val landmarkDoorX: Int = -1,
-    val landmarkDoorY: Int = -1
+    val landmarkDoorY: Int = -1,
+    /** Climbable contour height in tile steps. Negative values are low wet ground. */
+    val elevation: Array<IntArray> = Array(h) { IntArray(w) },
+    val viewpoints: List<ViewpointInfo> = emptyList()
 ) {
     /**
      * 현재 계절 — 나무(벚꽃·단풍·눈)/풀빛/물빛이 계절마다 바뀐다.
@@ -123,6 +133,16 @@ class GameMap(
     private val waterPaint = Paint().apply { isFilterBitmap = false }
     private val shorePaint = Paint().apply { isFilterBitmap = false }
     private val stonePaint = Paint().apply { isFilterBitmap = false }
+    private val elevationSidePaint = Paint().apply { isAntiAlias = false }
+    private val elevationTopPaint = Paint().apply { isAntiAlias = false; style = Paint.Style.STROKE; strokeWidth = 1.5f }
+    private val viewpointPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val viewpointStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.6f }
+    private val viewpointText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF3C5D58.toInt()
+        textSize = 11f
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
 
     private fun refreshSeasonPaints() {
         foliagePaint.colorFilter = PorterDuffColorFilter(
@@ -213,6 +233,22 @@ class GameMap(
     fun groundAt(x: Int, y: Int): T {
         if (x < 0 || y < 0 || x >= w || y >= h) return T.GRASS
         return T.ALL[ground[y][x]]
+    }
+
+    /** 지형의 상대 높이. 0은 평지, 양수는 단차가 있는 둔덕·데크, 음수는 저지대다. */
+    fun elevationAt(x: Int, y: Int): Int {
+        if (x < 0 || y < 0 || x >= w || y >= h) return 0
+        return elevation[y][x]
+    }
+
+    /** 계단/경사로를 벗어나 한 번에 절벽을 오르지 못하게 한다. */
+    fun canTraverse(fromPx: Float, fromPy: Float, toPx: Float, toPy: Float): Boolean {
+        val fromX = ((fromPx + 8f) / 16f).toInt()
+        val fromY = ((fromPy + 13f) / 16f).toInt()
+        val toX = ((toPx + 8f) / 16f).toInt()
+        val toY = ((toPy + 13f) / 16f).toInt()
+        if (fromX == toX && fromY == toY) return true
+        return kotlin.math.abs(elevationAt(fromX, fromY) - elevationAt(toX, toY)) <= 1
     }
 
     /** 포장 재질 (0 = 흙/잔디 그대로) */
@@ -384,6 +420,62 @@ class GameMap(
     }
 
     /**
+     * Raised decks and wet lowlands use a small orthographic lip instead of a flat
+     * color change. It stays in the tile plane so existing sprites and collision
+     * coordinates remain compatible with old saves.
+     */
+    private fun drawElevationRelief(c: Canvas, camX: Float, camY: Float, x0: Int, y0: Int, x1: Int, y1: Int) {
+        for (y in y0..y1) for (x in x0..x1) {
+            val level = elevationAt(x, y)
+            val fx = x * 32f - camX
+            val fy = y * 32f - camY
+            if (level > 0) {
+                val lip = (level * 4f).coerceAtMost(12f)
+                val below = elevationAt(x, y + 1)
+                if (below < level) {
+                    elevationSidePaint.color = Color.argb(34 + level * 12, 48, 67, 62)
+                    c.drawRect(fx + 2f, fy + 27f, fx + 30f, fy + 32f + lip, elevationSidePaint)
+                    elevationTopPaint.color = Color.argb(125, 250, 247, 218)
+                    c.drawLine(fx + 2f, fy + 27f, fx + 30f, fy + 27f, elevationTopPaint)
+                }
+                val right = elevationAt(x + 1, y)
+                if (right < level) {
+                    elevationSidePaint.color = Color.argb(24 + level * 9, 42, 61, 57)
+                    c.drawRect(fx + 27f, fy + 3f, fx + 32f + lip, fy + 29f, elevationSidePaint)
+                }
+            } else if (level < 0 && elevationAt(x, y - 1) >= 0) {
+                // A soft darker rim makes floodplain / tidal flats read as lower ground.
+                elevationSidePaint.color = Color.argb(32, 65, 116, 110)
+                c.drawRect(fx + 1f, fy + 1f, fx + 31f, fy + 4f, elevationSidePaint)
+            }
+        }
+    }
+
+    /** Small railings and a flag make the destination of a climb legible from below. */
+    private fun drawViewpointMarkers(c: Canvas, camX: Float, camY: Float, x0: Int, y0: Int, x1: Int, y1: Int) {
+        for (view in viewpoints) {
+            if (view.tileX !in x0 - 1..x1 + 1 || view.tileY !in y0 - 1..y1 + 1) continue
+            val sx = view.tileX * 32f - camX
+            val sy = view.tileY * 32f - camY
+            viewpointPaint.color = 0xFF6A8E83.toInt()
+            c.drawRect(sx + 5f, sy + 13f, sx + 27f, sy + 16f, viewpointPaint)
+            viewpointStroke.color = 0xFFD8E9D5.toInt()
+            for (px in 7..25 step 6) c.drawLine(sx + px, sy + 7f, sx + px, sy + 15f, viewpointStroke)
+            c.drawLine(sx + 7f, sy + 7f, sx + 25f, sy + 7f, viewpointStroke)
+            viewpointPaint.color = 0xFF4F746A.toInt()
+            c.drawRect(sx + 15f, sy + 3f, sx + 16.5f, sy + 14f, viewpointPaint)
+            viewpointPaint.color = 0xFFF2B63C.toInt()
+            val flag = Path()
+            flag.moveTo(sx + 16f, sy + 3f); flag.lineTo(sx + 26f, sy + 6f); flag.lineTo(sx + 16f, sy + 9f); flag.close()
+            c.drawPath(flag, viewpointPaint)
+            if (view.height >= 2) {
+                viewpointText.color = Color.argb(210, 53, 82, 76)
+                c.drawText("전망", sx + 16f, sy - 3f, viewpointText)
+            }
+        }
+    }
+
+    /**
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
      * 레이어 순서: 지면 -> 포장(오토타일) -> 데칼 -> 구조물/소품 -> 접지 그림자.
@@ -401,6 +493,8 @@ class GameMap(
         val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2      // 가정용 오븐 불빛 깜빡임
 
         drawGround(c, a, camX, camY, x0, y0, x1, y1, time, waterFrame)
+        drawElevationRelief(c, camX, camY, x0, y0, x1, y1)
+        drawViewpointMarkers(c, camX, camY, x0, y0, x1, y1)
 
         // 3.5) 햇빛 그림자 — 해의 위치(시각)에 따라 나무·가로등·이정표의 긴 그림자가 돌아간다
         if (sunAlpha > 0 && sunLen > 0f) {
@@ -680,6 +774,7 @@ object MapBuilder {
         val base = Array(h) { IntArray(w) { T.GRASS.ordinal } }
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
+        val elevation = Array(h) { IntArray(w) }
         val reserved = Array(h) { BooleanArray(w) }
         val structure = Array(h) { BooleanArray(w) }      // 길이 뚫고 지나갈 수 없는 칸
         val rnd = Random(region.id.hashCode().toLong())
@@ -1758,6 +1853,90 @@ object MapBuilder {
             }
         }
 
+        // 13.5 높낮이와 전망 데크 ----------------------------------------------------
+        // Water edges, tidal flats, reeds, and rice fields sit slightly lower.
+        // A single regional high point is reached through a real, one-step-at-a-time ramp.
+        for (y in 0 until h) for (x in 0 until w) {
+            elevation[y][x] = when {
+                base[y][x] == T.WATER.ordinal -> -1
+                t[y][x] == T.SAND.ordinal || t[y][x] == T.REED.ordinal ||
+                    t[y][x] == T.TALLGRASS.ordinal && (isWet || isCoast) -> -1
+                else -> 0
+            }
+        }
+
+        val viewpoints = ArrayList<ViewpointInfo>()
+        val viewSpec = mapStyle.viewpoint
+        if (viewSpec != null) {
+            fun freeDeck(x: Int, y: Int): Boolean =
+                inb(x, y) && x in 3 until w - 3 && y in 3 until h - 3 &&
+                    !reserved[y][x] && !structure[y][x] && base[y][x] != T.WATER.ordinal &&
+                    !T.ALL[t[y][x]].solid
+
+            var deck: Pair<Int, Int>? = null
+            val candidates = ArrayList<Pair<Int, Int>>()
+            candidates.add(viewSpec.point.x to viewSpec.point.y)
+            for (radius in 1..6) for (dy in -radius..radius) for (dx in -radius..radius) {
+                if (kotlin.math.abs(dx) != radius && kotlin.math.abs(dy) != radius) continue
+                candidates.add(viewSpec.point.x + dx to viewSpec.point.y + dy)
+            }
+            for (candidate in candidates) if (freeDeck(candidate.first, candidate.second)) {
+                deck = candidate; break
+            }
+
+            if (deck != null) {
+                // BFS finds a walkable connection to an existing path, not a decorative
+                // staircase that ends in a tree or a river. Prefer enough run-up for the height.
+                val startKey = deck.second * 100 + deck.first
+                val parent = HashMap<Int, Int>()
+                val distance = HashMap<Int, Int>()
+                val q = ArrayDeque<Int>()
+                q.add(startKey); distance[startKey] = 0
+                var targetKey: Int? = null
+                while (q.isNotEmpty()) {
+                    val key = q.removeFirst()
+                    val cy = key / 100; val cx = key - cy * 100
+                    val d = distance[key] ?: 0
+                    if (d >= viewSpec.height && pave[cy][cx] != Pave.NONE) { targetKey = key; break }
+                    for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                        val nx = cx + dx; val ny = cy + dy
+                        if (!inb(nx, ny) || nx !in 2 until w - 2 || ny !in 2 until h - 2) continue
+                        val nk = ny * 100 + nx
+                        if (nk in distance || structure[ny][nx] || (reserved[ny][nx] && pave[ny][nx] == Pave.NONE) || T.ALL[t[ny][nx]].solid || base[ny][nx] == T.WATER.ordinal) continue
+                        distance[nk] = d + 1; parent[nk] = key; q.add(nk)
+                    }
+                }
+                if (targetKey != null) {
+                    val route = ArrayList<Pair<Int, Int>>()
+                    var key = targetKey!!
+                    while (true) {
+                        val cy = key / 100; val cx = key - cy * 100
+                        route.add(cx to cy)
+                        if (key == startKey) break
+                        key = parent[key] ?: break
+                    }
+                    route.reverse()
+                    val actualHeight = minOf(viewSpec.height, route.lastIndex.coerceAtLeast(1))
+                    for (i in route.indices) {
+                        val (x, y) = route[i]
+                        val level = kotlin.math.round(actualHeight * (1f - i.toFloat() / route.lastIndex.coerceAtLeast(1))).toInt()
+                        elevation[y][x] = level
+                        if (i == 0) {
+                            t[y][x] = T.PLAZA.ordinal
+                            base[y][x] = T.GRASS.ordinal
+                            pave[y][x] = Pave.STONE
+                        } else {
+                            t[y][x] = T.PATH.ordinal
+                            base[y][x] = T.GRASS.ordinal
+                            pave[y][x] = Pave.STONE
+                        }
+                        reserved[y][x] = true
+                    }
+                    viewpoints.add(ViewpointInfo(deck!!.first, deck!!.second, viewSpec.label, actualHeight))
+                }
+            }
+        }
+
         // 14. 지역 사람 배치 — 「한 사람은 한 장소에만」 (`NpcRoster`) ------------------
         //     자연물까지 다 자란 마지막에 세운다. 그래야 나무·바위에 자리가 묻히지 않고,
         //     "여기까지 걸어갈 수 있는가"를 완성된 지도로 검사할 수 있다.
@@ -1773,12 +1952,11 @@ object MapBuilder {
             tunnels = tunnelList
         )
 
-        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, mapStyle, tunnelList)
-
         return GameMap(
             region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY,
             mapStyle, tunnelList,
-            hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY
+            hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY,
+            elevation = elevation, viewpoints = viewpoints
         )
     }
 

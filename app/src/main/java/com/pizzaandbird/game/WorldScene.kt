@@ -219,6 +219,9 @@ class WorldScene(
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
+        if (map.viewpoints.isNotEmpty()) {
+            game.toast("돌 경사로를 따라 ${map.viewpoints.first().label}에 올라가 보세요")
+        }
 
         game.audio.playBgm(regionBgm())       // 🎵 지역 분위기에 맞는 곡
         updateAmbience()
@@ -492,6 +495,7 @@ class WorldScene(
             nearFlowerTile() != null && Healing.pickableHerbs(state.season(), region.habitats).isNotEmpty() -> "leaf"
             map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
             nearLandmarkDoor() -> "pin"
+            nearestViewpoint() != null -> "map"
             nearestCat() != null -> "fist"
             else -> null
         }
@@ -744,12 +748,11 @@ class WorldScene(
         // 1) 벽·바위에 부딪힘 — 자전거일수록 크게 '쿵'
         if (blocked && sp > 30f && bumpCd <= 0f) {
             bumpCd = 0.42f
-        .y + 15f,
-                        (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
-                        0.45f, Color.argb(120, 150, 132, 104), 3f, false
-                    )
-                }
-            }
+            addParticle(
+                player.x + 8f, player.y + 15f,
+                (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
+                0.45f, Color.argb(120, 150, 132, 104), 3f, false
+            )
         }
         // 2) 급정거 — 관성으로 몸이 앞으로 쏠린다
         if (prevSpeed > 72f && sp < 6f) {
@@ -806,6 +809,7 @@ class WorldScene(
         if (dx == 0f && dy == 0f) return true
         val nx = player.x + dx
         val ny = player.y + dy
+        if (!map.canTraverse(player.x, player.y, nx, ny)) return false
         if (!map.solidBox(nx, ny)) {
             player.x = nx
             player.y = ny
@@ -904,6 +908,23 @@ class WorldScene(
         val ddx = (map.landmarkDoorX * 16f + 16f) - player.cx
         val ddy = (map.landmarkDoorY * 16f + 8f) - player.cy
         return hypot(ddx, ddy) < 30f
+    }
+
+    /** 가까이 다가가야 보이는 지역별 전망 데크. 계단을 직접 올라온 경우에만 도착할 수 있다. */
+    private fun nearestViewpoint(rangePx: Float = 34f): ViewpointInfo? =
+        map.viewpoints.minByOrNull {
+            hypot(it.tileX * 16f + 8f - player.cx, it.tileY * 16f + 8f - player.cy)
+        }?.takeIf {
+            hypot(it.tileX * 16f + 8f - player.cx, it.tileY * 16f + 8f - player.cy) <= rangePx
+        }
+
+    private fun admireViewpoint(view: ViewpointInfo) {
+        val oldLuck = state.luck
+        state.luck = (state.luck + 2f).coerceAtMost(100f)
+        val gain = (state.luck - oldLuck).toInt()
+        game.sfx(Audio.Sfx.SPARKLE, 0.65f)
+        game.toast("${view.label} · ${view.height}단 높이에서 풍경을 내려다봤다 ☘️+$gain")
+        game.banner("${region.emoji} ${view.label}")
     }
 
     private fun enterLandmark() {
@@ -2277,6 +2298,10 @@ class WorldScene(
                 enterLandmark()
                 return
             }
+            nearestViewpoint()?.let { view ->
+                admireViewpoint(view)
+                return
+            }
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -3187,17 +3212,6 @@ class WorldScene(
         private const val BIRD_SPRITE_K = 0.5f
 
         /** 잔상용 위치 링버퍼 길이 */
-        private const val GHOSTS = 6
-
-        /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */
-        const val LIGHT_W = 1130
-        const val LIGHT_H = 664
-    }
-    override fun drawHud(c: Canvas) {
-        game.hud.draw(c)
-    }
-}
-       /** 잔상용 위치 링버퍼 길이 */
         private const val GHOSTS = 6
 
         /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */
