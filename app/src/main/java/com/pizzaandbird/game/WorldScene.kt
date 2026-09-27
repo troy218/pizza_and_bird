@@ -401,10 +401,14 @@ class WorldScene(
         state.py = player.y
         state.onBike = player.bike
         game.hud.questLabel = if (photoMode) null else when {
-            state.questBird != null -> "서브: ${Birds.byId[state.questBird!!]?.name ?: "?"} 사진"
+            state.activeQuests.isNotEmpty() -> {
+                val q = state.activeQuests.first()
+                "의뢰 · [${q.category.label}] ${q.title} (${q.progressText})"
+            }
+            state.questBird != null -> "서브 · ${Birds.byId[state.questBird!!]?.name ?: "?"} 사진"
             state.mainQuestFinished -> null
-            state.mainQuestStarted -> MainStory.current(state)?.let { "메인: ${it.title}" }
-            else -> "메인: ${NpcRoster.professorRegionName} 보리 박사 만나기"
+            state.mainQuestStarted -> MainStory.current(state)?.let { "메인 · ${it.title}" }
+            else -> "메인 · ${NpcRoster.professorRegionName} 보리 박사 만나기"
         }
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
@@ -1041,6 +1045,20 @@ class WorldScene(
             questLine = "의뢰 완료! +${won(total)}" + if (bonus > 0) " (3성 보너스)" else ""
             state.questBird = null
             state.questReward = 0
+        }
+
+        // 다종 퀘스트(서식지 탐사, 3성 촬영, 야간 탐조, 비행 포착, 신규 종 발굴 등) 판정
+        val isAction = movingShot || fastShot || b.fleeT > 0f || b.state == 2
+        val completedQuests = QuestManager.onPhotoTaken(
+            state, b.def, stars, isNew, state.isNight(), isAction
+        )
+        if (completedQuests.isNotEmpty()) {
+            if (questLine == null) questLine = completedQuests.first()
+            for (line in completedQuests) {
+                game.toast(line)
+            }
+            game.sfx(Audio.Sfx.SPARKLE, 0.9f)
+            game.sfx(Audio.Sfx.NOTIFY, 0.9f)
         }
 
         val prevLevel = state.level
@@ -1866,48 +1884,80 @@ class WorldScene(
         )
     }
 
-    /** 무작위 사진 의뢰는 메인 스토리 진행도와 무관하게 언제든 수락·포기할 수 있다. */
+    /** 다양한 퀘스트 종류(지정 촬영, 서식지 탐사, 3성 촬영, 야간 탐조 등)를 선택할 수 있는 탐조 의뢰 게시판 */
     private fun showSideQuest() {
-        val cur = state.questBird
-        if (cur == null) {
-            val n = state.isNight()
-            val pool = Birds.poolFor(map.region, n, state.day, state.worldTime).ifEmpty { Birds.poolFor(map.region, !n) }
-            if (pool.isEmpty()) return
-            val unphoto = pool.filter { (state.birdCounts[it.id] ?: 0) == 0 && it.tier.star <= 2 }
-            val candidates = if (unphoto.isNotEmpty() && rnd.nextDouble() < 0.55) unphoto else pool
-            val def = candidates[rnd.nextInt(candidates.size)]
+        QuestManager.ensureDailyQuests(state)
+        val active = state.activeQuests
+        if (active.size >= 3) {
+            val lines = active.mapIndexed { idx, q ->
+                "${idx + 1}. [${q.category.label}] ${q.title} (${q.progressText})"
+            }.joinToString("\n")
             openOverlay(
                 DialogOverlay(
-                    this, "보리 박사의 사진 의뢰",
-                    "\"이 지역에 ${def.name}가 나타났다는 소문이 있어.\n메인 기록과 상관없이 사진 한 장 부탁하네!\n보수는 ${won(def.reward)}.\"",
-                    listOf(
-                        DialogOverlay.Choice("맡겨주세요!") {
-                            state.questBird = def.id
-                            state.questReward = def.reward
-                            SaveManager.save(game.context, state)
-                            game.toast("서브 의뢰 접수: ${def.name} 사진")
-                            game.sfx(Audio.Sfx.NOTIFY, 0.8f)
-                        },
-                        DialogOverlay.Choice("다른 일을 할게요"))
-                )
-            )
-        } else {
-            val def = Birds.byId[cur]
-            openOverlay(
-                DialogOverlay(
-                    this, "진행 중인 사진 의뢰",
-                    "\"아직 ${def?.name ?: "그 새"} 사진인가?\n시간 제한은 없으니 원하는 때에 찍어 오게.\n포기해도 메인 이야기에는 영향이 없네.\"",
+                    this, "진행 중인 탐조 의뢰 (3/3)",
+                    "\"현재 진행 중인 의뢰가 가득 찼네(3/3):\n$lines\n의뢰를 완료하거나 포기한 뒤 새 의뢰를 받아보게나.\"",
                     listOf(
                         DialogOverlay.Choice("계속할게요"),
-                        DialogOverlay.Choice("의뢰 포기하기") {
+                        DialogOverlay.Choice("첫 번째 의뢰 포기") {
+                            val removed = state.activeQuests.removeAt(0)
+                            if (removed.category == QuestCategory.BIRD_SPECIES && state.questBird == removed.targetKey) {
+                                state.questBird = null
+                                state.questReward = 0
+                            }
+                            SaveManager.save(game.context, state)
+                            game.toast("[${removed.category.label}] ${removed.title} 의뢰를 포기했어요.")
+                        },
+                        DialogOverlay.Choice("모든 의뢰 포기") {
+                            state.activeQuests.clear()
                             state.questBird = null
                             state.questReward = 0
                             SaveManager.save(game.context, state)
-                            game.toast("사진 의뢰를 포기했어요. 언제든 새 의뢰를 받을 수 있어요.")
-                        })
+                            game.toast("진행 중인 모든 의뢰를 포기했어요.")
+                        }
+                    )
                 )
             )
+            return
         }
+
+        // 새 의뢰 목록 생성 (서로 다른 4가지 종류)
+        val candidates = QuestManager.generateBoardQuests(state, 4)
+        val statusText = if (active.isNotEmpty()) {
+            "현재 진행 중: ${active.size}/3개\n" + active.joinToString(", ") { "[${it.category.label}] ${it.title}" } + "\n\n"
+        } else ""
+
+        val choices = ArrayList<DialogOverlay.Choice>()
+        for (q in candidates) {
+            val label = "[${q.category.label}] ${q.title} (+₩${won(q.rewardMoney)})"
+            choices.add(DialogOverlay.Choice(label) {
+                state.activeQuests.add(q)
+                if (q.category == QuestCategory.BIRD_SPECIES) {
+                    state.questBird = q.targetKey
+                    state.questReward = q.rewardMoney
+                }
+                SaveManager.save(game.context, state)
+                game.toast("의뢰 수락: [${q.category.label}] ${q.title}")
+                game.sfx(Audio.Sfx.NOTIFY, 0.8f)
+            })
+        }
+        if (active.isNotEmpty()) {
+            choices.add(DialogOverlay.Choice("진행 중인 의뢰 포기하기") {
+                state.activeQuests.clear()
+                state.questBird = null
+                state.questReward = 0
+                SaveManager.save(game.context, state)
+                game.toast("진행 중인 의뢰를 정리했어요.")
+            })
+        }
+        choices.add(DialogOverlay.Choice("다음에 할게요"))
+
+        openOverlay(
+            DialogOverlay(
+                this, "보리 박사의 탐조 의뢰 게시판",
+                "\"${statusText}탐조 협회와 지역 주민들이 맡긴 다양한 의뢰가 들어와 있네.\n원하는 조사를 골라 보게나! (최대 3개 동시 진행 가능)\"",
+                choices
+            )
+        )
     }
 
     private fun talkShop() {
