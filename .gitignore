@@ -18,3 +18,4 @@ build/
 # 그래픽 프리뷰 파이프라인 산출물
 /tools/preview/out/
 /tools/preview/fonts/
+/tools/preview/.kotlinc/
