@@ -270,12 +270,15 @@ class Input(private val game: Game) {
 
     /**
      * 가상 월드 좌표 탭 (씬이 소비).
-     * Game.screenToWorld 가 씬의 카메라 오프셋과 망원 배율(CameraRig.zoom)까지 역변환해 준다.
+     * 레터박스 바깥 터치는 월드 입력으로 흘리지 않고, 화면 오프셋/배율은
+     * Game.screenToWorld가 카메라 오프셋과 망원 배율까지 함께 역변환한다.
      */
     fun consumeTapWorld(): PointF? {
         val t = tapScreen
         tapScreen = null
-        return t?.let { game.screenToWorld(it) }
+        if (t == null) return null
+        if (!game.isInsideVirtualViewport(t)) return null
+        return game.screenToWorld(t)
     }
 
     /** 프레임 끝: 엣지 트리거 초기화 */

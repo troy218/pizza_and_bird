@@ -12,6 +12,43 @@ import android.graphics.RectF
 import android.graphics.Typeface
 
 /**
+ * [P09] 접근성용 전역 텍스트 배율. GameState와 분리해 feat_* 기본 설정으로 저장한다.
+ * 옵션: 보통(1.0), 크게(1.15), 아주 크게(1.3).
+ */
+object TypeScale {
+    const val PREF_KEY = "feat_display_v1"
+    private const val PREFS_SUFFIX = "_preferences"
+    @Volatile private var scale = 1f
+
+    /** 현재 선택 배율을 반환한다. 앱 시작 시 저장값도 함께 읽는다. */
+    fun of(ctx: android.content.Context): Float {
+        val value = ctx.getSharedPreferences(ctx.packageName + PREFS_SUFFIX, android.content.Context.MODE_PRIVATE)
+            .getString(PREF_KEY, "0")?.toIntOrNull()?.coerceIn(0, 2) ?: 0
+        scale = when (value) { 1 -> 1.15f; 2 -> 1.3f; else -> 1f }
+        return scale
+    }
+
+    /** 다음 접근성 단계를 저장하고 즉시 적용한다. 반환값은 새 단계(0..2). */
+    fun cycle(ctx: android.content.Context): Int {
+        val prefs = ctx.getSharedPreferences(ctx.packageName + PREFS_SUFFIX, android.content.Context.MODE_PRIVATE)
+        val current = prefs.getString(PREF_KEY, "0")?.toIntOrNull()?.coerceIn(0, 2) ?: 0
+        val next = (current + 1) % 3
+        prefs.edit().putString(PREF_KEY, next.toString()).apply()
+        scale = when (next) { 1 -> 1.15f; 2 -> 1.3f; else -> 1f }
+        return next
+    }
+
+    /** 기기 밀도가 반영된 px 글자 크기에 접근성 배율을 한 번 적용한다. */
+    fun px(value: Float): Float = value * scale
+
+    fun label(): String = when (scale) {
+        1.15f -> "크게"
+        1.3f -> "아주 크게"
+        else -> "보통"
+    }
+}
+
+/**
  * 텍스트 역할 — 화면마다 손으로 크기를 맞추지 말고 여기 있는 역할만 쓴다.
  * (sizeDp: 글자 크기 · bold: 굵기 · track: 자간(em) · lineDp: 줄 간격)
  */
@@ -62,6 +99,7 @@ object Type {
 
     /** 앱 시작 시 한 번 호출. assets/font 의 폰트를 글꼴로 쓰게 한다(없으면 시스템 폰트). */
     fun init(ctx: Context) {
+        TypeScale.of(ctx)
         d = ctx.resources.displayMetrics.density
         base = loadFromAssets(ctx)
         for ((p, bold) in bound) p.typeface = face(bold)
@@ -115,13 +153,14 @@ object Type {
     fun paintAt(sizeDp: Float, bold: Boolean, track: Float, color: Int): Paint =
         paintPx(sizeDp * d, bold, track, color)
 
-    /** px 단위 지정 — 가상 해상도(960x540) 월드 캔버스에 그릴 때 쓴다. */
+    /** px 단위 지정 — 배율은 텍스트 그리기 진입점에서만 적용한다. */
     fun paintPx(sizePx: Float, bold: Boolean, track: Float, color: Int): Paint {
-        val k = ckey(sizePx, bold, track, color)
+        val scaledSize = TypeScale.px(sizePx)
+        val k = ckey(scaledSize, bold, track, color)
         return fills.getOrPut(k) {
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 typeface = face(bold)
-                textSize = sizePx
+                textSize = scaledSize
                 letterSpacing = track
                 this.color = color
             }
@@ -129,11 +168,12 @@ object Type {
     }
 
     private fun edge(role: Role, color: Int, w: Float): Paint {
-        val k = ckey(role.sizeDp, role.bold, role.track, color) * 1024L + (w * 16f).toLong()
+        val scaledSize = TypeScale.px(role.sizeDp * d)
+        val k = ckey(scaledSize, role.bold, role.track, color) * 1024L + (w * 16f).toLong()
         return edges.getOrPut(k) {
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 typeface = face(role.bold)
-                textSize = role.sizeDp * d
+                textSize = scaledSize
                 letterSpacing = role.track
                 this.color = color
                 style = Paint.Style.STROKE
@@ -144,8 +184,8 @@ object Type {
         }
     }
 
-    fun size(role: Role): Float = role.sizeDp * d
-    fun lineHeight(role: Role): Float = role.lineDp * d
+    fun size(role: Role): Float = TypeScale.px(role.sizeDp * d)
+    fun lineHeight(role: Role): Float = TypeScale.px(role.lineDp * d)
 
     /**
      * 세로 가운데 정렬용 baseline — 픽셀 폰트면 대문자 높이로, 아니면 ascent/descent 로 계산
@@ -176,7 +216,7 @@ object Type {
         role.bold && role.sizeDp >= 10f && PixelFont.supports(s)
 
     private fun scaleOf(role: Role): Int =
-        Math.max(1, Math.round(role.sizeDp * d * 0.72f / PixelFont.GH))
+        Math.max(1, Math.round(TypeScale.px(role.sizeDp * d) * 0.72f / PixelFont.GH))
 
     /** 문자열이 실제로 차지할 너비(px). [text] 와 반드시 같은 규칙을 쓴다. */
     fun width(role: Role, s: String, color: Int = INK): Float =
@@ -222,7 +262,7 @@ object Type {
         val off = role.sizeDp * d * 0.055f
         c.drawText(s, left + off, y + off, paint(role, DROP))
         // 테두리는 글자 크기의 11% — 더 두꺼우면 한글 획이 뭉개진다
-        c.drawText(s, left, y, edge(role, edgeColor, minOf(role.sizeDp * d * 0.11f, 3.2f * d)))
+        c.drawText(s, left, y, edge(role, edgeColor, TypeScale.px(minOf(role.sizeDp * d * 0.11f, 3.2f * d))))
         c.drawText(s, left, y, p)
     }
 
