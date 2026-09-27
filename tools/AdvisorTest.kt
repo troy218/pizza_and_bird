@@ -198,7 +198,7 @@ fun main() {
     // 9. 자동 이동 스폰 — (18,14) 광장 도착점이 안전한가 + 사람은 한 동네에만 사는가
     //    보리 박사는 광릉숲에만 산다: 그 지역에서는 빠른 이동이 "인사 자리"에 내려 놓고
     //    박사와 상호작용 범위(32px) 안에 있어야 한다. 다른 지역에는 아예 없어야 한다.
-    //    사진용품점도 서울 한 곳에만 있다.
+    //    카메라샵은 12개 도시에만 있다 (습지·산속에는 없다).
     //    (GameMap companion 이 android Paint 를 만들기 때문에 android.jar 스텁
     //     환경(JDK only)에서는 실행 불가 — 진짜 SDK로 돌릴 때만 검증)
     // ---------------------------------------------------------------
@@ -206,6 +206,7 @@ fun main() {
         MapBuilder.build(Regions.ALL.first(), "seoul")   // 스텁 환경이면 여기서 예외
         var profMaps = 0
         var shopMaps = 0
+        val shopCityCount = CameraShops.CITY_IDS.size
         for (r in Regions.ALL) {
             for (hr in Regions.ALL) {
                 val map = MapBuilder.build(r, hr.id)
@@ -230,13 +231,18 @@ fun main() {
                 } else {
                     check(prof == null, "${r.id}(home=${hr.id}): 보리 박사가 다른 지역에도 있다")
                 }
-                if (r.id == NpcRoster.SHOP_REGION) shopMaps++
-                else check(shop == null, "${r.id}(home=${hr.id}): 사진용품점이 다른 지역에도 있다")
+                if (r.id in CameraShops.CITY_IDS) {
+                    shopMaps++
+                    check(shop != null, "${r.id}(home=${hr.id}): 도시에 카메라샵 사장이 없다")
+                } else {
+                    check(shop == null, "${r.id}(home=${hr.id}): 도시가 아닌데 카메라샵 사장이 있다")
+                }
             }
         }
         val expect = Regions.ALL.size
         check(profMaps == expect, "보리 박사를 만난 맵 수 ${profMaps} (기대 ${expect})")
-        check(shopMaps == expect, "사진용품점을 만난 맵 수 ${shopMaps} (기대 ${expect})")
+        check(shopMaps == shopCityCount * expect,
+            "카메라샵을 만난 맵 수 ${shopMaps} (기대 ${shopCityCount * expect})")
         println("PASS: 스폰 포인트 + 사람 배치 전체 ${Regions.ALL.size * Regions.ALL.size} 맵 검증")
     } catch (e: Throwable) {   // android.jar 스텁은 Error(ExceptionInInitializerError)를 던진다
         println("SKIP: 스폰 포인트 맵 검증 — android 런타임이 없어서 (${e.javaClass.simpleName})")

@@ -1846,7 +1846,11 @@ class Assets(private val context: Context) {
     private val P_COB_H = c(0xFFD2DADA)
     private val COBBLE = intArrayOf(P_COB_D, P_COB_M, P_COB_L, P_COB_H)
 
-    /** 색에 불투명도를 곱한다 (0~255). */
+    /**
+     * 색에 불투명도를 곱한다 (0~255).
+     * `c()`·`pal()` 은 Long 을 받지만 이건 Int 를 받는다 — `0xFFRRGGBB` 리터럴은 Long 이므로
+     * 호출할 때 `.toInt()` 를 붙여야 한다 (Kotlin 은 8자리 16진수 리터럴을 Int 로 좁혀 주지 않는다).
+     */
     private fun fade(col: Int, a: Int): Int = Color.argb(
         a.coerceIn(0, 255), Color.red(col), Color.green(col), Color.blue(col)
     )
@@ -2291,7 +2295,7 @@ class Assets(private val context: Context) {
             }
             17 -> { // 사암 조각돌 — 논둑에 흩어진 따뜻한 자갈
                 rockShadow(cv, p, 16f, 28.5f, 7.5f, 2f)
-                val cx = intArrayOf(4, 8, 12, 17, 22, 26, 7, 12, 17, 22, 14, 19)
+                val cx = floatArrayOf(4f, 8f, 12f, 17f, 22f, 26f, 7f, 12f, 17f, 22f, 14f, 19f)
                 val cy = floatArrayOf(26f, 25f, 27f, 26f, 26f, 27f, 22f, 22f, 22f, 22f, 19f, 19f)
                 val cw = floatArrayOf(3f, 3.2f, 2.8f, 3f, 2.8f, 2.2f, 3.2f, 3.4f, 3f, 3.2f, 2.6f, 2.4f)
                 val ch = floatArrayOf(2.4f, 2.6f, 2.2f, 2.4f, 2.2f, 1.8f, 2.6f, 2.8f, 2.4f, 2.6f, 2.2f, 2f)

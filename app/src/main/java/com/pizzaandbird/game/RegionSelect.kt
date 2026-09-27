@@ -93,9 +93,11 @@ object RegionCards {
 
             y += dp * 12f
             // 사람은 한 장소에만 산다 — 정착지를 고를 때 "누가 있는 동네인지" 보이도록 표시
-            val landmark = when (reg.id) {
-                NpcRoster.PROFESSOR_REGION -> " · 보리 박사"
-                NpcRoster.SHOP_REGION -> " · 사진용품점"
+            val shopHere = CameraShops.shop(reg.id)
+            val landmark = when {
+                reg.id == NpcRoster.PROFESSOR_REGION && shopHere != null -> " · 보리 박사 · 카메라샵"
+                reg.id == NpcRoster.PROFESSOR_REGION -> " · 보리 박사"
+                shopHere != null -> " · 카메라샵 ${shopHere.specialty}"
                 else -> ""
             }
             UiKit.icon(c, game, "calendar", RectF(x, y - dp * 10f, x + dp * 13f, y + dp * 3f))
@@ -247,8 +249,10 @@ class RegionSelectScene(game: Game) : Scene(game) {
             chips.add(HeroChip(HabitatLabels[hab] ?: hab, UiKit.PASTEL_MINT, 0xFF3E5A34.toInt()))
         }
         chips.add(HeroChip(reg.season, UiKit.PASTEL_SKY, 0xFF2E4F6B.toInt()))
-        if (reg.id == NpcRoster.SHOP_REGION) {
-            chips.add(HeroChip("사진용품점", UiKit.PASTEL_LILAC, 0xFF5A4A7A.toInt()))
+        val regShop = CameraShops.shop(reg.id)
+        if (regShop != null) {
+            val chip = if (regShop.flagship) "카메라샵 본점 · 전 라인업" else "카메라샵 · ${regShop.specialty}"
+            chips.add(HeroChip(chip, UiKit.PASTEL_LILAC, 0xFF5A4A7A.toInt()))
         }
         if (reg.id == NpcRoster.PROFESSOR_REGION) {
             chips.add(HeroChip("보리 박사", UiKit.PASTEL_PEACH, 0xFF7A4A22.toInt()))
