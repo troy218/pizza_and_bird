@@ -43,6 +43,8 @@ class TitleScene(game: Game) : Scene(game) {
         game.hud.questLabel = null
         game.hud.photoModeHint = false
         game.hud.regionLabel = ""
+        game.audio.stopAmb()
+        game.audio.playBgm(R.raw.bgm_title)   // 🎵 신비로운 세계
     }
 
     override fun update(dt: Float) {

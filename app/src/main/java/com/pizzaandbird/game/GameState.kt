@@ -49,6 +49,9 @@ class GameState {
     var skillPoints = 0            // 사용 가능한 숙련 포인트(SP)
     val skills = LinkedHashMap<String, Int>()   // 스킬id -> 랭크
 
+    var musicOn = true             // 설정: 배경 음악
+    var sfxOn = true               // 설정: 효과음/환경음
+
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
@@ -281,6 +284,8 @@ class GameState {
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("musicOn", musicOn)
+        put("sfxOn", sfxOn)
         put("weatherId", weatherId)
         put("weatherSeconds", weatherSeconds.toDouble())
         put("level", level)
@@ -335,6 +340,8 @@ class GameState {
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.musicOn = j.optBoolean("musicOn", true)
+            s.sfxOn = j.optBoolean("sfxOn", true)
             s.weatherId = j.optString("weatherId", Weather.SUNNY.id)
             s.weatherSeconds = j.optDouble("weatherSeconds", 55.0).toFloat().coerceIn(0f, 120f)
 

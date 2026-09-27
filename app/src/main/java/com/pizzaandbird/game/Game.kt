@@ -24,6 +24,10 @@ class Game(val context: Context) {
 
     val state: GameState = SaveManager.load(context)
     val assets = Assets()
+    val audio = Audio(context).apply {
+        musicOn = state.musicOn
+        sfxOn = state.sfxOn
+    }
     val hud = Hud(this)
     val input = Input(this)
 
@@ -53,7 +57,7 @@ class Game(val context: Context) {
     fun screenToWorld(p: PointF): PointF =
         PointF((p.x - viewOffX) / viewScale / WORLD_SCALE, (p.y - viewOffY) / viewScale / WORLD_SCALE)
 
-    /** 짧은 햅틱 피드백 (버튼 누름 등) */
+    /** 짧은 햅틱 피드백 (버튼 누름 등) — 탭 효과음도 함께 */
     @Suppress("DEPRECATION")
     fun haptic() {
         try {
@@ -61,12 +65,17 @@ class Game(val context: Context) {
             v?.vibrate(10L)
         } catch (_: Exception) {
         }
+        audio.play(Audio.Sfx.TAP, 0.5f)
     }
+
+    /** 효과음 재생 (편의 함수) */
+    fun sfx(s: Audio.Sfx, vol: Float = 1f, rate: Float = 1f) = audio.play(s, vol, rate)
 
     // ---------------------------------------------------------------------
 
     fun update(dt: Float) {
         time += dt
+        audio.update(dt)   // BGM/환경음 페이드 진행
         input.process()
         val tr = transition
         if (tr != null) {
