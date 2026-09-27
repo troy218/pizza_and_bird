@@ -41,6 +41,17 @@ class TitleScene(game: Game) : Scene(game) {
     private var t = 0f
     private var startRect = RectF()
     private var contRect = RectF()
+    private val titlePaint = Paint()
+    private val skyBands = intArrayOf(
+        0xFF7FD4E8.toInt(), 0xFF8FDCEA.toInt(), 0xFFA4E4EE.toInt(),
+        0xFFBCEAF0.toInt(), 0xFFD4F2EC.toInt()
+    )
+    private val decoSpots = arrayOf(
+        1 to 13, 5 to 14, 9 to 13, 14 to 15, 18 to 13, 22 to 14, 26 to 13, 28 to 15,
+        3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16
+    )
+    private val treeXs = floatArrayOf(60f, 300f, 560f, 820f)
+    private val ovenBounds = RectF(620f, 334f, 696f, 424f)
 
     init {
         game.hud.showControls = false
@@ -59,14 +70,10 @@ class TitleScene(game: Game) : Scene(game) {
     }
 
     override fun drawWorld(c: Canvas) {
-        val p = Paint()
+        val p = titlePaint
         val a = game.assets
 
         // 하늘 그라데이션(밴드)
-        val skyBands = intArrayOf(
-            0xFF7FD4E8.toInt(), 0xFF8FDCEA.toInt(), 0xFFA4E4EE.toInt(),
-            0xFFBCEAF0.toInt(), 0xFFD4F2EC.toInt()
-        )
         for (i in skyBands.indices) {
             p.color = skyBands[i]
             c.drawRect(0f, i * 76f, 960f, (i + 1) * 76f, p)
@@ -120,20 +127,16 @@ class TitleScene(game: Game) : Scene(game) {
             }
         }
         // 꽃/풀숲 포인트
-        val decoSpots = listOf(
-            1 to 13, 5 to 14, 9 to 13, 14 to 15, 18 to 13, 22 to 14, 26 to 13, 28 to 15,
-            3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16
-        )
-        for ((i, pair) in decoSpots.withIndex()) {
-            val (col, row) = pair
+        for (i in decoSpots.indices) {
+            val (col, row) = decoSpots[i]
             val bmp = if (i % 3 == 2) tall[i % tall.size] else flowers[i % flowers.size]
             c.drawBitmap(bmp, col * 32f, row * 32f, a.sprPaint)
         }
 
         // 지평선 나무
         val trees = a.tiles[T.TREE.ordinal]
-        for ((i, tx) in listOf(60f, 300f, 560f, 820f).withIndex()) {
-            c.drawBitmap(trees[i % trees.size], tx, 352f, a.sprPaint)
+        for (i in treeXs.indices) {
+            c.drawBitmap(trees[i % trees.size], treeXs[i], 352f, a.sprPaint)
         }
         val pines = trees.size
         if (pines > 1) c.drawBitmap(trees[1], 690f, 356f, a.sprPaint)
@@ -144,7 +147,7 @@ class TitleScene(game: Game) : Scene(game) {
         c.drawBitmap(pz, 384f, 336f + bob, a.sprPaint)
         p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
         c.drawCircle(658f, 380f, 43f, p)
-        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f, 334f, 696f, 424f))
+        game.illustrations.draw(c, "wood_fired_oven.svg", ovenBounds)
         val bird = a.bird("sparrow")
         c.drawBitmap(bird, 296f, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
         val fb = sin(t * 2.6f + 1f) * 7f
