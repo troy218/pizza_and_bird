@@ -249,4 +249,25 @@ eval "set -- $(
         tr '\n' ' '
     )" '"$@"'
 
+# ---------------------------------------------------------------------------
+# [arena-preview 파이프라인] 그래픽 프리뷰 CI 훅 (이 세션 브랜치의 Actions에서만 동작)
+#
+# GitHub Actions의 arena 세션 브랜치 push 빌드에서는:
+#   1) 빌드 출력을 tools/preview/out/gradle_build.log 로 캡처하고
+#   2) 빌드 종료 후(성공/실패 무관) tools/preview/ci_render.sh 를 실행해
+#      게임 렌더링 코드로 스크린샷을 만들어 preview/ 폴더에 커밋한다.
+# 그 외 모든 환경(로컬/다른 브랜치)은 아래 원본 exec 경로를 그대로 사용한다.
+# ---------------------------------------------------------------------------
+if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
+        && [ "${GITHUB_REF:-}" = "refs/heads/arena/01a0e0d9-pizza-and-bird" ] \
+        && [ -f "$(dirname "$0")/tools/preview/ci_render.sh" ]; then
+    PB_ROOT="$(cd "$(dirname "$0")" && pwd)"
+    mkdir -p "$PB_ROOT/tools/preview/out"
+    "$JAVACMD" "$@" > "$PB_ROOT/tools/preview/out/gradle_build.log" 2>&1
+    PB_EXIT=$?
+    cat "$PB_ROOT/tools/preview/out/gradle_build.log"
+    bash "$PB_ROOT/tools/preview/ci_render.sh" "$PB_EXIT" || true
+    exit $PB_EXIT
+fi
+
 exec "$JAVACMD" "$@"

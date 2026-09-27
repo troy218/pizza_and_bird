@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tools/preview/ci_render.sh — 그래픽 프리뷰 파이프라인 (CI 전용 스크립트)
 #
-# settings.gradle.kts의 훅이 빌드 종료 후(성공/실패 무관) 실행한다.
-# 1) kotlinc 다운로드(캐시) → 2) 폰트 다운로드 → 3) 게임 렌더링 코드를
+# gradlew 의 CI 훅이 빌드 종료 후(성공/실패 무관) 실행한다. ($1 = gradle 종료코드)
+# 1) kotlinc 다운로드(캐시) → 2) 한글 폰트 다운로드 → 3) 게임 렌더링 코드를
 #    스텁과 함께 컴파일 → 4) 헤드리스 실행으로 모든 화면 스크린샷 생성 →
 #    5) preview/ 폴더에 커밋&푸시 (PNG + build.log)
 #
@@ -11,11 +11,22 @@ set -u
 cd "$(dirname "$0")/../.."
 ROOT="$PWD"
 OUT="tools/preview/out"
+GRADLE_EXIT="${1:-unknown}"
 mkdir -p "$OUT" preview
+
+SHA=$(git rev-parse HEAD 2>/dev/null || echo "?")
+
+# 같은 커밋에 대해 이미 성공적으로 렌더링했다면 스킵 (assembleRelease 등 2회째 호출)
+if [ -f "$OUT/.last_ok" ] && [ "$(cat "$OUT/.last_ok" 2>/dev/null)" = "$SHA" ] \
+    && ls preview/*.png >/dev/null 2>&1; then
+  echo "preview: 이미 렌더링됨 ($SHA) — 스킵"
+  exit 0
+fi
 
 {
   echo "# preview build $(date -u '+%Y-%m-%d %H:%M:%SZ')"
-  echo "# commit: $(git rev-parse HEAD 2>/dev/null || echo '?')"
+  echo "# commit: $SHA"
+  echo "# gradle exit code: $GRADLE_EXIT"
 } > preview/build.log
 
 # ---------------------------------------------------------------- kotlinc
@@ -53,7 +64,7 @@ if [ -x "$KC/bin/kotlinc" ]; then
     echo ">> 프리뷰 렌더링..." >> preview/build.log
     if java -cp "$OUT/classes-preview:$KC/lib/kotlin-stdlib.jar" \
       com.pizzaandbird.preview.PreviewMain "$OUT" >> "$OUT/render.log" 2>&1; then
-      :
+      echo "$SHA" > "$OUT/.last_ok"
     else
       STATUS="render-failed"
     fi
@@ -71,10 +82,11 @@ rm -f preview/*.png
 cp "$OUT"/*.png preview/ 2>/dev/null
 {
   echo
-  echo "----- gradle result -----"
-  cat "$OUT/gradle_result.log" 2>/dev/null
+  echo "----- gradle build log (error lines + last 120) -----"
+  { grep -n -E "error:|e: |FAILURE|Exception|Caused by" "$OUT/gradle_build.log" 2>/dev/null | head -60; \
+    echo "..."; tail -n 120 "$OUT/gradle_build.log" 2>/dev/null; } | head -200
   echo
-  echo "----- render log (last 200 lines) -----"
+  echo "----- preview render log (last 200 lines) -----"
   tail -n 200 "$OUT/render.log" 2>/dev/null
 } >> preview/build.log
 
