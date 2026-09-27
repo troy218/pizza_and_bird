@@ -656,11 +656,14 @@ class Paint {
         return w
     }
 
+    fun measureText(text: String, start: Int, end: Int): Float = measureText(text.substring(start, end))
+
     fun ascent(): Float = -StubText.metrics(awtFont()).ascent.toFloat()
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
+    class FontMetrics(val ascent: Float, val descent: Float)
+    val fontMetrics: FontMetrics get() = FontMetrics(ascent(), descent())
 }
 
 // ---------------------------------------------------------------------------
@@ -744,9 +747,12 @@ class Bitmap internal constructor(val image: BufferedImage) {
             val base = src.image.getSubimage(x, y, max(width, 1), max(height, 1))
             val at = m?.tx ?: AffineTransform()
             val bounds = at.createTransformedShape(Rectangle2D.Float(0f, 0f, base.width.toFloat(), base.height.toFloat())).bounds2D
-            val out = BufferedImage(max(bounds.width.toInt() + 2, 1), max(bounds.height.toInt() + 2, 1), BufferedImage.TYPE_INT_ARGB)
+            val out = BufferedImage(max(kotlin.math.ceil(bounds.width).toInt(), 1),
+                max(kotlin.math.ceil(bounds.height).toInt(), 1), BufferedImage.TYPE_INT_ARGB)
             val g = out.createGraphics()
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+            // Android normalizes transformed bounds; otherwise a horizontal flip is drawn off-image.
+            g.translate(-bounds.x, -bounds.y)
             g.transform(at)
             g.drawImage(base, 0, 0, null)
             g.dispose()
@@ -865,6 +871,8 @@ object BitmapFactory {
 class Canvas {
     private var g: Graphics2D
     private val stack = ArrayList<Graphics2D>()
+    private data class AlphaLayer(val image: BufferedImage, val alpha: Int)
+    private val layers = HashMap<Int, AlphaLayer>()
     private val owner: Bitmap?
 
     // ------------------------------------------------------------------
@@ -1053,6 +1061,9 @@ class Canvas {
         }
     }
 
+    fun drawText(text: String, start: Int, end: Int, x: Float, y: Float, paint: Paint) =
+        drawText(text.substring(start, end), x, y, paint)
+
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         GfxStats.drawText++
         val tw = paint.measureText(text)
@@ -1086,6 +1097,17 @@ class Canvas {
     // so contrast checks in previews do not accidentally compare white text.
     private fun filteredImage(bitmap: Bitmap, paint: Paint?): BufferedImage {
         val filter = paint?.colorFilter as? PorterDuffColorFilter ?: return bitmap.image
+        if (filter.mode == PorterDuff.Mode.MULTIPLY) {
+            val pixels = bitmap.image.getRGB(0, 0, bitmap.width, bitmap.height, null, 0, bitmap.width)
+            for (i in pixels.indices) {
+                val c = pixels[i]
+                pixels[i] = Color.argb(Color.alpha(c), Color.red(c) * Color.red(filter.color) / 255,
+                    Color.green(c) * Color.green(filter.color) / 255, Color.blue(c) * Color.blue(filter.color) / 255)
+            }
+            return BufferedImage(bitmap.width, bitmap.height, BufferedImage.TYPE_INT_ARGB).apply {
+                setRGB(0, 0, bitmap.width, bitmap.height, pixels, 0, bitmap.width)
+            }
+        }
         if (filter.mode != PorterDuff.Mode.SRC_IN) return bitmap.image
         val image = BufferedImage(bitmap.width, bitmap.height, BufferedImage.TYPE_INT_ARGB)
         val graphics = image.createGraphics()
@@ -1166,14 +1188,38 @@ class Canvas {
         return stack.size - 1
     }
 
+    /** Compose once on restore, like Android (overlapping translucent SVG paths stay correct). */
+    fun saveLayerAlpha(bounds: RectF, alpha: Int): Int {
+        val count = stack.size
+        val parent = g
+        stack.add(parent)
+        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        layers[stack.size] = AlphaLayer(image, alpha)
+        g = image.createGraphics()
+        configureDefaults()
+        g.transform = parent.transform
+        g.clip = parent.clip
+        clipRect(bounds)
+        return count
+    }
+
     fun restoreToCount(count: Int) {
         while (stack.size > count) restore()
     }
 
     fun restore() {
         if (stack.isNotEmpty()) {
+            val layer = layers.remove(stack.size)
             g.dispose()
             g = stack.removeAt(stack.size - 1)
+            if (layer != null) {
+                val target = g.create() as Graphics2D
+                target.transform = AffineTransform()
+                target.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER,
+                    layer.alpha.coerceIn(0, 255) / 255f)
+                target.drawImage(layer.image, 0, 0, null)
+                target.dispose()
+            }
         }
     }
 

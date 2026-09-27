@@ -75,6 +75,29 @@ java -cp "tools/preview/out/classes-smoke:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.InputSmoke
 ```
 
+### 사진 원근 투영 회귀 테스트
+
+`photo_perspective_smoke.kt`는 눈높이 카메라의 **거리별 크기·수평선·소실점·동서남북 방위·near-plane 클리핑**,
+지도 경계/0거리, 지역·날씨별 렌더와 결정성을 확인합니다. 실제 `WorldScene.snap()`을 호출해
+인화 카드와 사진집이 같은 원본을 사용하는지, JPEG 압축이 비동기인지, 저장 후 메타데이터가 유지되는지도 검사합니다.
+**새는 기존 정밀 도트 리그**, 지면은 역원근 투영, 지형물은 로컬 3D 메시입니다 (외부 엔진/네트워크 없음).
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/photo_perspective_smoke.kt $SRCS \
+  -d tools/preview/out/classes-photo -jvm-target 17
+java -Djava.awt.headless=true \
+  -cp "tools/preview/out/classes-photo:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.PhotoPerspectiveSmoke tools/preview/out/perspective
+```
+
+`01~09_*.png`는 도시/호수/해안/숲/습지/산/밤/비/눈, `10~11_*.png`는 같은 새를 반대편에서 찍은 구도,
+`12_result_card.png` / `13_album.png`는 실제 인화/앨범 화면입니다. `14_perspective_overview.png`는 README용
+도시·바다·숲·습지 비교 시트입니다 (`docs/img/photo-perspective.png`로 복사).
+사진 결과의 정규 프리뷰(`24_photo_result.png`)도 이제 절차적 폴백이 아닌 실제 `PerspectivePhoto` 결과를 씁니다.
+Android와 같은 미러 비트맵 원점 보정·MULTIPLY 색상 필터를 스텁에 적용해 오른쪽 방향과 야간 색감도 검사할 수 있습니다.
+
 ### UI 불투명도 회귀 테스트
 
 그림자용 `Paint.alpha`가 창·카드·버튼·게이지·힌트 배경에 남지 않는지 검사합니다.

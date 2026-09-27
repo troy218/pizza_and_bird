@@ -1,6 +1,5 @@
 package com.pizzaandbird.game
 
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -1115,11 +1114,15 @@ class WorldScene(
             viewRig.shake(0.22f)
         }
 
-        // 셔터 순간의 방향/자세와 현재 지형을 한 프레임으로 굳혀 사진집에 저장한다.
-        // 이후 새가 날아가거나 다른 지역으로 이동해도 이 사진은 그대로 남는다.
-        val photographedFacing = b.facing
-        val photographedPose = b.renderPose
-        val capturedPhoto = captureHabitatPhoto(b, photographedFacing, photographedPose)
+        // 탑다운 월드를 캡처하지 않고, 촬영자 → 새 방향의 눈높이 3D 장면을 인화한다.
+        // 새의 보이는 면도 카메라 방위로 변환해 사진과 메타데이터를 일치시킨다.
+        val shot = PerspectivePhoto.capture(
+            game.assets, map, b, player.cx, player.y + 13f,
+            state.worldTime, weather, state.season(), game.time
+        )
+        val photographedFacing = shot.facing
+        val photographedPose = shot.pose
+        val capturedPhoto = shot.bitmap
         val photoId = "${System.currentTimeMillis()}_${state.photos}"
         val photoFile = PhotoArchive.save(game.context, photoId, capturedPhoto)
         val photoRecord = BirdPhotoRecord(
@@ -1179,99 +1182,6 @@ class WorldScene(
             birdPose = photographedPose
         )
         snapDelay = 0.15f
-    }
-
-    /**
-     * 로데오 스템피드식 기념사진: 피사체는 중앙에 크게, 셔터를 누른 실제 타일/도로/물가/
-     * 건물/나무는 그대로 배경에 담는다. 결과 비트맵은 사진집 파일로 보존된다.
-     */
-    private fun captureHabitatPhoto(b: FieldBird, facing: BirdFacing, pose: BirdPose): Bitmap {
-        val w = 720
-        val h = 405
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bitmap)
-        val p = Paint().apply { isAntiAlias = false }
-        val camPhotoX = b.cx * WORLD_SCALE - w * 0.5f
-        val camPhotoY = b.cy * WORLD_SCALE - h * 0.60f
-
-        c.drawColor(0xFF8FC9DF.toInt())
-        val hour = state.worldTime
-        val dl = daylight(hour)
-        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
-        map.draw(
-            c, game.assets, camPhotoX, camPhotoY, w, h, game.time,
-            sunDx = sunT * 20f,
-            sunLen = 11f + kotlin.math.abs(sunT) * 13f,
-            sunAlpha = (50f * dl * weather.shadowK).toInt()
-        )
-        fx.drawGround(c, camPhotoX, camPhotoY, w, h)
-        grass.draw(
-            c, game.assets, camPhotoX, camPhotoY, w.toFloat(), h.toFloat(),
-            b.cy * WORLD_SCALE, GrassField.LAYER_BACK
-        )
-
-        // 시간대와 날씨도 촬영 당시 모습으로 굳힌다.
-        val dark = state.darkness()
-        if (dark > 0.02f) {
-            p.color = Color.argb((dark * 142f).toInt().coerceIn(0, 142), 12, 20, 48)
-            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
-        }
-        when (weather) {
-            Weather.CLOUDY -> {
-                p.color = Color.argb(35, 82, 91, 105); c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
-            }
-            Weather.RAIN -> {
-                p.color = Color.argb(34, 54, 72, 92); c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
-                p.color = Color.argb(150, 205, 225, 240)
-                for (i in 0 until 92) {
-                    val x = ((i * 83 + b.def.birdNum * 17) % (w + 50)).toFloat() - 25f
-                    val y = ((i * 47 + state.day * 23) % h).toFloat()
-                    c.drawRect(x, y, x + 1.4f, y + 12f, p)
-                }
-            }
-            Weather.SNOW -> {
-                p.color = Color.argb(210, 250, 252, 255)
-                for (i in 0 until 74) {
-                    val x = ((i * 97 + b.def.birdNum * 13) % w).toFloat()
-                    val y = ((i * 53 + state.day * 29) % h).toFloat()
-                    val rr = 1.3f + (i % 4) * 0.55f
-                    c.drawCircle(x, y, rr, p)
-                }
-            }
-            Weather.WIND -> {
-                p.color = Color.argb(65, 238, 244, 242)
-                for (i in 0 until 9) {
-                    val y = 32f + i * 39f
-                    c.drawRect(30f + (i % 3) * 54f, y, 188f + (i % 3) * 54f, y + 1.2f, p)
-                }
-            }
-            else -> Unit
-        }
-
-        // 큰 피사체 아래에도 원래 지면이 충분히 보이도록 반투명 접지 그림자만 얹는다.
-        val subject = game.assets.birdPose(b.def.id, facing, pose)
-        val maxW = w * 0.43f
-        val maxH = h * 0.54f
-        val scale = minOf(maxW / subject.width, maxH / subject.height)
-        val sw = subject.width * scale
-        val sh = subject.height * scale
-        val sx = w / 2f - sw / 2f
-        val sy = h * 0.53f - sh / 2f
-        p.color = Color.argb(76, 24, 30, 24)
-        c.drawOval(RectF(w / 2f - sw * 0.34f, sy + sh * 0.86f, w / 2f + sw * 0.34f, sy + sh * 0.99f), p)
-        game.assets.sprPaint.alpha = 255
-        c.drawBitmap(subject, null, RectF(sx, sy, sx + sw, sy + sh), game.assets.sprPaint)
-
-        // 렌즈 비네트. 배경은 보존하되 중앙의 새로 시선이 모인다.
-        for (i in 0 until 6) {
-            val band = 10f + i * 7f
-            p.color = Color.argb(10 + i * 3, 18, 16, 24)
-            c.drawRect(0f, band, 8f, h - band, p)
-            c.drawRect(w - 8f, band, w.toFloat(), h - band, p)
-            c.drawRect(band, 0f, w - band, 6f, p)
-            c.drawRect(band, h - 6f, w - band, h.toFloat(), p)
-        }
-        return bitmap
     }
 
     private fun trySnapAt(vx: Float, vy: Float) {

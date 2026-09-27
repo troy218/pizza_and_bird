@@ -128,7 +128,7 @@ def main():
         if name == "Type.kt":
             problems += check_table(path)
         src = open(path, encoding="utf-8").read()
-        for m in re.finditer(r"(?<!Insets\.)(?<!Font)Type\.([A-Za-z_][A-Za-z0-9_]*)", src):
+        for m in re.finditer(r"(?<!Insets\.)\bType\.([A-Za-z_][A-Za-z0-9_]*)", src):
             if m.group(1) not in TYPE_MEMBERS:
                 problems.append("Type.%s 없음" % m.group(1))
         for m in re.finditer(r"(?<!Insets)PixelFont\.([A-Za-z_][A-Za-z0-9_]*)", src):
