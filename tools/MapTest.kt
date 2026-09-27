@@ -56,10 +56,47 @@ fun main() {
     }
     check(seen.size == Regions.ALL.size, "연결 안 된 지역: ${Regions.ALL.map { it.id }.filter { it !in seen }}")
 
+    // 2.1 지역 맵 팔레트와 실제 해안 방위가 구별되는지
+    check(Regions.ALL.map { RegionMapStyles.forRegion(it).foliageFilter }.toSet().size >= 5,
+        "지역별 풀 팔레트가 충분히 구별되지 않음")
+    check(Regions.byId["incheon"]!!.waterEdges == setOf(Dir.W), "인천은 서해 쪽이어야 함")
+    check(Regions.byId["gangneung"]!!.waterEdges == setOf(Dir.E), "강릉은 동해 쪽이어야 함")
+    check(Regions.byId["jeju"]!!.waterEdges == setOf(Dir.N, Dir.E, Dir.S, Dir.W), "제주 해안 방향 오류")
+
     // 2.5 새 데이터: 낮 풀/밤 풀 기본 조건
     check(Birds.ALL.isNotEmpty(), "새 데이터 없음")
     check(Birds.ALL.any { it.active == "night" }, "밤새(active=night) 정의 없음")
     check(Birds.ALL.all { it.habitats.isNotEmpty() }, "서식지 없는 새 존재")
+
+    // 2.6 해안·호수·하천 타일은 지정한 지역 방향과 위치에 놓인다
+    for (r in Regions.ALL) {
+        val map = MapBuilder.build(r, START_REGION_ID)
+        val style = RegionMapStyles.forRegion(r)
+        for (edge in r.waterEdges) {
+            val water = when (edge) {
+                Dir.N -> 7 to 0
+                Dir.E -> map.w - 1 to 7
+                Dir.S -> 7 to map.h - 1
+                Dir.W -> 0 to 7
+            }
+            check(map.groundAt(water.first, water.second) == T.WATER, "해안 방향 물 타일 없음 ${r.id} $edge")
+            if (edge in r.sandEdges) {
+                val beach = when (edge) {
+                    Dir.N -> 7 to style.seaDepth
+                    Dir.E -> map.w - 1 - style.seaDepth to 7
+                    Dir.S -> 7 to map.h - 1 - style.seaDepth
+                    Dir.W -> style.seaDepth to 7
+                }
+                check(map.groundAt(beach.first, beach.second) == T.SAND, "${r.id} $edge 해안의 모래·갯벌 띠 없음")
+            }
+        }
+        style.lake?.let { lake ->
+            check(map.groundAt(lake.center.x, lake.center.y) == T.WATER, "호수 위치 오류 ${r.id}")
+        }
+        for (river in style.rivers) {
+            check(river.course.any { map.groundAt(it.x, it.y) == T.WATER }, "하천 경로 타일 없음 ${r.id}")
+        }
+    }
 
     // 3. 모든 (지역, 홈) 조합에 대한 맵 검증
     for (home in Regions.ALL) {
@@ -98,6 +135,7 @@ fun main() {
                 }
                 for ((tx, ty) in tunnelTiles) {
                     check(map.t(tx, ty) == T.TUNNEL, "터널 타일 아님 ${r.id} $d ($tx,$ty)=${map.t(tx, ty)}")
+                    check(map.tunnelDirectionAt(tx, ty) == d, "터널 방향 표시 오류 ${r.id} $d ($tx,$ty)")
                 }
                 val start = when (d) {
                     Dir.N -> 19 to 1
@@ -195,21 +233,22 @@ fun main() {
         }
     }
 
-    // 4. 집 내부
+    // 4. 집 내부 (v0.4: 16x12 확장 레이아웃 — 화덕 우상단, 가정용 오븐은 화덕 왼쪽)
     val hm = MapBuilder.buildHome()
-    check(!hm.solidBox(100f, 96f), "집 스폰 막힘")
-    check(hm.t(6, 8) == T.HOUSE_DOOR, "집 현관문 오류 (6,8)=${hm.t(6, 8)}")
-    check(reach(hm, 6, 7, 6, 6), "집 내부 이동 불가")
-    check(!hm.solidTile(9, 4) && !hm.solidTile(10, 4), "화덕 앞 막힘")
+    check(hm.w == 16 && hm.h == 12, "집 내부 16x12 오류: ${hm.w}x${hm.h}")
+    check(!hm.solidBox(120f, 136f), "집 스폰 막힘")
+    check(hm.t(7, 11) == T.HOUSE_DOOR && hm.t(8, 11) == T.HOUSE_DOOR, "집 현관문 오류 (7,11)=${hm.t(7, 11)}")
+    check(reach(hm, 7, 10, 7, 9), "집 내부 이동 불가")
+    check(!hm.solidTile(11, 4) && !hm.solidTile(12, 4), "화덕 앞 막힘")
     check(!hm.solidTile(2, 3) && !hm.solidTile(3, 3), "침대 앞 막힘")
-    check(!hm.solidTile(2, 5), "박스 앞 막힘")
-    check(hm.t(9, 2) == T.OVEN, "화덕 위치 오류")
+    check(!hm.solidTile(2, 9), "박스 앞 막힘")
+    check(hm.t(12, 2) == T.OVEN && hm.t(13, 3) == T.OVEN, "화덕 위치 오류")
     check(hm.t(11, 2) == T.RANGE_TOP && hm.t(11, 3) == T.RANGE, "가정용 오븐 위치 오류")
     check(!hm.solidTile(11, 4), "오븐 앞 막힘")
     check(hm.solidTile(11, 3) && hm.solidTile(11, 2), "오븐이 통과됨")
     check(hm.t(2, 2) == T.BED, "침대 위치 오류")
-    check(hm.t(5, 2) == T.DECOR && hm.t(7, 2) == T.DECOR && hm.t(11, 5) == T.DECOR, "장식 칸 오류")
-    check(hm.t(2, 1) == T.WALL_WIN && hm.t(5, 1) == T.WALL_WIN && hm.t(8, 1) == T.WALL_WIN, "창문 위치 오류")
+    check(hm.t(6, 2) == T.DECOR && hm.t(9, 2) == T.DECOR && hm.t(13, 7) == T.DECOR, "장식 칸 오류")
+    check(hm.t(2, 1) == T.WALL_WIN && hm.t(6, 1) == T.WALL_WIN && hm.t(10, 1) == T.WALL_WIN && hm.t(13, 1) == T.WALL_WIN, "창문 위치 오류")
 
     // 4.5 피자 데이터 (화덕피자 / 일반 피자)
     check(Pizzas.ALL.size == 12, "피자 종류 수 오류: ${Pizzas.ALL.size}")

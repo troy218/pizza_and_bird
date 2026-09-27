@@ -1,0 +1,135 @@
+@file:Suppress("unused", "MayBeConstant", "UNUSED_PARAMETER")
+
+/**
+ * tools/preview — R.raw 리소스 ID 스텁 (aapt 대체).
+ * 실제 Android 빌드에서는 gradle가 생성한 R 이 쓰이고, 프리뷰 컴파일에만 필요하다.
+ */
+package com.pizzaandbird.game
+
+object R {
+    object raw {
+        val amb_birds = 1
+        val amb_fire = 2
+        val amb_hum = 3
+        val amb_wind = 4
+        val bgm_home = 6
+        val bgm_title = 7
+        val bgm_world = 8
+        val sfx_bike_bell = 9
+        val sfx_bike_brake = 10
+        val sfx_bird_chirp1 = 11
+        val sfx_bird_chirp2 = 12
+        val sfx_bird_flee = 13
+        val sfx_buy = 14
+        val sfx_eat = 15
+        val sfx_fail = 16
+        val sfx_notify = 17
+        val sfx_owl = 18
+        val sfx_reward = 19
+        val sfx_shutter = 20
+        val sfx_sparkle = 21
+        val sfx_step_gravel1 = 22
+        val sfx_step_gravel2 = 23
+        val sfx_step_wood = 24
+        val sfx_success = 25
+        val sfx_tap = 26
+        val sfx_whoosh = 27
+    }
+
+    object drawable {
+        private var next = 10000
+        private fun art(name: String): Int {
+            val id = next++
+            android.content.Context.drawableRegistry[id] = name
+            return id
+        }
+
+        val art_bike_down = art("art_bike_down")
+        val art_bike_side = art("art_bike_side")
+        val art_bike_up = art("art_bike_up")
+        val art_bird_owl = art("art_bird_owl")
+        val art_bird_raptor = art("art_bird_raptor")
+        val art_bird_songbird = art("art_bird_songbird")
+        val art_bird_wader = art("art_bird_wader")
+        val art_bird_waterfowl = art("art_bird_waterfowl")
+        val art_camera = art("art_camera")
+        val art_cat_sit = art("art_cat_sit")
+        val art_cat_walk_1 = art("art_cat_walk_1")
+        val art_cat_walk_2 = art("art_cat_walk_2")
+        val art_clover = art("art_clover")
+        val art_decor_bookshelf = art("art_decor_bookshelf")
+        val art_decor_cactus = art("art_decor_cactus")
+        val art_decor_lamp = art("art_decor_lamp")
+        val art_decor_radio = art("art_decor_radio")
+        val art_decor_rug = art("art_decor_rug")
+        val art_decor_trophy = art("art_decor_trophy")
+        val art_house = art("art_house")
+        val art_moon = art("art_moon")
+        val art_npc_elder = art("art_npc_elder")
+        val art_npc_kid = art("art_npc_kid")
+        val art_npc_professor = art("art_npc_professor")
+        val art_npc_shop = art("art_npc_shop")
+        val art_npc_villager = art("art_npc_villager")
+        val art_pizza = art("art_pizza")
+        val art_player_down_0 = art("art_player_down_0")
+        val art_player_down_1 = art("art_player_down_1")
+        val art_player_down_2 = art("art_player_down_2")
+        val art_player_side_0 = art("art_player_side_0")
+        val art_player_side_1 = art("art_player_side_1")
+        val art_player_side_2 = art("art_player_side_2")
+        val art_player_up_0 = art("art_player_up_0")
+        val art_player_up_1 = art("art_player_up_1")
+        val art_player_up_2 = art("art_player_up_2")
+        val art_sun = art("art_sun")
+        val art_tile_bed = art("art_tile_bed")
+        val art_tile_bench = art("art_tile_bench")
+        val art_tile_bldg_roof = art("art_tile_bldg_roof")
+        val art_tile_bldg_wall = art("art_tile_bldg_wall")
+        val art_tile_bldg_win_0 = art("art_tile_bldg_win_0")
+        val art_tile_bldg_win_1 = art("art_tile_bldg_win_1")
+        val art_tile_box = art("art_tile_box")
+        val art_tile_decor = art("art_tile_decor")
+        val art_tile_floor_0 = art("art_tile_floor_0")
+        val art_tile_floor_1 = art("art_tile_floor_1")
+        val art_tile_flower_0 = art("art_tile_flower_0")
+        val art_tile_flower_1 = art("art_tile_flower_1")
+        val art_tile_flower_2 = art("art_tile_flower_2")
+        val art_tile_grass_0 = art("art_tile_grass_0")
+        val art_tile_grass_1 = art("art_tile_grass_1")
+        val art_tile_grass_2 = art("art_tile_grass_2")
+        val art_tile_grass_3 = art("art_tile_grass_3")
+        val art_tile_house_door = art("art_tile_house_door")
+        val art_tile_house_roof = art("art_tile_house_roof")
+        val art_tile_house_wall = art("art_tile_house_wall")
+        val art_tile_house_win = art("art_tile_house_win")
+        val art_tile_lamp = art("art_tile_lamp")
+        val art_tile_mountain_0 = art("art_tile_mountain_0")
+        val art_tile_mountain_1 = art("art_tile_mountain_1")
+        val art_tile_oven_0 = art("art_tile_oven_0")
+        val art_tile_oven_1 = art("art_tile_oven_1")
+        val art_tile_path_0 = art("art_tile_path_0")
+        val art_tile_path_1 = art("art_tile_path_1")
+        val art_tile_path_2 = art("art_tile_path_2")
+        val art_tile_plaza_0 = art("art_tile_plaza_0")
+        val art_tile_plaza_1 = art("art_tile_plaza_1")
+        val art_tile_reed_0 = art("art_tile_reed_0")
+        val art_tile_reed_1 = art("art_tile_reed_1")
+        val art_tile_rock_0 = art("art_tile_rock_0")
+        val art_tile_rock_1 = art("art_tile_rock_1")
+        val art_tile_sand_0 = art("art_tile_sand_0")
+        val art_tile_sand_1 = art("art_tile_sand_1")
+        val art_tile_sand_2 = art("art_tile_sand_2")
+        val art_tile_sign = art("art_tile_sign")
+        val art_tile_tallgrass_0 = art("art_tile_tallgrass_0")
+        val art_tile_tallgrass_1 = art("art_tile_tallgrass_1")
+        val art_tile_tree_0 = art("art_tile_tree_0")
+        val art_tile_tree_1 = art("art_tile_tree_1")
+        val art_tile_tunnel = art("art_tile_tunnel")
+        val art_tile_wall_in = art("art_tile_wall_in")
+        val art_tile_wall_win = art("art_tile_wall_win")
+        val art_tile_water_0 = art("art_tile_water_0")
+        val art_tile_water_1 = art("art_tile_water_1")
+        val art_tile_water_2 = art("art_tile_water_2")
+        val art_tile_water_3 = art("art_tile_water_3")
+    }
+}

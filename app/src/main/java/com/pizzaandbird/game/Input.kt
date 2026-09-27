@@ -1,12 +1,13 @@
 package com.pizzaandbird.game
 
 import android.graphics.PointF
+import android.graphics.RectF
 import android.view.KeyEvent
 import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, DPAD, A, B, CAM, MENU, RUN, EAT, MAP }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, RUN, EAT, MAP }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -32,6 +33,7 @@ class Input(private val game: Game) {
     private val pointerCtrl = HashMap<Int, Ctrl>()
     private val pointerDown = HashMap<Int, PointF>()
     private val pointerDragged = HashSet<Int>()
+    private val stickTentative = HashSet<Int>()   // 아직 안 움직인 스틱 손가락 (떼면 탭으로)
     private val queue = ArrayList<QEv>()
     private val keys = HashMap<Int, Boolean>()
     private var tapScreen: PointF? = null
@@ -39,6 +41,9 @@ class Input(private val game: Game) {
     // ----- 프레임 상태 (게임 스레드 전용) -----
     var dirX = 0f
     var dirY = 0f
+    var moveMag = 0f            // 스틱을 민 정도 0~1
+    var moveScale = 1f          // 이동 속도 배율 (아날로그 스틱이면 0.5~1.0)
+    var stickEngaged = false    // 스틱 확정(탭 후보 아님) — HUD 애니메이션용
     var justA = false
     var justB = false
     var justCam = false
@@ -115,7 +120,15 @@ class Input(private val game: Game) {
                     val ctrl = if (game.scene.overlay == null) game.hud.controlAt(ev.x, ev.y) else Ctrl.NONE
                     pointerCtrl[ev.id] = ctrl
                     if (ctrl != Ctrl.NONE) {
-                        // 버튼류는 누른 순간에 반응 (A/B/카메라/메뉴)
+                        // 조이스틱: 손을 댄 자리가 베이스가 된다 (듀랑고식 플로팅)
+                        if (ctrl == Ctrl.STICK) {
+                            game.hud.grabStick(ev.x, ev.y)
+                            // 아직 안 움직였으면 탭 후보로 유지 (떼면 월드 탭으로 처리)
+                            stickTentative.add(ev.id)
+                            pointerDown[ev.id] = PointF(ev.x, ev.y)
+                            pointerDragged.remove(ev.id)
+                        }
+                        // 버튼류는 누른 순간에 반응
                         press(ctrl)
                     } else {
                         // 월드 탭은 떼는 순간에 반응 (드래그와 구분)
@@ -129,23 +142,38 @@ class Input(private val game: Game) {
                         rawEvents.add(RawEv(RawEv.MOVE, ev.id, ev.x, ev.y))
                         continue@loop
                     }
-                    if (pointerCtrl[ev.id] == Ctrl.NONE) {
+                    if (ev.id in stickTentative) {
+                        val d = pointerDown[ev.id]
+                        if (d != null) {
+                            val ddx = ev.x - d.x
+                            val ddy = ev.y - d.y
+                            if (ddx * ddx + ddy * ddy > tapDragPx * tapDragPx) {
+                                // 스틱 확정 — 이제부턴 이동 입력 (탭 아님)
+                                stickTentative.remove(ev.id)
+                                pointerDown.remove(ev.id)
+                                pointerDragged.remove(ev.id)
+                                game.haptic()
+                            }
+                        }
+                    } else if (pointerCtrl[ev.id] == Ctrl.NONE) {
                         val d = pointerDown[ev.id]
                         if (d != null) {
                             val ddx = ev.x - d.x
                             val ddy = ev.y - d.y
                             if (ddx * ddx + ddy * ddy > tapDragPx * tapDragPx) pointerDragged.add(ev.id)
                         }
-                        // D패드만 손가락을 미끄러져서 잡을 수 있게 (버튼 실수 방지)
-                        if (game.scene.overlay == null && game.hud.controlAt(ev.x, ev.y) == Ctrl.DPAD) {
-                            pointerCtrl[ev.id] = Ctrl.DPAD
-                            pointerDown.remove(ev.id)
-                            pointerDragged.remove(ev.id)
-                        }
                     }
                 }
                 K.UP -> {
                     val ctrl = pointerCtrl[ev.id] ?: Ctrl.NONE
+                    if (ctrl == Ctrl.STICK) {
+                        game.hud.releaseStick()
+                        // 움직이지 않고 떼면 월드 탭으로 처리 (조이스틱 구역에서도 상호작용 유지)
+                        if (ev.id in stickTentative && ev.id !in pointerDragged) {
+                            tapScreen = PointF(ev.x, ev.y)
+                        }
+                        stickTentative.remove(ev.id)
+                    }
                     val down = pointerDown[ev.id]
                     if (!rawMode && ctrl == Ctrl.NONE && down != null && ev.id !in pointerDragged) {
                         val dx = ev.x - down.x
@@ -161,6 +189,8 @@ class Input(private val game: Game) {
                     if (rawMode) rawEvents.add(RawEv(RawEv.UP, ev.id, ev.x, ev.y))
                 }
                 K.CANCEL -> {
+                    if (pointerCtrl[ev.id] == Ctrl.STICK) game.hud.releaseStick()
+                    stickTentative.remove(ev.id)
                     pointerPos.remove(ev.id)
                     pointerCtrl.remove(ev.id)
                     pointerDown.remove(ev.id)
@@ -187,16 +217,19 @@ class Input(private val game: Game) {
             }
         }
 
-        // 방향 (D패드 터치 + 키보드)
+        // 방향 (플로팅 조이스틱 터치 + 키보드)
         var dx = 0f
         var dy = 0f
+        var engaged = false
         for ((id, p) in pointerPos) {
-            if (pointerCtrl[id] == Ctrl.DPAD) {
-                val v = game.hud.dpadVector(p)
+            if (pointerCtrl[id] == Ctrl.STICK && id !in stickTentative) {
+                val v = game.hud.stickVector(p)
                 dx += v.x
                 dy += v.y
+                engaged = true
             }
         }
+        stickEngaged = engaged
         if (keys[KeyEvent.KEYCODE_DPAD_LEFT] == true || keys[KeyEvent.KEYCODE_A] == true) dx -= 1f
         if (keys[KeyEvent.KEYCODE_DPAD_RIGHT] == true || keys[KeyEvent.KEYCODE_D] == true) dx += 1f
         if (keys[KeyEvent.KEYCODE_DPAD_UP] == true || keys[KeyEvent.KEYCODE_W] == true) dy -= 1f
@@ -205,6 +238,9 @@ class Input(private val game: Game) {
         if (len > 1f) { dx /= len; dy /= len }
         dirX = dx
         dirY = dy
+        moveMag = len.coerceIn(0f, 1f)
+        // 아날로그 스틱: 살짝 밀면 살살, 끝까지 밀면 최고 속도
+        moveScale = if (game.state.analogStick && moveMag > 0f) 0.5f + 0.5f * moveMag else 1f
 
         // 달리기 홀드 (버튼 또는 Shift)
         isRun = Ctrl.RUN in activeControls() ||
@@ -232,7 +268,10 @@ class Input(private val game: Game) {
         return t
     }
 
-    /** 가상 월드 좌표 탭 (씬이 소비) */
+    /**
+     * 가상 월드 좌표 탭 (씬이 소비).
+     * Game.screenToWorld 가 씬의 카메라 오프셋과 망원 배율(CameraRig.zoom)까지 역변환해 준다.
+     */
     fun consumeTapWorld(): PointF? {
         val t = tapScreen
         tapScreen = null
@@ -252,18 +291,45 @@ class Input(private val game: Game) {
         rawEvents.clear()
     }
 
+    /**
+     * 화면 좌표 영역이 지금 눌려 있는지 (시각 피드백용).
+     * 오버레이 버튼이 손끝에서 눌리는 순간 어두워지도록 공통으로 쓴다.
+     */
+    fun isPressedIn(r: RectF): Boolean {
+        synchronized(lock) {
+            for ((id, p) in pointerPos) {
+                if (pointerCtrl[id] != Ctrl.NONE) continue
+                if (r.contains(p.x, p.y)) return true
+            }
+        }
+        return false
+    }
+
+    /** 현재 눌린 위치가 원 안인지 (원형 버튼 시각 피드백용) */
+    fun isPressedInCircle(cx: Float, cy: Float, radius: Float): Boolean {
+        synchronized(lock) {
+            for ((id, p) in pointerPos) {
+                if (pointerCtrl[id] != Ctrl.NONE) continue
+                val dx = p.x - cx
+                val dy = p.y - cy
+                if (dx * dx + dy * dy <= radius * radius) return true
+            }
+        }
+        return false
+    }
+
     /** 현재 눌린 컨트롤 목록 (시각 피드백용) */
     fun activeControls(): Set<Ctrl> {
         synchronized(lock) { return pointerCtrl.values.toSet() }
     }
 
-    /** D패드를 잡은 포인터 위치 (없으면 패드 중앙) */
-    fun dpadTouchPoint(): PointF {
+    /** 조이스틱을 잡은 포인터 위치 (없으면 베이스 위치) */
+    fun stickTouchPoint(): PointF {
         synchronized(lock) {
             for ((id, p) in pointerPos) {
-                if (pointerCtrl[id] == Ctrl.DPAD) return PointF(p.x, p.y)
+                if (pointerCtrl[id] == Ctrl.STICK) return PointF(p.x, p.y)
             }
         }
-        return PointF(game.hud.dpadCx, game.hud.dpadCy)
+        return PointF(game.hud.stickBaseX, game.hud.stickBaseY)
     }
 }

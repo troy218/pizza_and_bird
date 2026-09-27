@@ -33,6 +33,20 @@ const val START_REGION_ID = "seoul"
 /** 게임 안의 모든 금액을 대한민국 원으로 표시한다. */
 fun won(v: Int): String = "₩${fmtMoney(v)}"
 
+/**
+ * 두 색을 섞는다. k=0 이면 원래 색, k=1 이면 대상 색.
+ * 버튼을 눌렀을 때 살짝 어두워지는 피드백 등에 공통으로 쓴다.
+ */
+fun blendToward(color: Int, target: Int, k: Float): Int {
+    val t = k.coerceIn(0f, 1f)
+    fun ch(shift: Int): Int {
+        val a = (color shr shift) and 0xFF
+        val b = (target shr shift) and 0xFF
+        return (a + (b - a) * t).toInt().coerceIn(0, 255)
+    }
+    return (ch(24) shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+}
+
 /** 이동 방향 (지도 기준) */
 enum class Dir { N, E, S, W }
 
@@ -359,14 +373,15 @@ object Birds {
         )
     )
 
+    private val curatedByName: Map<String, BirdDef> = CURATED.associateBy { it.name }
+
+    // (주의: ALL 초기화 때 tierFor가 사용하므로 반드시 ALL보다 먼저 선언할 것)
     private val COMMON_NAMES = setOf(
         "참새", "까치", "박새", "쇠박새", "곤줄박이", "직박구리", "멧비둘기", "흰뺨검둥오리",
         "청둥오리", "쇠오리", "괭이갈매기", "재갈매기", "왜가리", "중대백로", "쇠백로",
         "물닭", "제비", "붉은머리오목눈이", "동박새", "딱새", "검은등할미새", "알락할미새",
         "노랑턱멧새", "방울새", "오목눈이", "어치", "큰부리까마귀", "물까치", "찌르레기"
     )
-
-    private val curatedByName: Map<String, BirdDef> = CURATED.associateBy { it.name }
 
     val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.map { entry ->
         curatedByName[entry.koreanName]?.let { enrich(it, entry) } ?: generated(entry)
@@ -876,20 +891,189 @@ object HousePrices {
     fun forRegion(regionId: String): Int = byRegion[regionId] ?: 30000000
 }
 
-/** 카메라 등급 (상점에서 업그레이드) */
-object CameraDefs {
-    class Cam(val name: String, val rangeTiles: Float, val cost: Int, val qualityBonus: Int)
+/**
+ * 카메라 장비는 Cameras.kt(컴팩트 / 바디 + 렌즈 조합)로 분리되었다.
+ * 예전 세이브의 `cameraLevel`은 GameState.fromJSON에서 자동 변환된다.
+ */
 
-    val LEVELS = listOf(
-        Cam("폰 카메라", 4.5f, 0, 0),
-        Cam("컴팩트 카메라", 6.0f, 80000, 0),
-        Cam("미러리스", 7.5f, 250000, 1),
-        Cam("DSLR", 9.0f, 600000, 1),
-        Cam("프리미엄 DSLR", 11.0f, 1500000, 2)
+// ---------------------------------------------------------------------------
+// 자전거 — 탈것은 자전거뿐! (모델 · 도색 · 부속품 커스텀)
+// ---------------------------------------------------------------------------
+
+/**
+ * 자전거 모델. 이 게임의 탈것은 자전거가 유일하며,
+ * 종류마다 속도·배고픔 소모·새가 놀라는 정도가 달라진다.
+ * - speed  : 기본 자전거 대비 주행 속도 배율
+ * - hunger : 자전거 주행 시 배고픔 소모 배율
+ * - scare  : 탑승 중 새 도망 반경 배율 (기본 자전거는 1.4배 — 좀 시끄럽다)
+ * - luck   : 탑승만 해도 얻는 행운 보너스
+ */
+object Bikes {
+    class Bike(
+        val id: String,
+        val name: String,
+        val emoji: String,
+        val cost: Int,
+        val speed: Float,
+        val hunger: Float,
+        val scare: Float,
+        val luck: Int,
+        val desc: String
     )
 
-    fun name(level: Int): String = LEVELS[(level - 1).coerceIn(0, LEVELS.size - 1)].name
-    fun range(level: Int): Float = LEVELS[(level - 1).coerceIn(0, LEVELS.size - 1)].rangeTiles
+    val ALL = listOf(
+        Bike(
+            "basic", "오래된 기본 자전거", "🚲", 0, 1.00f, 1.00f, 1.40f, 0,
+            "고장 없이 쌩쌩한 첫 자전거. 모든 여행의 시작이에요."
+        ),
+        Bike(
+            "city", "클래식 시티 바이크", "🚲", 120000, 1.06f, 0.95f, 1.34f, 0,
+            "편안한 자세로 오래 탈 수 있는 단정한 시티 자전거."
+        ),
+        Bike(
+            "minivelo", "미니벨로", "🚲", 260000, 1.10f, 0.92f, 1.28f, 0,
+            "작고 가벼운 바퀴가 매력. 좁은 길도 술술 빠져나가요."
+        ),
+        Bike(
+            "mtb", "산악 자전거 MTB", "🚵", 420000, 1.14f, 1.02f, 1.48f, 0,
+            "두꺼운 타이어로 비포장 길도 거뜬! 흙먼지가 멋져요."
+        ),
+        Bike(
+            "road", "로드 레이서", "🚴", 780000, 1.28f, 1.18f, 1.58f, 0,
+            "바람을 가르는 속도의 즐거움. 대신 새가 깜짝 놀랍니다."
+        ),
+        Bike(
+            "cruiser", "비치 크루저", "🌴", 560000, 0.98f, 0.78f, 1.22f, 1,
+            "푹신한 안장과 통통한 바퀴. 여유로운 라이딩의 정석."
+        ),
+        Bike(
+            "bmx", "BMX 스트리트", "🤸", 340000, 1.12f, 1.06f, 1.52f, 0,
+            "작고 단단한 프레임. 도시의 턱도 가볍게 넘나들어요."
+        ),
+        Bike(
+            "fixie", "픽시 (고정기어)", "⚙", 620000, 1.20f, 1.08f, 1.50f, 0,
+            "간결한 프레임과 조용한 체인. 도시 라이더의 로망."
+        ),
+        Bike(
+            "ebike", "전기 자전거", "🔋", 2400000, 1.42f, 0.70f, 1.18f, 0,
+            "페달을 도와주는 전기 모터! 오르막도 편하고 아주 조용해요."
+        ),
+        Bike(
+            "tandem", "탠덤 자전거", "💞", 1500000, 1.08f, 1.12f, 1.42f, 2,
+            "두 사람이 함께 타는 자전거. 혼자 타도 마음이 넉넉해져요."
+        ),
+        Bike(
+            "vintage", "빈티지 하이휠", "🎩", 3200000, 0.96f, 1.05f, 1.30f, 3,
+            "앞바퀴가 커다란 옛날 자전거. 타면 행운이 따르는 전설의 모델!"
+        )
+    )
+
+    val byId: Map<String, Bike> = ALL.associateBy { it.id }
+
+    fun of(id: String): Bike = byId[id] ?: ALL[0]
+}
+
+/** 자전거 도색 — 프레임 / 바퀴 / 안장·그립 색상 */
+object BikeColors {
+    class BikeColor(val id: String, val name: String, val argb: Int)
+
+    /** 프레임 도색 (기본은 오래된 빨간 자전거 색) */
+    val FRAME = listOf(
+        BikeColor("red", "레드", 0xFFC9503A.toInt()),
+        BikeColor("orange", "오렌지", 0xFFE2874C.toInt()),
+        BikeColor("yellow", "옐로우", 0xFFF2B63C.toInt()),
+        BikeColor("green", "그린", 0xFF4F8F6A.toInt()),
+        BikeColor("mint", "민트", 0xFF6FB6C9.toInt()),
+        BikeColor("blue", "블루", 0xFF3F6FA0.toInt()),
+        BikeColor("navy", "네이비", 0xFF2F4A6B.toInt()),
+        BikeColor("purple", "퍼플", 0xFF9F7FC8.toInt()),
+        BikeColor("pink", "핑크", 0xFFDB6B9A.toInt()),
+        BikeColor("brown", "브라운", 0xFF8A5A33.toInt()),
+        BikeColor("black", "블랙", 0xFF3A3A44.toInt()),
+        BikeColor("ivory", "아이보리", 0xFFF3EDE2.toInt())
+    )
+
+    /** 타이어/휠 색 */
+    val TIRE = listOf(
+        BikeColor("black", "블랙", 0xFF3A3A44.toInt()),
+        BikeColor("brown", "브라운", 0xFF6B431F.toInt()),
+        BikeColor("ivory", "아이보리", 0xFFE8E4DC.toInt()),
+        BikeColor("red", "레드", 0xFFB23F44.toInt()),
+        BikeColor("blue", "블루", 0xFF4A6FA5.toInt()),
+        BikeColor("gray", "그레이", 0xFF8A8F9A.toInt())
+    )
+
+    /** 안장·핸들그립 색 */
+    val SADDLE = listOf(
+        BikeColor("black", "블랙", 0xFF33241C.toInt()),
+        BikeColor("brown", "브라운", 0xFF8A5A33.toInt()),
+        BikeColor("red", "레드", 0xFFB23F44.toInt()),
+        BikeColor("ivory", "아이보리", 0xFFF0E6D2.toInt()),
+        BikeColor("blue", "블루", 0xFF3F6FA0.toInt()),
+        BikeColor("green", "그린", 0xFF4F8F6A.toInt())
+    )
+
+    fun frame(i: Int): BikeColor = FRAME[i.coerceIn(0, FRAME.size - 1)]
+    fun tire(i: Int): BikeColor = TIRE[i.coerceIn(0, TIRE.size - 1)]
+    fun saddle(i: Int): BikeColor = SADDLE[i.coerceIn(0, SADDLE.size - 1)]
+}
+
+/** 자전거 부속품 — 구매하면 바로 장착된다 (외형 + 효과) */
+object BikeParts {
+    class Part(
+        val id: String,
+        val name: String,
+        val emoji: String,
+        val cost: Int,
+        val pizza: Int,        // 피자 소지 한도 증가
+        val luck: Int,         // 행운 보너스
+        val scareMult: Float,  // 새 도망 반경 배율
+        val desc: String
+    )
+
+    val ALL = listOf(
+        Part(
+            "basket", "라탄 바구니", "🧺", 40000, 1, 0, 1f,
+            "앞에 달린 바구니. 피자 한 판을 더 담아요. (피자 +1)"
+        ),
+        Part(
+            "rack", "뒷바퀴 짐받이", "📦", 45000, 1, 0, 1f,
+            "튼튼한 짐받이. 피자 상자를 안전하게 실어요. (피자 +1)"
+        ),
+        Part(
+            "light", "전조등", "🔦", 60000, 0, 0, 0.85f,
+            "밤길을 환히 밝히는 전조등. 빛에 새가 덜 놀라요. (새 놀람 -15%)"
+        ),
+        Part(
+            "streamers", "바람개비 스트리머", "🎀", 25000, 0, 1, 1f,
+            "손잡이에서 나풀나풀. 탈 때마다 기분이 좋아져요. (행운 +1)"
+        ),
+        Part(
+            "bell", "예쁜 방울", "🔔", 35000, 0, 1, 1f,
+            "딸랑~ 울리는 예쁜 방울. 좋은 일이 생길 것 같아요. (행운 +1)"
+        )
+    )
+
+    val byId: Map<String, Part> = ALL.associateBy { it.id }
+
+    fun of(id: String): Part? = byId[id]
+}
+
+/** 자전거 외형 (모델 + 도색 + 부속품) — 스프라이트 생성에 쓰인다 */
+class BikeStyle(
+    val modelId: String,
+    val frame: BikeColors.BikeColor,
+    val tire: BikeColors.BikeColor,
+    val saddle: BikeColors.BikeColor,
+    val basket: Boolean,
+    val rack: Boolean,
+    val light: Boolean,
+    val streamers: Boolean,
+    val bell: Boolean
+) {
+    val cacheKey: String =
+        "$modelId|${frame.argb}|${tire.argb}|${saddle.argb}|" +
+            listOf(basket, rack, light, streamers, bell).joinToString("")
 }
 
 /** 이사 용달·중개 수수료 (대한민국 원) */
@@ -1013,8 +1197,8 @@ class RegionDef(
     val villager: String,
     val mapW: Int,
     val mapH: Int,
-    val waterEdges: Set<Dir>,
-    val sandEdges: Set<Dir>,
+    val waterEdges: Set<Dir>,  // 지도는 북쪽이 위: 실제 지역의 바다·하천 하구가 놓인 변
+    val sandEdges: Set<Dir>,   // 물과 육지 사이의 해변·갯벌 띠
     val treeDensity: Double,
     val rockDensity: Double,
     val flowerDensity: Double,
@@ -1144,7 +1328,7 @@ object Regions {
             "jeju", "제주", "Jeju", setOf("coast", "mountain", "forest", "wetland"),
             "바람의 섬, 오름의 섬. 귀한 새들이 머무는 곳.",
             "제주엔 없는 게 없어요. 돌하르방처럼 어여쁜 새들도요.",
-            40, 30, setOf(Dir.S, Dir.E, Dir.W), setOf(Dir.S, Dir.E, Dir.W), 0.07, 0.12, 0.05, false, false,
+            40, 30, setOf(Dir.N, Dir.E, Dir.S, Dir.W), setOf(Dir.N, Dir.E, Dir.S, Dir.W), 0.07, 0.12, 0.05, false, false,
             126.53f, 33.50f, "🏝", RegionKind.COAST, "사계절",
             "해안도로를 따라 달리면 섬새와 물새가 계속 나타나요."
         ),
@@ -1202,7 +1386,7 @@ object Regions {
             "sihwa", "시화호", "Sihwa Lake", setOf("water", "wetland", "coast"),
             "죽음의 호수에서 되살아난 큰 호수. 이제는 큰고니의 겨울 궁전.",
             "예전엔 물이 썩었대요. 지금은 고니가 오니까… 자연은 대단하죠.",
-            40, 30, emptySet(), emptySet(), 0.05, 0.02, 0.05, false, true,
+            40, 30, setOf(Dir.W), setOf(Dir.W), 0.05, 0.02, 0.05, false, true,
             126.73f, 37.28f, "🦢", RegionKind.RIVER, "11~2월 (겨울)",
             "상류 습지 쪽이 수심이 얕아 물새가 모여요."
         ),
@@ -1379,6 +1563,39 @@ object Regions {
             if (l.b == id) m[opposite(l.dirFromA)] = l.a
         }
         return m
+    }
+
+    /** 터널 번호 — 북·동·남·서 시계방향으로 1부터. 맵별로 다르게 */
+    data class ExitNumbered(val dir: Dir, val targetId: String, val number: Int)
+
+    fun exitNumbered(id: String): List<ExitNumbered> {
+        val ex = exits(id)
+        val ordered = listOf(Dir.N, Dir.E, Dir.S, Dir.W)
+        var n = 1
+        val out = ArrayList<ExitNumbered>()
+        for (d in ordered) {
+            val tgt = ex[d] ?: continue
+            out.add(ExitNumbered(d, tgt, n))
+            n++
+        }
+        return out
+    }
+
+    fun exitNumberedMap(id: String): Map<Dir, ExitNumbered> = exitNumbered(id).associateBy { it.dir }
+
+    /** 방향을 한글/아이콘으로 */
+    fun dirLabel(d: Dir): String = when (d) {
+        Dir.N -> "북쪽"
+        Dir.E -> "동쪽"
+        Dir.S -> "남쪽"
+        Dir.W -> "서쪽"
+    }
+
+    fun dirArrow(d: Dir): String = when (d) {
+        Dir.N -> "↑"
+        Dir.E -> "→"
+        Dir.S -> "↓"
+        Dir.W -> "←"
     }
 
     /** 두 지역이 직접 연결되어 있는가 */

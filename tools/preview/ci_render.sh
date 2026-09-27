@@ -70,7 +70,11 @@ if [ -x "$KCBIN" ]; then
     rm -f "$OUT"/*.png
     if java -cp "$OUT/classes-preview:$KC/kotlinc/lib/kotlin-stdlib.jar" \
       com.pizzaandbird.preview.PreviewMain "$OUT" >> "$OUT/render.log" 2>&1; then
-      echo "$SHA" > "$OUT/.last_ok"
+      if compgen -G "$OUT/*.png" > /dev/null; then
+        echo "$SHA" > "$OUT/.last_ok"
+      else
+        STATUS="render-empty"
+      fi
     else
       STATUS="render-failed"
     fi
@@ -84,8 +88,14 @@ fi
 echo "# status: $STATUS" >> preview/build.log
 
 # ---------------------------------------------------------------- commit
-rm -f preview/*.png
-cp "$OUT"/*.png preview/ 2>/dev/null
+# 프리뷰 생성에 성공한 경우에만 기존 이미지를 교체한다. 컴파일러/렌더러 오류로
+# 저장소의 마지막 정상 프리뷰까지 지워지는 일을 막는다.
+if [ "$STATUS" = "ok" ] && compgen -G "$OUT/*.png" > /dev/null; then
+  rm -f preview/*.png
+  cp "$OUT"/*.png preview/
+else
+  echo "WARN: 프리뷰 갱신 실패($STATUS) — 기존 스크린샷을 보존합니다." >> preview/build.log
+fi
 {
   echo
   echo "----- gradle build log (error lines + last 120) -----"

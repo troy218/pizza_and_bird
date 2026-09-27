@@ -3,6 +3,11 @@ package com.pizzaandbird.game
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.RectF
+import android.graphics.Typeface
 import java.util.Random
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -66,6 +71,16 @@ enum class T(
 // 지도
 // ---------------------------------------------------------------------------
 
+data class TunnelInfo(
+    val dir: Dir,
+    val targetId: String,
+    val tileX: Int,
+    val tileY: Int,
+    val cx: Float,
+    val cy: Float,
+    val number: Int
+)
+
 class GameMap(
     val region: RegionDef,
     val w: Int,
@@ -77,11 +92,52 @@ class GameMap(
     val npcs: List<Npc>,
     val hasHouse: Boolean,
     val houseDoorX: Int,
-    val houseDoorY: Int
+    val houseDoorY: Int,
+    val mapStyle: RegionMapStyle = RegionMapStyles.forRegion(region),
+    val tunnels: List<TunnelInfo> = emptyList()
 ) {
+    private val foliagePaint by lazy { tintedPaint(mapStyle.foliageFilter) }
+    private val waterPaint by lazy { tintedPaint(mapStyle.waterFilter) }
+    private val shorePaint by lazy { tintedPaint(mapStyle.shoreFilter) }
+    private val stonePaint by lazy { tintedPaint(mapStyle.stoneFilter) }
+
+    private fun tintedPaint(filter: Int): Paint = Paint().apply {
+        isFilterBitmap = false
+        colorFilter = PorterDuffColorFilter(filter, PorterDuff.Mode.MULTIPLY)
+    }
+
+    private fun terrainPaint(tile: T, fallback: Paint): Paint = when (tile) {
+        T.GRASS, T.TALLGRASS, T.FLOWER, T.REED, T.TREE -> foliagePaint
+        T.WATER -> waterPaint
+        T.SAND -> shorePaint
+        T.ROCK, T.MOUNTAIN -> stonePaint
+        else -> fallback
+    }
+    private val exits: Map<Dir, String> = Regions.exits(region.id)
+
     fun t(x: Int, y: Int): T {
         if (x < 0 || y < 0 || x >= w || y >= h) return T.MOUNTAIN
         return T.ALL[tiles[y][x]]
+    }
+
+    /** 터널 타일이 실제로 연결되는 지도 방향 (북쪽 위 · 동쪽 오른쪽 기준). */
+    fun tunnelDirectionAt(x: Int, y: Int): Dir? {
+        if (t(x, y) != T.TUNNEL) return null
+        return when {
+            y == 0 && Dir.N in exits -> Dir.N
+            y == h - 1 && Dir.S in exits -> Dir.S
+            x == 0 && Dir.W in exits -> Dir.W
+            x == w - 1 && Dir.E in exits -> Dir.E
+            else -> null
+        }
+    }
+
+    private fun signDirectionAt(x: Int, y: Int): Dir? = when {
+        y <= 2 && Dir.N in exits -> Dir.N
+        y >= h - 5 && Dir.S in exits -> Dir.S
+        x <= 3 && Dir.W in exits -> Dir.W
+        x >= w - 4 && Dir.E in exits -> Dir.E
+        else -> null
     }
 
     /** 이 칸의 지면 (포장 아래에 깔린 자연 지형) */
@@ -169,14 +225,30 @@ class GameMap(
                     val gTile = T.ALL[gv]
                     val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
                     else a.tiles[gv][a.tileVariant(gv, x, y)]
-                    c.drawBitmap(gBmp, fx, fy, a.sprPaint)
+                    c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
 
-                    // 물가 거품 (물 타일 가장자리)
+                    // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
                     if (gTile == T.WATER && pv == Pave.NONE) {
-                        if (y > 0 && groundAt(x, y - 1) != T.WATER) c.drawRect(fx, fy, fx + 32f, fy + 3.2f, foamPaint)
-                        if (y < h - 1 && groundAt(x, y + 1) != T.WATER) c.drawRect(fx, fy + 28.8f, fx + 32f, fy + 32f, foamPaint)
-                        if (x > 0 && groundAt(x - 1, y) != T.WATER) c.drawRect(fx, fy, fx + 3.2f, fy + 32f, foamPaint)
-                        if (x < w - 1 && groundAt(x + 1, y) != T.WATER) c.drawRect(fx + 28.8f, fy, fx + 32f, fy + 32f, foamPaint)
+                        val ph = time * 2.8f + x * 1.15f + y * 0.85f
+                        if (y > 0 && groundAt(x, y - 1) != T.WATER) foamEdge(c, fx, fy, fx + 32f, fy, ph)
+                        if (y < h - 1 && groundAt(x, y + 1) != T.WATER) foamEdge(c, fx, fy + 32f, fx + 32f, fy + 32f, ph + 1.7f)
+                        if (x > 0 && groundAt(x - 1, y) != T.WATER) foamEdgeV(c, fx, fy, fx, fy + 32f, ph + 0.9f)
+                        if (x < w - 1 && groundAt(x + 1, y) != T.WATER) foamEdgeV(c, fx + 32f, fy, fx + 32f, fy + 32f, ph + 2.3f)
+                        // 물 반짝임 (별 반짝임 십자)
+                        if ((x * 7 + y * 13) % 6 == 0) {
+                            val tw = (sin(time * 2.6f + x * 1.7f + y * 2.3f) + 1f) / 2f
+                            if (tw > 0.62f) {
+                                val k = (tw - 0.62f) / 0.38f
+                                val sx = fx + 8f + ((x * 11 + y * 5) % 16)
+                                val sy = fy + 7f + ((x * 3 + y * 9) % 18)
+                                val al = (110 + 130 * k).toInt()
+                                sparkle.color = Color.argb(al, 255, 255, 255)
+                                c.drawRect(sx, sy - 2.2f, sx + 1.6f, sy + 3.8f, sparkle)
+                                c.drawRect(sx - 2.2f, sy, sx + 3.8f, sy + 1.6f, sparkle)
+                                sparkle.color = Color.argb(al / 2, 255, 255, 255)
+                                c.drawRect(sx - 4f, sy, sx + 5.6f, sy + 1.2f, sparkle)
+                            }
+                        }
                     }
                 }
 
@@ -249,7 +321,15 @@ class GameMap(
                 if (!tile.ground && tile != T.OVEN) {
                     val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
                     else a.tiles[tv][a.tileVariant(tv, x, y)]
-                    c.drawBitmap(bmp, fx, fy, a.sprPaint)
+                    when (tile) {
+                        T.TUNNEL -> {
+                            val edge = tunnelDirectionAt(x, y)
+                            if (edge == null) c.drawBitmap(bmp, fx, fy, a.sprPaint)
+                            else drawTunnel(c, bmp, fx, fy, edge, a.sprPaint)
+                        }
+                        else -> c.drawBitmap(bmp, fx, fy, terrainPaint(tile, a.sprPaint))
+                    }
+                    if (tile == T.SIGN) signDirectionAt(x, y)?.let { drawSignArrow(c, fx, fy, it) }
                 }
             }
         }
@@ -267,14 +347,138 @@ class GameMap(
                 if (!up && !left && bulkAt(x - 1, y - 1)) c.drawBitmap(a.castShadow[2], fx, fy, a.sprPaint)
             }
         }
+        drawCoastLabels(c, camX, camY)
+    }
+
+    /** 원본 터널 아치는 남쪽(화면 아래)을 향한다. 진입로 안쪽으로 입구를 돌려 놓는다. */
+    private fun drawTunnel(c: Canvas, bmp: android.graphics.Bitmap, x: Float, y: Float, edge: Dir, paint: Paint) {
+        val rotation = when (edge) {
+            Dir.N -> 0f      // 북쪽 경계: 입구는 남쪽을 향해 마을 안으로
+            Dir.E -> 90f     // 동쪽 경계: 서쪽을 향해
+            Dir.S -> 180f    // 남쪽 경계: 북쪽을 향해
+            Dir.W -> -90f    // 서쪽 경계: 동쪽을 향해
+        }
+        c.save()
+        c.rotate(rotation, x + 16f, y + 16f)
+        c.drawBitmap(bmp, x, y, paint)
+        c.restore()
+    }
+
+    /** 이정표는 세워 둔 채, 판자의 화살표만 연결 터널 방향으로 돌린다. */
+    private fun drawSignArrow(c: Canvas, x: Float, y: Float, direction: Dir) {
+        val (dx, dy) = when (direction) {
+            Dir.N -> 0f to -1f
+            Dir.E -> 1f to 0f
+            Dir.S -> 0f to 1f
+            Dir.W -> -1f to 0f
+        }
+        val cx = x + 22f
+        val cy = y + 9f
+        c.drawLine(cx - dx * 4f, cy - dy * 4f, cx + dx * 1.8f, cy + dy * 1.8f, signArrowLinePaint)
+        val tipX = cx + dx * 4.8f
+        val tipY = cy + dy * 4.8f
+        val baseX = cx + dx * 1.1f
+        val baseY = cy + dy * 1.1f
+        val px = -dy * 2.3f
+        val py = dx * 2.3f
+        arrowPath.reset()
+        arrowPath.moveTo(tipX, tipY)
+        arrowPath.lineTo(baseX + px, baseY + py)
+        arrowPath.lineTo(baseX - px, baseY - py)
+        arrowPath.close()
+        c.drawPath(arrowPath, signArrowPaint)
+    }
+
+    /** 실제 바다 방향이 눈에 들어오도록 가장자리 바다에 낮은 대비로 이름을 새긴다. */
+    private fun drawCoastLabels(c: Canvas, camX: Float, camY: Float) {
+        if (region.waterEdges.isEmpty()) return
+        for (edge in region.waterEdges) {
+            val label = when (edge) {
+                Dir.W -> when {
+                    region.id == "jeju" -> "서쪽 바다"
+                    "wetland" in region.habitats -> "서해 갯벌"
+                    else -> "서해"
+                }
+                Dir.E -> if (region.id == "jeju" || region.id == "hadori") "동쪽 바다" else "동해"
+                Dir.S -> when {
+                    region.id == "jeju" -> "남쪽 바다"
+                    Dir.W in region.waterEdges -> "남쪽 해안"
+                    else -> "남해"
+                }
+                Dir.N -> if (region.id == "jeju") "제주해협" else "바다"
+            }
+            val centerX: Float
+            val centerY: Float
+            when (edge) {
+                Dir.W -> { centerX = 48f; centerY = h * 32f * 0.38f }
+                Dir.E -> { centerX = w * 32f - 48f; centerY = h * 32f * 0.38f }
+                Dir.N -> { centerX = w * 32f * 0.72f; centerY = 48f }
+                Dir.S -> { centerX = w * 32f * 0.72f; centerY = h * 32f - 48f }
+            }
+            val screenX = centerX - camX
+            val screenY = centerY - camY
+            val halfW = seaLabelPaint.measureText(label) / 2f + 7f
+            seaBadgeRect.set(screenX - halfW, screenY - 10f, screenX + halfW, screenY + 10f)
+            c.drawRoundRect(seaBadgeRect, 8f, 8f, seaBadgePaint)
+            c.drawText(label, screenX, screenY + 4.5f, seaLabelPaint)
+        }
+    }
+
+    /** 물가 거품 (가로 변) — 기본 라인 위에 출렁이는 포말 */
+    private fun foamEdge(c: Canvas, x0: Float, yEdge: Float, x1: Float, yEdge2: Float, ph: Float) {
+        c.drawRect(x0, yEdge, x1, yEdge + 2.8f, foamPaint)
+        for (i in 0 until 5) {
+            val u = (i * 0.22f + (Math.sin(ph.toDouble() + i).toFloat() * 0.06f) + 0.12f) % 1f
+            val bx = x0 + u * (x1 - x0)
+            val bw = 4.2f + ((i * 3) % 3)
+            foamDot.color = Color.argb(170, 240, 250, 255)
+            c.drawRect(bx, yEdge + 1.2f, bx + bw, yEdge + 3.4f, foamDot)
+            foamDot.color = Color.argb(110, 240, 250, 255)
+            c.drawRect(bx - 1.2f, yEdge + 2.6f, bx + bw + 1.4f, yEdge + 4.2f, foamDot)
+        }
+    }
+
+    /** 물가 거품 (세로 변) */
+    private fun foamEdgeV(c: Canvas, xEdge: Float, y0: Float, xEdge2: Float, y1: Float, ph: Float) {
+        c.drawRect(xEdge, y0, xEdge + 2.8f, y1, foamPaint)
+        for (i in 0 until 5) {
+            val u = (i * 0.22f + (Math.cos(ph.toDouble() + i).toFloat() * 0.06f) + 0.12f) % 1f
+            val by = y0 + u * (y1 - y0)
+            val bh = 4.2f + ((i * 3) % 3)
+            foamDot.color = Color.argb(170, 240, 250, 255)
+            c.drawRect(xEdge + 1.2f, by, xEdge + 3.4f, by + bh, foamDot)
+            foamDot.color = Color.argb(110, 240, 250, 255)
+            c.drawRect(xEdge + 2.6f, by - 1.2f, xEdge + 4.2f, by + bh + 1.4f, foamDot)
+        }
     }
 
     companion object {
-        private val foamPaint = Paint().apply {
-            color = Color.argb(150, 226, 244, 250)
-        }
-        private val sunPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val sunRect = android.graphics.RectF()
+        private val foamPaint by lazy { Paint().apply { color = Color.argb(150, 226, 244, 250) } }
+        private val foamDot by lazy { Paint() }
+        private val sparkle by lazy { Paint() }
+        private val sunPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG) }
+        private val sunRect by lazy { RectF() }
+        private val signArrowPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF4A3728.toInt()
+            style = Paint.Style.FILL
+        } }
+        private val signArrowLinePaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF4A3728.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = 1.8f
+            strokeCap = Paint.Cap.ROUND
+        } }
+        private val arrowPath by lazy { Path() }
+        private val seaBadgePaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(92, 223, 244, 246)
+        } }
+        private val seaBadgeRect by lazy { RectF() }
+        private val seaLabelPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(188, 44, 83, 100)
+            textSize = 13f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        } }
     }
 }
 
@@ -314,6 +518,7 @@ object MapBuilder {
         val structure = Array(h) { BooleanArray(w) }      // 길이 뚫고 지나갈 수 없는 칸
         val rnd = Random(region.id.hashCode().toLong())
         val exits = Regions.exits(region.id)
+        val mapStyle = RegionMapStyles.forRegion(region)
 
         fun inb(x: Int, y: Int): Boolean = x in 0 until w && y in 0 until h
         fun setGround(x: Int, y: Int, tile: T) {
@@ -321,17 +526,21 @@ object MapBuilder {
             base[y][x] = tile.ordinal
         }
 
-        // 1. 바다/모래 가장자리 ------------------------------------------------
-        fun waterBand(d: Dir, depth: Int, tile: T) {
+        // 1. 바다/모래 가장자리 — 방향을 그대로 반영: 서쪽은 서해, 동쪽은 동해.
+        // 바다는 지도 바깥쪽, 모래·갯벌은 육지 쪽에 놓아 해안의 순서가 뒤집히지 않게 한다.
+        fun edgeBand(d: Dir, offset: Int, depth: Int, tile: T) {
             when (d) {
-                Dir.N -> for (y in 0 until depth) for (x in 0 until w) setGround(x, y, tile)
-                Dir.S -> for (y in h - depth until h) for (x in 0 until w) setGround(x, y, tile)
-                Dir.W -> for (x in 0 until depth) for (y in 0 until h) setGround(x, y, tile)
-                Dir.E -> for (x in w - depth until w) for (y in 0 until h) setGround(x, y, tile)
+                Dir.N -> for (y in offset until (offset + depth).coerceAtMost(h)) for (x in 0 until w) setGround(x, y, tile)
+                Dir.S -> for (y in (h - offset - depth).coerceAtLeast(0) until h - offset) for (x in 0 until w) setGround(x, y, tile)
+                Dir.W -> for (x in offset until (offset + depth).coerceAtMost(w)) for (y in 0 until h) setGround(x, y, tile)
+                Dir.E -> for (x in (w - offset - depth).coerceAtLeast(0) until w - offset) for (y in 0 until h) setGround(x, y, tile)
             }
         }
-        for (d in region.waterEdges) waterBand(d, 3, T.WATER)
-        for (d in region.sandEdges) waterBand(d, 2, T.SAND)
+        for (d in region.waterEdges) edgeBand(d, 0, mapStyle.seaDepth, T.WATER)
+        for (d in region.sandEdges) {
+            val inlandOffset = if (d in region.waterEdges) mapStyle.seaDepth else 0
+            edgeBand(d, inlandOffset, mapStyle.shoreDepth, T.SAND)
+        }
 
         // 2. 육지 가장자리 (산맥/수림) -----------------------------------------
         val borderTile = if (region.rockDensity >= 0.08) T.MOUNTAIN else T.TREE
@@ -340,11 +549,15 @@ object MapBuilder {
             if (onEdge && t[y][x] == T.GRASS.ordinal) t[y][x] = borderTile.ordinal
         }
 
-        // 3. 호수/습지 (길보다 먼저 — 길이 호숫가를 피해 돌아가도록) -------------
+        // 3. 호수·하천·습지 — 지역별 실제 지형의 방향과 위치를 반영한다. --------
         var lakeShoreX = -1
         var lakeShoreY = -1
-        if (region.lake) {
-            val cx = 30; val cy = 22; val rx = 4; val ry = 3
+        val lake = mapStyle.lake
+        if (lake != null) {
+            val cx = lake.center.x
+            val cy = lake.center.y
+            val rx = lake.radiusX
+            val ry = lake.radiusY
             for (y in cy - ry - 1..cy + ry + 1) for (x in cx - rx - 1..cx + rx + 1) {
                 if (x !in 2 until w - 2 || y !in 2 until h - 2) continue
                 val dx = (x - cx) / rx.toFloat()
@@ -360,10 +573,76 @@ object MapBuilder {
             lakeShoreY = cy - ry - 1
         }
 
+        fun segmentDistanceSq(px: Float, py: Float, a: MapPoint, b: MapPoint): Float {
+            val dx = (b.x - a.x).toFloat()
+            val dy = (b.y - a.y).toFloat()
+            val len2 = dx * dx + dy * dy
+            val u = if (len2 <= 0.001f) 0f else (((px - a.x) * dx + (py - a.y) * dy) / len2).coerceIn(0f, 1f)
+            val ex = px - (a.x + dx * u)
+            val ey = py - (a.y + dy * u)
+            return ex * ex + ey * ey
+        }
+
+        for (river in mapStyle.rivers) {
+            if (river.course.size < 2) continue
+            for (y in 2 until h - 2) for (x in 2 until w - 2) {
+                if (reserved[y][x] && t[y][x] != T.WATER.ordinal) continue
+                var distance = Float.MAX_VALUE
+                for (i in 0 until river.course.lastIndex) {
+                    distance = minOf(distance, segmentDistanceSq(x.toFloat(), y.toFloat(), river.course[i], river.course[i + 1]))
+                }
+                val waterRadius2 = river.halfWidth * river.halfWidth
+                val bankRadius = river.halfWidth + river.bankWidth
+                when {
+                    distance <= waterRadius2 -> {
+                        setGround(x, y, T.WATER)
+                        reserved[y][x] = true
+                    }
+                    distance <= bankRadius * bankRadius && t[y][x] == T.GRASS.ordinal -> {
+                        setGround(x, y, if (river.reedBanks) T.REED else T.TALLGRASS)
+                        reserved[y][x] = true
+                    }
+                }
+            }
+        }
+
+        fun isRiverWater(x: Int, y: Int): Boolean = mapStyle.rivers.any { river ->
+            if (river.course.size < 2) false
+            else {
+                val radius2 = river.halfWidth * river.halfWidth
+                (0 until river.course.lastIndex).any { i ->
+                    segmentDistanceSq(x.toFloat(), y.toFloat(), river.course[i], river.course[i + 1]) <= radius2
+                }
+            }
+        }
+
+        // 서해 갯벌과 하구는 모래 안쪽에 갈대 띠가 이어진다. 간선도로가 지나갈 칸은 남긴다.
+        if (mapStyle.tidalReeds) {
+            for (edge in region.waterEdges) {
+                for (along in 5 until (if (edge == Dir.N || edge == Dir.S) w - 5 else h - 5)) {
+                    val (rx, ry) = when (edge) {
+                        Dir.N -> (along to mapStyle.seaDepth + mapStyle.shoreDepth)
+                        Dir.S -> (along to h - mapStyle.seaDepth - mapStyle.shoreDepth - 1)
+                        Dir.W -> (mapStyle.seaDepth + mapStyle.shoreDepth to along)
+                        Dir.E -> (w - mapStyle.seaDepth - mapStyle.shoreDepth - 1 to along)
+                    }
+                    val cityBlock = region.city && (rx in 5..9 || rx in 30..34)
+                    val nearBlockRows = ry in 3..10 || ry in 23..27
+                    if (inb(rx, ry) && !(cityBlock && nearBlockRows) && !reserved[ry][rx] &&
+                        t[ry][rx] == T.GRASS.ordinal && (along * 7 + rx * 3 + ry) % 4 != 0
+                    ) {
+                        setGround(rx, ry, T.REED)
+                        reserved[ry][rx] = true
+                    }
+                }
+            }
+        }
+
         // 4. 도시 건물 (길보다 먼저 — 정문 앞으로 샛길을 내기 위해) ---------------
         val buildingFronts = ArrayList<Pair<Int, Int>>()
         if (region.city) {
-            for ((bx, by) in listOf(6 to 5, 31 to 5, 6 to 24, 31 to 24)) {
+            val northY = mapStyle.northBuildingY
+            for ((bx, by) in listOf(6 to northY, 31 to northY, 6 to 24, 31 to 24)) {
                 var ok = true
                 for (y in by until by + 3) for (x in bx until bx + 3) {
                     if (x !in 2 until w - 2 || y !in 2 until h - 2 || t[y][x] != T.GRASS.ordinal) ok = false
@@ -444,9 +723,12 @@ object MapBuilder {
             for (yy in y until y + size) for (xx in x until x + size) {
                 if (!canPave(xx, yy)) continue
                 if (pave[yy][xx] == Pave.STONE) continue
-                if (base[yy][xx] == T.WATER.ordinal) base[yy][xx] = T.SAND.ordinal    // 물 위를 지나면 모래 둑길
-                t[yy][xx] = if (mat == Pave.DIRT) T.PATH.ordinal else T.PLAZA.ordinal
-                pave[yy][xx] = mat
+                val crossingWater = base[yy][xx] == T.WATER.ordinal
+                if (crossingWater) base[yy][xx] = T.SAND.ordinal
+                // 하천·호수를 가로지르는 길은 돌다리로 읽히도록 석재 포장을 쓴다.
+                val roadMat = if (crossingWater && mat == Pave.DIRT) Pave.STONE else mat
+                t[yy][xx] = if (roadMat == Pave.DIRT) T.PATH.ordinal else T.PLAZA.ordinal
+                pave[yy][xx] = roadMat
                 reserved[yy][xx] = true
             }
         }
@@ -486,7 +768,7 @@ object MapBuilder {
         }
 
         /** 1칸 샛길 예정 경로가 전부 지나갈 수 있는지 미리 검사 */
-        fun pathClear(points: List<Pair<Int, Int>>): List<Pair<Int, Int>>? {
+        fun pathClear(points: List<Pair<Int, Int>>, allowRiverBridge: Boolean = false): List<Pair<Int, Int>>? {
             var px = points[0].first
             var py = points[0].second
             val seq = ArrayList<Pair<Int, Int>>()
@@ -506,7 +788,9 @@ object MapBuilder {
                 }
             }
             for ((x, y) in seq) {
-                if (!inb(x, y) || structure[y][x] || base[y][x] == T.WATER.ordinal) return null
+                if (!inb(x, y) || structure[y][x]) return null
+                val blockedWater = base[y][x] == T.WATER.ordinal && !(allowRiverBridge && isRiverWater(x, y))
+                if (blockedWater) return null
             }
             return seq
         }
@@ -570,10 +854,29 @@ object MapBuilder {
             }
         }
 
+        // 8.5 터널 번호 부여 — 북·동·남·서 시계방향, 맵별로 다르게 -------------------
+        val tunnelList = ArrayList<TunnelInfo>()
+        var tunnelNo = 1
+        for (d in listOf(Dir.N, Dir.E, Dir.S, Dir.W)) {
+            val targetId = exits[d] ?: continue
+            val tx: Int
+            val ty: Int
+            val cx: Float
+            val cy: Float
+            when (d) {
+                Dir.N -> { tx = 19; ty = 0; cx = 320f; cy = 8f }
+                Dir.S -> { tx = 19; ty = h - 1; cx = 320f; cy = (h - 1) * 16f + 8f }
+                Dir.W -> { tx = 0; ty = 15; cx = 8f; cy = 256f }
+                Dir.E -> { tx = w - 1; ty = 15; cx = (w - 1) * 16f + 8f; cy = 256f }
+            }
+            tunnelList.add(TunnelInfo(d, targetId, tx, ty, cx, cy, tunnelNo))
+            tunnelNo++
+        }
+
         // 9. 샛길 -------------------------------------------------------------------
         for ((fx, fy) in buildingFronts) {
             val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
-            val seq = pathClear(listOf(fx to fy, fx to targetY)) ?: continue
+            val seq = pathClear(listOf(fx to fy, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty()) ?: continue
             for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
         }
 
@@ -594,7 +897,15 @@ object MapBuilder {
         }
 
         // 숲속 쉼터 (사진 찍기 좋은 자리)
-        val restX = if (region.lake) 9 else 30
+        val eastRestBlocked = mapStyle.rivers.any { river ->
+            river.course.any { it.x in 27..33 && it.y in 16..24 }
+        }
+        val restX = when {
+            lakeShoreX >= 0 && lakeShoreX < w / 2 -> w - 10
+            lakeShoreX >= 0 -> 9
+            eastRestBlocked -> 9
+            else -> 30
+        }
         val restY = 22
         val restSeq = pathClear(listOf(restX to AVE_Y + 2, restX to restY))
         if (restSeq != null) {
@@ -616,6 +927,20 @@ object MapBuilder {
             reserved[sy][sx] = true
             for ((ax, ay) in listOf(sx + 1 to sy, sx - 1 to sy, sx to sy + 1, sx to sy - 1)) {
                 if (inb(ax, ay)) reserved[ay][ax] = true
+            }
+        }
+
+        // 10.5 논·갈대 들판 — 논둑처럼 평행한 풀결을 지역 일부에만 얹는다. --------
+        if (mapStyle.fieldRows && !region.city) {
+            for ((x0, x1, y0) in listOf(Triple(5, 15, 5), Triple(25, 35, 23))) {
+                for (row in y0..(y0 + 2)) for (x in x0..x1) {
+                    if (!inb(x, row) || reserved[row][x] || pave[row][x] != Pave.NONE || t[row][x] != T.GRASS.ordinal) continue
+                    if ((x + row) % 5 != 0) {
+                        val cover = if ((x + row) % 3 == 0) T.FLOWER else T.TALLGRASS
+                        setGround(x, row, cover)
+                        reserved[row][x] = true
+                    }
+                }
             }
         }
 
@@ -695,7 +1020,23 @@ object MapBuilder {
         }
 
         // 13. 자연물 --------------------------------------------------------------------
-        repeat(3) {
+        // 지역의 실제 경관을 반영한 작은 군락: 해안은 모래·바위, 습지는 갈대,
+        // 강은 자갈과 물억새, 산지는 바위와 침엽수, 도시는 꽃과 가로수.
+        // (참고: 한국문화원 관광 자료의 제주 화산암/곶자왈, 순천만 갈대 습지,
+        // 우포늪 내륙습지 소개를 바탕으로 한 게임용 단순화.)
+        val isWet = region.kind == RegionKind.WETLAND || "wetland" in region.habitats
+        val isCoast = region.kind == RegionKind.COAST || "coast" in region.habitats
+        val isMountain = region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats
+        val isRiver = region.kind == RegionKind.RIVER || "water" in region.habitats
+
+        // 큰 자연물 군락: 같은 종류를 뭉치되 군락끼리는 충분히 떨어뜨린다.
+        val groveCount = when {
+            isMountain -> 6
+            isWet -> 4
+            isCoast -> 3
+            else -> 3
+        }
+        repeat(groveCount) {
             val gx = 5 + rnd.nextInt(w - 10)
             val gy = 5 + rnd.nextInt(h - 10)
             val gr = 2 + rnd.nextInt(2)
@@ -704,7 +1045,14 @@ object MapBuilder {
                 if (reserved[y][x] || t[y][x] != T.GRASS.ordinal) continue
                 val dx = x - gx; val dy = y - gy
                 if (dx * dx + dy * dy <= gr * gr && rnd.nextFloat() < 0.8f) {
-                    t[y][x] = T.TREE.ordinal
+                    val groveTile = when {
+                        isWet -> if (rnd.nextBoolean()) T.REED else T.TALLGRASS
+                        isCoast -> if (rnd.nextBoolean()) T.ROCK else T.TALLGRASS
+                        isRiver -> if (rnd.nextInt(3) == 0) T.REED else T.ROCK
+                        else -> T.TREE
+                    }
+                    t[y][x] = groveTile.ordinal
+                    if (groveTile == T.REED || groveTile == T.TALLGRASS) base[y][x] = groveTile.ordinal
                     reserved[y][x] = true
                 }
             }
@@ -714,6 +1062,13 @@ object MapBuilder {
             if (reserved[y][x] || t[y][x] != T.GRASS.ordinal) continue
             val r = rnd.nextDouble()
             when {
+                // 습지·강은 갈대/물억새를 우선하고, 산은 바위와 숲을 우선한다.
+                isWet && r < 0.22 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
+                isRiver && r < 0.13 -> t[y][x] = T.ROCK.ordinal
+                isCoast && r < 0.12 -> t[y][x] = T.ROCK.ordinal
+                isMountain && r < 0.12 -> t[y][x] = T.ROCK.ordinal
+                // 도시 공원·하천 산책로에는 꽃밭을 조금 더 자주 만든다.
+                region.city && r < 0.16 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
                 r < region.treeDensity + region.flowerDensity -> {
                     t[y][x] = T.FLOWER.ordinal
@@ -737,44 +1092,47 @@ object MapBuilder {
             }
         }
 
-        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY)
+        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, mapStyle, tunnelList)
     }
 
     /** 집 내부 맵 (13x9) */
     fun buildHome(): GameMap {
-        val w = 13
-        val h = 9
+        // 2K 화질 업그레이드: 집 내부를 13x9 -> 16x12로 넓혀 넓은 화면비(20:9)에서도 가득 차 보이게.
+        val w = 16
+        val h = 12
         val t = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         // 벽
         for (x in 0 until w) { t[0][x] = T.WALL_IN.ordinal; t[1][x] = T.WALL_IN.ordinal }
         for (y in 0 until h) { t[y][0] = T.WALL_IN.ordinal; t[y][w - 1] = T.WALL_IN.ordinal }
-        for (y in 2 until h) t[y][w - 1] = T.WALL_IN.ordinal
         // 현관문 (아래쪽 중앙)
         for (x in 0 until w) t[h - 1][x] = T.WALL_IN.ordinal
-        t[h - 1][6] = T.HOUSE_DOOR.ordinal
+        t[h - 1][7] = T.HOUSE_DOOR.ordinal
+        t[h - 1][8] = T.HOUSE_DOOR.ordinal
         // 창문
         t[1][2] = T.WALL_WIN.ordinal
-        t[1][5] = T.WALL_WIN.ordinal
-        t[1][8] = T.WALL_WIN.ordinal
-        // 화덕 (기본 제공!) — 화덕피자
-        t[2][9] = T.OVEN.ordinal; t[2][10] = T.OVEN.ordinal
-        t[3][9] = T.OVEN.ordinal; t[3][10] = T.OVEN.ordinal
+        t[1][6] = T.WALL_WIN.ordinal
+        t[1][10] = T.WALL_WIN.ordinal
+        t[1][13] = T.WALL_WIN.ordinal
+        // 화덕 (기본 제공!) — 오른쪽 상단 (화덕피자)
+        t[2][12] = T.OVEN.ordinal; t[2][13] = T.OVEN.ordinal
+        t[3][12] = T.OVEN.ordinal; t[3][13] = T.OVEN.ordinal
         // 가정용 오븐 (화덕 옆 주방 코너) — 일반 피자
         t[2][11] = T.RANGE_TOP.ordinal
         t[3][11] = T.RANGE.ordinal
-        // 침대
+        // 침대 — 왼쪽 상단
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
+        t[3][2] = T.BED.ordinal
         // 이사 박스
-        t[6][2] = T.BOX.ordinal
+        t[8][2] = T.BOX.ordinal
         // 장식 슬롯 (DECOR 0,1,2 순서로 HomeScene과 매칭)
-        t[2][5] = T.DECOR.ordinal
-        t[2][7] = T.DECOR.ordinal
-        t[5][11] = T.DECOR.ordinal
+        t[2][6] = T.DECOR.ordinal
+        t[2][9] = T.DECOR.ordinal
+        t[7][13] = T.DECOR.ordinal
         val home = Regions.byId["seoul"]!! // 내부맵은 지역 무관 (더미)
         val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
-        return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 6, h - 1)
+        return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 7, h - 1)
     }
 }
 
@@ -941,13 +1299,13 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     val cx: Float get() = x + sprW / 2f
     val cy: Float get() = y + sprH * 0.45f
 
-    fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f) {
+    fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
             Tier.UNCOMMON -> 2.3f
             Tier.RARE -> 3.0f
             Tier.LEGEND -> 3.8f
-        } * (if (sneaking) 0.6f else 1f) * (if (onBike) 1.4f else 1f) * calmFactor
+        } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
         when (state) {
             0 -> {

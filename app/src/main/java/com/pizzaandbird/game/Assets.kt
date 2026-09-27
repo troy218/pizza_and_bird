@@ -1,12 +1,15 @@
 package com.pizzaandbird.game
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
 import java.util.Random
 import kotlin.math.roundToInt
 
@@ -51,11 +54,13 @@ enum class Anim(val frames: Int, val frameTime: Float) {
 }
 
 /**
- * 캐릭터와 월드 타일을 코드로 생성하는 픽셀 아트 에셋 (v0.2 — 2배 해상도).
+ * 픽셀 아트 에셋 (v0.3).
+ * - 캐릭터/새/도로/부속물: 코드로 생성 (티어 장비·13종 체형·오토타일)
+ * - NPC/고양이/타일/아이콘/데코: SVG 마스터 -> VectorDrawable (art/svg, tools/build_art.py)
  * - 타일 32x32 / 캐릭터 32x32 / 새 13종 체형 + 9종 깃무늬 + 비행 2프레임
  * - 캐릭터/타일은 코드로 생성, 작은 장식 일러스트는 로컬 SVG — 네트워크·외부 라이브러리 없음
  */
-class Assets {
+class Assets(private val context: Context) {
 
     private fun c(v: Long): Int = v.toInt()
 
@@ -77,7 +82,9 @@ class Assets {
     lateinit var catFramesL: Array<Bitmap>
 
     // 새 ---------------------------------------------------------------------
-    lateinit var birds: Map<String, Bitmap>                  // 앉은 자세
+    // 앉은 자세 스프라이트는 종별로 *처음 필요할 때* 만들어 캐시한다.
+    // (예전엔 시작 시 598종을 전부 만들어 앱이 켜질 때까지 한참 걸렸다)
+    private val birdCache = LinkedHashMap<String, Bitmap>()
     private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
     private var birdsFlipped: Map<String, Bitmap> = emptyMap()
     private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
@@ -120,14 +127,110 @@ class Assets {
     lateinit var moonIcon: Bitmap
     lateinit var decorArt: Array<Bitmap>        // Decors.ALL 순서
 
-    init {
-        buildCat()
-        buildBirds()
-        buildGrassRig()
-        buildTiles()
-        buildIcons()
-        buildDecorArt()
-    }
+    // 카메라 장비 아트 캐시 (init 보다 먼저 만들어져야 한다)
+    private val camIconCache = HashMap<CamLook, Bitmap>()
+    private val camProfileCache = HashMap<CamLook, Bitmap>()
+    private val camHeldCache = HashMap<HeldKey, Bitmap>()
+
+    private data class HeldKey(val look: CamLook, val dir: Int, val raised: Boolean)
+
+    private val camOutline = c(0xFF191920)
+    private val camGlass = c(0xFF3E6B8C)
+    private val camGlassHi = c(0xFFBFE4F5)
+    private val camStrap = c(0xFF7A4A2B)
+    private val camSkin = c(0xFFFFD9B0)
+    private val camGold = c(0xFFF2D06B)
+    private val camWhiteLens = c(0xFFE8E4D8)
+
+    private val artIds: Map<String, Triple<Int, Int, Int>> = mapOf(
+        "bike_down" to Triple(R.drawable.art_bike_down, 64, 64),
+        "bike_side" to Triple(R.drawable.art_bike_side, 64, 64),
+        "bike_up" to Triple(R.drawable.art_bike_up, 64, 64),
+        "bird_owl" to Triple(R.drawable.art_bird_owl, 38, 42),
+        "bird_raptor" to Triple(R.drawable.art_bird_raptor, 56, 46),
+        "bird_songbird" to Triple(R.drawable.art_bird_songbird, 48, 36),
+        "bird_wader" to Triple(R.drawable.art_bird_wader, 44, 48),
+        "bird_waterfowl" to Triple(R.drawable.art_bird_waterfowl, 52, 34),
+        "camera" to Triple(R.drawable.art_camera, 40, 32),
+        "cat_sit" to Triple(R.drawable.art_cat_sit, 64, 52),
+        "cat_walk_1" to Triple(R.drawable.art_cat_walk_1, 64, 52),
+        "cat_walk_2" to Triple(R.drawable.art_cat_walk_2, 64, 52),
+        "clover" to Triple(R.drawable.art_clover, 28, 28),
+        "decor_bookshelf" to Triple(R.drawable.art_decor_bookshelf, 64, 64),
+        "decor_cactus" to Triple(R.drawable.art_decor_cactus, 64, 64),
+        "decor_lamp" to Triple(R.drawable.art_decor_lamp, 64, 64),
+        "decor_radio" to Triple(R.drawable.art_decor_radio, 64, 64),
+        "decor_rug" to Triple(R.drawable.art_decor_rug, 64, 64),
+        "decor_trophy" to Triple(R.drawable.art_decor_trophy, 64, 64),
+        "house" to Triple(R.drawable.art_house, 28, 28),
+        "moon" to Triple(R.drawable.art_moon, 28, 28),
+        "npc_elder" to Triple(R.drawable.art_npc_elder, 64, 64),
+        "npc_kid" to Triple(R.drawable.art_npc_kid, 64, 64),
+        "npc_professor" to Triple(R.drawable.art_npc_professor, 64, 64),
+        "npc_shop" to Triple(R.drawable.art_npc_shop, 64, 64),
+        "npc_villager" to Triple(R.drawable.art_npc_villager, 64, 64),
+        "pizza" to Triple(R.drawable.art_pizza, 44, 28),
+        "player_down_0" to Triple(R.drawable.art_player_down_0, 64, 64),
+        "player_down_1" to Triple(R.drawable.art_player_down_1, 64, 64),
+        "player_down_2" to Triple(R.drawable.art_player_down_2, 64, 64),
+        "player_side_0" to Triple(R.drawable.art_player_side_0, 64, 64),
+        "player_side_1" to Triple(R.drawable.art_player_side_1, 64, 64),
+        "player_side_2" to Triple(R.drawable.art_player_side_2, 64, 64),
+        "player_up_0" to Triple(R.drawable.art_player_up_0, 64, 64),
+        "player_up_1" to Triple(R.drawable.art_player_up_1, 64, 64),
+        "player_up_2" to Triple(R.drawable.art_player_up_2, 64, 64),
+        "sun" to Triple(R.drawable.art_sun, 32, 32),
+        "tile_bed" to Triple(R.drawable.art_tile_bed, 64, 64),
+        "tile_bench" to Triple(R.drawable.art_tile_bench, 64, 64),
+        "tile_bldg_roof" to Triple(R.drawable.art_tile_bldg_roof, 64, 64),
+        "tile_bldg_wall" to Triple(R.drawable.art_tile_bldg_wall, 64, 64),
+        "tile_bldg_win_0" to Triple(R.drawable.art_tile_bldg_win_0, 64, 64),
+        "tile_bldg_win_1" to Triple(R.drawable.art_tile_bldg_win_1, 64, 64),
+        "tile_box" to Triple(R.drawable.art_tile_box, 64, 64),
+        "tile_decor" to Triple(R.drawable.art_tile_decor, 64, 64),
+        "tile_floor_0" to Triple(R.drawable.art_tile_floor_0, 64, 64),
+        "tile_floor_1" to Triple(R.drawable.art_tile_floor_1, 64, 64),
+        "tile_flower_0" to Triple(R.drawable.art_tile_flower_0, 64, 64),
+        "tile_flower_1" to Triple(R.drawable.art_tile_flower_1, 64, 64),
+        "tile_flower_2" to Triple(R.drawable.art_tile_flower_2, 64, 64),
+        "tile_grass_0" to Triple(R.drawable.art_tile_grass_0, 64, 64),
+        "tile_grass_1" to Triple(R.drawable.art_tile_grass_1, 64, 64),
+        "tile_grass_2" to Triple(R.drawable.art_tile_grass_2, 64, 64),
+        "tile_grass_3" to Triple(R.drawable.art_tile_grass_3, 64, 64),
+        "tile_house_door" to Triple(R.drawable.art_tile_house_door, 64, 64),
+        "tile_house_roof" to Triple(R.drawable.art_tile_house_roof, 64, 64),
+        "tile_house_wall" to Triple(R.drawable.art_tile_house_wall, 64, 64),
+        "tile_house_win" to Triple(R.drawable.art_tile_house_win, 64, 64),
+        "tile_lamp" to Triple(R.drawable.art_tile_lamp, 64, 64),
+        "tile_mountain_0" to Triple(R.drawable.art_tile_mountain_0, 64, 64),
+        "tile_mountain_1" to Triple(R.drawable.art_tile_mountain_1, 64, 64),
+        "tile_oven_0" to Triple(R.drawable.art_tile_oven_0, 64, 64),
+        "tile_oven_1" to Triple(R.drawable.art_tile_oven_1, 64, 64),
+        "tile_path_0" to Triple(R.drawable.art_tile_path_0, 64, 64),
+        "tile_path_1" to Triple(R.drawable.art_tile_path_1, 64, 64),
+        "tile_path_2" to Triple(R.drawable.art_tile_path_2, 64, 64),
+        "tile_plaza_0" to Triple(R.drawable.art_tile_plaza_0, 64, 64),
+        "tile_plaza_1" to Triple(R.drawable.art_tile_plaza_1, 64, 64),
+        "tile_reed_0" to Triple(R.drawable.art_tile_reed_0, 64, 64),
+        "tile_reed_1" to Triple(R.drawable.art_tile_reed_1, 64, 64),
+        "tile_rock_0" to Triple(R.drawable.art_tile_rock_0, 64, 64),
+        "tile_rock_1" to Triple(R.drawable.art_tile_rock_1, 64, 64),
+        "tile_sand_0" to Triple(R.drawable.art_tile_sand_0, 64, 64),
+        "tile_sand_1" to Triple(R.drawable.art_tile_sand_1, 64, 64),
+        "tile_sand_2" to Triple(R.drawable.art_tile_sand_2, 64, 64),
+        "tile_sign" to Triple(R.drawable.art_tile_sign, 64, 64),
+        "tile_tallgrass_0" to Triple(R.drawable.art_tile_tallgrass_0, 64, 64),
+        "tile_tallgrass_1" to Triple(R.drawable.art_tile_tallgrass_1, 64, 64),
+        "tile_tree_0" to Triple(R.drawable.art_tile_tree_0, 64, 64),
+        "tile_tree_1" to Triple(R.drawable.art_tile_tree_1, 64, 64),
+        "tile_tunnel" to Triple(R.drawable.art_tile_tunnel, 64, 64),
+        "tile_wall_in" to Triple(R.drawable.art_tile_wall_in, 64, 64),
+        "tile_wall_win" to Triple(R.drawable.art_tile_wall_win, 64, 64),
+        "tile_water_0" to Triple(R.drawable.art_tile_water_0, 64, 64),
+        "tile_water_1" to Triple(R.drawable.art_tile_water_1, 64, 64),
+        "tile_water_2" to Triple(R.drawable.art_tile_water_2, 64, 64),
+        "tile_water_3" to Triple(R.drawable.art_tile_water_3, 64, 64),
+    )
 
     // -----------------------------------------------------------------------
     // 공용 헬퍼
@@ -160,6 +263,35 @@ class Assets {
         (Color.green(color) * f).toInt().coerceIn(0, 255),
         (Color.blue(color) * f).toInt().coerceIn(0, 255)
     )
+
+    // -----------------------------------------------------------------------
+    // SVG 마스터 아트 로더 (art/svg/*.svg -> res/drawable/art_*.xml)
+    // tools/build_art.py 가 변환한 VectorDrawable을 래스터화한다.
+    // -----------------------------------------------------------------------
+
+
+    /**
+     * 픽셀 아트 표준 경로: 벡터를 네이티브의 2배 크기로 래스터화 한 뒤
+     * 최근접 다운스케일 → 안티앨리어싱이 1px 계단처럼 닫히며 선명한 픽셀 모양.
+     */
+    private fun renderPixel(name: String, w: Int, h: Int): Bitmap {
+        val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
+        val big = Bitmap.createBitmap(vw * 2, vh * 2, Bitmap.Config.ARGB_8888)
+        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
+        d.setBounds(0, 0, vw * 2, vh * 2)
+        d.draw(Canvas(big))
+        return Bitmap.createScaledBitmap(big, w, h, false)
+    }
+
+    /** 소형 HUD 아이콘: 목표 크기로 직접 래스터화 (부드러운 엣지) */
+    private fun renderIcon(name: String, w: Int, h: Int): Bitmap {
+        val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
+        d.setBounds(0, 0, w, h)
+        d.draw(Canvas(bmp))
+        return bmp
+    }
 
     // -----------------------------------------------------------------------
     // 사람 — 골격 애니메이션 (CharacterArt.kt)
@@ -323,28 +455,33 @@ class Assets {
         }
     }
 
-    private val bikeCache = HashMap<Int, BikeSet>()
+    private val bikeCache = LinkedHashMap<String, BikeSet>()
 
-    fun bikeSet(gender: String, tier: Int): BikeSet {
+    /** 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시) */
+    fun bikeSet(gender: String, tier: Int, style: BikeStyle): BikeSet {
         val t = tier.coerceIn(0, gearTiers.size - 1)
-        val key = (if (gender == "female") 1 else 0) * 64 + t
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
         bikeCache[key]?.let { return it }
         val lk = look(gender, t)
         val n = BIKE_FRAMES
-        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk) }
+        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style) }
         val set = BikeSet(
-            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk) },
-            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk) },
+            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style) },
+            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style) },
             side = side,
             sideL = Array(n) { flipH(side[it]) }
         )
         bikeCache[key] = set
+        while (bikeCache.size > 40) {
+            val eldest = bikeCache.keys.first()
+            bikeCache.remove(eldest)
+        }
         return set
     }
 
-    /** 자전거 스프라이트 (pedalT: 페달 위상 초) */
-    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float): Bitmap {
-        val set = bikeSet(gender, tier)
+    /** 자전거 스프라이트 (pedalPhase: 페달 위상) */
+    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle): Bitmap {
+        val set = bikeSet(gender, tier, style)
         val f = (pedalPhase * set.count).toInt()
         return set.frame(dir, f)
     }
@@ -359,10 +496,16 @@ class Assets {
     val femaleUp: Array<Bitmap> get() = playerSet("female", 0).up
     val femaleSide: Array<Bitmap> get() = playerSet("female", 0).side
     val femaleSideL: Array<Bitmap> get() = playerSet("female", 0).sideL
-    val bikeDown: Bitmap get() = bikeSet("male", 0).down[0]
-    val bikeUp: Bitmap get() = bikeSet("male", 0).up[0]
-    val bikeSide: Bitmap get() = bikeSet("male", 0).side[0]
-    val bikeSideL: Bitmap get() = bikeSet("male", 0).sideL[0]
+    /** 기본 자전거 외형 (구 코드 호환 접근자용) */
+    private val defaultBikeStyle = BikeStyle(
+        "basic", BikeColors.frame(0), BikeColors.tire(0), BikeColors.saddle(0),
+        basket = false, rack = false, light = false, streamers = false, bell = false
+    )
+
+    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).down[0]
+    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).up[0]
+    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).side[0]
+    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).sideL[0]
 
     // -----------------------------------------------------------------------
     // NPC — 성격이 드러나는 대기 동작 (12프레임)
@@ -467,8 +610,8 @@ class Assets {
         val eyeX: Float, val eyeY: Float
     )
 
-    private fun buildBirds() {
-        // 모든 스프라이트는 왼쪽을 바라본다. h=머리, a=포인트 컬러.
+    /** 13종 체형 도트맵 — 스프라이트는 전부 왼쪽을 바라본다. h=머리, a=포인트 컬러. */
+    private val birdTemplates: Array<List<String>> by lazy {
         val songbird = listOf(
             "..........................",
             "...cc.....................",
@@ -725,34 +868,34 @@ class Assets {
             "........lll...lll.........t....."
         )
 
-        val templates = arrayOf(
+        arrayOf(
             songbird, waterfowl, wader, raptor, owl, shorebird, seabird,
             woodpecker, dove, kingfisher, pitta, gamebird, aerial
         )
-        val perched = LinkedHashMap<String, Bitmap>()
-        for (d in Birds.ALL) {
-            val pal = mapOf(
-                'B' to d.art.body, 'b' to shade(d.art.body, 0.72f), 'H' to shade(d.art.body, 1.18f),
-                'h' to d.art.head, 'a' to d.art.accent,
-                'W' to d.art.belly, 'w' to shade(d.art.belly, 0.82f),
-                't' to d.art.wing, 'T' to shade(d.art.wing, 0.72f),
-                'k' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
-                'e' to c(0xFFFDFDF8), 'E' to c(0xFF17151A),
-                'v' to c(0xFF8FD4EA)
+    }
+
+    /** 새 한 종의 스프라이트 생성 — [bird] 에서 처음 필요해진 종만 만든다 */
+    private fun buildBird(d: BirdDef): Bitmap {
+        val pal = mapOf(
+            'B' to d.art.body, 'b' to shade(d.art.body, 0.72f), 'H' to shade(d.art.body, 1.18f),
+            'h' to d.art.head, 'a' to d.art.accent,
+            'W' to d.art.belly, 'w' to shade(d.art.belly, 0.82f),
+            't' to d.art.wing, 'T' to shade(d.art.wing, 0.72f),
+            'k' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
+            'e' to c(0xFFFDFDF8), 'E' to c(0xFF17151A),
+            'v' to c(0xFF8FD4EA)
+        )
+        val rows = birdTemplates[d.art.template.coerceIn(0, birdTemplates.lastIndex)]
+        var bmp = decorateBird(sprite(rows, pal), d)
+        if (d.art.scale != 1f) {
+            bmp = Bitmap.createScaledBitmap(
+                bmp,
+                (bmp.width * d.art.scale).toInt().coerceAtLeast(1),
+                (bmp.height * d.art.scale).toInt().coerceAtLeast(1),
+                false
             )
-            val rows = templates[d.art.template.coerceIn(0, templates.lastIndex)]
-            var bmp = decorateBird(sprite(rows, pal), d)
-            if (d.art.scale != 1f) {
-                bmp = Bitmap.createScaledBitmap(
-                    bmp,
-                    (bmp.width * d.art.scale).toInt().coerceAtLeast(1),
-                    (bmp.height * d.art.scale).toInt().coerceAtLeast(1),
-                    false
-                )
-            }
-            perched[d.id] = bmp
         }
-        birds = perched
+        return bmp
     }
 
     /** 체형마다 안전한 앵커에 1px 깃무늬를 더해 작은 화면에서도 종을 구분한다. */
@@ -978,6 +1121,131 @@ class Assets {
     }
 
     /** 풀잎 다발 하나: 좌/중/우 3가닥이 살짝 벌어진 형태 + 중앙 가닥 하이라이트 팁 */
+    // ------- 고밀도 픽셀 텍스처 헬퍼 (v0.3 디테일 대업그레이드) -------
+
+    /** 짧은 별칭: 픽셀 사각형 */
+    private fun px(c: Canvas, p: Paint, x: Float, y: Float, w: Float, h: Float, col: Int) {
+        p.color = col; c.drawRect(x, y, x + w, y + h, p)
+    }
+
+    /** 1px 점 */
+    private fun dot(c: Canvas, p: Paint, x: Float, y: Float, col: Int) {
+        p.color = col; c.drawRect(x, y, x + 1f, y + 1f, p)
+    }
+
+    /** 무작위 입자 노이즈 (minS~maxS 크기) */
+    private fun noise(
+        c: Canvas, p: Paint, r: Random,
+        x0: Float, y0: Float, x1: Float, y1: Float,
+        col: Int, n: Int, minS: Float = 1f, maxS: Float = 2.2f
+    ) {
+        p.color = col
+        val w = x1 - x0
+        val h = y1 - y0
+        repeat(n) {
+            val s = minS + r.nextFloat() * (maxS - minS)
+            val x = x0 + r.nextFloat() * (w - s)
+            val y = y0 + r.nextFloat() * (h - s)
+            c.drawRect(x, y, x + s, y + s * 0.85f, p)
+        }
+    }
+
+    /** 체커 디더링 — 두 색 사이 그라데이션 느낌 */
+    private fun dither(
+        c: Canvas, p: Paint, x0: Float, y0: Float, x1: Float, y1: Float,
+        col: Int, step: Float = 2f
+    ) {
+        p.color = col
+        var row = 0
+        var y = y0
+        while (y < y1) {
+            val off = if (row % 2 == 0) 0f else step
+            var x = x0 + off
+            while (x < x1) {
+                val w = minOf(step, x1 - x)
+                val h = minOf(step, y1 - y)
+                if (w > 0f && h > 0f) c.drawRect(x, y, x + w, y + h, p)
+                x += step * 2f
+            }
+            y += step
+            row++
+        }
+    }
+
+    /** 수직 밴드 그라데이션 (디더 전환) */
+    private fun vgrad(
+        c: Canvas, p: Paint, x0: Float, y0: Float, x1: Float, y1: Float,
+        top: Int, bot: Int, bands: Int = 5
+    ) {
+        val bh = (y1 - y0) / bands
+        for (i in 0 until bands) {
+            val t = if (bands <= 1) 0f else i / (bands - 1f)
+            val col = lerpColor(top, bot, t)
+            val yy0 = y0 + i * bh
+            px(c, p, x0, yy0, x1 - x0, bh + 0.4f, col)
+            if (i > 0) dither(c, p, x0, yy0 - bh * 0.28f, x1, yy0, lerpColor(top, bot, t - 0.12f), 2f)
+        }
+    }
+
+    /** 두 색 선형 보간 */
+    private fun lerpColor(c0: Int, c1: Int, t: Float): Int {
+        val tt = t.coerceIn(0f, 1f)
+        return Color.argb(
+            255,
+            (Color.red(c0) + (Color.red(c1) - Color.red(c0)) * tt).toInt().coerceIn(0, 255),
+            (Color.green(c0) + (Color.green(c1) - Color.green(c0)) * tt).toInt().coerceIn(0, 255),
+            (Color.blue(c0) + (Color.blue(c1) - Color.blue(c0)) * tt).toInt().coerceIn(0, 255)
+        )
+    }
+
+    /** 베벨: 위/왼쪽 하이라이트 + 아래/오른쪽 음영 (입체감) */
+    private fun bevel(
+        c: Canvas, p: Paint, x0: Float, y0: Float, x1: Float, y1: Float,
+        hi: Int, lo: Int, th: Float = 1.2f
+    ) {
+        px(c, p, x0, y0, x1 - x0, th, hi)
+        px(c, p, x0, y0, th, y1 - y0, hi)
+        px(c, p, x0, y1 - th, x1 - x0, th, lo)
+        px(c, p, x1 - th, y0, th, y1 - y0, lo)
+    }
+
+    /** 나무 그림자 (땅에 눕힌 부드러운 타원) — 전역 공용 */
+    val softShadow: Bitmap by lazy {
+        val b = Bitmap.createBitmap(64, 32, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(b)
+        val p = Paint()
+        p.isAntiAlias = true
+        for (i in 6 downTo 1) {
+            val a = 10 + (6 - i) * 7
+            p.color = Color.argb(a, 22, 34, 24)
+            val inset = i * 2.2f
+            cv.drawOval(RectF(inset, inset * 0.5f, 64f - inset, 32f - inset * 0.5f), p)
+        }
+        b
+    }
+
+    /** 화면 비네트 (가장자리 은은한 암부) — 전역 공용 */
+    val vignette: Bitmap by lazy {
+        val b = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(b)
+        val p = Paint()
+        p.isAntiAlias = true
+        p.shader = RadialGradient(
+            160f, 90f, 205f,
+            intArrayOf(
+                Color.argb(0, 12, 10, 22),
+                Color.argb(0, 12, 10, 22),
+                Color.argb(70, 12, 10, 22),
+                Color.argb(120, 12, 10, 22)
+            ),
+            floatArrayOf(0f, 0.58f, 0.86f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        cv.drawRect(0f, 0f, 320f, 180f, p)
+        p.shader = null
+        b
+    }
+
     private fun grassTuft(c: Canvas, p: Paint, x: Float, y: Float, dark: Int, tip: Int) {
         p.color = dark
         c.drawRect(x, y + 1.4f, x + 1f, y + 4.4f, p)          // 왼쪽 가닥
@@ -1143,646 +1411,1012 @@ class Assets {
             cur = t
             map[t] = ArrayList()
         }
-        fun add(bmp: Bitmap) {
-            map[cur ?: error("begin(T.…) 을 먼저 불러야 한다")]!!.add(bmp)
+        fun add(vararg bmps: Bitmap) {
+            map[cur ?: error("begin(T.…) 을 먼저 불러야 한다")]!!.addAll(bmps)
         }
 
         // GRASS (6종 변형 — 더 다채로운 초원 디테일)
         begin(T.GRASS)
-        for (i in 0 until 6) {
-            add(tilePainter { c, p, r ->
+        add(
+            tilePainter { c, p, r ->   // 0: 잔디 기본
                 grassBase(c, p, r)
-                when (i) {
-                    1 -> {   // 넝쿨
-                        p.color = c(0xFF6FAE57)
-                        c.drawRect(5f, 6f, 9f, 7.2f, p)
-                        c.drawRect(7f, 5f, 8.2f, 9f, p)
-                        c.drawRect(22f, 20f, 26f, 21.2f, p)
-                        c.drawRect(24f, 19f, 25.2f, 23f, p)
-                    }
-                    2 -> {   // 잔돌 (입체 음영)
-                        p.color = c(0xFF6B747E)
-                        c.drawRect(14f, 18.4f, 17.4f, 20.6f, p)
-                        p.color = c(0xFFA8B0A0)
-                        c.drawRect(14.4f, 17.6f, 16.8f, 19.8f, p)
-                        p.color = c(0xFFC8CFD6)
-                        c.drawRect(14.8f, 17.8f, 15.8f, 18.6f, p)
-                    }
-                    3 -> {   // 민들레 (줄기 + 홀씨)
-                        p.color = c(0xFF6FAE57)
-                        c.drawRect(20.6f, 10.6f, 21.4f, 14f, p)
-                        p.color = c(0xFFFDF6E8)
-                        c.drawCircle(21f, 9.6f, 2.1f, p)
-                        p.color = c(0xFFF0EAE0)
-                        c.drawCircle(21f, 9.6f, 0.9f, p)
-                    }
-                    4 -> {   // 토끼풀 (클로버 3잎)
-                        p.color = c(0xFF5D8A4A)
-                        c.drawRect(9.4f, 14.4f, 10.2f, 17.4f, p)
-                        p.color = c(0xFF4FA25A)
-                        c.drawCircle(8.4f, 13.6f, 1.7f, p)
-                        c.drawCircle(11f, 13.6f, 1.7f, p)
-                        c.drawCircle(9.7f, 11.8f, 1.7f, p)
-                        p.color = c(0xFF6BBA72)
-                        c.drawCircle(9.7f, 12.8f, 0.8f, p)
-                    }
-                    5 -> {   // 작은 들버섯 한 쌍
-                        p.color = c(0xFFB0793F)
-                        c.drawRect(23.6f, 22.6f, 24.4f, 24.4f, p)
-                        p.color = c(0xFFE2574C)
-                        c.drawRect(22.4f, 20.6f, 25.6f, 23f, p)
-                        p.color = c(0xFFFDF6E8)
-                        c.drawRect(23f, 21f, 23.7f, 21.6f, p)
-                        c.drawRect(24.6f, 21.6f, 25.2f, 22.2f, p)
-                    }
+            },
+            tilePainter { c, p, r ->   // 1: 클로버 군락
+                grassBase(c, p, r)
+                val g = c(0xFF5D9E4B)
+                val g2 = c(0xFF7FBF62)
+                repeat(3) {
+                    val x = 3f + r.nextInt(21)
+                    val y = 3f + r.nextInt(21)
+                    px(c, p, x, y, 2.4f, 2f, g)
+                    px(c, p, x - 1.8f, y + 1.4f, 2f, 1.8f, g)
+                    px(c, p, x + 2f, y + 1.4f, 2f, 1.8f, g)
+                    dot(c, p, x + 0.6f, y + 0.2f, g2)
                 }
-            })
-        }
-        // TALLGRASS (3종 — 잎끝 하이라이트 + 살짝 휘어진 형태로 자연스러움 강화)
-        begin(T.TALLGRASS)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
+            },
+            tilePainter { c, p, r ->   // 2: 잔돌과 나뭇가지
+                grassBase(c, p, r)
+                px(c, p, 12f, 15f, 5.6f, 4.4f, c(0xFF7C8590))
+                px(c, p, 12.8f, 15.6f, 3.8f, 2.6f, c(0xFFA5B0BA))
+                px(c, p, 13.6f, 16.2f, 1.6f, 1.2f, c(0xFFC2CBD3))
+                px(c, p, 12.4f, 18.4f, 4.6f, 1f, c(0xFF5D6772))
+                px(c, p, 23f, 7f, 3.2f, 2.6f, c(0xFF8A949E))
+                px(c, p, 23.4f, 7.4f, 1.8f, 1.3f, c(0xFFB0BAC2))
+                px(c, p, 4f, 24f, 10f, 1.5f, c(0xFF8A5A33))
+                px(c, p, 5f, 24f, 6f, 0.7f, c(0xFFA87B4F))
+                px(c, p, 11.4f, 22.4f, 1.5f, 3.2f, c(0xFF7A4A2B))
+                px(c, p, 8f, 25.6f, 2f, 1f, c(0xFF6B431F))
+            },
+            tilePainter { c, p, r ->   // 3: 민들레와 잡초
+                grassBase(c, p, r)
+                // 민들레 (씨앗 흰 솜털)
+                px(c, p, 19f, 14f, 1.4f, 7f, c(0xFF5D8A4A))
+                p.color = c(0xFFFDF6E8)
+                c.drawCircle(19.8f, 12.8f, 3.2f, p)
+                p.color = c(0xFFE8DFC8)
+                c.drawCircle(19.8f, 12.8f, 1.4f, p)
+                for (a in 0 until 6) {
+                    val ang = a * 1.0472f
+                    dot(c, p, 19.8f + 2.6f * Math.cos(ang.toDouble()).toFloat(), 12.8f + 2.6f * Math.sin(ang.toDouble()).toFloat(), c(0xFFFFFBEE))
+                }
+                // 노란 꽃 봉오리
+                px(c, p, 7f, 20f, 3f, 2.6f, c(0xFFF2D06B))
+                px(c, p, 7.8f, 20.4f, 1.4f, 1.4f, c(0xFFF7E08C))
+                px(c, p, 7.6f, 22.6f, 1.2f, 3.6f, c(0xFF5D8A4A))
+            },
+            tilePainter { c, p, r ->   // 4: 작은 버섯
+                grassBase(c, p, r)
+                px(c, p, 8f, 13f, 7f, 4.6f, c(0xFFC9572E))
+                px(c, p, 8.6f, 13.4f, 4f, 2f, c(0xFFE8823C))
+                px(c, p, 9.8f, 13.8f, 1.6f, 1.2f, c(0xFFF2A3B3))
+                px(c, p, 10.6f, 17.6f, 2.4f, 4f, c(0xFFF2E3C2))
+                px(c, p, 21f, 22f, 5f, 3.4f, c(0xFFB23F44))
+                px(c, p, 21.4f, 22.4f, 2.6f, 1.4f, c(0xFFD9534F))
+                px(c, p, 22.8f, 25.4f, 1.8f, 3f, c(0xFFF2E3C2))
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF6B431F), 3, 1f, 1.4f)
+            },
+            tilePainter { c, p, r ->   // 5: 야생화 한 줄기
+                grassBase(c, p, r)
+                px(c, p, 15f, 12f, 1.4f, 10f, c(0xFF5D8A4A))
+                px(c, p, 13f, 15f, 2.6f, 1.6f, c(0xFF6FAE57))
+                px(c, p, 16f, 18f, 2.6f, 1.6f, c(0xFF6FAE57))
+                // 보라 꽃
+                px(c, p, 13.4f, 8f, 5f, 4.6f, c(0xFFC3A3E8))
+                px(c, p, 14.2f, 8.6f, 3f, 2.6f, c(0xFFD9C0F2))
+                px(c, p, 15.2f, 9.4f, 1.6f, 1.6f, c(0xFFF2D06B))
+                // 흰 꽃
+                px(c, p, 24f, 22f, 3.6f, 3.2f, c(0xFFFDFDF8))
+                px(c, p, 24.8f, 22.6f, 1.8f, 1.6f, c(0xFFF2D06B))
+            }
+        )
+
+begin(T.TALLGRASS)
+        add(
+            tilePainter { c, p, r ->   // 0: 얕은 풀숲
                 grassBase(c, p, r, c(0xFF8CC46C))
-                // 뒤쪽 어두운 긴 풀 (기울어진 줄기)
-                p.color = c(0xFF5D8A4A)
-                for (k in 0 until 5 + i) {
+                val dark = c(0xFF5D8A4A)
+                val mid = c(0xFF6FAE57)
+                val light = c(0xFF8CC46C)
+                for (k in 0 until 9) {
                     val x = 1 + r.nextInt(28)
-                    val h = 10 + r.nextInt(10)
-                    val bend = if (k % 2 == 0) 1.3f else -1.3f
-                    c.drawRect(x.toFloat(), (32 - h).toFloat(), x + 2.2f, 32f, p)
-                    c.drawRect(x + bend, (32 - h).toFloat(), x + bend + 1.6f, (32 - h + 3f), p)
+                    val h = 8 + r.nextInt(10)
+                    val y = 32 - h
+                    px(c, p, x.toFloat(), y.toFloat(), 2f, h.toFloat(), dark)
+                    px(c, p, x + 1.6f, y + 2f, 1f, h - 2.4f, mid)
                 }
-                // 앞쪽 밝은 풀 + 팁 하이라이트 (그라데이션 느낌)
-                repeat(5 + i) {
+                for (k in 0 until 5) {
+                    val x = 2 + r.nextInt(27)
+                    val h = 6 + r.nextInt(8)
+                    px(c, p, x.toFloat(), (32 - h).toFloat(), 1.6f, h.toFloat(), light)
+                    dot(c, p, x.toFloat(), (32 - h).toFloat(), c(0xFFB0D98C))
+                }
+            },
+            tilePainter { c, p, r ->   // 1: 키 큰 풀숲 + 씨앗 이삭
+                grassBase(c, p, r, c(0xFF8CC46C))
+                val dark = c(0xFF547A44)
+                val mid = c(0xFF6FAE57)
+                for (k in 0 until 11) {
                     val x = 1 + r.nextInt(28)
-                    val h = 8 + r.nextInt(8)
-                    val top = (32 - h).toFloat()
-                    p.color = c(0xFF6FAE57)
-                    c.drawRect(x.toFloat(), top, x + 1.8f, 32f, p)
-                    p.color = c(0xFFB7E08C)
-                    c.drawRect(x.toFloat(), top, x + 1.8f, top + 2.2f, p)
+                    val h = 12 + r.nextInt(12)
+                    val y = 32 - h
+                    px(c, p, x.toFloat(), y.toFloat(), 2.2f, h.toFloat(), dark)
+                    px(c, p, x + 1.8f, y + 3f, 1f, h - 3.4f, mid)
+                    if (k % 3 == 0) {
+                        px(c, p, x - 0.4f, y - 3.4f, 3f, 3.8f, c(0xFFB0793F))
+                        px(c, p, x + 0.2f, y - 2.8f, 1.6f, 2f, c(0xFFC89B6A))
+                    }
                 }
-                // 굵은 갈대성 줄기 2개 포인트
-                p.color = c(0xFF5D8A4A)
-                c.drawRect(6f, 8f, 7.6f, 18f, p)
-                c.drawRect(22f, 6f, 23.6f, 20f, p)
-                p.color = c(0xFF8CC46C)
-                c.drawRect(6f, 8f, 7f, 10f, p)
-                c.drawRect(22f, 6f, 22.8f, 8f, p)
-            })
-        }
-        // FLOWER (4색 — 둥근 4장 꽃잎 + 잎사귀로 훨씬 화사하게)
-        begin(T.FLOWER)
-        val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8), c(0xFFC9A8E8))
-        for (i in 0 until 4) {
-            add(tilePainter { c, p, r ->
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF547A44), 6, 1f, 1.6f)
+            }
+        )
+
+begin(T.FLOWER)
+        val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8))
+        add(*Array(3) { i ->
+            tilePainter { c, p, r ->
                 grassBase(c, p, r)
-                repeat(4) {
-                    val x = 4f + r.nextInt(21)
-                    val y = 5f + r.nextInt(18)
-                    // 줄기 + 잎사귀
-                    p.color = c(0xFF5D8A4A)
-                    c.drawRect(x + 1.7f, y + 2.6f, x + 2.5f, y + 6f, p)
-                    p.color = c(0xFF6FAE57)
-                    c.drawRect(x + 0.4f, y + 3.8f, x + 2f, y + 5f, p)
-                    // 둥근 꽃잎 4장 (십자 대칭 배치)
-                    val col = flowerCols[(i + r.nextInt(4)) % 4]
-                    p.color = col
-                    c.drawCircle(x + 2.1f, y - 0.3f, 1.8f, p)
-                    c.drawCircle(x + 2.1f, y + 2.5f, 1.8f, p)
-                    c.drawCircle(x + 0.5f, y + 1.1f, 1.8f, p)
-                    c.drawCircle(x + 3.7f, y + 1.1f, 1.8f, p)
-                    // 꽃술
-                    p.color = c(0xFFF7CE5B)
-                    c.drawCircle(x + 2.1f, y + 1.1f, 1.3f, p)
-                    p.color = c(0xFFE8B14E)
-                    c.drawCircle(x + 2.1f, y + 1.1f, 0.6f, p)
+                repeat(5) {
+                    val x = 3f + r.nextInt(22)
+                    val y = 4f + r.nextInt(20)
+                    // 줄기와 잎
+                    px(c, p, x + 1.6f, y + 2.6f, 1.2f, 4.4f, c(0xFF5D8A4A))
+                    px(c, p, x + 0.2f, y + 4.4f, 1.6f, 1.2f, c(0xFF6FAE57))
+                    px(c, p, x + 2.8f, y + 5f, 1.6f, 1.2f, c(0xFF6FAE57))
+                    // 꽃잎 (5매 + 하이라이트)
+                    val col = flowerCols[(i + r.nextInt(3)) % 3]
+                    val lite = shade(col, 1.18f)
+                    val dark = shade(col, 0.8f)
+                    px(c, p, x + 1f, y - 1.2f, 2.4f, 2f, col)
+                    px(c, p, x - 1f, y + 0.6f, 2.4f, 2f, col)
+                    px(c, p, x + 3.2f, y + 0.6f, 2.4f, 2f, col)
+                    px(c, p, x + 1f, y + 2.4f, 2.4f, 1.8f, dark)
+                    px(c, p, x + 0.2f, y + 0.4f, 4.2f, 2.2f, col)
+                    px(c, p, x + 1f, y + 0.2f, 2f, 1.2f, lite)
+                    // 수술
+                    px(c, p, x + 1.6f, y + 0.8f, 1.6f, 1.6f, c(0xFFF7CE5B))
+                    dot(c, p, x + 2f, y + 1f, c(0xFFE8A75C))
                 }
-            })
-        }
-        // PATH (길) — 실제 화면에서는 Roads.kt 오토타일이 그린다.
-        // 여기 있는 것은 "사방이 모두 길" 인 안쪽 조각 (미니맵/예비용).
-        begin(T.PATH)
+            }
+        })
+
+begin(T.PATH)
         for (i in 0 until 3) add(RoadArt.tile(Pave.DIRT, 255, i, false))
         // PLAZA (석재 포장)
         begin(T.PLAZA)
         for (i in 0 until 2) add(RoadArt.tile(Pave.STONE, 255, i, false))
         // SAND (3종)
         begin(T.SAND)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
+        add(
+            tilePainter { c, p, r ->   // 0: 모래
                 fill(c, p, c(0xFFF2E1B0))
-                specks(c, p, r, c(0xFFE4CF96), 9)
-                specks(c, p, r, c(0xFFF8ECC8), 7)
-                if (i == 1) {   // 조개껍데기
-                    p.color = c(0xFFFDF6E8)
-                    c.drawRect(13f, 17f, 17f, 19.4f, p)
-                    p.color = c(0xFFE8B14E)
-                    c.drawRect(14.4f, 18f, 15.6f, 19f, p)
-                }
-                if (i == 2) {   // 물결 무늬
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE4CF96), 16, 1f, 2.2f)
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFF8ECC8), 12, 1f, 2f)
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFD9BF82), 6, 1f, 1.6f)
+            },
+            tilePainter { c, p, r ->   // 1: 물결 + 조개
+                fill(c, p, c(0xFFF2E1B0))
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE4CF96), 12, 1f, 2f)
+                // 모래 물결
+                for (k in 0 until 3) {
+                    val y = 5f + k * 9f
                     p.color = c(0xFFE4CF96)
-                    c.drawRect(3f, 12f, 12f, 13.2f, p)
-                    c.drawRect(18f, 24f, 28f, 25.2f, p)
+                    for (x in 0 until 30 step 3) {
+                        c.drawRect(x.toFloat(), y + Math.sin(x * 0.45 + k).toFloat() * 1.2f, x + 2.2f, y + 1.4f + Math.sin(x * 0.45 + k).toFloat() * 1.2f, p)
+                    }
                 }
-            })
-        }
-        // WATER (4프레임 애니메이션)
-        begin(T.WATER)
-        for (f in 0 until 4) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFF4FA8D8))
-                p.color = c(0xFF63B8E4)
-                c.drawRect(0f, 3f, 32f, 6f, p)
-                c.drawRect(0f, 14f, 32f, 16f, p)
-                c.drawRect(0f, 25f, 32f, 27f, p)
-                val off = f * 3f
+                // 조개
+                px(c, p, 12f, 17f, 8f, 5.4f, c(0xFFFDF6E8))
+                px(c, p, 12.8f, 17.6f, 6.4f, 3.4f, c(0xFFF5E8D2))
+                px(c, p, 15.4f, 18.2f, 1.2f, 3.4f, c(0xFFE8B14E))
+                px(c, p, 13.6f, 18.6f, 1f, 2.4f, c(0xFFE8B14E))
+                px(c, p, 17.4f, 18.6f, 1f, 2.4f, c(0xFFE8B14E))
+                px(c, p, 12.6f, 21.4f, 6.8f, 1f, c(0xFFD9C4A0))
+            },
+            tilePainter { c, p, r ->   // 2: 불가사리 + 자국
+                fill(c, p, c(0xFFF2E1B0))
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE4CF96), 14, 1f, 2f)
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFF8ECC8), 8, 1f, 1.8f)
+                // 불가사리
+                val star = c(0xFFE88B7A)
+                px(c, p, 13f, 12f, 6f, 8f, star)
+                px(c, p, 11f, 14f, 10f, 4.6f, star)
+                px(c, p, 12f, 10f, 2.6f, 4f, star)
+                px(c, p, 17.6f, 10f, 2.6f, 4f, star)
+                px(c, p, 10f, 19f, 3.4f, 3f, star)
+                px(c, p, 19f, 19f, 3.4f, 3f, star)
+                px(c, p, 14f, 13.4f, 4f, 4.4f, shade(star, 1.15f))
+                noise(c, p, r, 11f, 10f, 22f, 22f, shade(star, 0.85f), 6, 1f, 1.2f)
+                // 작은 돌
+                px(c, p, 25f, 25f, 3f, 2.4f, c(0xFFD9C4A0))
+                px(c, p, 25.4f, 25.4f, 1.6f, 1.2f, c(0xFFF0E2C4))
+            }
+        )
+
+begin(T.WATER)
+        add(*Array(4) { f ->
+            tilePainter { c, p, r ->
+                // 깊이감 있는 수직 그라데이션
+                vgrad(c, p, 0f, 0f, 32f, 32f, c(0xFF63B8E4), c(0xFF3E8FC4), 6)
+                // 잔물결 밴드
+                val off = f * 2.4f
+                p.color = c(0xFF4FA8D8)
+                for ((i, by) in listOf(3f, 12.5f, 22f).withIndex()) {
+                    for (x in -4 until 34 step 7) {
+                        val xx = ((x + off * (1f + i * 0.3f)) % 36f + 36f) % 36f - 2f
+                        c.drawRect(xx, by, xx + 5f, by + 1.8f, p)
+                    }
+                }
+                // 물결 하이라이트 (이동)
                 p.color = c(0xFF93D4EF)
-                c.drawRect((2f + off) % 28f, 4.4f, (2f + off) % 28f + 7f, 5.8f, p)
-                c.drawRect((18f + off) % 26f, 15f, (18f + off) % 26f + 8f, 16.4f, p)
-                c.drawRect((8f + off) % 26f, 25.6f, (8f + off) % 26f + 7f, 27f, p)
+                for ((i, by) in listOf(2.2f, 11.8f, 21.2f).withIndex()) {
+                    for (x in -4 until 34 step 11) {
+                        val xx = ((x + off * (1.6f + i * 0.25f)) % 34f + 34f) % 34f - 1f
+                        c.drawRect(xx, by, xx + 3.4f, by + 1.2f, p)
+                    }
+                }
+                // 반짝임 (프레임별 위치)
                 p.color = c(0xFFC9ECF8)
-                c.drawRect((3f + off) % 28f, 4.6f, (3f + off) % 28f + 2.4f, 5.6f, p)
-                c.drawRect((19f + off) % 26f, 15.2f, (19f + off) % 26f + 2.4f, 16.2f, p)
-            })
-        }
-        // REED (2종)
-        begin(T.REED)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+                val sx = floatArrayOf(6f, 21f, 13f, 27f)[f]
+                val sy = floatArrayOf(7f, 26f, 28f, 15f)[f]
+                c.drawRect(sx, sy, sx + 2.2f, sy + 1.2f, p)
+                c.drawRect(sx + 0.5f, sy - 1f, sx + 1.2f, sy + 3f, p)
+                // 은은한 수초 그림자
+                p.color = Color.argb(34, 20, 70, 90)
+                c.drawRect(0f, 27f, 32f, 32f, p)
+            }
+        })
+
+begin(T.REED)
+        add(
+            tilePainter { c, p, r ->   // 0: 갈대 군락
                 grassBase(c, p, r, c(0xFF8CC46C))
-                val xs = if (i == 0) intArrayOf(5, 12, 20, 27) else intArrayOf(8, 15, 24)
-                for (x in xs) {
-                    p.color = c(0xFF7D9C4F)
-                    c.drawRect(x.toFloat(), (if (x % 2 == 0) 4f else 1f), x + 2.2f, 32f, p)
-                    p.color = c(0xFFB0793F)
-                    val ty = if (x % 2 == 0) 4f else 1f
-                    c.drawRect((x - 0.8f), ty, (x + 3f), ty + 7f, p)
-                    p.color = c(0xFF8A5A33)
-                    c.drawRect(x.toFloat(), ty + 1.6f, x + 1.2f, ty + 5f, p)
+                val xs = intArrayOf(4, 11, 19, 27)
+                for ((i, x) in xs.withIndex()) {
+                    val ty = if (i % 2 == 0) 3f else 0f
+                    px(c, p, x.toFloat(), ty, 2.4f, 32f - ty, c(0xFF7D9C4F))
+                    px(c, p, x + 0.6f, ty + 2f, 1.2f, 30f - ty, c(0xFFA3C26B))
+                    // 곤충 씨앗 이삭
+                    px(c, p, x - 1f, ty, 4.6f, 8f, c(0xFFB0793F))
+                    px(c, p, x - 0.2f, ty + 1.4f, 3f, 5f, c(0xFFC89B6A))
+                    px(c, p, x + 0.4f, ty + 2f, 1.4f, 3f, c(0xFF8A5A33))
                 }
-                p.color = c(0xFF6FAE57)
-                c.drawRect(10f, 22f, 14f, 23.2f, p)
-            })
-        }
-        // TREE (2종: 활엽수 + 침엽수)
-        begin(T.TREE)
-        add(tilePainter { c, p, r ->
-            propShadow(c, p, 16f, 29.5f, 9.5f, 3.4f)
-            p.color = c(0xFF5D3A20)
-            c.drawRect(14f, 18f, 18f, 31f, p)
-            p.color = c(0xFF7A4E2B)
-            c.drawRect(14.6f, 18f, 16.2f, 31f, p)
-            p.color = c(0xFF33602F)
-            c.drawCircle(16f, 12f, 11.4f, p)
+                px(c, p, 9f, 22f, 6f, 1.6f, c(0xFF6FAE57))
+            },
+            tilePainter { c, p, r ->   // 1: 물가 갈대 + 부들
+                grassBase(c, p, r, c(0xFF8CC46C))
+                for (x in intArrayOf(6, 14, 22)) {
+                    px(c, p, x.toFloat(), 2f, 2f, 30f, c(0xFF6B8F45))
+                    px(c, p, x + 1.4f, 5f, 1f, 25f, c(0xFFA3C26B))
+                }
+                // 부들 (갈대 머리)
+                px(c, p, 5.2f, 2f, 3.6f, 9f, c(0xFF8A5A33))
+                px(c, p, 6f, 3f, 1.8f, 6f, c(0xFFB0793F))
+                px(c, p, 21.4f, 5f, 3.6f, 8f, c(0xFF8A5A33))
+                px(c, p, 22.2f, 6f, 1.8f, 5f, c(0xFFB0793F))
+                // 잎
+                px(c, p, 8f, 14f, 8f, 1.6f, c(0xFF6FAE57))
+                px(c, p, 16f, 20f, 9f, 1.6f, c(0xFF5D8A4A))
+            }
+        )
+
+begin(T.TREE)
+        add(
+            tilePainter { c, p, r ->   // 0: 참나무
+            grassBase(c, p, r)
+            p.color = Color.argb(58, 26, 46, 28)
+            c.drawOval(RectF(5f, 24f, 29f, 31f), p)
+            // 기둥
+            px(c, p, 13f, 16f, 7f, 15f, c(0xFF5D3A20))
+            px(c, p, 14.2f, 16f, 3.4f, 15f, c(0xFF7A4E2B))
+            px(c, p, 14.8f, 17f, 1.2f, 11f, c(0xFF9A6A3E))
+            px(c, p, 12f, 28f, 3f, 3.4f, c(0xFF5D3A20))
+            px(c, p, 18.4f, 28f, 3f, 3.4f, c(0xFF5D3A20))
+            noise(c, p, r, 13f, 17f, 20f, 30f, c(0xFF4A2D18), 5, 1f, 1.5f)
+            // 수관 (3층)
+            p.color = c(0xFF2E5D33)
+            c.drawCircle(16f, 12f, 12f, p)
             p.color = c(0xFF3F7D46)
-            c.drawCircle(16f, 11f, 10.2f, p)
-            p.color = c(0xFF4F9E57)
-            c.drawCircle(14f, 8.6f, 6.4f, p)
-            c.drawCircle(21f, 12.6f, 4.6f, p)
-            p.color = c(0xFF6BBA72)
-            c.drawCircle(12.4f, 7f, 3.4f, p)
-            p.color = c(0xFF2C5429)
-            c.drawRect(9f, 17.4f, 24f, 18.6f, p)
-        })
-        add(tilePainter { c, p, r ->
-            propShadow(c, p, 16f, 29.5f, 9.5f, 3.4f)
-            p.color = c(0xFF5D3A20)
-            c.drawRect(14.6f, 24f, 17.4f, 31f, p)
+            c.drawCircle(14.5f, 10.5f, 10f, p)
+            c.drawCircle(21f, 13.5f, 7.4f, p)
+            p.color = c(0xFF57A55F)
+            c.drawCircle(11.5f, 8f, 6.2f, p)
+            c.drawCircle(19f, 9f, 5f, p)
+            p.color = c(0xFF6FBF72)
+            c.drawCircle(10f, 6.6f, 3.2f, p)
+            c.drawCircle(13.5f, 8f, 2.2f, p)
+            noise(c, p, r, 4f, 2f, 28f, 22f, c(0xFF2C5429), 12, 1f, 1.8f)
+            noise(c, p, r, 4f, 2f, 28f, 22f, c(0xFF7FD184), 8, 1f, 1.6f)
+            // 도토리
+            px(c, p, 22f, 17f, 2f, 2.4f, c(0xFFB0793F))
+            px(c, p, 22f, 17f, 2f, 1f, c(0xFF8A5A33))
+            },
+            tilePainter { c, p, r ->   // 1: 소나무
+            grassBase(c, p, r)
+            p.color = Color.argb(58, 26, 46, 28)
+            c.drawOval(RectF(6f, 25f, 28f, 31f), p)
+            px(c, p, 14.4f, 20f, 4.4f, 11f, c(0xFF5D3A20))
+            px(c, p, 15.2f, 20f, 2f, 11f, c(0xFF7A4E2B))
             val path = Path()
-            p.color = c(0xFF2C5A34)
-            path.moveTo(16f, 0f); path.lineTo(25f, 13f); path.lineTo(7f, 13f); path.close()
+            p.color = c(0xFF24512F)
+            path.moveTo(16f, -1f); path.lineTo(27f, 13f); path.lineTo(5f, 13f); path.close()
             c.drawPath(path, p)
-            p.color = c(0xFF3A7044)
+            p.color = c(0xFF2F6B3B)
             path.reset()
-            path.moveTo(16f, 7f); path.lineTo(27f, 21f); path.lineTo(5f, 21f); path.close()
+            path.moveTo(16f, 6f); path.lineTo(29f, 21f); path.lineTo(3f, 21f); path.close()
             c.drawPath(path, p)
-            p.color = c(0xFF2C5A34)
+            p.color = c(0xFF24512F)
             path.reset()
-            path.moveTo(16f, 14f); path.lineTo(29f, 28f); path.lineTo(3f, 28f); path.close()
+            path.moveTo(16f, 13f); path.lineTo(31f, 29f); path.lineTo(1f, 29f); path.close()
             c.drawPath(path, p)
-            p.color = c(0xFF4F9E57)
-            c.drawRect(12.4f, 9f, 15f, 10.4f, p)
-            c.drawRect(8f, 22f, 10.6f, 23.4f, p)
-        })
-        // ROCK (2종)
-        begin(T.ROCK)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                propShadow(c, p, 16f, 26.5f, 9f, 3f)
-                if (i == 0) {
-                    p.color = c(0xFF5A626C)
-                    c.drawRect(6f, 10f, 26f, 28f, p)
-                    p.color = c(0xFF7C8590)
-                    c.drawRect(7.4f, 8.6f, 24.6f, 26f, p)
-                    p.color = c(0xFF9AA3AD)
-                    c.drawRect(9f, 10f, 16f, 15f, p)
-                    p.color = c(0xFFB5BDC6)
-                    c.drawRect(10.4f, 11f, 13f, 13f, p)
-                    p.color = c(0xFF4A5158)
-                    c.drawRect(9f, 24f, 24f, 26f, p)
-                } else {
-                    p.color = c(0xFF7C8590)
-                    c.drawRect(10f, 16f, 22f, 26f, p)
-                    p.color = c(0xFF9AA3AD)
-                    c.drawRect(11f, 14.6f, 20.6f, 24f, p)
-                    p.color = c(0xFFB5BDC6)
-                    c.drawRect(12.4f, 15.6f, 15f, 18f, p)
-                    p.color = c(0xFF6FAE57)
-                    c.drawRect(10f, 24f, 13f, 26f, p)
-                }
-            })
-        }
-        // MOUNTAIN (2종)
-        begin(T.MOUNTAIN)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFF77848F))
-                p.color = c(0xFF8D9AA8)
-                c.drawRect(0f, 0f, 32f, 6f, p)
-                c.drawRect(0f, 12f, 12f, 20f, p)
-                c.drawRect(20f, 8f, 32f, 18f, p)
-                c.drawRect(0f, 24f, 8f, 32f, p)
-                p.color = c(0xFFA5B2BD)
-                c.drawRect(4f, 2f, 10f, 4f, p)
-                c.drawRect(22f, 10f, 28f, 12f, p)
-                p.color = c(0xFF5D6772)
-                c.drawRect(0f, 6f, 32f, 8f, p)
-                c.drawRect(0f, 20f, 32f, 22f, p)
-                c.drawRect(0f, 30f, 32f, 32f, p)
-                if (i == 1) {
-                    p.color = c(0xFFE8EEF2)
-                    c.drawRect(2f, 9f, 8f, 11f, p)
-                    c.drawRect(24f, 23f, 29f, 25f, p)
-                }
-            })
-        }
-        // BLDG_WALL
-        begin(T.BLDG_WALL)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFE9E2D3))
-            p.color = c(0xFFD8CFBA)
-            c.drawRect(0f, 8f, 32f, 9.6f, p)
-            c.drawRect(0f, 20f, 32f, 21.6f, p)
-            c.drawRect(0f, 30f, 32f, 32f, p)
-            p.color = c(0xFFF4EFDF)
-            c.drawRect(0f, 0f, 32f, 1.4f, p)
-            p.color = c(0xFFCCC2AA)
-            c.drawRect(15f, 0f, 16.4f, 8f, p)
-            c.drawRect(15f, 9.6f, 16.4f, 20f, p)
-        })
-        // BLDG_WIN (2종)
-        begin(T.BLDG_WIN)
-        val curtains = intArrayOf(c(0xFFF2D06B), c(0xFFC3A3E8))
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFFE9E2D3))
-                p.color = c(0xFFD8CFBA)
-                c.drawRect(0f, 30f, 32f, 32f, p)
-                p.color = c(0xFFC9BFA8)
-                c.drawRect(6f, 6f, 26f, 24f, p)
-                p.color = c(0xFF7FB6D9)
-                c.drawRect(7.4f, 7.4f, 24.6f, 22.6f, p)
-                p.color = c(0xFFB9DDF0)
-                c.drawRect(7.4f, 7.4f, 13f, 13f, p)
-                p.color = c(0xFFC9BFA8)
-                c.drawRect(15.4f, 7.4f, 16.6f, 22.6f, p)
-                c.drawRect(7.4f, 14.6f, 24.6f, 15.8f, p)
-                p.color = curtains[i]
-                c.drawRect(7.4f, 7.4f, 10f, 22.6f, p)
-                c.drawRect(22f, 7.4f, 24.6f, 22.6f, p)
-            })
-        }
-        // BLDG_ROOF
-        begin(T.BLDG_ROOF)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFC96A4D))
-            p.color = c(0xFFB2583F)
-            c.drawRect(0f, 8f, 32f, 9.6f, p)
-            c.drawRect(0f, 20f, 32f, 21.6f, p)
-            c.drawRect(8f, 0f, 9.6f, 8f, p)
-            c.drawRect(24f, 9.6f, 25.6f, 20f, p)
-            c.drawRect(8f, 21.6f, 9.6f, 32f, p)
-            p.color = c(0xFFDB8266)
-            c.drawRect(0f, 0f, 32f, 1.6f, p)
-            c.drawRect(4f, 11f, 12f, 12.4f, p)
-            c.drawRect(18f, 25f, 26f, 26.4f, p)
-        })
-        // HOUSE_ROOF
-        begin(T.HOUSE_ROOF)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFD4694A))
-            p.color = c(0xFFB55338)
-            c.drawRect(0f, 6f, 32f, 7.6f, p)
-            c.drawRect(0f, 16f, 32f, 17.6f, p)
-            c.drawRect(0f, 26f, 32f, 27.6f, p)
-            c.drawRect(10f, 0f, 11.4f, 6f, p)
-            c.drawRect(10f, 17.6f, 11.4f, 26f, p)
-            p.color = c(0xFFE08A67)
-            c.drawRect(0f, 0f, 32f, 1.4f, p)
-            c.drawRect(4f, 10f, 14f, 11.2f, p)
-            c.drawRect(18f, 20f, 28f, 21.2f, p)
-        })
-        // HOUSE_WALL
-        begin(T.HOUSE_WALL)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFF6E7C6))
-            p.color = c(0xFFE0C9A2)
-            c.drawRect(0f, 14f, 32f, 16f, p)
-            p.color = c(0xFFC9A87B)
-            c.drawRect(0f, 0f, 2f, 32f, p)
-            c.drawRect(30f, 0f, 32f, 32f, p)
-            c.drawRect(0f, 28f, 32f, 32f, p)
-            p.color = c(0xFFD9B98C)
-            c.drawRect(13f, 0f, 15f, 14f, p)
-        })
-        // HOUSE_WIN (꽃상자 있는 창문)
-        begin(T.HOUSE_WIN)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFF6E7C6))
-            p.color = c(0xFFC9A87B)
-            c.drawRect(6f, 5f, 26f, 22f, p)
-            p.color = c(0xFF9FD0E8)
-            c.drawRect(7.4f, 6.4f, 24.6f, 20.6f, p)
-            p.color = c(0xFFC3E4F2)
-            c.drawRect(7.4f, 6.4f, 14f, 12f, p)
-            p.color = c(0xFFC9A87B)
-            c.drawRect(15.4f, 6.4f, 16.6f, 20.6f, p)
-            c.drawRect(7.4f, 12.6f, 24.6f, 13.8f, p)
-            // 꽃상자
-            p.color = c(0xFF8A5A33)
-            c.drawRect(6f, 22f, 26f, 27f, p)
-            p.color = c(0xFFA87B4F)
-            c.drawRect(7f, 23f, 25f, 26f, p)
+            // 눈/빛 팁
+            px(c, p, 12f, 7f, 8f, 1.6f, c(0xFF4F9E57))
+            px(c, p, 8f, 15f, 8f, 1.6f, c(0xFF4F9E57))
+            px(c, p, 18f, 22f, 8f, 1.6f, c(0xFF4F9E57))
+            noise(c, p, r, 3f, 2f, 29f, 28f, c(0xFF1D4427), 10, 1f, 1.6f)
+            noise(c, p, r, 3f, 2f, 29f, 28f, c(0xFF67B572), 6, 1f, 1.4f)
+            },
+            tilePainter { c, p, r ->   // 2: 벚나무 (꽃)
+            grassBase(c, p, r)
+            p.color = Color.argb(52, 26, 46, 28)
+            c.drawOval(RectF(5f, 24f, 29f, 31f), p)
+            px(c, p, 14f, 17f, 6f, 14f, c(0xFF5D3A20))
+            px(c, p, 15f, 17f, 2.6f, 14f, c(0xFF8A5A33))
+            px(c, p, 12f, 22f, 2f, 2.2f, c(0xFF5D3A20))
+            px(c, p, 19.4f, 24f, 2f, 2f, c(0xFF5D3A20))
+            p.color = c(0xFFD97F99)
+            c.drawCircle(15f, 11f, 11.4f, p)
             p.color = c(0xFFF2A3B3)
-            c.drawRect(8f, 20.4f, 10.4f, 22.4f, p)
-            p.color = c(0xFFF2D06B)
-            c.drawRect(14f, 20f, 16.4f, 22.4f, p)
-            p.color = c(0xFFC3A3E8)
-            c.drawRect(21f, 20.6f, 23.4f, 22.4f, p)
+            c.drawCircle(13.5f, 9.5f, 9.4f, p)
+            c.drawCircle(21f, 13f, 6.6f, p)
+            p.color = c(0xFFFFC9D6)
+            c.drawCircle(11f, 7.5f, 5.4f, p)
+            c.drawCircle(17f, 8.5f, 4.2f, p)
+            noise(c, p, r, 4f, 2f, 28f, 21f, c(0xFFFFE0E8), 14, 1f, 1.8f)
+            noise(c, p, r, 4f, 2f, 28f, 21f, c(0xFFC96B87), 8, 1f, 1.5f)
+            // 지는 꽃잎
+            px(c, p, 6f, 26f, 2f, 1.4f, c(0xFFF2A3B3))
+            px(c, p, 24f, 28f, 2f, 1.4f, c(0xFFFFC9D6))
+            px(c, p, 12f, 30f, 1.6f, 1.2f, c(0xFFF2A3B3))
+            },
+            tilePainter { c, p, r ->   // 3: 단풍나무
+            grassBase(c, p, r)
+            p.color = Color.argb(52, 26, 46, 28)
+            c.drawOval(RectF(5f, 24f, 29f, 31f), p)
+            px(c, p, 13.6f, 16f, 6.4f, 15f, c(0xFF5D3A20))
+            px(c, p, 14.8f, 16f, 2.8f, 15f, c(0xFF7A4E2B))
+            px(c, p, 12.6f, 28f, 2.8f, 3.4f, c(0xFF5D3A20))
+            px(c, p, 18.2f, 28f, 2.8f, 3.4f, c(0xFF5D3A20))
+            p.color = c(0xFFB23F44)
+            c.drawCircle(16f, 11.5f, 11.6f, p)
+            p.color = c(0xFFD9534F)
+            c.drawCircle(14.5f, 10f, 9.6f, p)
+            c.drawCircle(21.5f, 13.5f, 6.8f, p)
+            p.color = c(0xFFE8823C)
+            c.drawCircle(11.5f, 8f, 5.8f, p)
+            c.drawCircle(18f, 8.6f, 4.6f, p)
+            p.color = c(0xFFF2A34E)
+            c.drawCircle(10.2f, 6.6f, 3.2f, p)
+            noise(c, p, r, 4f, 2f, 28f, 22f, c(0xFF9A2F35), 10, 1f, 1.8f)
+            noise(c, p, r, 4f, 2f, 28f, 22f, c(0xFFF7CE5B), 7, 1f, 1.5f)
+            px(c, p, 7f, 27f, 2f, 1.4f, c(0xFFE8823C))
+            px(c, p, 23f, 29f, 2f, 1.4f, c(0xFFD9534F))
         })
-        // HOUSE_DOOR
-        begin(T.HOUSE_DOOR)
+
+begin(T.ROCK)
+        add(
+            tilePainter { c, p, r ->   // 0: 큰 바위
+                grassBase(c, p, r)
+                p.color = Color.argb(56, 26, 46, 28)
+                c.drawOval(RectF(4f, 24f, 28f, 31f), p)
+                // 바위 본체
+                px(c, p, 5f, 11f, 22f, 16f, c(0xFF5A626C))
+                px(c, p, 6f, 9f, 18f, 16f, c(0xFF7C8590))
+                px(c, p, 7.4f, 8f, 13f, 12f, c(0xFF9AA3AD))
+                px(c, p, 9f, 9f, 8f, 6f, c(0xFFB5BDC6))
+                px(c, p, 10.4f, 9.6f, 4f, 2.6f, c(0xFFD0D7DE))
+                // 단면 음영
+                px(c, p, 5f, 22f, 22f, 5f, c(0xFF4A5158))
+                px(c, p, 21f, 12f, 6f, 14f, c(0xFF4A5158))
+                // 균열
+                px(c, p, 14f, 12f, 1.2f, 8f, c(0xFF3E454C))
+                px(c, p, 15f, 18f, 1.2f, 5f, c(0xFF3E454C))
+                px(c, p, 11f, 19f, 4f, 1.2f, c(0xFF3E454C))
+                // 이끼
+                px(c, p, 7f, 10f, 5f, 2.2f, c(0xFF6FAE57))
+                px(c, p, 8.4f, 8.6f, 3f, 1.6f, c(0xFF8CC46C))
+                noise(c, p, r, 6f, 9f, 22f, 22f, c(0xFF6B747E), 6, 1f, 1.6f)
+                // 밑에 자갈
+                px(c, p, 25f, 25f, 3f, 2.4f, c(0xFF8A949E))
+                px(c, p, 25.4f, 25.4f, 1.6f, 1.2f, c(0xFFB0BAC2))
+            },
+            tilePainter { c, p, r ->   // 1: 바위 무리
+                grassBase(c, p, r)
+                p.color = Color.argb(52, 26, 46, 28)
+                c.drawOval(RectF(6f, 23f, 26f, 30f), p)
+                px(c, p, 8f, 15f, 16f, 11f, c(0xFF6B747E))
+                px(c, p, 9f, 13f, 13f, 11f, c(0xFF8A949E))
+                px(c, p, 10.4f, 14f, 8f, 5f, c(0xFFA5B0BA))
+                px(c, p, 11.6f, 14.6f, 4f, 2.2f, c(0xFFC2CBD3))
+                px(c, p, 8f, 22f, 16f, 4f, c(0xFF4A5158))
+                // 작은 바위
+                px(c, p, 22f, 21f, 6f, 6f, c(0xFF7C8590))
+                px(c, p, 23f, 21.6f, 3.4f, 2.6f, c(0xFFA5B0BA))
+                px(c, p, 3f, 22f, 5f, 5f, c(0xFF6B747E))
+                px(c, p, 3.8f, 22.6f, 2.6f, 2f, c(0xFF9AA3AD))
+                // 이끼
+                px(c, p, 9f, 14f, 4f, 1.8f, c(0xFF6FAE57))
+                px(c, p, 18f, 19f, 3f, 1.6f, c(0xFF5D8A4A))
+                noise(c, p, r, 8f, 13f, 24f, 24f, c(0xFF5D6772), 5, 1f, 1.4f)
+            }
+        )
+
+begin(T.MOUNTAIN)
+        add(
+            tilePainter { c, p, r ->   // 0: 바위 절벽 (층리)
+                fill(c, p, c(0xFF77848F))
+                vgrad(c, p, 0f, 0f, 32f, 32f, c(0xFF8D9AA8), c(0xFF5D6772), 5)
+                // 지층 밴드
+                px(c, p, 0f, 7f, 32f, 1.6f, c(0xFF6B7580))
+                px(c, p, 0f, 15.6f, 32f, 1.8f, c(0xFF6B7580))
+                px(c, p, 0f, 24.6f, 32f, 1.6f, c(0xFF525B66))
+                px(c, p, 0f, 8.6f, 32f, 1f, c(0xFFA5B2BD))
+                px(c, p, 0f, 17.4f, 32f, 1f, c(0xFFA5B2BD))
+                // 절단면 하이라이트
+                px(c, p, 3f, 2f, 9f, 3f, c(0xFFB5BDC6))
+                px(c, p, 21f, 11f, 7f, 2.6f, c(0xFFB5BDC6))
+                px(c, p, 6f, 19f, 6f, 2.2f, c(0xFF9AA3AD))
+                // 음영 (오른쪽)
+                p.color = Color.argb(52, 20, 26, 34)
+                c.drawRect(22f, 0f, 32f, 32f, p)
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF68727E), 12, 1f, 2.2f)
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFA0ACB8), 8, 1f, 1.8f)
+                // 자갈
+                px(c, p, 4f, 28f, 3f, 2.2f, c(0xFF8A949E))
+                px(c, p, 14f, 29f, 2.4f, 1.8f, c(0xFF6B7580))
+            },
+            tilePainter { c, p, r ->   // 1: 눈 덮인 봉우리
+                fill(c, p, c(0xFF77848F))
+                vgrad(c, p, 0f, 0f, 32f, 32f, c(0xFF8D9AA8), c(0xFF5D6772), 5)
+                px(c, p, 0f, 12f, 32f, 1.8f, c(0xFF6B7580))
+                px(c, p, 0f, 21f, 32f, 1.6f, c(0xFF525B66))
+                px(c, p, 0f, 13.8f, 32f, 1f, c(0xFFA5B2BD))
+                // 눈
+                px(c, p, 2f, 1f, 28f, 7f, c(0xFFE8EEF2))
+                px(c, p, 0f, 4f, 32f, 5f, c(0xFFDCE5EC))
+                dither(c, p, 0f, 8f, 32f, 11f, c(0xFFE8EEF2), 2f)
+                px(c, p, 4f, 2f, 10f, 2.4f, c(0xFFF8FBFD))
+                px(c, p, 20f, 5f, 8f, 2f, c(0xFFF8FBFD))
+                // 바위 노출부
+                px(c, p, 6f, 12f, 8f, 6f, c(0xFF9AA3AD))
+                px(c, p, 19f, 16f, 9f, 5f, c(0xFF8A949E))
+                p.color = Color.argb(52, 20, 26, 34)
+                c.drawRect(23f, 0f, 32f, 32f, p)
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF68727E), 10, 1f, 2f)
+            }
+        )
+
+begin(T.BLDG_WALL)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFC9BFA8))
+            val brickTones = intArrayOf(c(0xFFE0D2B4), c(0xFFE9E2D3), c(0xFFD8CFBA), c(0xFFDDD2B8))
+            for (row in 0 until 5) {
+                val y = row * 6.6f
+                val off = if (row % 2 == 0) 0f else -8f
+                var x = off
+                while (x < 32f) {
+                    val t = brickTones[(r.nextInt(brickTones.size))]
+                    val w = 15.2f
+                    px(c, p, x + 0.6f, y + 0.6f, w, 5.4f, t)
+                    px(c, p, x + 0.6f, y + 0.6f, w, 1f, shade(t, 1.08f))
+                    px(c, p, x + 0.6f, y + 5.2f, w, 0.8f, shade(t, 0.88f))
+                    x += w + 1.2f
+                }
+            }
+            // 하단 그을음 / 상단 하이라이트
+            p.color = Color.argb(30, 60, 50, 30)
+            c.drawRect(0f, 27f, 32f, 32f, p)
+            p.color = Color.argb(24, 255, 250, 230)
+            c.drawRect(0f, 0f, 32f, 2f, p)
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFB5A88F), 6, 1f, 1.4f)
+        })
+
+begin(T.BLDG_WIN)
+        val curtains = intArrayOf(c(0xFFF2D06B), c(0xFFC3A3E8))
+        add(*Array(2) { i ->
+            tilePainter { c, p, r ->
+                // 벽돌 배경 (작게)
+                fill(c, p, c(0xFFD8CFBA))
+                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE0D2B4), 10, 1f, 2f)
+                px(c, p, 0f, 30f, 32f, 2f, c(0xFFC9BFA8))
+                // 창 프레임
+                px(c, p, 5f, 4f, 22f, 23f, c(0xFF8A7B62))
+                px(c, p, 6f, 5f, 20f, 21f, c(0xFFB0A188))
+                // 유리 (하늘 반사 그라데이션)
+                vgrad(c, p, 7f, 6f, 25f, 25f, c(0xFF8FC3E2), c(0xFF5E9FC8), 4)
+                // 반사 스티크
+                px(c, p, 8f, 7f, 5f, 5f, c(0xFFC3E4F2))
+                px(c, p, 14f, 6.4f, 3f, 12f, Color.argb(90, 255, 255, 255))
+                px(c, p, 19f, 8f, 2f, 9f, Color.argb(70, 255, 255, 255))
+                // 커튼
+                val cur = curtains[i]
+                px(c, p, 7f, 6f, 3.6f, 19f, cur)
+                px(c, p, 7f, 6f, 1.4f, 19f, shade(cur, 1.16f))
+                px(c, p, 9.4f, 6f, 1.2f, 19f, shade(cur, 0.82f))
+                px(c, p, 21.4f, 6f, 3.6f, 19f, cur)
+                px(c, p, 21.4f, 6f, 1.2f, 19f, shade(cur, 0.82f))
+                // 창살
+                px(c, p, 15.2f, 5f, 1.6f, 21f, c(0xFF8A7B62))
+                px(c, p, 7f, 14.6f, 18f, 1.6f, c(0xFF8A7B62))
+                // 창틀 하이라이트
+                px(c, p, 5f, 4f, 22f, 1.2f, c(0xFFD9C9A7))
+                px(c, p, 5f, 25.8f, 22f, 1.2f, c(0xFF6B5E48))
+                // 화분
+                px(c, p, 24.4f, 22f, 5f, 4f, c(0xFFB5673F))
+                px(c, p, 25f, 23f, 3.8f, 2.6f, c(0xFF9A5232))
+                px(c, p, 25.4f, 19.6f, 3f, 2.6f, c(0xFF6FAE57))
+                px(c, p, 26.4f, 18.2f, 1.6f, 1.8f, c(0xFFF2A3B3))
+            }
+        })
+
+begin(T.BLDG_ROOF)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFF5D6772))
+            // 슐레이트 행 (겹침)
+            for (row in 0 until 4) {
+                val y = row * 8f
+                val off = if (row % 2 == 0) 0f else -8f
+                var x = off
+                while (x < 32f) {
+                    val t = lerpColor(c(0xFF77848F), c(0xFF525B66), r.nextFloat())
+                    px(c, p, x + 0.4f, y + 0.4f, 15.2f, 7.2f, t)
+                    px(c, p, x + 0.4f, y + 0.4f, 15.2f, 1.2f, shade(t, 1.22f))
+                    px(c, p, x + 0.4f, y + 6.2f, 15.2f, 1.4f, shade(t, 0.72f))
+                    x += 15.6f
+                }
+            }
+            // 이끼 자국
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF6E8262), 5, 1f, 1.8f)
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF8A949E), 7, 1f, 1.5f)
+        })
+
+begin(T.HOUSE_ROOF)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFB2583F))
+            for (row in 0 until 4) {
+                val y = row * 8f
+                val off = if (row % 2 == 0) 0f else -6f
+                var x = off
+                while (x < 32f) {
+                    val t = lerpColor(c(0xFFD4694A), c(0xFFC96A4D), r.nextFloat())
+                    px(c, p, x + 0.4f, y + 0.6f, 11.2f, 7f, t)
+                    px(c, p, x + 0.4f, y + 0.6f, 11.2f, 1.2f, shade(t, 1.18f))
+                    px(c, p, x + 0.4f, y + 6.4f, 11.2f, 1.2f, shade(t, 0.76f))
+                    px(c, p, x + 8.4f, y + 2f, 1.2f, 5.6f, shade(t, 0.88f))
+                    x += 11.6f
+                }
+            }
+            // 초록 이끼 + 하이라이트
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF8FA86B), 4, 1f, 1.6f)
+            px(c, p, 0f, 0f, 32f, 1.2f, c(0xFFE08A67))
+        })
+
+begin(T.HOUSE_WALL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
-            p.color = c(0xFFC9A87B)
-            c.drawRect(2f, 3f, 30f, 32f, p)
-            p.color = c(0xFF8A5A33)
-            c.drawRect(3.4f, 4.4f, 28.6f, 32f, p)
-            p.color = c(0xFF7A4A2B)
-            c.drawRect(5f, 8f, 27f, 10f, p)
-            c.drawRect(5f, 16f, 27f, 18f, p)
-            p.color = c(0xFF9FD0E8)
-            c.drawRect(11f, 19.6f, 21f, 26f, p)
-            p.color = c(0xFFC3E4F2)
-            c.drawRect(11f, 19.6f, 15f, 23f, p)
-            p.color = c(0xFFF2D06B)
-            c.drawRect(23f, 14f, 26f, 16.6f, p)
-            p.color = c(0xFFE0C9A2)
-            c.drawRect(0f, 28f, 32f, 32f, p)
+            // 스터코 노이즈
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFEDE0C0), 14, 1f, 1.8f)
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFFBF3DC), 10, 1f, 1.6f)
+            // 수직 사이딩 라인
+            for (x in 0 until 32 step 8) {
+                px(c, p, x.toFloat(), 0f, 1.2f, 32f, c(0xFFE0C9A2))
+                px(c, p, x + 1.2f, 0f, 0.8f, 32f, c(0xFFFBF3DC))
+            }
+            // 상단 트림 / 하단 기초
+            px(c, p, 0f, 0f, 32f, 2.2f, c(0xFFC9A87B))
+            px(c, p, 0f, 2.2f, 32f, 1f, c(0xFFE8D5AE))
+            px(c, p, 0f, 28f, 32f, 4f, c(0xFFC9A87B))
+            px(c, p, 0f, 28f, 32f, 1.2f, c(0xFF8A6A4F))
+            noise(c, p, r, 0f, 28f, 32f, 32f, c(0xFFB08A5C), 5, 1f, 1.5f)
         })
-        // TUNNEL
-        begin(T.TUNNEL)
+
+begin(T.HOUSE_WIN)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFF6E7C6))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFEDE0C0), 10, 1f, 1.8f)
+            px(c, p, 0f, 0f, 32f, 2.2f, c(0xFFC9A87B))
+            // 나무 창틀
+            px(c, p, 5f, 3.6f, 22f, 19f, c(0xFF8A5A33))
+            px(c, p, 6f, 4.6f, 20f, 17f, c(0xFFA87B4F))
+            vgrad(c, p, 7f, 5.6f, 25f, 21f, c(0xFFB9DDF0), c(0xFF7FB6D9), 4)
+            px(c, p, 8f, 6.4f, 6f, 5f, c(0xFFE0F2FA))
+            px(c, p, 14.2f, 5f, 1.4f, 16.4f, c(0xFF8A5A33))
+            px(c, p, 7f, 12.6f, 18f, 1.4f, c(0xFF8A5A33))
+            px(c, p, 5f, 22.6f, 22f, 1.6f, c(0xFFC9A87B))
+            // 꽃상자
+            px(c, p, 4.6f, 24f, 22.8f, 5.4f, c(0xFF8A5A33))
+            px(c, p, 5.8f, 25f, 20.4f, 3.2f, c(0xFFA87B4F))
+            px(c, p, 4.6f, 24f, 22.8f, 1.2f, c(0xFF6B431F))
+            val fcols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFC3A3E8), c(0xFFFDFDF8))
+            for (k in 0 until 5) {
+                val fx = 6f + k * 4.2f
+                val fc = fcols[k % 4]
+                px(c, p, fx, 21.2f, 2.8f, 2.8f, fc)
+                px(c, p, fx + 0.6f, 21.6f, 1.4f, 1.2f, shade(fc, 1.2f))
+                px(c, p, fx + 1f, 23.8f, 1f, 1.6f, c(0xFF5D8A4A))
+            }
+        })
+
+begin(T.HOUSE_DOOR)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFF6E7C6))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFEDE0C0), 8, 1f, 1.8f)
+            // 문 프레임
+            px(c, p, 3f, 1.6f, 26f, 30f, c(0xFF6B431F))
+            px(c, p, 4.2f, 2.8f, 23.6f, 28.8f, c(0xFF8A5A33))
+            // 문짝
+            px(c, p, 5.6f, 4f, 20.8f, 27.4f, c(0xFFA87B4F))
+            px(c, p, 6.8f, 5.2f, 18.4f, 25f, c(0xFFC89B6A))
+            // 패널
+            px(c, p, 8.4f, 7f, 15.2f, 8.4f, c(0xFFA87B4F))
+            px(c, p, 9.2f, 7.8f, 13.6f, 6.8f, c(0xFFB98A5C))
+            px(c, p, 8.4f, 17.4f, 15.2f, 9.6f, c(0xFFA87B4F))
+            px(c, p, 9.2f, 18.2f, 13.6f, 8f, c(0xFFB98A5C))
+            // 유리창
+            px(c, p, 10.4f, 8.6f, 11.2f, 4.6f, c(0xFF9FD0E8))
+            px(c, p, 10.4f, 8.6f, 5f, 2.2f, c(0xFFC3E4F2))
+            // 손잡이
+            px(c, p, 21.4f, 16f, 2.6f, 2.6f, c(0xFFF2D06B))
+            px(c, p, 22f, 16.4f, 1.2f, 1.2f, c(0xFFFFFBE0))
+            // 현관 매트 + 발판
+            px(c, p, 6f, 29f, 20f, 3f, c(0xFFB23F44))
+            noise(c, p, r, 6f, 29f, 26f, 32f, c(0xFF8A2F35), 5, 1f, 1.3f)
+        })
+
+begin(T.TUNNEL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF77848F))
-            p.color = c(0xFF8D9AA8)
-            c.drawRect(0f, 0f, 32f, 8f, p)
-            p.color = c(0xFFA5B2BD)
-            c.drawRect(4f, 1f, 12f, 3f, p)
+            vgrad(c, p, 0f, 0f, 32f, 10f, c(0xFF8D9AA8), c(0xFF68727E), 3)
+            noise(c, p, r, 0f, 0f, 32f, 9f, c(0xFF9AA3AD), 8, 1f, 2f)
+            // 아치 석조
             p.color = c(0xFF6B4F35)
-            c.drawRect(4f, 4f, 28f, 32f, p)
+            c.drawRect(3f, 8f, 29f, 32f, p)
+            val path = Path()
             p.color = c(0xFF5A3F28)
-            c.drawRect(2f, 8f, 6f, 32f, p)
-            c.drawRect(26f, 8f, 30f, 32f, p)
-            p.color = c(0xFF191921)
-            c.drawRect(8f, 8f, 24f, 32f, p)
-            p.color = c(0xFF2E2E3A)
-            c.drawRect(10f, 10f, 22f, 32f, p)
+            path.moveTo(16f, 2f); path.lineTo(29f, 12f); path.lineTo(29f, 32f)
+            path.lineTo(3f, 32f); path.lineTo(3f, 12f); path.close()
+            c.drawPath(path, p)
+            // 아치 voussoirs (쐐기돌)
+            p.color = c(0xFF8A5A33)
+            for (k in 0 until 7) {
+                val ang = Math.PI * (0.12 + k * 0.126)
+                val cx = 16f + 12f * Math.cos(ang).toFloat()
+                val cy = 12f + 9.5f * Math.sin(ang).toFloat()
+                c.drawRect(cx - 1.8f, cy - 2.2f, cx + 1.8f, cy + 2.2f, p)
+            }
+            px(c, p, 3f, 12f, 3.6f, 20f, c(0xFF8A5A33))
+            px(c, p, 25.4f, 12f, 3.6f, 20f, c(0xFF8A5A33))
+            px(c, p, 4f, 12f, 1.2f, 20f, c(0xFFA87B4F))
+            // 내부 어둠 (그라데이션)
+            vgrad(c, p, 7.4f, 9f, 24.6f, 32f, c(0xFF2E2E3A), c(0xFF0E0E16), 4)
+            // 도로
+            px(c, p, 7.4f, 27f, 17.2f, 5f, c(0xFF8A8074))
+            px(c, p, 7.4f, 27f, 17.2f, 1.2f, c(0xFFA39888))
+            px(c, p, 15f, 28.4f, 2f, 2.4f, c(0xFFE8DFC8))
             // 입구 등
-            p.color = c(0xFFF2D06B)
-            c.drawRect(14f, 2f, 18f, 6f, p)
-            p.color = c(0xFFF7E9A8)
-            c.drawRect(15f, 3f, 17f, 5f, p)
-            // 노면
-            p.color = c(0xFF8A8074)
-            c.drawRect(8f, 28f, 24f, 32f, p)
+            px(c, p, 13.4f, 2f, 5.2f, 4.6f, c(0xFF3A3F4A))
+            px(c, p, 14.2f, 2.8f, 3.6f, 3f, c(0xFFF7E9A8))
+            px(c, p, 15f, 3.2f, 2f, 2f, c(0xFFFFFBE0))
         })
-        // FLOOR (2종)
-        begin(T.FLOOR)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+
+begin(T.FLOOR)
+        add(*Array(2) { i ->
+            tilePainter { c, p, r ->
                 val base = if (i == 0) c(0xFFCDA775) else c(0xFFC49E6C)
                 fill(c, p, base)
-                p.color = c(0xFFB98F5E)
-                c.drawRect(0f, 10f, 32f, 11.6f, p)
-                c.drawRect(0f, 21f, 32f, 22.6f, p)
-                val seam = if (i == 0) 10f else 22f
-                c.drawRect(seam, 0f, seam + 1.4f, 10f, p)
-                c.drawRect(32f - seam, 11.6f, 33.4f - seam, 21f, p)
-                p.color = c(0xFFDBB684)
-                c.drawRect(0f, 0f, 32f, 1.2f, p)
-                c.drawRect(0f, 11.6f, 32f, 12.6f, p)
-                c.drawRect(0f, 22.6f, 32f, 23.6f, p)
-                p.color = c(0xFFA87B4F)
-                c.drawRect(3f, 4f, 4f, 5f, p)
-                c.drawRect(27f, 25f, 28f, 26f, p)
-            })
-        }
-        // WALL_IN
-        begin(T.WALL_IN)
+                // 널빤지 2줄
+                val seam = if (i == 0) 14f else 20f
+                for (row in 0..1) {
+                    val y0 = row * 16f
+                    val off = if (row == 0) 0f else seam
+                    px(c, p, 0f, y0, 32f, 15.2f, shade(base, 1f + row * 0.02f))
+                    // 나뭇결
+                    for (k in 0 until 4) {
+                        val gy = y0 + 2.2f + k * 3.4f + r.nextFloat() * 1.4f
+                        p.color = shade(base, 0.9f)
+                        c.drawRect(0f, gy, 32f, gy + 0.9f, p)
+                        p.color = shade(base, 1.1f)
+                        c.drawRect(0f, gy + 0.9f, 32f, gy + 1.5f, p)
+                    }
+                    // 옹이
+                    px(c, p, off + 5f, y0 + 5f, 2.6f, 1.8f, shade(base, 0.82f))
+                    px(c, p, off + 21f, y0 + 9f, 2f, 1.4f, shade(base, 0.82f))
+                    // 널빤지 이음새
+                    px(c, p, 0f, y0 + 15.2f, 32f, 1.4f, shade(base, 0.78f))
+                    px(c, p, 0f, y0 + 15.2f, 32f, 0.6f, shade(base, 1.12f))
+                    px(c, p, off + 15f, y0, 1.2f, 15.2f, shade(base, 0.8f))
+                }
+            }
+        })
+
+begin(T.WALL_IN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
-            p.color = c(0xFFE8D5AE)
-            c.drawRect(5f, 4f, 7f, 26f, p)
-            c.drawRect(14f, 4f, 16f, 26f, p)
-            c.drawRect(23f, 4f, 25f, 26f, p)
-            p.color = c(0xFFC9A87B)
-            c.drawRect(0f, 0f, 32f, 3f, p)
-            c.drawRect(0f, 26f, 32f, 27.4f, p)
-            p.color = c(0xFFE0C9A2)
-            c.drawRect(0f, 27.4f, 32f, 32f, p)
+            // 벽지 줄무늬
+            for (x in 0 until 32 step 6) {
+                px(c, p, x.toFloat(), 3f, 2.6f, 23f, c(0xFFE8D5AE))
+                px(c, p, x + 2.6f, 3f, 1f, 23f, c(0xFFFBF3DC))
+            }
+            noise(c, p, r, 0f, 3f, 32f, 26f, c(0xFFEDE0C0), 8, 1f, 1.4f)
+            // 천장 몰딩 / 의자 레일 / 걸레받이
+            px(c, p, 0f, 0f, 32f, 3.2f, c(0xFFC9A87B))
+            px(c, p, 0f, 2.2f, 32f, 1f, c(0xFFE8D5AE))
+            px(c, p, 0f, 22f, 32f, 1.8f, c(0xFFC9A87B))
+            px(c, p, 0f, 23.8f, 32f, 0.8f, c(0xFF8A6A4F))
+            px(c, p, 0f, 26f, 32f, 6f, c(0xFFE0C9A2))
+            px(c, p, 0f, 26f, 32f, 1.2f, c(0xFFB08A5C))
         })
-        // WALL_WIN
-        begin(T.WALL_WIN)
+
+begin(T.WALL_WIN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
-            p.color = c(0xFFC9A87B)
-            c.drawRect(0f, 0f, 32f, 3f, p)
-            p.color = c(0xFFC9A87B)
-            c.drawRect(6f, 6f, 26f, 23f, p)
-            p.color = c(0xFFA8D8E8)
-            c.drawRect(7.4f, 7.4f, 24.6f, 21.6f, p)
-            p.color = c(0xFFC9E8F2)
-            c.drawRect(7.4f, 7.4f, 15f, 13f, p)
-            p.color = c(0xFF8CC46C)
-            c.drawRect(7.4f, 16f, 12f, 19f, p)
-            c.drawRect(18f, 13f, 20f, 18f, p)
-            p.color = c(0xFFC9A87B)
-            c.drawRect(15.4f, 7.4f, 16.6f, 21.6f, p)
-            c.drawRect(7.4f, 13.6f, 24.6f, 14.8f, p)
-            p.color = c(0xFFE0C9A2)
-            c.drawRect(0f, 23f, 32f, 24f, p)
-            c.drawRect(0f, 27.4f, 32f, 32f, p)
+            for (x in 0 until 32 step 6) {
+                px(c, p, x.toFloat(), 3f, 2.6f, 20f, c(0xFFE8D5AE))
+            }
+            px(c, p, 0f, 0f, 32f, 3.2f, c(0xFFC9A87B))
+            // 창
+            px(c, p, 5.4f, 5f, 21.2f, 18f, c(0xFF8A5A33))
+            px(c, p, 6.6f, 6.2f, 18.8f, 15.6f, c(0xFFA8D8E8))
+            vgrad(c, p, 7.2f, 6.8f, 24.8f, 21.2f, c(0xFFC9E8F2), c(0xFF8CC46C), 3)
+            px(c, p, 8f, 7.4f, 6f, 4f, c(0xFFE8F6FA))
+            px(c, p, 14.4f, 6f, 1.4f, 16f, c(0xFF8A5A33))
+            px(c, p, 7f, 13.4f, 18f, 1.4f, c(0xFF8A5A33))
+            // 화분
+            px(c, p, 8f, 17.6f, 5.4f, 3.6f, c(0xFFB5673F))
+            px(c, p, 8.8f, 15.2f, 3.8f, 2.6f, c(0xFF6FAE57))
+            px(c, p, 9.8f, 13.8f, 1.8f, 1.8f, c(0xFFF2A3B3))
+            // 커튼
+            px(c, p, 4.4f, 5f, 2.6f, 17f, c(0xFFE8867A))
+            px(c, p, 4.4f, 5f, 1f, 17f, c(0xFFF2A3B3))
+            px(c, p, 25f, 5f, 2.6f, 17f, c(0xFFE8867A))
+            px(c, p, 26.6f, 5f, 1f, 17f, c(0xFFD96C64))
+            px(c, p, 0f, 23f, 32f, 9f, c(0xFFE0C9A2))
+            px(c, p, 0f, 23f, 32f, 1.2f, c(0xFFB08A5C))
         })
-        // OVEN (2프레임 — 불꽃 애니메이션)
-        begin(T.OVEN)
-        for (f in 0 until 2) {
-            add(tilePainter { c, p, r ->
+
+begin(T.OVEN)
+        add(*Array(2) { f ->
+            tilePainter { c, p, r ->
+                // 벽돌 화덕
                 fill(c, p, c(0xFF8F8F99))
-                p.color = c(0xFF7A7A85)
-                c.drawRect(0f, 0f, 32f, 2.4f, p)
-                c.drawRect(0f, 14f, 32f, 16f, p)
-                c.drawRect(15.4f, 0f, 17f, 14f, p)
-                c.drawRect(6f, 16f, 8f, 32f, p)
-                c.drawRect(24f, 16f, 26f, 32f, p)
-                p.color = c(0xFFA8A8B2)
-                c.drawRect(0f, 2.4f, 32f, 3.6f, p)
+                for (row in 0 until 3) {
+                    val y = row * 5.4f
+                    val off = if (row % 2 == 0) 0f else -6f
+                    var x = off
+                    while (x < 32f) {
+                        val t = lerpColor(c(0xFFA8A8B2), c(0xFF7A7A85), r.nextFloat())
+                        px(c, p, x + 0.4f, y + 0.4f, 10.8f, 4.6f, t)
+                        px(c, p, x + 0.4f, y + 0.4f, 10.8f, 0.9f, shade(t, 1.18f))
+                        px(c, p, x + 0.4f, y + 4.3f, 10.8f, 0.9f, shade(t, 0.78f))
+                        x += 11.2f
+                    }
+                }
+                px(c, p, 0f, 16f, 32f, 16f, c(0xFF7A7A85))
+                for (row in 0 until 3) {
+                    val y = 17f + row * 5f
+                    val off = if (row % 2 == 0) 0f else -5f
+                    var x = off
+                    while (x < 32f) {
+                        val t = lerpColor(c(0xFF9A9AA6), c(0xFF6B6B78), r.nextFloat())
+                        px(c, p, x + 0.4f, y + 0.4f, 9.6f, 4.2f, t)
+                        px(c, p, x + 0.4f, y + 0.4f, 9.6f, 0.9f, shade(t, 1.16f))
+                        x += 10f
+                    }
+                }
                 // 아치 화구
                 p.color = c(0xFF23232B)
-                c.drawCircle(16f, 21f, 9.6f, p)
+                c.drawCircle(16f, 22f, 10.2f, p)
                 p.color = c(0xFF33333D)
-                c.drawCircle(16f, 21f, 8.6f, p)
-                // 불꽃
-                p.color = c(0xFFE2574C)
-                c.drawRect(9f, 18f, 23f, 28f, p)
-                p.color = c(0xFFF2913C)
-                c.drawRect(11f, 16f + (if (f == 0) 0f else 1.6f), 21f, 24f, p)
-                p.color = c(0xFFF7CE5B)
-                c.drawRect(13f, 15f + (if (f == 0) 1.6f else 0f), 19f, 21f, p)
-                p.color = c(0xFFFDF6E8)
-                c.drawRect(15f, 18f + (if (f == 0) 0f else 1.4f), 17f, 21f, p)
-                p.color = c(0xFF6B6B78)
-                c.drawRect(9f, 29f, 23f, 30.6f, p)
-            })
-        }
-        // BED
-        begin(T.BED)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFCDA775))
-            p.color = c(0xFF8A5A33)
-            c.drawRect(2f, 2f, 30f, 30f, p)
-            p.color = c(0xFFB5651D)
-            c.drawRect(3.4f, 3.4f, 28.6f, 28.6f, p)
-            p.color = c(0xFFE8867A)
-            c.drawRect(4.6f, 8f, 27.4f, 27.4f, p)
-            p.color = c(0xFFD96C64)
-            c.drawRect(4.6f, 16f, 27.4f, 18f, p)
-            c.drawRect(12f, 18f, 14f, 27.4f, p)
-            p.color = c(0xFFF5EFE0)
-            c.drawRect(5.6f, 3.8f, 15f, 9.4f, p)
-            p.color = c(0xFFE0D8C4)
-            c.drawRect(5.6f, 8f, 15f, 9.4f, p)
-            p.color = c(0xFFF7B2A8)
-            c.drawRect(18f, 11f, 27.4f, 14f, p)
-        })
-        // BOX
-        begin(T.BOX)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFCDA775))
-            p.color = c(0xFFC89B6A)
-            c.drawRect(2f, 4f, 30f, 30f, p)
-            p.color = c(0xFFA87B4F)
-            c.drawRect(2f, 4f, 30f, 6.4f, p)
-            c.drawRect(2f, 17f, 30f, 19f, p)
-            c.drawRect(2f, 4f, 4f, 30f, p)
-            c.drawRect(28f, 4f, 30f, 30f, p)
-            p.color = c(0xFFD9C39A)
-            c.drawRect(12f, 6.4f, 20f, 17f, p)
-            p.color = c(0xFF7A5A33)
-            c.drawRect(14f, 9f, 18f, 10.4f, p)
-            c.drawRect(14.8f, 10.4f, 16f, 13f, p)
-            c.drawRect(16.8f, 12f, 18f, 13f, p)
-            p.color = c(0xFFE8D5A3)
-            c.drawRect(13f, 20f, 19f, 26f, p)
-            p.color = c(0xFF8A6A4F)
-            c.drawRect(13.6f, 21f, 18.4f, 22f, p)
-        })
-        // DECOR (장식 칸 — 점선 표시)
-        begin(T.DECOR)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFCDA775))
-            p.color = c(0xFFB98F5E)
-            c.drawRect(0f, 10f, 32f, 11.6f, p)
-            c.drawRect(0f, 21f, 32f, 22.6f, p)
-            p.color = c(0xFFB08A5C)
-            // 점선 사각형
-            for (i in 0 until 13) {
-                c.drawRect((4 + i * 2).toFloat(), 4f, (5 + i * 2).toFloat(), 5.4f, p)
-                c.drawRect((4 + i * 2).toFloat(), 26.6f, (5 + i * 2).toFloat(), 28f, p)
-                c.drawRect(4f, (4 + i * 2).toFloat(), 5.4f, (5 + i * 2).toFloat(), p)
-                c.drawRect(26.6f, (4 + i * 2).toFloat(), 28f, (5 + i * 2).toFloat(), p)
+                c.drawCircle(16f, 22f, 8.8f, p)
+                // 불꽃 (프레임 애니메이션)
+                val jig = if (f == 0) 0f else 1.4f
+                px(c, p, 9.4f, 19f, 13.2f, 8f, c(0xFFE2574C))
+                px(c, p, 11f, 17f + jig, 10f, 8f, c(0xFFF2913C))
+                px(c, p, 12.6f, 15.6f - jig, 6.8f, 7.4f, c(0xFFF7CE5B))
+                px(c, p, 14.2f, 17.4f + jig * 0.6f, 3.6f, 5f, c(0xFFFDF6E8))
+                // 불티
+                dot(c, p, 12f - jig, 13f, c(0xFFF2913C))
+                dot(c, p, 19.4f + jig, 14.4f, c(0xFFF7CE5B))
+                dot(c, p, 16.6f, 11.6f - jig, c(0xFFE2574C))
+                // 장작
+                px(c, p, 8.6f, 26.4f, 14.8f, 2.6f, c(0xFF6B431F))
+                px(c, p, 9.6f, 26.8f, 12.8f, 1.2f, c(0xFF8A5A33))
+                // 따뜻한 빛 (입구)
+                p.color = Color.argb(46, 255, 160, 80)
+                c.drawCircle(16f, 22f, 7f, p)
+                // 테두리
+                bevel(c, p, 0f, 0f, 32f, 32f, c(0xFFA8A8B2), c(0xFF5A5A66), 1.2f)
             }
-            p.color = c(0xFFE8D5A3)
-            c.drawRect(14.6f, 14.6f, 17.4f, 17.4f, p)
         })
-        // SIGN (터널 이정표)
-        begin(T.SIGN)
+
+begin(T.BED)
         add(tilePainter { c, p, r ->
-            propShadow(c, p, 16f, 29.5f, 6.5f, 2.4f)
-            p.color = c(0xFF6B431F)
-            c.drawRect(14.6f, 10f, 17.4f, 30f, p)
-            p.color = c(0xFF8A5A33)
-            c.drawRect(15f, 10f, 16f, 30f, p)
-            // 판
-            p.color = c(0xFF6B431F)
-            c.drawRect(5f, 4f, 27f, 15f, p)
-            p.color = c(0xFFC89B6A)
-            c.drawRect(6.2f, 5.2f, 25.8f, 13.8f, p)
-            p.color = c(0xFF8A6A4F)
-            c.drawRect(7.4f, 6.4f, 18f, 7.8f, p)
-            c.drawRect(7.4f, 9.4f, 16f, 10.8f, p)
-            c.drawRect(7.4f, 12.4f, 18f, 13.2f, p)
-            // 화살표
-            val path = Path()
-            p.color = c(0xFF4A3728)
-            path.moveTo(20f, 7f); path.lineTo(24f, 9.6f); path.lineTo(20f, 12.2f)
-            path.close()
-            c.drawPath(path, p)
-            c.drawRect(16.4f, 8.8f, 20.4f, 10.4f, p)
+            fill(c, p, c(0xFFCDA775))
+            // 프레임
+            px(c, p, 1.6f, 1.6f, 28.8f, 28.8f, c(0xFF6B431F))
+            px(c, p, 2.8f, 2.8f, 26.4f, 26.4f, c(0xFFB5651D))
+            px(c, p, 2.8f, 2.8f, 26.4f, 1.4f, c(0xFFD9884A))
+            // 이불 (패치워크)
+            px(c, p, 4.2f, 8f, 23.6f, 19.4f, c(0xFFE8867A))
+            for (gy in 0 until 3) {
+                for (gx in 0 until 4) {
+                    val t = if ((gx + gy) % 2 == 0) c(0xFFE8867A) else c(0xFFD96C64)
+                    px(c, p, 4.2f + gx * 6f, 8f + gy * 6.6f, 5.6f, 6.2f, t)
+                    px(c, p, 4.2f + gx * 6f, 8f + gy * 6.6f, 5.6f, 1f, shade(t, 1.12f))
+                }
+            }
+            // 이불 주름
+            px(c, p, 4.2f, 14f, 23.6f, 1.2f, c(0xFFB23F44))
+            px(c, p, 4.2f, 21f, 23.6f, 1.2f, c(0xFFB23F44))
+            // 베개
+            px(c, p, 5f, 3.8f, 11f, 6f, c(0xFFF5EFE0))
+            px(c, p, 5.8f, 4.4f, 9.4f, 4.2f, c(0xFFFFFBF2))
+            px(c, p, 6.6f, 6.4f, 7.8f, 1f, c(0xFFE0D8C4))
+            // 쿠션
+            px(c, p, 18f, 10.6f, 9.4f, 3.4f, c(0xFFF7B2A8))
+            px(c, p, 18.6f, 11f, 8.2f, 1.6f, c(0xFFFFD0C8))
         })
-        // BENCH (벤치)
-        begin(T.BENCH)
+
+begin(T.BOX)
         add(tilePainter { c, p, r ->
-            propShadow(c, p, 16f, 27f, 12f, 3.2f)
-            // 등받이
-            p.color = c(0xFF6B431F)
-            c.drawRect(3f, 3f, 29f, 5.4f, p)
-            p.color = c(0xFF8A5A33)
-            c.drawRect(4f, 4f, 28f, 5f, p)
-            c.drawRect(6f, 3.4f, 8f, 12f, p)
-            c.drawRect(24f, 3.4f, 26f, 12f, p)
-            // 좌석
-            p.color = c(0xFF6B431F)
-            c.drawRect(2.4f, 14f, 29.6f, 19f, p)
-            p.color = c(0xFFA87B4F)
-            c.drawRect(3.4f, 15f, 28.6f, 18f, p)
-            p.color = c(0xFFC89B6A)
-            c.drawRect(3.4f, 15f, 28.6f, 16f, p)
-            // 다리
-            p.color = c(0xFF4A3320)
-            c.drawRect(4f, 19f, 6.4f, 27f, p)
-            c.drawRect(25.6f, 19f, 28f, 27f, p)
+            fill(c, p, c(0xFFCDA775))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFB98F5E), 6, 1f, 1.6f)
+            // 박스
+            px(c, p, 2f, 3.6f, 28f, 26.4f, c(0xFFC89B6A))
+            px(c, p, 2f, 3.6f, 28f, 1.6f, c(0xFFD9B182))
+            px(c, p, 2f, 28.4f, 28f, 1.6f, c(0xFFA87B4F))
+            px(c, p, 2f, 3.6f, 1.6f, 26.4f, c(0xFFD9B182))
+            px(c, p, 28.4f, 3.6f, 1.6f, 26.4f, c(0xFF9A6E42))
+            // 테이프
+            px(c, p, 13f, 3.6f, 6f, 26.4f, c(0xFFE8D5A3))
+            px(c, p, 13f, 3.6f, 1.2f, 26.4f, c(0xFFD9C48E))
+            px(c, p, 2f, 14f, 28f, 3.2f, c(0xFFE8D5A3))
+            // 라벨
+            px(c, p, 18f, 18f, 9.4f, 7f, c(0xFFF5EFE0))
+            px(c, p, 19f, 19.4f, 6.4f, 1f, c(0xFF8A6A4F))
+            px(c, p, 19f, 21.2f, 7.2f, 1f, c(0xFF8A6A4F))
+            px(c, p, 19f, 23f, 4.6f, 1f, c(0xFF8A6A4F))
+            // 취급주의 화살표
+            px(c, p, 5.6f, 19f, 1.4f, 6f, c(0xFF7A5A33))
+            px(c, p, 4.6f, 19f, 3.4f, 1.4f, c(0xFF7A5A33))
+            px(c, p, 7f, 20.6f, 3.4f, 1.2f, c(0xFF7A5A33))
+            px(c, p, 5.6f, 8f, 1.4f, 6f, c(0xFF7A5A33))
+            px(c, p, 4.6f, 8f, 3.4f, 1.4f, c(0xFF7A5A33))
+            px(c, p, 7f, 9.6f, 3.4f, 1.2f, c(0xFF7A5A33))
         })
-        // LAMP (가로등)
-        begin(T.LAMP)
+
+begin(T.DECOR)
         add(tilePainter { c, p, r ->
-            propShadow(c, p, 16f, 30f, 8f, 2.4f)
+            val base = c(0xFFCDA775)
+            fill(c, p, base)
+            for (row in 0..1) {
+                val y0 = row * 16f
+                for (k in 0 until 4) {
+                    val gy = y0 + 2.2f + k * 3.4f
+                    p.color = shade(base, 0.9f)
+                    c.drawRect(0f, gy, 32f, gy + 0.9f, p)
+                    p.color = shade(base, 1.1f)
+                    c.drawRect(0f, gy + 0.9f, 32f, gy + 1.5f, p)
+                }
+                px(c, p, 0f, y0 + 15.2f, 32f, 1.4f, shade(base, 0.78f))
+            }
+            // 부드러운 스팟라이트
+            p.color = Color.argb(30, 255, 250, 220)
+            c.drawCircle(16f, 16f, 13f, p)
+            p.color = Color.argb(22, 255, 250, 220)
+            c.drawCircle(16f, 16f, 9f, p)
+            // 점선 슬롯
+            p.color = c(0xFFB08A5C)
+            for (i2 in 0 until 13) {
+                c.drawRect((4 + i2 * 2).toFloat(), 4f, (5 + i2 * 2).toFloat(), 5.4f, p)
+                c.drawRect((4 + i2 * 2).toFloat(), 26.6f, (5 + i2 * 2).toFloat(), 28f, p)
+                c.drawRect(4f, (4 + i2 * 2).toFloat(), 5.4f, (5 + i2 * 2).toFloat(), p)
+                c.drawRect(26.6f, (4 + i2 * 2).toFloat(), 28f, (5 + i2 * 2).toFloat(), p)
+            }
+            // 모서리 브래킷
+            px(c, p, 3f, 3f, 4f, 1.4f, c(0xFFE8D5A3))
+            px(c, p, 3f, 3f, 1.4f, 4f, c(0xFFE8D5A3))
+            px(c, p, 25f, 3f, 4f, 1.4f, c(0xFFE8D5A3))
+            px(c, p, 27.6f, 3f, 1.4f, 4f, c(0xFFE8D5A3))
+            px(c, p, 3f, 27.6f, 4f, 1.4f, c(0xFFE8D5A3))
+            px(c, p, 3f, 25f, 1.4f, 4f, c(0xFFE8D5A3))
+            px(c, p, 25f, 27.6f, 4f, 1.4f, c(0xFFE8D5A3))
+            px(c, p, 27.6f, 25f, 1.4f, 4f, c(0xFFE8D5A3))
+        })
+
+begin(T.SIGN)
+        add(tilePainter { c, p, r ->
+            grassBase(c, p, r)
+            p.color = Color.argb(56, 26, 46, 28)
+            c.drawOval(RectF(8f, 26f, 26f, 31f), p)
             // 기둥
-            p.color = c(0xFF3A3F4A)
-            c.drawRect(14.4f, 6f, 17.6f, 30f, p)
-            p.color = c(0xFF5A626C)
-            c.drawRect(15.2f, 6f, 16.2f, 30f, p)
-            p.color = c(0xFF3A3F4A)
-            c.drawRect(8f, 29f, 24f, 31f, p)
-            // 머리
-            p.color = c(0xFF3A3F4A)
-            c.drawRect(9f, 2f, 23f, 7f, p)
-            p.color = c(0xFFF7E9A8)
-            c.drawRect(10.4f, 3.4f, 21.6f, 6f, p)
-            p.color = c(0xFFFFFBE0)
-            c.drawRect(12f, 4f, 20f, 5.4f, p)
-            p.color = c(0xFF23232B)
-            c.drawRect(15.4f, 7f, 16.6f, 8.4f, p)
+            px(c, p, 14f, 12f, 5f, 18f, c(0xFF6B431F))
+            px(c, p, 15f, 12f, 2.4f, 18f, c(0xFF8A5A33))
+            px(c, p, 15.6f, 13f, 1f, 15f, c(0xFFA87B4F))
+            // 판자
+            px(c, p, 3.6f, 3f, 25.8f, 12.4f, c(0xFF6B431F))
+            px(c, p, 4.8f, 4.2f, 23.4f, 10f, c(0xFFC89B6A))
+            px(c, p, 4.8f, 4.2f, 23.4f, 1.2f, c(0xFFDBB684))
+            px(c, p, 4.8f, 13f, 23.4f, 1.2f, c(0xFF8A5A33))
+            // 나뭇결
+            for (k in 0 until 3) {
+                val gy = 6f + k * 2.4f
+                px(c, p, 6f, gy, 20f, 0.8f, c(0xFFB08A5C))
+            }
+            // 글씨 줄
+            px(c, p, 7f, 6.4f, 11f, 1.6f, c(0xFF4A3728))
+            px(c, p, 7f, 9.6f, 8f, 1.4f, c(0xFF4A3728))
+            // 지도에서 실제 연결 방향(N/E/S/W)을 받아 그릴 수 있도록 판자 화살표 자리는 비워 둔다.
+            // 못
+            dot(c, p, 5.6f, 5f, c(0xFF33241C))
+            dot(c, p, 26.4f, 5f, c(0xFF33241C))
+            dot(c, p, 5.6f, 12.4f, c(0xFF33241C))
+            dot(c, p, 26.4f, 12.4f, c(0xFF33241C))
+            // 이끼
+            px(c, p, 4f, 13.4f, 5f, 1.2f, c(0xFF6FAE57))
+        })
+
+begin(T.BENCH)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFD9C9A7))
+            // 석판 배경 (광장)
+            for (gx in 0 until 2) {
+                for (gy in 0 until 2) {
+                    val x = gx * 16f + 1.6f
+                    val y = gy * 16f + 1.6f
+                    px(c, p, x, y, 12.8f, 12.8f, c(0xFFE9DCBC))
+                    bevel(c, p, x, y, x + 12.8f, y + 12.8f, c(0xFFF1E6C8), c(0xFFB8A87F), 1.2f)
+                }
+            }
+            // 그림자
+            p.color = Color.argb(50, 40, 36, 24)
+            c.drawOval(RectF(2f, 22f, 30f, 30f), p)
+            // 등받이
+            px(c, p, 3f, 4f, 26f, 2.6f, c(0xFF6B431F))
+            px(c, p, 3.8f, 4.4f, 24.4f, 1.6f, c(0xFFC89B6A))
+            px(c, p, 3.8f, 4.4f, 24.4f, 0.8f, c(0xFFDBB684))
+            px(c, p, 3f, 8.4f, 26f, 2.2f, c(0xFF6B431F))
+            px(c, p, 3.8f, 8.8f, 24.4f, 1.3f, c(0xFFA87B4F))
+            // 등받이 기둥
+            px(c, p, 5.4f, 3.6f, 2.6f, 12f, c(0xFF4A3320))
+            px(c, p, 24f, 3.6f, 2.6f, 12f, c(0xFF4A3320))
+            // 좌석
+            px(c, p, 2f, 13.6f, 28f, 6f, c(0xFF6B431F))
+            px(c, p, 2.8f, 14.2f, 26.4f, 4.2f, c(0xFFA87B4F))
+            px(c, p, 2.8f, 14.2f, 26.4f, 1.2f, c(0xFFDBB684))
+            // 나뭇결
+            for (k in 0 until 3) {
+                px(c, p, 4f, 15.2f + k * 1.4f, 24f, 0.7f, c(0xFF8A5A33))
+            }
+            // 다리 + 볼트
+            px(c, p, 4f, 19.6f, 3.2f, 8f, c(0xFF4A3320))
+            px(c, p, 24.8f, 19.6f, 3.2f, 8f, c(0xFF4A3320))
+            dot(c, p, 5f, 15f, c(0xFF33241C))
+            dot(c, p, 26f, 15f, c(0xFF33241C))
+        })
+
+begin(T.LAMP)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFD9C9A7))
+            for (gx in 0 until 2) {
+                for (gy in 0 until 2) {
+                    val x = gx * 16f + 1.6f
+                    val y = gy * 16f + 1.6f
+                    px(c, p, x, y, 12.8f, 12.8f, c(0xFFE9DCBC))
+                    bevel(c, p, x, y, x + 12.8f, y + 12.8f, c(0xFFF1E6C8), c(0xFFB8A87F), 1.2f)
+                }
+            }
+            // 그림자
+            p.color = Color.argb(50, 40, 36, 24)
+            c.drawOval(RectF(8f, 27f, 24f, 31f), p)
+            // 기둥
+            px(c, p, 14f, 6f, 4.4f, 23f, c(0xFF3A3F4A))
+            px(c, p, 15f, 6f, 1.6f, 23f, c(0xFF5A626C))
+            px(c, p, 15.4f, 7f, 0.9f, 20f, c(0xFF7C8590))
+            // 밑받침
+            px(c, p, 11f, 28f, 10f, 2.6f, c(0xFF3A3F4A))
+            px(c, p, 12f, 26.6f, 8f, 1.8f, c(0xFF4A5158))
+            dot(c, p, 12f, 28.6f, c(0xFF23232B))
+            dot(c, p, 19f, 28.6f, c(0xFF23232B))
+            // 랜턴 머리
+            px(c, p, 8.6f, 1.6f, 15f, 2f, c(0xFF3A3F4A))
+            px(c, p, 9.8f, 3.2f, 12.6f, 4.6f, c(0xFF4A5158))
+            px(c, p, 10.8f, 3.8f, 10.6f, 3.2f, c(0xFFF7E9A8))
+            px(c, p, 12.4f, 4.2f, 7.4f, 2.2f, c(0xFFFFFBE0))
+            px(c, p, 15.2f, 7.6f, 1.8f, 1.8f, c(0xFF23232B))
+            // 유리창살
+            px(c, p, 13.6f, 3.6f, 1f, 3.8f, c(0xFF3A3F4A))
+            px(c, p, 17.6f, 3.6f, 1f, 3.8f, c(0xFF3A3F4A))
+            px(c, p, 8.6f, 1f, 15f, 1.2f, c(0xFF23232B))
         })
 
         // RANGE_TOP (가정용 오븐 윗부분 — 레인지 후드 + 백스플래시 + 조리도구 선반)
@@ -1836,8 +2470,7 @@ class Assets {
         })
         // RANGE (가정용 오븐 — 쿡탑 + 오븐 창, 2프레임 불빛)
         begin(T.RANGE)
-        for (f in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        add(*Array(2) { f -> tilePainter { c, p, r ->
                 fill(c, p, c(0xFFCDA775))
                 p.color = c(0xFF9A9AA6)
                 c.drawRect(1f, 0f, 31f, 31f, p)
@@ -1884,9 +2517,10 @@ class Assets {
                 // 하단 받침
                 p.color = c(0xFF6B6B78)
                 c.drawRect(3f, 29.6f, 29f, 31.4f, p)
-            })
-        }
+            }
+        })
 
+        // 도로 부속물 (Roads.kt 자원)
         medallion = RoadArt.medallion(3)
         drain = RoadArt.drain()
         castShadow = RoadArt.castShadows()
@@ -1914,9 +2548,9 @@ class Assets {
     // -----------------------------------------------------------------------
 
     private fun buildIcons() {
-        val pal = mapOf(
-            'c' to c(0xFFE8A75C), 'C' to c(0xFFF7CE5B), 'R' to c(0xFFE2574C),
-            'd' to c(0xFFD18F4A), 'b' to c(0xFF6FAE57), 'W' to c(0xFFFDF6E8)
+        pizzaIcon = renderPixel("pizza", 22, 14)
+        pizzaIconBig = Bitmap.createScaledBitmap(
+            pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
         )
         val pizza = listOf(
             "......................",
@@ -1935,10 +2569,6 @@ class Assets {
             "...dddddddddd......",
             "......................"
         )
-        val pizzaBmp = sprite(pizza, pal + ('A' to c(0xFF7D9C4F)))
-        pizzaIcon = pizzaBmp
-        pizzaIconBig = Bitmap.createScaledBitmap(pizzaBmp, pizzaBmp.width * 4, pizzaBmp.height * 4, false)
-
         // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
         //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
         val pizzaOven = listOf(
@@ -1977,91 +2607,282 @@ class Assets {
             }
         }
 
-        cloverIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
-            val cv = Canvas(this)
-            val p = Paint()
-            p.isAntiAlias = true
-            p.color = c(0xFF3F7D46)
-            cv.drawCircle(4.4f, 4.4f, 3.6f, p)
-            cv.drawCircle(9.6f, 4.4f, 3.6f, p)
-            cv.drawCircle(4.4f, 9.6f, 3.6f, p)
-            cv.drawCircle(9.6f, 9.6f, 3.6f, p)
-            p.color = c(0xFF4F9E57)
-            cv.drawCircle(4f, 4f, 2.8f, p)
-            cv.drawCircle(9.6f, 7.6f, 2.8f, p)
-            cv.drawCircle(7f, 10f, 2.6f, p)
-            p.color = c(0xFF6BBA72)
-            cv.drawCircle(3.4f, 3.4f, 1.4f, p)
-            cv.drawCircle(9.8f, 9.2f, 1.2f, p)
+        cloverIcon = renderIcon("clover", 14, 14)
+        cameraIcon = renderIcon("camera", 20, 16)
+        houseIcon = renderIcon("house", 14, 14)
+        sunIcon = renderIcon("sun", 16, 16)
+        moonIcon = renderIcon("moon", 14, 14)
+    }
+
+    // -----------------------------------------------------------------------
+    // 카메라 장비 아트 (Cameras.kt의 CamLook으로 생성 — 조합이 바뀌면 모양도 바뀐다)
+    //   camIcon    : 정면 아이콘 (22x18) — HUD / 카메라 버튼 / 목록
+    //   camProfile : 측면 아이콘 (32x20) — 경통 길이가 한눈에 보이는 상점용
+    //   camHeld    : 인게임 스프라이트 (32x32) — 플레이어 위에 겹쳐 그린다
+    // -----------------------------------------------------------------------
+
+    /** 색을 밝게(k>1) 또는 어둡게(k<1) */
+    private fun tone(col: Int, k: Float): Int {
+        val a = (col ushr 24) and 0xFF
+        var r = (col shr 16) and 0xFF
+        var g = (col shr 8) and 0xFF
+        var b = col and 0xFF
+        if (k >= 1f) {
+            val t = (k - 1f).coerceIn(0f, 1f)
+            r += ((255 - r) * t).toInt()
+            g += ((255 - g) * t).toInt()
+            b += ((255 - b) * t).toInt()
+        } else {
+            r = (r * k).toInt()
+            g = (g * k).toInt()
+            b = (b * k).toInt()
+        }
+        return (a shl 24) or (r shl 16) or (g shl 8) or b
+    }
+
+    fun camIcon(look: CamLook): Bitmap = camIconCache.getOrPut(look) { buildCamIcon(look) }
+
+    fun camProfile(look: CamLook): Bitmap = camProfileCache.getOrPut(look) { buildCamProfile(look) }
+
+    /** dir: 0 정면 / 1 뒤 / 2 오른쪽 / 3 왼쪽 */
+    fun camHeld(look: CamLook, dir: Int, raised: Boolean): Bitmap {
+        if (dir == 3) {
+            return camHeldCache.getOrPut(HeldKey(look, 3, raised)) { flipH(camHeld(look, 2, raised)) }
+        }
+        return camHeldCache.getOrPut(HeldKey(look, dir, raised)) { buildCamHeld(look, dir, raised) }
+    }
+
+    private fun buildCamIcon(lk: CamLook): Bitmap {
+        val bmp = Bitmap.createBitmap(22, 18, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, rr, b, p)
+        }
+        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
+        }
+        fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawCircle(cx, cy, rad, p)
         }
 
-        cameraIcon = Bitmap.createBitmap(20, 16, Bitmap.Config.ARGB_8888).apply {
-            val cv = Canvas(this)
-            val p = Paint()
-            p.color = c(0xFF4A4A55)
-            cv.drawRect(0f, 4f, 20f, 16f, p)
-            cv.drawRect(6f, 1f, 13f, 4f, p)
-            p.color = c(0xFF6B6B78)
-            cv.drawRect(1f, 5f, 19f, 7f, p)
-            p.color = c(0xFF23232B)
-            cv.drawCircle(10f, 10f, 4.6f, p)
-            p.color = c(0xFF8FC3E3)
-            cv.drawCircle(10f, 10f, 3.4f, p)
-            p.color = c(0xFFC3E4F2)
-            cv.drawCircle(9f, 9f, 1.4f, p)
-            p.color = c(0xFFF2D06B)
-            cv.drawRect(16f, 8f, 18f, 10f, p)
-            p.color = c(0xFFE2574C)
-            cv.drawRect(2f, 8f, 4f, 10f, p)
+        val big = lk.style == 3 || lk.style == 4 || lk.style == 5
+        val pro = lk.style == 4
+        val top = if (big) 4.2f else 5.0f
+        val bot = if (pro) 17.0f else 16.4f
+
+        // 펜타프리즘 / EVF / 팝업 플래시
+        if (big) {
+            o(7.4f, 0.8f, 14.6f, 5.2f, 1.2f, camOutline)
+            o(8.0f, 1.4f, 14.0f, 5.0f, 1.0f, lk.bodyCol)
+            r(9.0f, 2.0f, 13.0f, 3.0f, tone(lk.bodyCol, 1.25f))
+        } else if (lk.evf) {
+            o(2.0f, 2.0f, 8.0f, 5.6f, 1.1f, camOutline)
+            o(2.6f, 2.6f, 7.4f, 5.2f, 0.9f, lk.bodyCol)
+        } else if (lk.flash) {
+            o(2.2f, 2.4f, 6.4f, 5.4f, 0.9f, camOutline)
+            o(2.7f, 2.9f, 5.9f, 5.0f, 0.7f, c(0xFFF7EFD2))
         }
 
-        houseIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
-            val cv = Canvas(this)
-            val p = Paint()
-            p.color = c(0xFFB55338)
-            cv.drawRect(1f, 0f, 13f, 5f, p)
-            p.color = c(0xFFD4694A)
-            cv.drawRect(1f, 0f, 13f, 2f, p)
-            p.color = c(0xFFF6E7C6)
-            cv.drawRect(1f, 5f, 13f, 14f, p)
-            p.color = c(0xFF9FD0E8)
-            cv.drawRect(3f, 6f, 6f, 9f, p)
-            p.color = c(0xFF8A5A33)
-            cv.drawRect(6f, 9f, 9f, 14f, p)
+        // 바디
+        o(0.4f, top - 0.6f, 21.6f, bot + 0.8f, 2.8f, camOutline)
+        o(1.0f, top, 21.0f, bot, 2.4f, lk.bodyCol)
+        r(1.6f, top + 0.8f, 20.4f, top + 1.8f, tone(lk.bodyCol, 1.18f))
+        o(16.0f, top + 1.2f, 20.6f, bot - 0.6f, 1.8f, lk.bodyDark)
+        r(17.0f, top + 2.4f, 19.6f, bot - 2.0f, tone(lk.bodyDark, 0.8f))
+        r(2.0f, top - 1.8f, 4.2f, top + 0.2f, lk.accent)
+        if (pro) r(1.0f, bot - 2.4f, 21.0f, bot, lk.bodyDark)
+
+        // 렌즈 (정면에서는 지름이 존재감)
+        val lr = (3.2f + lk.barrelDia * 0.52f + lk.barrelLen * 0.13f).coerceAtMost(6.6f)
+        val cx = 10.2f
+        val cy = (top + bot) / 2f + 0.4f
+        if (lk.hood) {
+            cir(cx, cy, lr + 1.6f, camOutline)
+            cir(cx, cy, lr + 1.0f, tone(lk.barrelCol, 0.85f))
+        }
+        cir(cx, cy, lr + 0.9f, camOutline)
+        cir(cx, cy, lr, lk.barrelCol)
+        cir(cx, cy, lr * 0.72f, tone(lk.barrelCol, 0.6f))
+        cir(cx, cy, lr * 0.58f, camGlass)
+        cir(cx - lr * 0.26f, cy - lr * 0.28f, lr * 0.26f, camGlassHi)
+        return bmp
+    }
+
+    private fun buildCamProfile(lk: CamLook): Bitmap {
+        val bmp = Bitmap.createBitmap(32, 20, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, rr, b, p)
+        }
+        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
+        }
+        fun ov(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawOval(RectF(l, t, rr, b), p)
         }
 
-        sunIcon = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888).apply {
-            val cv = Canvas(this)
-            val p = Paint()
-            p.isAntiAlias = true
-            p.color = c(0xFFF7CE5B)
-            cv.drawCircle(8f, 8f, 4.6f, p)
-            p.color = c(0xFFF7E9A8)
-            cv.drawCircle(7f, 7f, 3f, p)
-            p.color = c(0xFFF2B63C)
-            p.strokeWidth = 1.6f
-            for (i in 0 until 8) {
-                val a = Math.PI * 2 * i / 8.0
-                cv.drawLine(
-                    (8 + Math.cos(a) * 5.6).toFloat(), (8 + Math.sin(a) * 5.6).toFloat(),
-                    (8 + Math.cos(a) * 7.4).toFloat(), (8 + Math.sin(a) * 7.4).toFloat(), p
-                )
+        val big = lk.style == 3 || lk.style == 4 || lk.style == 5
+        val pro = lk.style == 4
+        val top = if (big) 4.6f else 5.4f
+        val bot = if (pro) 18.0f else 17.2f
+        val bodyL = 1.0f
+        val bodyR = 11.6f
+        val cy = (top + bot) / 2f + 0.3f
+
+        if (big) {
+            o(3.4f, 0.8f, 10.2f, 5.6f, 1.2f, camOutline)
+            o(4.0f, 1.4f, 9.6f, 5.4f, 1.0f, lk.bodyCol)
+        } else if (lk.evf) {
+            o(1.6f, 2.4f, 6.8f, 6.0f, 1.0f, camOutline)
+            o(2.2f, 3.0f, 6.2f, 5.8f, 0.8f, lk.bodyCol)
+        } else if (lk.flash) {
+            o(2.0f, 2.6f, 5.6f, 5.6f, 0.8f, camOutline)
+            o(2.5f, 3.1f, 5.1f, 5.2f, 0.6f, c(0xFFF7EFD2))
+        }
+
+        o(bodyL - 0.6f, top - 0.6f, bodyR + 0.6f, bot + 0.8f, 2.4f, camOutline)
+        o(bodyL, top, bodyR, bot, 2.0f, lk.bodyCol)
+        r(bodyL + 0.6f, top + 0.8f, bodyR - 0.6f, top + 1.7f, tone(lk.bodyCol, 1.18f))
+        o(bodyL, top + 1.0f, bodyL + 3.2f, bot, 1.6f, lk.bodyDark)
+        r(bodyL + 4.6f, top - 1.6f, bodyL + 6.4f, top + 0.2f, lk.accent)
+        if (pro) r(bodyL, bot - 2.2f, bodyR, bot, lk.bodyDark)
+
+        // 경통
+        val ln = (2.6f + lk.barrelLen * 1.9f).coerceAtMost(19.4f)
+        val dia = (5.0f + lk.barrelDia * 1.15f).coerceAtMost(14.6f)
+        val x0 = bodyR - 0.6f
+        val x1 = x0 + ln
+        val t0 = cy - dia / 2f
+        val b0 = cy + dia / 2f
+        r(x0 - 0.6f, t0 - 1.0f, x0 + 1.4f, b0 + 1.0f, camOutline)
+        r(x0 - 0.2f, t0 - 0.6f, x0 + 1.2f, b0 + 0.6f, tone(lk.bodyCol, 1.5f))
+        r(x0 + 1.2f, t0 - 0.7f, x1 + 0.7f, b0 + 0.7f, camOutline)
+        r(x0 + 1.2f, t0, x1, b0, lk.barrelCol)
+        r(x0 + 1.2f, t0, x1, t0 + 1.2f, tone(lk.barrelCol, 1.2f))
+        r(x0 + 1.2f, b0 - 1.0f, x1, b0, tone(lk.barrelCol, 0.78f))
+        val ring = tone(lk.barrelCol, 0.66f)
+        r(x0 + 1.2f + ln * 0.30f, t0, x0 + 1.2f + ln * 0.42f, b0, ring)
+        if (ln > 9f) r(x0 + 1.2f + ln * 0.58f, t0, x0 + 1.2f + ln * 0.68f, b0, ring)
+        if (lk.barrelCol == camWhiteLens) r(x0 + 1.6f, t0, x0 + 2.6f, b0, camGold)
+        if (dia > 10f) r(x0 + 3.0f, b0, x0 + 7.0f, b0 + 1.8f, lk.bodyDark)
+        if (lk.hood) {
+            r(x1 - 2.4f, t0 - 1.6f, x1 + 0.8f, b0 + 1.6f, camOutline)
+            r(x1 - 2.2f, t0 - 1.2f, x1 + 0.2f, b0 + 1.2f, tone(lk.barrelCol, 0.88f))
+        }
+        val gx1 = if (lk.hood) x1 - 1.6f else x1 - 0.4f
+        ov(gx1 - 2.4f, cy - dia * 0.34f, gx1, cy + dia * 0.34f, camGlass)
+        ov(gx1 - 2.0f, cy - dia * 0.2f, gx1 - 1.0f, cy + dia * 0.02f, camGlassHi)
+        return bmp
+    }
+
+    private fun buildCamHeld(lk: CamLook, dir: Int, raised: Boolean): Bitmap {
+        val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, rr, b, p)
+        }
+        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
+        }
+        fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawCircle(cx, cy, rad, p)
+        }
+
+        val ln = (2.0f + lk.barrelLen * 0.95f).coerceAtMost(12.0f)
+        val dia = (3.4f + lk.barrelDia * 0.62f).coerceAtMost(8.0f)
+        val big = lk.style == 3 || lk.style == 4 || lk.style == 5
+
+        if (raised) {
+            when (dir) {
+                0 -> {   // 정면 — 얼굴 앞으로 들어올린 카메라
+                    o(10.2f, 7.0f, 21.8f, 15.4f, 1.6f, camOutline)
+                    o(10.8f, 7.6f, 21.2f, 14.8f, 1.4f, lk.bodyCol)
+                    r(11.4f, 8.2f, 20.6f, 9.2f, lk.bodyDark)
+                    if (big || lk.evf) {
+                        r(13.6f, 5.6f, 18.4f, 7.4f, camOutline)
+                        r(14.2f, 6.0f, 17.8f, 7.4f, lk.bodyCol)
+                    }
+                    r(19.4f, 6.4f, 20.8f, 7.6f, lk.accent)
+                    val gr = dia * 0.42f + 1.4f
+                    if (lk.hood) {
+                        cir(16f, 11.4f, gr + 1.8f, camOutline)
+                        cir(16f, 11.4f, gr + 1.2f, tone(lk.barrelCol, 0.85f))
+                    }
+                    cir(16f, 11.4f, gr + 0.9f, camOutline)
+                    cir(16f, 11.4f, gr, lk.barrelCol)
+                    cir(16f, 11.4f, gr * 0.68f, camGlass)
+                    cir(15.2f, 10.6f, gr * 0.28f, camGlassHi)
+                    r(8.6f, 12.4f, 11.0f, 15.6f, camSkin)
+                    r(21.0f, 12.4f, 23.4f, 15.6f, camSkin)
+                }
+                1 -> {   // 뒤 — 카메라 뒷면(액정)과 팔꿈치
+                    o(11.6f, 7.4f, 20.4f, 14.2f, 1.4f, camOutline)
+                    o(12.2f, 8.0f, 19.8f, 13.6f, 1.2f, lk.bodyDark)
+                    r(13.2f, 9.0f, 18.8f, 12.6f, c(0xFF6E8FA6))
+                    r(8.8f, 11.6f, 11.6f, 15.0f, camSkin)
+                    r(20.4f, 11.6f, 23.2f, 15.0f, camSkin)
+                }
+                else -> { // 측면 — 경통이 정면(오른쪽)으로 뻗는다
+                    o(12.6f, 7.6f, 19.6f, 14.6f, 1.5f, camOutline)
+                    o(13.2f, 8.2f, 19.0f, 14.0f, 1.3f, lk.bodyCol)
+                    if (big || lk.evf) {
+                        r(14.0f, 6.0f, 17.6f, 7.8f, camOutline)
+                        r(14.4f, 6.4f, 17.2f, 7.8f, lk.bodyCol)
+                    }
+                    val x0 = 19.0f
+                    val x1 = (19.0f + ln).coerceAtMost(31.0f)
+                    val ccy = 11.2f
+                    r(x0, ccy - dia / 2f - 0.7f, x1 + 0.7f, ccy + dia / 2f + 0.7f, camOutline)
+                    r(x0, ccy - dia / 2f, x1, ccy + dia / 2f, lk.barrelCol)
+                    r(x0 + (x1 - x0) * 0.4f, ccy - dia / 2f, x0 + (x1 - x0) * 0.52f, ccy + dia / 2f, tone(lk.barrelCol, 0.66f))
+                    if (lk.barrelCol == camWhiteLens) r(x0 + 0.8f, ccy - dia / 2f, x0 + 1.6f, ccy + dia / 2f, camGold)
+                    if (lk.hood) {
+                        r(x1 - 2.2f, ccy - dia / 2f - 1.2f, x1 + 0.7f, ccy + dia / 2f + 1.2f, camOutline)
+                        r(x1 - 2.0f, ccy - dia / 2f - 0.8f, x1, ccy + dia / 2f + 0.8f, tone(lk.barrelCol, 0.88f))
+                    }
+                    cir(x1 - 1.3f, ccy, dia * 0.3f + 0.7f, camGlass)
+                    cir(x1 - 1.8f, ccy - 0.6f, dia * 0.14f + 0.3f, camGlassHi)
+                    r(11.4f, 12.0f, 13.8f, 15.2f, camSkin)
+                }
+            }
+        } else {
+            when (dir) {
+                0 -> {   // 정면 — 가슴에 매달린 카메라
+                    r(12.0f, 15.6f, 13.2f, 17.8f, camStrap)
+                    r(19.0f, 15.6f, 20.2f, 17.8f, camStrap)
+                    o(12.0f, 17.4f, 20.2f, 22.6f, 1.3f, camOutline)
+                    o(12.5f, 17.9f, 19.7f, 22.1f, 1.1f, lk.bodyCol)
+                    r(13.0f, 18.3f, 19.2f, 19.1f, lk.bodyDark)
+                    val gr = dia * 0.3f + 0.9f
+                    cir(16.1f, 20.2f, gr + 0.7f, camOutline)
+                    cir(16.1f, 20.2f, gr, lk.barrelCol)
+                    cir(16.1f, 20.2f, gr * 0.6f, camGlass)
+                    r(18.6f, 17.0f, 19.6f, 17.9f, lk.accent)
+                }
+                1 -> {   // 뒤 — 어깨 위 스트랩과 옆구리의 카메라
+                    r(11.8f, 15.4f, 13.2f, 19.2f, camStrap)
+                    r(19.0f, 15.4f, 20.4f, 19.2f, camStrap)
+                    o(18.8f, 18.6f, 23.0f, 22.4f, 1.2f, camOutline)
+                    o(19.3f, 19.1f, 22.5f, 21.9f, 1.0f, lk.bodyDark)
+                }
+                else -> { // 측면 — 옆구리에 걸친 카메라
+                    r(14.6f, 15.2f, 15.8f, 18.4f, camStrap)
+                    o(13.8f, 18.0f, 20.0f, 22.6f, 1.3f, camOutline)
+                    o(14.3f, 18.5f, 19.5f, 22.1f, 1.1f, lk.bodyCol)
+                    val x0 = 19.2f
+                    val x1 = (19.2f + ln * 0.55f).coerceAtMost(27.0f)
+                    val ccy = 20.3f
+                    val hd = dia * 0.42f
+                    r(x0, ccy - hd - 0.6f, x1 + 0.6f, ccy + hd + 0.6f, camOutline)
+                    r(x0, ccy - hd, x1, ccy + hd, lk.barrelCol)
+                    cir(x1 - 1.0f, ccy, hd * 0.75f, camGlass)
+                }
             }
         }
-
-        moonIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
-            val cv = Canvas(this)
-            val p = Paint()
-            p.isAntiAlias = true
-            val path = Path()
-            path.addCircle(7f, 7f, 6f, Path.Direction.CCW)
-            path.addCircle(9.8f, 5.4f, 5f, Path.Direction.CW)
-            p.color = c(0xFFF7E9A8)
-            cv.drawPath(path, p)
-            p.color = c(0xFFDFD08A)
-            cv.drawCircle(5.4f, 8.4f, 1f, p)
-            cv.drawCircle(4.6f, 5.8f, 0.7f, p)
-        }
+        return bmp
     }
 
     // -----------------------------------------------------------------------
@@ -2069,110 +2890,34 @@ class Assets {
     // -----------------------------------------------------------------------
 
     private fun buildDecorArt() {
-        val arts = ArrayList<Bitmap>()
-
-        fun art(paint: (Canvas, Paint) -> Unit): Bitmap {
-            val b = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-            paint(Canvas(b), Paint())
-            return b
-        }
-        fun r(c: Canvas, p: Paint, l: Float, t: Float, rr: Float, b: Float, col: Int) {
-            p.color = col; c.drawRect(l, t, rr, b, p)
-        }
-
-        // 0) 선인장 화분
-        arts.add(art { c, p ->
-            r(c, p, 10f, 21f, 22f, 29f, c(0xFFB5673F))
-            r(c, p, 9f, 20f, 23f, 22f, c(0xFFC97B50))
-            r(c, p, 11f, 22f, 21f, 28f, c(0xFFA85834))
-            r(c, p, 13.4f, 9f, 18.6f, 21f, c(0xFF4F9E57))
-            r(c, p, 14.4f, 10f, 16.2f, 20f, c(0xFF6BBA72))
-            r(c, p, 9f, 12f, 12.4f, 18f, c(0xFF4F9E57))
-            r(c, p, 9.8f, 12.8f, 11f, 17f, c(0xFF6BBA72))
-            r(c, p, 19.6f, 14f, 23f, 20f, c(0xFF4F9E57))
-            r(c, p, 21f, 15f, 22.2f, 19f, c(0xFF6BBA72))
-            r(c, p, 14.8f, 5.4f, 17.2f, 8f, c(0xFFF2A3B3))
-            r(c, p, 15.4f, 6f, 16.6f, 7.4f, c(0xFFFDF6E8))
-        })
-        // 1) 원목 책장
-        arts.add(art { c, p ->
-            r(c, p, 5f, 3f, 27f, 30f, c(0xFF6B431F))
-            r(c, p, 6.4f, 4.4f, 25.6f, 28.6f, c(0xFF8A5A33))
-            r(c, p, 6.4f, 12.4f, 25.6f, 14f, c(0xFF6B431F))
-            r(c, p, 6.4f, 21f, 25.6f, 22.6f, c(0xFF6B431F))
-            // 책들
-            r(c, p, 8f, 8f, 10.4f, 12.4f, c(0xFFE2574C))
-            r(c, p, 10.8f, 8.6f, 13.2f, 12.4f, c(0xFF3F6FB0))
-            r(c, p, 13.6f, 8f, 15.4f, 12.4f, c(0xFFF2D06B))
-            r(c, p, 16f, 8.8f, 19f, 12.4f, c(0xFF4F9E57))
-            r(c, p, 20f, 8f, 21.6f, 12.4f, c(0xFFC3A3E8))
-            r(c, p, 8f, 16.6f, 11.4f, 21f, c(0xFF3F6FB0))
-            r(c, p, 11.8f, 17.2f, 14.4f, 21f, c(0xFFF2D06B))
-            r(c, p, 15f, 16.6f, 18.6f, 21f, c(0xFFE2574C))
-            r(c, p, 19.6f, 17.4f, 22.4f, 21f, c(0xFF4F9E57))
-            r(c, p, 8.6f, 25f, 16f, 28.6f, c(0xFFC89B6A))
-            r(c, p, 17f, 25.6f, 23.4f, 28.6f, c(0xFFA87B4F))
-        })
-        // 2) 러그
-        arts.add(art { c, p ->
-            val p2 = Paint()
-            p2.isAntiAlias = true
-            p2.color = c(0xFFB55338)
-            c.drawOval(RectF(3f, 6f, 29f, 28f), p2)
-            p2.color = c(0xFFD96C64)
-            c.drawOval(RectF(5f, 8f, 27f, 26f), p2)
-            p2.color = c(0xFFF2D06B)
-            c.drawOval(RectF(7.4f, 10.2f, 24.6f, 23.8f), p2)
-            p2.color = c(0xFFD96C64)
-            c.drawOval(RectF(10f, 12.6f, 22f, 21.4f), p2)
-            p2.color = c(0xFFFDF6E8)
-            c.drawOval(RectF(13f, 15f, 19f, 19f), p2)
-        })
-        // 3) 스탠드 조명
-        arts.add(art { c, p ->
-            r(c, p, 14.8f, 11f, 17.2f, 26f, c(0xFF5A626C))
-            r(c, p, 15.6f, 11f, 16.4f, 26f, c(0xFF7C8590))
-            r(c, p, 10f, 26f, 22f, 29f, c(0xFF3A3F4A))
-            r(c, p, 9f, 4f, 23f, 11.4f, c(0xFFE8A75C))
-            r(c, p, 10.4f, 5.4f, 21.6f, 10.6f, c(0xFFF7CE5B))
-            r(c, p, 12f, 6.6f, 20f, 9.4f, c(0xFFFFFBE0))
-            r(c, p, 9f, 11f, 23f, 12.4f, c(0xFFC97B50))
-        })
-        // 4) 트로피
-        arts.add(art { c, p ->
-            r(c, p, 9f, 5f, 23f, 15f, c(0xFFF2B63C))
-            r(c, p, 10.4f, 6.4f, 21.6f, 13.6f, c(0xFFF7CE5B))
-            r(c, p, 5.4f, 6f, 8.4f, 12f, c(0xFFD99B26))
-            r(c, p, 23.6f, 6f, 26.6f, 12f, c(0xFFD99B26))
-            r(c, p, 14f, 15f, 18f, 20f, c(0xFFD99B26))
-            r(c, p, 10f, 20f, 22f, 23f, c(0xFFB0793F))
-            r(c, p, 8f, 23f, 24f, 27f, c(0xFF6B431F))
-            r(c, p, 13f, 8f, 15f, 12f, c(0xFFFFFBE0))
-            r(c, p, 16.6f, 9f, 18.6f, 11f, c(0xFFE8863C))
-        })
-        // 5) 빈티지 라디오
-        arts.add(art { c, p ->
-            r(c, p, 4f, 9f, 28f, 27f, c(0xFF8A5A33))
-            r(c, p, 5.4f, 10.4f, 26.6f, 25.6f, c(0xFFA87B4F))
-            r(c, p, 7f, 12f, 18f, 16f, c(0xFFD9C39A))
-            r(c, p, 7.6f, 12.6f, 17.4f, 15.4f, c(0xFF23232B))
-            r(c, p, 8.4f, 13.4f, 16f, 14.6f, c(0xFF4A4A55))
-            r(c, p, 20f, 12f, 25f, 16f, c(0xFFF2D06B))
-            r(c, p, 20.8f, 12.8f, 24.2f, 15.2f, c(0xFFFFFBE0))
-            r(c, p, 7f, 18.4f, 25f, 24f, c(0xFFC89B6A))
-            r(c, p, 8f, 19.4f, 24f, 20f, c(0xFF7A5A33))
-            r(c, p, 8f, 21.4f, 24f, 22f, c(0xFF7A5A33))
-            r(c, p, 12f, 5.4f, 20f, 9f, c(0xFF6B431F))
-            r(c, p, 13f, 6.4f, 19f, 8.4f, c(0xFF5A626C))
-        })
-
-        decorArt = arts.toTypedArray()
+        decorArt = arrayOf(
+            renderPixel("decor_cactus", 32, 32),
+            renderPixel("decor_bookshelf", 32, 32),
+            renderPixel("decor_rug", 32, 32),
+            renderPixel("decor_lamp", 32, 32),
+            renderPixel("decor_trophy", 32, 32),
+            renderPixel("decor_radio", 32, 32)
+        )
     }
 
     // -----------------------------------------------------------------------
 
-    /** 새 비트맵 (안전 접근) */
-    fun bird(id: String): Bitmap = birds[id] ?: birds.values.first()
+    /** 새 비트맵 (안전 접근) — 처음 보는 종은 그 자리에서 만들어 캐시한다.
+     * 게임 스레드에서만 호출할 것 (생성 비용 1ms 안팎이라 스폰/도감 페이징 때 부담 없음) */
+    fun bird(id: String): Bitmap {
+        birdCache[id]?.let { return it }
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        val bmp = buildBird(def)
+        birdCache[def.id] = bmp
+        return bmp
+    }
+
+    /** 이 목록의 종을 미리 만들어 둔다 (장면 전환 뒤 스폰 렉을 막고 싶을 때) */
+    fun prewarmBirds(defs: Collection<BirdDef>) {
+        for (d in defs) {
+            if (d.id !in birdCache) birdCache[d.id] = buildBird(d)
+        }
+    }
 
     /** 오른쪽을 바라보는 새 (플립, 지연 생성) */
     fun birdFlipped(id: String): Bitmap {
@@ -2199,4 +2944,16 @@ class Assets {
 
     fun birdW(id: String): Float = bird(id).width.toFloat()
     fun birdH(id: String): Float = bird(id).height.toFloat()
+
+    // 아트 빌더는 모든 데이터 필드(artIds 등) 선언 이후에 실행돼야 한다 —
+    // 클래스 끝에 두어 초기화 순서 문제(Kotlin 프로퍼티 선언 순서)를 원천 차단한다.
+    // 새는 여기서 만들지 않는다 — bird(id) 가 종별 지연 생성 (시작 시간 단축)
+    init {
+        buildCat()
+        buildGrassRig()
+        buildTiles()
+        buildIcons()
+        buildDecorArt()
+    }
+
 }

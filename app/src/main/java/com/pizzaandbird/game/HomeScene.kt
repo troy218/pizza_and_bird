@@ -21,8 +21,16 @@ class HomeScene(game: Game) : Scene(game) {
     val map: GameMap = MapBuilder.buildHome()
     private val player = Player()
 
+    /** 집 안에서도 같은 카메라 리그를 쓴다 (걸음 출렁임 · 화덕 충격) */
+    private val rig = ViewRig(game.state)
+
+    /** 캔버스 원점에 대응하는 월드 좌표 */
     private var camX = 0f
     private var camY = 0f
+    private var velX = 0f
+    private var velY = 0f
+
+    /** 탭 좌표 역변환용 — drawWorld가 쓰는 카메라 기준점 */
     override fun cameraOffset(): PointF = PointF(camX, camY)
 
     private val tinyPaint = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply {
@@ -30,6 +38,8 @@ class HomeScene(game: Game) : Scene(game) {
         textSize = 14f
     }
     private val uiFill = Paint()
+    private val promptPaint = Paint().apply { color = 0xFFF2D06B.toInt() }
+    private val ovenIllustrationBounds = RectF()
     private val aaFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val aaStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -52,32 +62,32 @@ class HomeScene(game: Game) : Scene(game) {
         get() = state.weather()
 
     /** 창문 타일 (x, y) — MapBuilder.buildHome 의 WALL_WIN 과 1:1 */
-    private val windowTiles = listOf(2 to 1, 5 to 1, 8 to 1)
+    private val windowTiles = listOf(2 to 1, 6 to 1, 10 to 1, 13 to 1)
 
     // 상호작용 대상 위치 (월드 px)
-    private val ovenX = 10f * 16f          // 화덕 (2x2) — 화덕피자
-    private val ovenY = 4f * 16f
-    private val rangeX = 11.5f * 16f       // 가정용 오븐 (1x2, 화덕 오른쪽) — 일반 피자
-    private val rangeY = 4f * 16f
-    private val bedX = 3f * 16f
+    private val ovenX = 12.5f * 16f       // buildHome 화덕 타일 (12..13, 2..3) 중심 — 16x12 확장 레이아웃
+    private val ovenY = 3.5f * 16f
+    private val rangeX = 11.5f * 16f      // 가정용 오븐 (1x2, 화덕 왼쪽) — 일반 피자
+    private val rangeY = 3.5f * 16f
+    private val bedX = 3f * 16f           // 침대 타일 (2..3, 2..3) 중심
     private val bedY = 3f * 16f
     private val boxX = 2.5f * 16f
-    private val boxY = 6.5f * 16f
+    private val boxY = 8.5f * 16f
     // 거실의 인테리어 카탈로그. A를 누르면 여러 디자인을 보고 구매한다.
-    private val interiorX = 4.5f * 16f
-    private val interiorY = 6.5f * 16f
+    private val interiorX = 5f * 16f
+    private val interiorY = 8.5f * 16f
 
     /** 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1 */
     private val decorSpots = listOf(
-        Triple(0, 5.5f * 16f, 3f * 16f),
-        Triple(1, 7.5f * 16f, 3f * 16f),
-        Triple(2, 11.5f * 16f, 6f * 16f)
+        Triple(0, 6.5f * 16f, 3f * 16f),
+        Triple(1, 9.5f * 16f, 3f * 16f),
+        Triple(2, 13.5f * 16f, 8f * 16f)
     )
     /** 장식이 놓이는 타일 위치 (월드 px, 좌상단) */
     private val decorTiles = listOf(
-        5f * 16f to 2f * 16f,
-        7f * 16f to 2f * 16f,
-        11f * 16f to 5f * 16f
+        6f * 16f to 2f * 16f,
+        9f * 16f to 2f * 16f,
+        13f * 16f to 7f * 16f
     )
 
     /** 상호작용 대상 (A버튼 반경 / 탭 반경). 화덕과 오븐이 나란히 있으므로 항상 가장 가까운 것을 고른다. */
@@ -93,7 +103,13 @@ class HomeScene(game: Game) : Scene(game) {
 
     init {
         state.inHome = true
-        player.set(6 * 16f + 4f, 6 * 16f)
+        rig.snap(
+            map.w * 8f, map.h * 8f, 1f,
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE
+        )
+        syncCamera()
+        player.set(7.5f * 16f, 8.5f * 16f)   // 16x12 확장 룸 중앙
         state.px = player.x
         state.py = player.y
 
@@ -109,11 +125,14 @@ class HomeScene(game: Game) : Scene(game) {
         game.audio.stopAmb()
     }
 
+    override fun camera(): ViewRig = rig
+
     override fun update(dt: Float) {
         game.hud.update(dt)
         if (overlay != null) {
             game.audio.stopSteps()
-            return   // 대화상자/메뉴 중에는 정지
+            updateRig(dt, 0f, 0f, Gait.IDLE)   // 화덕 미니게임 뒤에서도 여운은 이어진다
+            return
         }
         state.playSeconds += dt * 0.4f
         state.advanceClock(dt)
@@ -132,12 +151,16 @@ class HomeScene(game: Game) : Scene(game) {
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
             val vx = if (len > 0.01f) dx / len else 0f
             val vy = if (len > 0.01f) dy / len else 0f
-            val speed = if (state.hunger <= 0f) 34f else 55f
+            val speed = (if (state.hunger <= 0f) 34f else 55f) * input.moveScale
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.play(Anim.WALK, dt, (speed / 55f).coerceIn(0.5f, 1.6f))
+            velX = vx * speed
+            velY = vy * speed
         } else {
             player.play(Anim.IDLE, dt)
+            velX = 0f
+            velY = 0f
         }
 
         // 발소리 (나무 바닥)
@@ -149,12 +172,43 @@ class HomeScene(game: Game) : Scene(game) {
             return
         }
 
-        // 카메라 (작은 맵 중앙 고정)
-        camX = (map.w * 16f - game.virtW / WORLD_SCALE) / 2f
-        camY = (map.h * 16f - game.virtH / WORLD_SCALE) / 2f
+        // 카메라 — 방이 화면보다 작아 중앙 고정이지만, 걸음 출렁임은 그대로 살아 있다
+        updateRig(dt, velX, velY, if (moving) Gait.WALK else Gait.IDLE)
 
         state.px = player.x
         state.py = player.y
+
+        // 메인 버튼 맥락 아이콘 (근처 상호작용 대상)
+        game.hud.contextIcon = nearestInteract()?.let { (target, _) ->
+            when (target) {
+                "oven" -> "🔥"
+                "range" -> "🍕"
+                "bed" -> "🛏"
+                "box" -> "📦"
+                "interior" -> "🎨"
+                else -> "🪴"
+            }
+        }
+    }
+
+    private fun updateRig(dt: Float, vx: Float, vy: Float, gait: Gait) {
+        rig.update(
+            dt,
+            map.w * 8f, map.h * 8f,          // 방 한가운데
+            vx, vy, gait, 1f,
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE
+        )
+        syncCamera()
+    }
+
+    /** 캔버스 원점(0,0)에 대응하는 월드 좌표 (줌 보정 포함) */
+    private fun syncCamera() {
+        val z = rig.zoom
+        val hx = game.virtW / 2f
+        val hy = game.virtH / 2f
+        camX = (rig.x * WORLD_SCALE - hx + game.virtW / (2f * z)) / WORLD_SCALE
+        camY = (rig.y * WORLD_SCALE - hy + game.virtH / (2f * z)) / WORLD_SCALE
     }
 
     private fun moveBy(dx: Float, dy: Float) {
@@ -345,7 +399,7 @@ class HomeScene(game: Game) : Scene(game) {
             if (near != null) {
                 interact(near.first, near.second)
             } else {
-                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 A를 눌러보세요!")
+                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 육각 메인 버튼을 눌러보세요!")
             }
             return
         }
@@ -364,6 +418,11 @@ class HomeScene(game: Game) : Scene(game) {
         c.drawColor(0xFF3A3040.toInt())
         val camXv = camX * WORLD_SCALE
         val camYv = camY * WORLD_SCALE
+        val hx = game.virtW / 2f
+        val hy = game.virtH / 2f
+        c.save()
+        if (rig.roll != 0f) c.rotate(rig.roll, hx, hy)
+        if (rig.zoom != 1f) c.scale(rig.zoom, rig.zoom, hx, hy)
         map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
         drawInteriorStyle(c)
         drawWindows(c, camXv, camYv)
@@ -377,15 +436,13 @@ class HomeScene(game: Game) : Scene(game) {
         val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
         uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
         c.drawCircle(ovenScreenX, ovenScreenY - 11f, 47f + heat * 4f, uiFill)
-        game.illustrations.draw(
-            c, "wood_fired_oven.svg",
-            RectF(
-                (9f * 16f - camX) * WORLD_SCALE - 32f,
-                (1f * 16f - camY) * WORLD_SCALE - 8f,
-                (9f * 16f - camX) * WORLD_SCALE + 64f,
-                (1f * 16f - camY) * WORLD_SCALE + 100f
-            )
+        ovenIllustrationBounds.set(
+            (12f * 16f - camX) * WORLD_SCALE - 16f,
+            (1f * 16f - camY) * WORLD_SCALE - 8f,
+            (12f * 16f - camX) * WORLD_SCALE + 80f,
+            (1f * 16f - camY) * WORLD_SCALE + 100f
         )
+        game.illustrations.draw(c, "wood_fired_oven.svg", ovenIllustrationBounds)
 
         val a = game.assets
 
@@ -401,16 +458,27 @@ class HomeScene(game: Game) : Scene(game) {
         // 플레이어
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
-        c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+        c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
         val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        // 집 안에서도 카메라는 목에 걸고 다닌다
+        val camDir = when (player.facing) {
+            Dir.E -> 2
+            Dir.W -> 3
+            Dir.N -> 1
+            else -> 0
+        }
+        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)
 
         // 조명 (밤엔 화덕·스탠드 조명이 방을 밝힌다)
         drawHomeLighting(c, camXv, camYv)
+
+        // 비네트
+        c.drawBitmap(a.vignette, null, RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()), a.sprPaint)
 
         // 가까운 상호작용 대상 힌트
         val near = nearestInteract()
@@ -429,13 +497,12 @@ class HomeScene(game: Game) : Scene(game) {
             val bob = sin(game.time * 3f) * 2.5f
             val bx = (pos.first - camX) * WORLD_SCALE
             val by = (pos.second - camY) * WORLD_SCALE - 30f + bob
-            val p = Paint()
-            p.color = 0xFFF2D06B.toInt()
-            c.drawCircle(bx, by, 9f, p)
+            c.drawCircle(bx, by, 9f, promptPaint)
             tinyPaint.textSize = 14f
             val tw = tinyPaint.measureText("!")
             c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
         }
+        c.restore()
     }
 
     /** 선택한 스타일에 따라 바닥·벽·포인트를 다시 칠해 네 가지 집 분위기를 보여준다. */
@@ -460,19 +527,20 @@ class HomeScene(game: Game) : Scene(game) {
                 }
             }
         }
-        // 스타일별 포인트 라인/패턴
-        // (집 내부는 화면 중앙에 오므로 카메라 오프셋을 더해야 제자리에 그려진다)
+        // 스타일별 포인트 라인/패턴 — 룸(16x12 타일) 좌표계를 그대로 따른다.
+        // (이전 구현은 누락된 좌표 변환 때문에 방 밖까지 그려지는 버그가 있었다)
         p.color = Color.argb(150, Color.red(style.accentTint), Color.green(style.accentTint), Color.blue(style.accentTint))
-        val ox = -camX * WORLD_SCALE
-        val oy = -camY * WORLD_SCALE
+        fun rx(px: Float): Float = (px - camX) * WORLD_SCALE
+        fun ry(py: Float): Float = (py - camY) * WORLD_SCALE
+        val roomPx = map.w * 16f     // 방 폭 (월드 px)
         when (style.id) {
-            "hanok" -> c.drawRect(ox + 32f, oy + 64f, ox + 384f, oy + 69f, p)
-            "modern" -> c.drawRect(ox + 32f, oy + 190f, ox + 384f, oy + 195f, p)
+            "hanok" -> c.drawRect(rx(32f), ry(64f), rx(roomPx - 32f), ry(69f), p)
+            "modern" -> c.drawRect(rx(32f), ry(190f), rx(roomPx - 32f), ry(195f), p)
             "garden" -> {
-                c.drawCircle(ox + 130f, oy + 190f, 14f, p)
-                c.drawCircle(ox + 165f, oy + 190f, 10f, p)
+                c.drawCircle(rx(130f), ry(190f), 14f, p)
+                c.drawCircle(rx(165f), ry(190f), 10f, p)
             }
-            else -> c.drawRect(ox + 32f, oy + 202f, ox + 384f, oy + 206f, p)
+            else -> c.drawRect(rx(32f), ry(202f), rx(roomPx - 32f), ry(206f), p)
         }
         // 인테리어 카탈로그 보드
         val bx = (interiorX - 10f - camX) * WORLD_SCALE
@@ -714,25 +782,33 @@ class HomeScene(game: Game) : Scene(game) {
     private fun drawHomeLighting(c: Canvas, camXv: Float, camYv: Float) {
         val dl = daylight(state.worldTime)
         val flick = 0.9f + sin(game.time * 9.1f) * 0.05f + sin(game.time * 15.7f) * 0.05f
-        val ovx = (10f * 16f - camX) * WORLD_SCALE
-        val ovy = (3f * 16f + 4f - camY) * WORLD_SCALE
+        val ovx = (ovenX - camX) * WORLD_SCALE
+        val ovy = (ovenY - camY) * WORLD_SCALE
         val dark = ((1f - dl) * 100f).toInt()
         if (dark > 4) {
             val k = dark / 100f
-            val lm = LightMaps.get(game.virtW, game.virtH)
+            // 월드 씬과 같은 크기의 라이트맵을 공유한다 (씬을 오갈 때 2MB 비트맵 재할당 방지).
+            // 흔들림이 있어도 가장자리가 새지 않도록 LP 만큼 밀어서 덮는다.
+            val lp = (WorldScene.LIGHT_W - game.virtW) / 2f
+            val lpy = (WorldScene.LIGHT_H - game.virtH) / 2f
+            val lm = LightMaps.get(WorldScene.LIGHT_W, WorldScene.LIGHT_H)
             lm.begin(Color.argb(dark, 16, 18, 46))
-            lm.light(ovx, ovy, 120f * flick, (255 * k).toInt())
+            lm.light(ovx + lp, ovy + lpy, 120f * flick, (255 * k).toInt())
             for (i in decorTiles.indices) {
                 if (state.decorSlots[i] == 3) {
                     val (tx, ty) = decorTiles[i]
-                    lm.light((tx - camX) * WORLD_SCALE + 16f, (ty - camY) * WORLD_SCALE + 12f, 100f, (255 * k).toInt())
+                    lm.light((tx - camX) * WORLD_SCALE + 16f + lp, (ty - camY) * WORLD_SCALE + 12f + lpy, 100f, (255 * k).toInt())
                 }
             }
-            lm.light((player.cx - camX) * WORLD_SCALE, (player.cy - camY) * WORLD_SCALE - 8f, 56f, (110 * k).toInt())
+            lm.light((player.cx - camX) * WORLD_SCALE + lp, (player.cy - camY) * WORLD_SCALE - 8f + lpy, 56f, (110 * k).toInt())
+            c.save()
+            c.translate(-lp, -lpy)
             lm.end(c)
+            c.restore()
         }
-        // 화덕 불빛은 낮에도 은은하게
+        // 화덕·가정용 오븐 불빛은 낮에도 은은하게
         Glow.draw(c, Glow.warm, ovx, ovy, 46f * flick, 38f * flick, (60 + 90 * (1f - dl)).toInt())
+        Glow.draw(c, Glow.warm, (rangeX - camX) * WORLD_SCALE, (rangeY - camY) * WORLD_SCALE, 34f * flick, 28f * flick, (45 + 70 * (1f - dl)).toInt())
         for (i in decorTiles.indices) {
             if (state.decorSlots[i] == 3) {
                 val (tx, ty) = decorTiles[i]

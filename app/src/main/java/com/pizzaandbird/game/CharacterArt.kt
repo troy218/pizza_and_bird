@@ -763,18 +763,20 @@ object CharacterArt {
     // 자전거 (페달을 밟는 라이더)
     // -----------------------------------------------------------------------
 
-    private val BIKE_COL = 0xFFC9503A.toInt()
-    private val BIKE_DARK = 0xFF8A3326.toInt()
-    private val TIRE = 0xFF3A3A44.toInt()
-    private val TIRE_IN = 0xFF5A5A66.toInt()
     private val RIM = 0xFF23232B.toInt()
     private val METAL = 0xFF9AA0AD.toInt()
     private val HELMET = 0xFFD9534F.toInt()
     private val HELMET_DARK = 0xFFB23F44.toInt()
-    private val LEATHER = 0xFF33241C.toInt()
 
-    /** direction: SIDE(오른쪽)/FRONT/BACK, phase: 0~1 페달 한 바퀴 */
-    fun renderBike(direction: Int, phase: Float, look: Look): Bitmap {
+    /** direction: SIDE(오른쪽)/FRONT/BACK, phase: 0~1 페달 한 바퀴, style: 모델·도색·부속품 */
+    fun renderBike(direction: Int, phase: Float, look: Look, style: BikeStyle): Bitmap {
+        // 도색: 프레임 / 바퀴 / 안장·그립
+        val BIKE_COL = style.frame.argb
+        val BIKE_DARK = shade(BIKE_COL, 0.68f)
+        val TIRE = style.tire.argb
+        val TIRE_IN = shade(TIRE, 1.55f)
+        val LEATHER = style.saddle.argb
+        val kind = style.modelId
         val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         val g = G(Canvas(bmp))
         val pal = look.pal
@@ -794,9 +796,9 @@ object CharacterArt {
             }
         }
 
-        fun wheel(cx: Float, cy: Float, r: Float, spin: Float) {
+        fun wheel(cx: Float, cy: Float, r: Float, spin: Float, ti: Float = 1.1f) {
             ring(cx, cy, r - 0.5f, 1f, RIM)
-            ring(cx, cy, r - 1.1f, 0.5f, TIRE)
+            ring(cx, cy, r - ti, (ti * 0.5f).coerceAtLeast(0.4f), TIRE)
             for (i in 0 until 4) {
                 val a = spin + i * (PI.toFloat() / 4f)
                 g.seg(
@@ -809,21 +811,82 @@ object CharacterArt {
         }
 
         if (direction == SIDE) {
-            val rear = 7.4f; val front = 24.6f; val wy = 25.6f; val r = 5.6f
+            // 모델별 지오메트리 (탈것은 자전거만 — 종류에 따라 바퀴·프레임이 달라진다)
+            val rear: Float; val front: Float; val wy: Float
+            val wr: Float; val ti: Float
+            var frontY = 0f; var frontR = 0f
             val crankX = 16f; val crankY = 24.2f; val pr = 2.7f
-            val sadX = 11.6f; val sadY = 16.6f + bob
-            val barX = 23f; val barY = 15.4f + bob
-            wheel(rear, wy, r, -ang)
-            wheel(front, wy, r, -ang)
-            g.seg(rear, wy, crankX, crankY, 0.9f, 0.9f, BIKE_DARK)
-            g.seg(rear, wy, sadX, sadY + 1.4f, 0.9f, 0.8f, BIKE_COL)
-            g.seg(crankX, crankY, sadX, sadY + 1.4f, 1f, 0.9f, BIKE_COL)
-            g.seg(crankX, crankY, barX - 0.6f, barY + 1.6f, 1f, 0.8f, BIKE_COL)
-            g.seg(sadX, sadY + 1.4f, barX - 0.6f, barY + 1.6f, 0.8f, 0.7f, BIKE_COL)
-            g.seg(barX - 0.6f, barY + 1.6f, front, wy, 0.85f, 0.75f, METAL)
-            g.rrect(sadX - 2.6f, sadY - 0.2f, sadX + 2f, sadY + 1.4f, 0.8f, LEATHER)
+            var sadX = 11.6f; var sadY = 16.6f + bob
+            var barX = 23f; var barY = 15.4f + bob
+            when (kind) {
+                "minivelo" -> { rear = 8.4f; front = 23.6f; wy = 26.3f; wr = 4.3f; ti = 1.0f }
+                "bmx" -> { rear = 8f; front = 24f; wy = 26f; wr = 4.8f; ti = 1.5f; sadY -= 0.6f; barY -= 1.3f }
+                "road", "fixie" -> { rear = 7.4f; front = 24.6f; wy = 25.6f; wr = 5.4f; ti = 0.9f; barY -= 0.7f }
+                "mtb" -> { rear = 7.3f; front = 24.7f; wy = 25.5f; wr = 5.9f; ti = 1.7f }
+                "cruiser" -> { rear = 7.1f; front = 24.9f; wy = 25.2f; wr = 6.1f; ti = 1.9f; sadY -= 0.3f; barY += 0.5f }
+                "ebike" -> { rear = 7.4f; front = 24.6f; wy = 25.6f; wr = 5.6f; ti = 1.3f }
+                "tandem" -> { rear = 6.2f; front = 25.8f; wy = 25.6f; wr = 5.5f; ti = 1.1f }
+                "vintage" -> {
+                    rear = 7.6f; front = 22.8f; wy = 25.9f; wr = 4.2f; ti = 1.0f
+                    frontY = 21.6f; frontR = 8.2f
+                    sadY -= 1.6f; barX = 24.2f; barY -= 3.2f
+                }
+                else -> { rear = 7.4f; front = 24.6f; wy = 25.6f; wr = 5.6f; ti = 1.1f } // basic/city
+            }
+            wheel(rear, wy, wr, -ang, ti)
+            if (kind == "vintage") wheel(front, frontY, frontR, -ang, 1.3f)
+            else wheel(front, wy, wr, -ang, ti)
+            if (kind == "vintage") {
+                // 대형 앞바퀴 + 작은 뒷바퀴의 백본 프레임
+                g.seg(rear, wy, sadX + 1f, sadY + 1.3f, 0.9f, 0.8f, BIKE_COL)
+                g.seg(sadX + 1f, sadY + 1.3f, barX - 1.2f, barY + 1.3f, 0.9f, 0.8f, BIKE_COL)
+                g.seg(barX - 1.2f, barY + 1.3f, front, frontY, 0.9f, 0.8f, BIKE_COL)
+                g.seg(rear, wy, crankX - 1.2f, crankY - 1f, 0.7f, 0.7f, BIKE_DARK)
+            } else if (kind == "tandem") {
+                // 두 사람이 타는 긴 프레임 + 뒤 탑승자 안장
+                g.seg(rear, wy, crankX - 4.8f, crankY - 0.4f, 0.9f, 0.9f, BIKE_DARK)
+                g.seg(rear, wy, sadX - 4.2f, sadY + 1.6f, 0.9f, 0.8f, BIKE_COL)
+                g.seg(crankX - 4.8f, crankY - 0.4f, sadX - 4.2f, sadY + 1.6f, 1f, 0.9f, BIKE_COL)
+                g.seg(crankX - 4.8f, crankY - 0.4f, crankX, crankY, 1f, 1f, BIKE_DARK)
+                g.seg(crankX, crankY, sadX, sadY + 1.4f, 1f, 0.9f, BIKE_COL)
+                g.seg(crankX, crankY, barX - 0.6f, barY + 1.6f, 1f, 0.8f, BIKE_COL)
+                g.seg(sadX, sadY + 1.4f, barX - 0.6f, barY + 1.6f, 0.8f, 0.7f, BIKE_COL)
+                g.seg(barX - 0.6f, barY + 1.6f, front, wy, 0.85f, 0.75f, METAL)
+                g.rrect(sadX - 6.8f, sadY - 0.1f, sadX - 2.8f, sadY + 1.3f, 0.8f, LEATHER) // 뒤 안장
+            } else {
+                g.seg(rear, wy, crankX, crankY, 0.9f, 0.9f, BIKE_DARK)
+                g.seg(rear, wy, sadX, sadY + 1.4f, 0.9f, 0.8f, BIKE_COL)
+                g.seg(crankX, crankY, sadX, sadY + 1.4f, 1f, 0.9f, BIKE_COL)
+                g.seg(crankX, crankY, barX - 0.6f, barY + 1.6f, 1f, 0.8f, BIKE_COL)
+                g.seg(sadX, sadY + 1.4f, barX - 0.6f, barY + 1.6f, 0.8f, 0.7f, BIKE_COL)
+                g.seg(barX - 0.6f, barY + 1.6f, front, wy, 0.85f, 0.75f, METAL)
+                if (kind == "mtb") {
+                    g.rrect(barX - 1.3f, barY + 1.6f, barX + 0.1f, barY + 5.4f, 0.7f, METAL) // 서스펜션 포크
+                }
+                if (kind == "ebike") {
+                    g.rrect(13.6f, 21.2f, 19.2f, 24.2f, 1f, RIM)                   // 배터리
+                    g.rrect(14f, 21.5f, 18.8f, 23.9f, 0.9f, 0xFF4A4A56.toInt())
+                    g.rect(14.8f, 22.1f, 17.8f, 22.9f, 0xFF6FB6C9.toInt())
+                }
+            }
+            val sadW = when (kind) {
+                "cruiser" -> 3.2f
+                "road", "fixie", "bmx" -> 1.9f
+                else -> 2.6f
+            }
+            g.rrect(sadX - sadW, sadY - 0.2f, sadX + 2f, sadY + 1.4f, 0.8f, LEATHER)
             g.rrect(barX - 2.6f, barY - 0.4f, barX + 1.6f, barY + 1f, 0.7f, LEATHER)
+            if (kind == "road" || kind == "fixie") {
+                g.rrect(barX + 0.2f, barY + 0.4f, barX + 1.8f, barY + 2.8f, 0.9f, LEATHER) // 드롭바
+            }
             g.circ(barX + 1.4f, barY + 0.3f, 1.1f, RIM)
+
+            // 부속품 — 뒤쪽(짐받이)은 라이더보다 먼저
+            if (style.rack) {
+                g.rrect(rear - 1.4f, wy - wr - 2.4f, rear + 5f, wy - wr - 1.2f, 0.5f, METAL)
+                g.seg(rear - 0.8f, wy - wr - 1.4f, rear - 0.4f, wy - wr + 1.2f, 0.5f, 0.5f, METAL)
+                g.seg(rear + 4.2f, wy - wr - 1.4f, rear + 4.4f, wy - wr + 1.2f, 0.5f, 0.5f, METAL)
+            }
 
             val hipXs = sadX + 0.6f
             val hipYs = sadY - 0.6f
@@ -873,16 +936,53 @@ object CharacterArt {
             g.rect(hx + 1.6f, hy + 0.2f, hx + 3f, hy + 1.8f, pal.eye)
             g.rect(hx + 4f, hy + 1.2f, hx + 4.8f, hy + 2.2f, pal.skin2)
             g.rect(hx + 1.4f, hy + 2.6f, hx + 2.8f, hy + 3.5f, pal.blush)
+
+            // 부속품 — 앞쪽(바구니/전조등/방울/스트리머)
+            if (style.basket) {
+                g.rrect(barX + 1.2f, barY + 1.2f, barX + 6.6f, barY + 5.8f, 1f, 0xFFC9A05C.toInt())
+                g.rect(barX + 1.8f, barY + 2.6f, barX + 6f, barY + 3.2f, 0xFFB08840.toInt())
+                g.rect(barX + 1.8f, barY + 4.2f, barX + 6f, barY + 4.8f, 0xFFB08840.toInt())
+            }
+            if (style.light) {
+                g.circ(barX + 1.8f, barY - 1.3f, 1.3f, METAL)
+                g.circ(barX + 2.4f, barY - 1.3f, 0.75f, 0xFFF2E3C2.toInt())
+            }
+            if (style.bell) {
+                g.circ(barX - 1.3f, barY - 1.3f, 1.05f, 0xFFD9A03C.toInt())
+                g.circ(barX - 1.3f, barY - 1.7f, 0.5f, 0xFFF2D06B.toInt())
+            }
+            if (style.streamers) {
+                g.seg(barX - 1.2f, barY + 0.6f, barX - 4.2f, barY + 1.8f, 0.7f, 0.4f, 0xFFDB6B9A.toInt())
+                g.seg(barX - 1.4f, barY + 1.5f, barX - 4.6f, barY + 3.2f, 0.6f, 0.35f, 0xFFF2D06B.toInt())
+            }
             return bmp
         }
 
         // 정면 / 뒷면
         val cx = 16f + sway * 0.6f
-        wheel(16f, 27.4f, 4.5f, -ang)
+        val wrF = when (kind) {
+            "minivelo" -> 3.5f
+            "bmx", "road", "fixie" -> 3.9f
+            "cruiser", "mtb" -> 4.8f
+            "vintage" -> 5f
+            else -> 4.5f
+        }
+        val hw = when (kind) {          // 핸들바 반폭
+            "road", "fixie" -> 6.6f
+            "cruiser" -> 9.2f
+            "bmx" -> 7.2f
+            else -> 8f
+        }
+        wheel(16f, 27.4f, wrF, -ang, when (kind) {
+            "cruiser", "mtb" -> 1.7f
+            "road", "fixie" -> 0.9f
+            else -> 1.1f
+        })
         g.seg(16f, 19f + bob, 16f, 24f, 1.1f, 1f, BIKE_COL)
         g.seg(14.2f, 24f, 14.2f, 27.4f, 0.8f, 0.7f, METAL)
         g.seg(17.8f, 24f, 17.8f, 27.4f, 0.8f, 0.7f, METAL)
         g.rrect(12.6f, 23.2f, 19.4f, 24.8f, 0.8f, BIKE_DARK)
+        if (style.rack) g.rrect(11.6f, 23.2f, 20.4f, 24.2f, 0.5f, METAL) // 짐받이(뒤에서 보임)
         val hipYb = 21.6f + bob
         for (i in 0 until 2) {
             val sx = if (i == 0) 1f else -1f
@@ -913,12 +1013,21 @@ object CharacterArt {
             }
         }
         val tilt = sway * 0.8f
-        g.seg(8f, 18.4f + bob - tilt, 24f, 18.4f + bob + tilt, 0.9f, 0.9f, LEATHER)
+        g.seg(16f - hw, 18.4f + bob - tilt, 16f + hw, 18.4f + bob + tilt, 0.9f, 0.9f, LEATHER)
+        if (style.basket && direction == FRONT) {
+            g.rrect(11.4f, 19.9f, 20.6f, 23.4f, 1f, 0xFFC9A05C.toInt()) // 앞바구니
+            g.rect(12.2f, 21.1f, 19.8f, 21.7f, 0xFFB08840.toInt())
+        }
+        if (style.light) {
+            g.circ(16f, 17.4f + bob, 1.3f, METAL)                        // 전조등
+            g.circ(16f, 17.4f + bob, 0.75f, 0xFFF2E3C2.toInt())
+        }
+        if (style.bell) g.circ(16f + hw - 1.6f, 17.2f + bob + tilt, 1.05f, 0xFFD9A03C.toInt())
         for (i in 0 until 2) {
             val sx = if (i == 0) -1f else 1f
             val shx = cx + sx * 5f
             val shy = top + 2.2f
-            val handX = if (sx < 0) 8.4f else 23.6f
+            val handX = if (sx < 0) 16f - hw + 0.4f else 16f + hw - 0.4f
             val handY = 18.4f + bob + sx * tilt
             val ex = ikX(shx, shy, handX, handY, 3.4f, 3.2f, sx)
             val ey = ikY(shx, shy, handX, handY, 3.4f, 3.2f, sx)
@@ -928,8 +1037,15 @@ object CharacterArt {
             g.seg(ex, ey, handX, handY, 1f, 0.85f, pal.skin)
             g.circ(handX, handY, 1.15f, pal.skin)
         }
-        g.circ(8f, 18.4f + bob - tilt, 1.4f, RIM)
-        g.circ(24f, 18.4f + bob + tilt, 1.4f, RIM)
+        g.circ(16f - hw, 18.4f + bob - tilt, 1.4f, RIM)
+        g.circ(16f + hw, 18.4f + bob + tilt, 1.4f, RIM)
+        if (style.streamers) {
+            // 스트리머 — 손잡이에서 나풀나풀
+            g.seg(16f - hw, 19.6f + bob, 16f - hw - 1.4f, 23f + bob, 0.7f, 0.4f, 0xFFDB6B9A.toInt())
+            g.seg(16f - hw + 0.6f, 19.8f + bob, 16f - hw - 0.4f, 23.6f + bob, 0.6f, 0.35f, 0xFFF2D06B.toInt())
+            g.seg(16f + hw, 19.6f + bob, 16f + hw + 1.4f, 23f + bob, 0.7f, 0.4f, 0xFFDB6B9A.toInt())
+            g.seg(16f + hw - 0.6f, 19.8f + bob, 16f + hw + 0.4f, 23.6f + bob, 0.6f, 0.35f, 0xFFF2D06B.toInt())
+        }
         val hx = cx + sway * 0.5f
         val hy = top - 5.6f
         g.circ(hx, hy, 5.4f, pal.line)
