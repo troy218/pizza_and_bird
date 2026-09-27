@@ -31,7 +31,7 @@ private const val BANNER_LIFE = 2.6f
  * 화면 좌표(실제 해상도) 기반 HUD.
  * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
  * - 우상단: 황동 회중 나침반 미니맵 (낡은 종이 해도, 탭하면 큰 지도)
- * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/달리기/간식) + 메뉴
+ * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/간식) + 메뉴
  */
 class Hud(private val game: Game) {
 
@@ -73,7 +73,6 @@ class Hud(private val game: Game) {
     var mainCx = 0f; var mainCy = 0f; var mainR = 0f          // 육각 메인(상호작용)
     var bikeCx = 0f; var bikeCy = 0f; var bikeR = 0f          // 자전거 (아크)
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
-    var runCx = 0f; var runCy = 0f; var runR = 0f             // 달리기 (아크)
     var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
     var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
@@ -193,10 +192,11 @@ class Hud(private val game: Game) {
                 mainCy - arcDist * kotlin.math.sin(rad).toFloat()
             )
         }
-        bikeR = arcR; val (bx, by) = arc(66f); bikeCx = bx; bikeCy = by
-        camBR = arcR; val (cx2, cy2) = arc(105f); camBCx = cx2; camBCy = cy2
-        runR = arcR; val (rx, ry) = arc(144f); runCx = rx; runCy = ry
-        eatR = arcR; val (ex, ey) = arc(183f); eatCx = ex; eatCy = ey
+        // 주변 버튼은 세 개만 둔다: 자전거 / 카메라 / 간식.
+        // 달리기는 키보드 Shift로만 유지해, 터치 HUD가 과밀해지지 않게 한다.
+        bikeR = arcR; val (bx, by) = arc(72f); bikeCx = bx; bikeCy = by
+        camBR = arcR; val (cx2, cy2) = arc(120f); camBCx = cx2; camBCy = cy2
+        eatR = arcR; val (ex, ey) = arc(168f); eatCx = ex; eatCy = ey
 
         // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
         menuR = dp(17f)
@@ -232,7 +232,6 @@ class Hud(private val game: Game) {
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
         if (inCircle(x, y, camBCx, camBCy, camBR * 1.3f)) return Ctrl.CAM
-        if (inCircle(x, y, runCx, runCy, runR * 1.3f)) return Ctrl.RUN
         if (inCircle(x, y, eatCx, eatCy, eatR * 1.3f)) return Ctrl.EAT
         if (hitMinimap(x, y)) return Ctrl.MAP
         // 듀랑고식: 왼쪽 아래 구역은 어디를 짚어도 그 자리가 조이스틱
@@ -691,17 +690,6 @@ class Hud(private val game: Game) {
                 c.drawArc(arcRect, baseDeg + i * 60f, 20f, false, linePaint)
             }
         }
-
-        // 달리기 (») — 누르고 있으면 강조
-        val running = game.input.isRun
-        drawArcButton(
-            c, runCx, runCy, runR,
-            if (running) 0xFFF2D06B.toInt() else if (Ctrl.RUN in active) 0xFFD9A03C.toInt() else Color.argb(220, 74, 74, 88),
-            Ctrl.RUN in active
-        )
-        val runCol = if (running) Type.INK else Color.argb(230, 248, 239, 220)
-        val runLabel = "»"
-        PixelFont.draw(c, runLabel, runCx, PixelFont.midY(runCy, 3), 3, runCol, 0.5f)
 
         // 간식 (🍕) — 피자 개수 표시
         val pizzaN = game.state.pizzaCount
