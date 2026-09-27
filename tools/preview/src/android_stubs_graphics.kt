@@ -751,7 +751,7 @@ class Canvas {
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         g.composite = compOf(paint, alpha)
-        val img = if (paint.colorFilter != null) tinted(bitmap, paint) else bitmap.image
+        val img = if (paint?.colorFilter != null) tinted(bitmap, paint) else bitmap.image
         g.drawImage(img, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
@@ -760,7 +760,7 @@ class Canvas {
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         g.composite = compOf(paint, alpha)
-        val base = if (paint.colorFilter != null) tinted(bitmap, paint) else bitmap.image
+        val base = if (paint?.colorFilter != null) tinted(bitmap, paint) else bitmap.image
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
         at.scale((dst.width() / bitmap.width).toDouble(), (dst.height() / bitmap.height).toDouble())
         if (src != null) {
