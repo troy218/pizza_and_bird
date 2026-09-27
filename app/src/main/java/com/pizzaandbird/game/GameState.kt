@@ -40,6 +40,8 @@ class GameState {
     var playSeconds = 0f
     var photos = 0                 // 누적 촬영 장수
     var worldTime = 8.5f           // 게임 내 시각 (0.0~24.0, 8.5=오전 8시반)
+    var weatherId = Weather.SUNNY.id // 게임 전체 날씨
+    var weatherSeconds = 55f         // 다음 날씨 변화까지 남은 시간
 
     // 탐조가 성장 --------------------------------------------------------
     var level = 1                  // 캐릭터 레벨 (1~MAX_LEVEL)
@@ -243,6 +245,8 @@ class GameState {
         playSeconds = 0f
         photos = 0
         worldTime = 8.5f
+        weatherId = Weather.SUNNY.id
+        weatherSeconds = 55f
         for (i in decorSlots.indices) decorSlots[i] = -1
         decorOwned.clear()
         level = 1
@@ -277,6 +281,8 @@ class GameState {
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("weatherId", weatherId)
+        put("weatherSeconds", weatherSeconds.toDouble())
         put("level", level)
         put("exp", exp)
         put("skillPoints", skillPoints)
@@ -329,6 +335,8 @@ class GameState {
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.weatherId = j.optString("weatherId", Weather.SUNNY.id)
+            s.weatherSeconds = j.optDouble("weatherSeconds", 55.0).toFloat().coerceIn(0f, 120f)
 
             s.level = j.optInt("level", 1).coerceIn(1, Progression.MAX_LEVEL)
             s.exp = j.optInt("exp", 0).coerceAtLeast(0)

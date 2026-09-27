@@ -122,6 +122,7 @@ class WorldScene(
         if (overlay != null) return   // 대화상자/메뉴 중에는 세계 정지
         state.playSeconds += dt
         state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
+        updateWeather(dt)
 
         updatePlayer(dt)
         updateStats(dt)
@@ -186,6 +187,29 @@ class WorldScene(
             val k = (dt * 8f).coerceIn(0f, 1f)
             camX += (tx - camX) * k
             camY += (ty - camY) * k
+        }
+    }
+
+    private fun updateWeather(dt: Float) {
+        state.weatherSeconds -= dt
+        if (state.weatherSeconds > 0f) return
+
+        val old = state.weather()
+        val roll = rnd.nextFloat()
+        val next = when {
+            roll < 0.36f -> Weather.SUNNY
+            roll < 0.57f -> Weather.CLOUDY
+            roll < 0.76f -> Weather.RAIN
+            roll < 0.91f -> Weather.WIND
+            else -> Weather.SNOW
+        }
+        // 눈은 산·북부에서 더 자연스럽지만, 가끔 전국에 내릴 수 있다.
+        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < 0.65f) Weather.CLOUDY else next
+        state.weatherId = chosen.id
+        state.weatherSeconds = 50f + rnd.nextFloat() * 55f
+        if (chosen != old) {
+            game.hud.banner("${chosen.icon} 날씨 변화: ${chosen.label}")
+            game.hud.toast("${chosen.description} · ${chosen.label}")
         }
     }
 
@@ -318,7 +342,8 @@ class WorldScene(
         val pool = regionPool()
         if (pool.isEmpty()) return
 
-        val weights = pool.map { it.weight * luckBoost(it) }
+        val currentWeather = state.weather()
+        val weights = pool.map { it.weight * luckBoost(it) * weatherBirdMultiplier(it, currentWeather) }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
         for (i in pool.indices) {
@@ -455,7 +480,9 @@ class WorldScene(
     }
 
     private fun ambientKind(): String = when {
-        region.id == "sokcho" || region.id == "jeju" -> "snow"
+        state.weather() == Weather.RAIN -> "rain"
+        state.weather() == Weather.SNOW -> "snow"
+        state.weather() == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
         "forest" in region.habitats -> "leaf"
@@ -471,6 +498,16 @@ class WorldScene(
         val halfW = game.virtW / (2f * WORLD_SCALE)
         val halfH = game.virtH / (2f * WORLD_SCALE)
         when (ambientKind()) {
+            "rain" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
+                Color.argb(150, 100, 160, 210), 1.5f, false
+            )
+            "wind" -> addParticle(
+                camX - 8f, camY + rnd.nextFloat() * halfH * 2f,
+                55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
+                Color.argb(150, 210, 220, 205), 2f, true
+            )
             "leaf" -> addParticle(
                 camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
                 (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,

@@ -180,7 +180,7 @@ class Hud(private val game: Game) {
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(150f)
+        val h = dp(170f)
 
         // 패널
         fill.color = Color.argb(216, 248, 239, 220)
@@ -225,6 +225,12 @@ class Hud(private val game: Game) {
         c.drawText(s.timeLabel(), left + dp(30f), iy2 + dp(73f), text)
         c.drawText("📷 ${s.photos}", left + dp(76f), iy2 + dp(73f), text)
 
+        // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
+        val weather = s.weather()
+        text.color = 0xFF587083.toInt()
+        text.textSize = dp(11.5f)
+        c.drawText("${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(94f), text)
+
         // 레벨 + 경험치 바
         val ly = iy2 + dp(82f)
         text.textSize = dp(11.5f)
@@ -254,6 +260,7 @@ class Hud(private val game: Game) {
         stroke.color = 0xFF6B4F35.toInt()
         stroke.strokeWidth = dp(1.2f)
         c.drawRoundRect(RectF(bx, by, bx + bw, by + bh), bh / 2, bh / 2, stroke)
+
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {
