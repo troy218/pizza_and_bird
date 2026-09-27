@@ -462,28 +462,33 @@ class Assets(private val context: Context) {
         }
     }
 
-    private val bikeCache = HashMap<Int, BikeSet>()
+    private val bikeCache = LinkedHashMap<String, BikeSet>()
 
-    fun bikeSet(gender: String, tier: Int): BikeSet {
+    /** 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시) */
+    fun bikeSet(gender: String, tier: Int, style: BikeStyle): BikeSet {
         val t = tier.coerceIn(0, gearTiers.size - 1)
-        val key = (if (gender == "female") 1 else 0) * 64 + t
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
         bikeCache[key]?.let { return it }
         val lk = look(gender, t)
         val n = BIKE_FRAMES
-        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk) }
+        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style) }
         val set = BikeSet(
-            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk) },
-            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk) },
+            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style) },
+            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style) },
             side = side,
             sideL = Array(n) { flipH(side[it]) }
         )
         bikeCache[key] = set
+        while (bikeCache.size > 40) {
+            val eldest = bikeCache.keys.first()
+            bikeCache.remove(eldest)
+        }
         return set
     }
 
-    /** 자전거 스프라이트 (pedalT: 페달 위상 초) */
-    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float): Bitmap {
-        val set = bikeSet(gender, tier)
+    /** 자전거 스프라이트 (pedalPhase: 페달 위상) */
+    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle): Bitmap {
+        val set = bikeSet(gender, tier, style)
         val f = (pedalPhase * set.count).toInt()
         return set.frame(dir, f)
     }
@@ -498,10 +503,16 @@ class Assets(private val context: Context) {
     val femaleUp: Array<Bitmap> get() = playerSet("female", 0).up
     val femaleSide: Array<Bitmap> get() = playerSet("female", 0).side
     val femaleSideL: Array<Bitmap> get() = playerSet("female", 0).sideL
-    val bikeDown: Bitmap get() = bikeSet("male", 0).down[0]
-    val bikeUp: Bitmap get() = bikeSet("male", 0).up[0]
-    val bikeSide: Bitmap get() = bikeSet("male", 0).side[0]
-    val bikeSideL: Bitmap get() = bikeSet("male", 0).sideL[0]
+    /** 기본 자전거 외형 (구 코드 호환 접근자용) */
+    private val defaultBikeStyle = BikeStyle(
+        "basic", BikeColors.frame(0), BikeColors.tire(0), BikeColors.saddle(0),
+        basket = false, rack = false, light = false, streamers = false, bell = false
+    )
+
+    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).down[0]
+    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).up[0]
+    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).side[0]
+    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).sideL[0]
 
     // -----------------------------------------------------------------------
     // NPC — 성격이 드러나는 대기 동작 (12프레임)

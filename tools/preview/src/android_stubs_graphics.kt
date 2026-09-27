@@ -39,6 +39,9 @@ object Color {
     val BLACK: Int = 0xFF000000.toInt()
 
     @JvmStatic
+    val TRANSPARENT: Int = 0
+
+    @JvmStatic
     fun argb(a: Int, r: Int, g: Int, b: Int): Int =
         ((a and 0xFF) shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
 
@@ -172,6 +175,11 @@ class Rect {
 class Matrix {
     internal val tx = AffineTransform()
 
+    fun setScale(sx: Float, sy: Float) {
+        tx.setToIdentity()
+        tx.scale(sx.toDouble(), sy.toDouble())
+    }
+
     fun postScale(sx: Float, sy: Float) {
         tx.scale(sx.toDouble(), sy.toDouble())
     }
@@ -264,12 +272,15 @@ class Path {
 open class Shader {
     /** Android API 동일: Shader.TileMode */
     enum class TileMode { CLAMP, REPEAT, MIRROR }
+
+    open fun setLocalMatrix(matrix: Matrix?) {}
 }
 
 typealias TileMode = Shader.TileMode
 
 class LinearGradient : Shader {
     internal val gp: java.awt.Paint
+    override fun setLocalMatrix(matrix: Matrix?) {}
 
     constructor(
         x0: Float, y0: Float, x1: Float, y1: Float,
@@ -294,6 +305,7 @@ class LinearGradient : Shader {
 
 class RadialGradient : Shader {
     internal val rgp: java.awt.Paint
+    override fun setLocalMatrix(matrix: Matrix?) {}
 
     constructor(
         centerX: Float, centerY: Float, radius: Float,
@@ -663,6 +675,11 @@ class Canvas {
         } else {
             BasicStroke(p.strokeWidth, cap, join)
         }
+    }
+
+    fun drawColor(color: Int, mode: PorterDuff.Mode) {
+        // 프리뷰 근사: 모드와 무관하게 덮어그리기 (실제 합성은 Android)
+        drawColor(color)
     }
 
     fun drawColor(color: Int) {

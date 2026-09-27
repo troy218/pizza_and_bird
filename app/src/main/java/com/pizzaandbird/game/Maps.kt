@@ -987,13 +987,13 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     val cx: Float get() = x + sprW / 2f
     val cy: Float get() = y + sprH * 0.45f
 
-    fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f) {
+    fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
             Tier.UNCOMMON -> 2.3f
             Tier.RARE -> 3.0f
             Tier.LEGEND -> 3.8f
-        } * (if (sneaking) 0.6f else 1f) * (if (onBike) 1.4f else 1f) * calmFactor
+        } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
         when (state) {
             0 -> {
