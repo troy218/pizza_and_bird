@@ -863,3 +863,112 @@ def npc_pose(kind, phase):
         ps.tilt += 1.0
         ps.headY += 0.6
     return ps
+
+
+# ---------------------------------------------------------------------------
+# 골목 고양이 (32x26) — 꼬리·귀·눈·다리가 따로 움직인다
+# ---------------------------------------------------------------------------
+
+CAT_W, CAT_H = 32, 26
+C_ORANGE = 0xFFE8944A
+C_ORANGE2 = 0xFFC97430
+C_CREAM = 0xFFFBEFD8
+C_LINE = 0xFF33241C
+C_EYE = 0xFF4F8F52
+C_PINK = 0xFFF2A3B3
+
+
+def render_cat(walking, phase):
+    """왼쪽을 바라보는 고양이. walking=False 면 앉은 자세."""
+    bmp = Bitmap(CAT_W, CAT_H)
+    g = G(bmp)
+    tau = math.tau
+    p = phase % 1.0
+
+    def ear(cx, cy, dx, twitch):
+        g.poly(C_ORANGE, cx - 4.4 + dx, cy - 2.6, cx - 3.4 + dx, cy - 6.8 - twitch, cx - 1.0 + dx, cy - 3.4)
+        g.poly(C_ORANGE, cx + 1.0 + dx, cy - 3.4, cx + 3.2 + dx, cy - 6.6 + twitch, cx + 4.2 + dx, cy - 2.6)
+        g.poly(C_PINK, cx - 3.7 + dx, cy - 3.0, cx - 3.1 + dx, cy - 5.6 - twitch * 0.8, cx - 1.8 + dx, cy - 3.6)
+        g.poly(C_PINK, cx + 1.8 + dx, cy - 3.6, cx + 3.0 + dx, cy - 5.4 + twitch * 0.8, cx + 3.6 + dx, cy - 3.0)
+
+    def head(cx, cy, twitch, blink, look):
+        g.circ(cx, cy, 5.2, C_LINE)
+        g.circ(cx, cy, 4.6, C_ORANGE)
+        ear(cx, cy, 0.0, twitch)
+        eh = 1.6 * (1.0 - blink) + 0.25
+        g.rect(cx - 2.6 + look, cy - 1.4, cx - 1.2 + look, cy - 1.4 + eh, C_EYE)
+        g.rect(cx + 1.2 + look, cy - 1.4, cx + 2.6 + look, cy - 1.4 + eh, C_EYE)
+        g.rect(cx - 0.7, cy + 1.4, cx + 0.7, cy + 2.6, C_PINK)
+        for dy, dx in ((0.6, -3.8), (1.8, -3.6), (0.6, 3.8), (1.8, 3.6)):
+            g.seg(cx + (4.6 if dx > 0 else -4.6), cy + dy,
+                  cx + dx * 2.2, cy + dy - (0.9 if dy < 1.0 else -0.6), 0.4, 0.3, 0xCCFDF6E8)
+
+    if not walking:
+        # ---- 앉은 자세: 꼬리를 살랑, 가끔 귀를 쫑긋, 눈을 깜빡 ----
+        swing = math.sin(tau * p)
+        twitch = 1.2 * _bump(p, 0.62, 0.72)
+        blink = 1.0 if 0.86 <= p < 0.90 else 0.0
+        look = 0.6 * math.sin(tau * (p - 0.15))
+        breath = 0.35 * math.sin(tau * 2 * p)
+        # 꼬리 (아래에서 위로 흔들림)
+        tx0, ty0 = 23.0, 20.0
+        for i in range(4):
+            t0, t1 = i / 4.0, (i + 1) / 4.0
+            def tail_pt(t):
+                a = -1.35 + t * (0.5 + 0.55 * swing)
+                r = 9.5 * t
+                return tx0 + math.cos(a) * r * 0.75 + 0.6 * t, ty0 - abs(math.sin(a)) * r * 0.1 - r * 0.92
+            x0, y0 = tail_pt(t0)
+            x1, y1 = tail_pt(t1)
+            g.seg(x0, y0, x1, y1, 1.5 - 0.15 * i, 1.35 - 0.15 * i, C_ORANGE2 if i < 3 else C_CREAM)
+        # 몸
+        g.rrect(6.5, 12.4 - breath * 0.3, 24.5, 24.6, 6.5, C_LINE)
+        g.rrect(7.5, 13.4 - breath * 0.3, 23.5, 23.6, 5.8, C_ORANGE)
+        g.rect(11.0, 13.6, 13.0, 22.6, C_ORANGE2)
+        g.rect(15.4, 13.4, 17.4, 23.0, C_ORANGE2)
+        g.rect(19.6, 13.8, 21.6, 22.4, C_ORANGE2)
+        g.rrect(9.5, 15.5, 19.5, 22.5, 3.5, C_CREAM)
+        g.rrect(9.5, 22.4, 13.4, 24.9, 1.0, C_CREAM)
+        g.rrect(15.8, 22.4, 19.6, 24.9, 1.0, C_CREAM)
+        head(14.0, 9.4 - breath * 0.35, twitch, blink, look)
+        return bmp
+
+    # ---- 걷는 자세: 네 다리가 교차, 꼬리는 세워서 살랑 ----
+    bob = 0.4 * math.cos(2 * tau * p)
+    top = 10.4 + bob
+    swing = math.sin(tau * p)
+    # 꼬리 (세워서 살랑)
+    for i in range(4):
+        t0, t1 = i / 4.0, (i + 1) / 4.0
+        def tail_pt(t):
+            a = -1.5 + t * (0.35 + 0.5 * math.sin(tau * (p - 0.2)))
+            r = 10.0 * t
+            return 24.0 + math.cos(a) * r * 0.55, top + 4.0 - r * 0.95
+        x0, y0 = tail_pt(t0)
+        x1, y1 = tail_pt(t1)
+        g.seg(x0, y0, x1, y1, 1.45 - 0.15 * i, 1.3 - 0.15 * i, C_ORANGE2 if i < 3 else C_CREAM)
+    # 뒷다리 -> 몸 -> 앞다리 순서
+    def leg(x, ph, back):
+        a = math.sin(tau * (p + ph))
+        kx = x + a * 2.2
+        ky = top + 9.4
+        fx = x + a * 3.4
+        fy = 24.4 - max(0.0, math.cos(tau * (p + ph))) * 1.8
+        col = C_ORANGE2 if back else C_ORANGE
+        g.seg(x, top + 7.2, kx, ky, 1.5, 1.2, C_LINE)
+        g.seg(kx, ky, fx, fy, 1.25, 1.0, C_LINE)
+        g.seg(x, top + 7.2, kx, ky, 1.1, 0.85, col)
+        g.seg(kx, ky, fx, fy, 0.9, 0.7, col)
+        g.rrect(fx - 1.5, fy - 0.2, fx + 1.5, fy + 1.4, 0.7, C_CREAM if not back else C_ORANGE2)
+    leg(21.0, 0.5, True)
+    leg(9.0, 0.0, True)
+    g.rrect(3.5, top, 26.5, top + 10.2, 5.0, C_LINE)
+    g.rrect(4.5, top + 1.0, 25.5, top + 9.2, 4.4, C_ORANGE)
+    g.rect(9.0, top + 1.2, 11.0, top + 9.0, C_ORANGE2)
+    g.rect(14.6, top + 1.0, 16.6, top + 9.2, C_ORANGE2)
+    g.rect(20.0, top + 1.4, 22.0, top + 8.8, C_ORANGE2)
+    g.rrect(6.5, top + 5.0, 23.5, top + 9.0, 2.5, C_CREAM)
+    leg(22.6, 0.0, False)
+    leg(10.6, 0.5, False)
+    head(6.2, 8.6 + bob, 1.1 * _bump(p, 0.70, 0.80), 0.0, -0.3 * swing)
+    return bmp

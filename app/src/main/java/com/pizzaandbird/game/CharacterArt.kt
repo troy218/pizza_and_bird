@@ -949,4 +949,125 @@ object CharacterArt {
         g.rrect(hx - 5.4f, hy - 5.6f, hx + 5.4f, hy - 4f, 1.2f, pal.line)
         return bmp
     }
+
+    // -----------------------------------------------------------------------
+    // 골목 고양이 (32x26) — 꼬리 · 귀 · 눈 · 네 다리가 따로 움직인다
+    // -----------------------------------------------------------------------
+
+    const val CAT_W = 32
+    const val CAT_H = 26
+
+    private val C_ORANGE = 0xFFE8944A.toInt()
+    private val C_ORANGE2 = 0xFFC97430.toInt()
+    private val C_CREAM = 0xFFFBEFD8.toInt()
+    private val C_LINE = 0xFF33241C.toInt()
+    private val C_EYE = 0xFF4F8F52.toInt()
+    private val C_PINK = 0xFFF2A3B3.toInt()
+    private val C_WHISKER = 0xCCFDF6E8.toInt()
+
+    /** 왼쪽을 바라보는 고양이. walking=false 면 앉은 자세. */
+    fun renderCat(walking: Boolean, phase: Float): Bitmap {
+        val bmp = Bitmap.createBitmap(CAT_W, CAT_H, Bitmap.Config.ARGB_8888)
+        val g = G(Canvas(bmp))
+        val p = ((phase % 1f) + 1f) % 1f
+
+        fun ear(cx: Float, cy: Float, twitch: Float) {
+            g.poly(C_ORANGE, cx - 4.4f, cy - 2.6f, cx - 3.4f, cy - 6.8f - twitch, cx - 1f, cy - 3.4f)
+            g.poly(C_ORANGE, cx + 1f, cy - 3.4f, cx + 3.2f, cy - 6.6f + twitch, cx + 4.2f, cy - 2.6f)
+            g.poly(C_PINK, cx - 3.7f, cy - 3f, cx - 3.1f, cy - 5.6f - twitch * 0.8f, cx - 1.8f, cy - 3.6f)
+            g.poly(C_PINK, cx + 1.8f, cy - 3.6f, cx + 3f, cy - 5.4f + twitch * 0.8f, cx + 3.6f, cy - 3f)
+        }
+
+        fun head(cx: Float, cy: Float, twitch: Float, blink: Float, look: Float) {
+            g.circ(cx, cy, 5.2f, C_LINE)
+            g.circ(cx, cy, 4.6f, C_ORANGE)
+            ear(cx, cy, twitch)
+            val eh = 1.6f * (1f - blink) + 0.25f
+            g.rect(cx - 2.6f + look, cy - 1.4f, cx - 1.2f + look, cy - 1.4f + eh, C_EYE)
+            g.rect(cx + 1.2f + look, cy - 1.4f, cx + 2.6f + look, cy - 1.4f + eh, C_EYE)
+            g.rect(cx - 0.7f, cy + 1.4f, cx + 0.7f, cy + 2.6f, C_PINK)
+            g.seg(cx - 4.6f, cy + 0.6f, cx - 8.4f, cy - 0.3f, 0.4f, 0.3f, C_WHISKER)
+            g.seg(cx - 4.6f, cy + 1.8f, cx - 7.9f, cy + 2.4f, 0.4f, 0.3f, C_WHISKER)
+            g.seg(cx + 4.6f, cy + 0.6f, cx + 8.4f, cy - 0.3f, 0.4f, 0.3f, C_WHISKER)
+            g.seg(cx + 4.6f, cy + 1.8f, cx + 7.9f, cy + 2.4f, 0.4f, 0.3f, C_WHISKER)
+        }
+
+        if (!walking) {
+            val swing = sin(TAU * p)
+            val twitch = 1.2f * bump(p, 0.62f, 0.72f)
+            val blink = if (p >= 0.86f && p < 0.90f) 1f else 0f
+            val look = 0.6f * sin(TAU * (p - 0.15f))
+            val breath = 0.35f * sin(2f * TAU * p)
+            // 꼬리
+            fun tailX(t: Float): Float {
+                val a = -1.35f + t * (0.5f + 0.55f * swing)
+                return 23f + cos(a) * (9.5f * t) * 0.75f + 0.6f * t
+            }
+            fun tailY(t: Float): Float {
+                val a = -1.35f + t * (0.5f + 0.55f * swing)
+                val r = 9.5f * t
+                return 20f - kotlin.math.abs(sin(a)) * r * 0.1f - r * 0.92f
+            }
+            for (i in 0 until 4) {
+                val t0 = i / 4f
+                val t1 = (i + 1) / 4f
+                g.seg(
+                    tailX(t0), tailY(t0), tailX(t1), tailY(t1),
+                    1.5f - 0.15f * i, 1.35f - 0.15f * i, if (i < 3) C_ORANGE2 else C_CREAM
+                )
+            }
+            g.rrect(6.5f, 12.4f - breath * 0.3f, 24.5f, 24.6f, 6.5f, C_LINE)
+            g.rrect(7.5f, 13.4f - breath * 0.3f, 23.5f, 23.6f, 5.8f, C_ORANGE)
+            g.rect(11f, 13.6f, 13f, 22.6f, C_ORANGE2)
+            g.rect(15.4f, 13.4f, 17.4f, 23f, C_ORANGE2)
+            g.rect(19.6f, 13.8f, 21.6f, 22.4f, C_ORANGE2)
+            g.rrect(9.5f, 15.5f, 19.5f, 22.5f, 3.5f, C_CREAM)
+            g.rrect(9.5f, 22.4f, 13.4f, 24.9f, 1f, C_CREAM)
+            g.rrect(15.8f, 22.4f, 19.6f, 24.9f, 1f, C_CREAM)
+            head(14f, 9.4f - breath * 0.35f, twitch, blink, look)
+            return bmp
+        }
+
+        val bob = 0.4f * cos(2f * TAU * p)
+        val top = 10.4f + bob
+        val swing = sin(TAU * p)
+        fun tailX(t: Float): Float {
+            val a = -1.5f + t * (0.35f + 0.5f * sin(TAU * (p - 0.2f)))
+            return 24f + cos(a) * (10f * t) * 0.55f
+        }
+        fun tailY(t: Float): Float = top + 4f - (10f * t) * 0.95f
+        for (i in 0 until 4) {
+            val t0 = i / 4f
+            val t1 = (i + 1) / 4f
+            g.seg(
+                tailX(t0), tailY(t0), tailX(t1), tailY(t1),
+                1.45f - 0.15f * i, 1.3f - 0.15f * i, if (i < 3) C_ORANGE2 else C_CREAM
+            )
+        }
+        fun leg(x: Float, ph: Float, back: Boolean) {
+            val a = sin(TAU * (p + ph))
+            val kx = x + a * 2.2f
+            val ky = top + 9.4f
+            val fx = x + a * 3.4f
+            val fy = 24.4f - max(0f, cos(TAU * (p + ph))) * 1.8f
+            val col = if (back) C_ORANGE2 else C_ORANGE
+            g.seg(x, top + 7.2f, kx, ky, 1.5f, 1.2f, C_LINE)
+            g.seg(kx, ky, fx, fy, 1.25f, 1f, C_LINE)
+            g.seg(x, top + 7.2f, kx, ky, 1.1f, 0.85f, col)
+            g.seg(kx, ky, fx, fy, 0.9f, 0.7f, col)
+            g.rrect(fx - 1.5f, fy - 0.2f, fx + 1.5f, fy + 1.4f, 0.7f, if (back) C_ORANGE2 else C_CREAM)
+        }
+        leg(21f, 0.5f, true)
+        leg(9f, 0f, true)
+        g.rrect(3.5f, top, 26.5f, top + 10.2f, 5f, C_LINE)
+        g.rrect(4.5f, top + 1f, 25.5f, top + 9.2f, 4.4f, C_ORANGE)
+        g.rect(9f, top + 1.2f, 11f, top + 9f, C_ORANGE2)
+        g.rect(14.6f, top + 1f, 16.6f, top + 9.2f, C_ORANGE2)
+        g.rect(20f, top + 1.4f, 22f, top + 8.8f, C_ORANGE2)
+        g.rrect(6.5f, top + 5f, 23.5f, top + 9f, 2.5f, C_CREAM)
+        leg(22.6f, 0f, false)
+        leg(10.6f, 0.5f, false)
+        head(6.2f, 8.6f + bob, 1.1f * bump(p, 0.70f, 0.80f), 0f, -0.3f * swing)
+        return bmp
+    }
 }

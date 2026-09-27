@@ -14,6 +14,10 @@ const val BIKE_FRAMES = 8
 
 /** NPC 대기 애니메이션 프레임 수 / 프레임 길이(초) */
 const val NPC_FRAMES = 12
+
+/** 고양이 애니메이션 프레임 수 */
+const val CAT_SIT_FRAMES = 8
+const val CAT_WALK_FRAMES = 6
 const val NPC_FRAME_TIME = 0.2f
 
 /**
@@ -55,8 +59,12 @@ class Assets {
     // (클래스 정의와 접근자는 아래 "사람 — 골격 애니메이션" 절에 있다)
 
     // 고양이 -----------------------------------------------------------------
-    lateinit var catFrames: Array<Bitmap>       // [0] 앉음 [1][2] 걷기
-    lateinit var catFramesL: Array<Bitmap>      // 오른쪽 바라봄
+    lateinit var catSit: Array<Bitmap>          // 앉아서 꼬리 살랑 (왼쪽 바라봄)
+    lateinit var catSitL: Array<Bitmap>         // 오른쪽 바라봄
+    lateinit var catWalk: Array<Bitmap>         // 사뿐사뿐 걷기
+    lateinit var catWalkL: Array<Bitmap>
+    lateinit var catFrames: Array<Bitmap>       // 호환용 (= catSit)
+    lateinit var catFramesL: Array<Bitmap>
 
     // 새 ---------------------------------------------------------------------
     lateinit var birds: Map<String, Bitmap>                  // 앉은 자세
@@ -407,112 +415,27 @@ class Assets {
 
 
     // -----------------------------------------------------------------------
-    // 고양이 (32x26)
+    // 고양이 (32x26) — 꼬리/귀/눈/네 다리가 따로 움직인다 (CharacterArt.renderCat)
     // -----------------------------------------------------------------------
 
     private fun buildCat() {
-        val orange = c(0xFFE8944A)
-        val orange2 = c(0xFFC97430)
-        val cream = c(0xFFFBEFD8)
-        val line = c(0xFF33241C)
-        fun base(): Triple<Bitmap, Canvas, Paint> {
-            val bmp = Bitmap.createBitmap(32, 26, Bitmap.Config.ARGB_8888)
-            return Triple(bmp, Canvas(bmp), Paint())
-        }
-        fun head(cv: Canvas, p: Paint, cx: Float, cy: Float) {
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun cir(x: Float, y: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawCircle(x, y, rad, p)
-            }
-            fun tri(a: Float, b2: Float, cc: Float, d: Float, e: Float, f: Float, col: Int) {
-                p.color = col
-                val path = Path()
-                path.moveTo(a, b2); path.lineTo(cc, d); path.lineTo(e, f); path.close()
-                cv.drawPath(path, p)
-            }
-            cir(cx, cy, 5.2f, line); cir(cx, cy, 4.6f, orange)
-            tri(cx - 4.4f, cy - 2.6f, cx - 3.4f, cy - 6.8f, cx - 1f, cy - 3.4f, orange)
-            tri(cx + 1f, cy - 3.4f, cx + 3.2f, cy - 6.6f, cx + 4.2f, cy - 2.6f, orange)
-            tri(cx - 3.7f, cy - 3f, cx - 3.1f, cy - 5.6f, cx - 1.8f, cy - 3.6f, c(0xFFF2A3B3))
-            tri(cx + 1.8f, cy - 3.6f, cx + 3f, cy - 5.4f, cx + 3.6f, cy - 3f, c(0xFFF2A3B3))
-            r(cx - 2.6f, cy - 1.4f, cx - 1.2f, cy + 0.2f, c(0xFF4F8F52))
-            r(cx + 1.2f, cy - 1.4f, cx + 2.6f, cy + 0.2f, c(0xFF4F8F52))
-            r(cx - 0.7f, cy + 1.4f, cx + 0.7f, cy + 2.6f, c(0xFFF2A3B3))
-            // 수염
-            p.color = c(0xCCFDF6E8); p.strokeWidth = 0.9f
-            cv.drawLine(cx - 4.6f, cy + 0.6f, cx - 8.4f, cy - 0.6f, p)
-            cv.drawLine(cx - 4.6f, cy + 1.8f, cx - 8.2f, cy + 2.4f, p)
-            cv.drawLine(cx + 4.6f, cy + 0.6f, cx + 8.4f, cy - 0.6f, p)
-            cv.drawLine(cx + 4.6f, cy + 1.8f, cx + 8.2f, cy + 2.4f, p)
-        }
+        catSit = Array(CAT_SIT_FRAMES) { CharacterArt.renderCat(false, it / CAT_SIT_FRAMES.toFloat()) }
+        catWalk = Array(CAT_WALK_FRAMES) { CharacterArt.renderCat(true, it / CAT_WALK_FRAMES.toFloat()) }
+        catSitL = Array(catSit.size) { flipH(catSit[it]) }
+        catWalkL = Array(catWalk.size) { flipH(catWalk[it]) }
+        catFrames = catSit
+        catFramesL = catSitL
+    }
 
-        // [0] 앉은 자세
-        val (b0, c0, p0) = base()
-        run {
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p0.color = col; c0.drawRect(l, t, rr, b, p0)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p0.color = col; c0.drawRoundRect(RectF(l, t, rr, b), rad, rad, p0)
-            }
-            // 꼬리
-            r(23.5f, 8f, 25.7f, 17f, orange2)
-            r(21.8f, 5.6f, 26.2f, 8.2f, orange)
-            r(23.2f, 5.9f, 25.2f, 7.9f, cream)
-            // 몸
-            o(6.5f, 12.4f, 24.5f, 24.6f, 6.5f, line)
-            o(7.5f, 13.4f, 23.5f, 23.6f, 5.8f, orange)
-            r(11f, 13.6f, 13f, 22.6f, orange2)
-            r(15.4f, 13.4f, 17.4f, 23f, orange2)
-            r(19.6f, 13.8f, 21.6f, 22.4f, orange2)
-            o(9.5f, 15.5f, 19.5f, 22.5f, 3.5f, cream)
-            // 앞발
-            r(9.5f, 22.6f, 13.4f, 24.8f, cream)
-            r(15.8f, 22.6f, 19.6f, 24.8f, cream)
-            head(c0, p0, 14f, 9.4f)
+    /** 고양이 스프라이트 — walking 여부와 위상(0~1)으로 고른다 */
+    fun catBitmap(walking: Boolean, phase: Float, faceLeft: Boolean): Bitmap {
+        val set = if (walking) {
+            if (faceLeft) catWalk else catWalkL
+        } else {
+            if (faceLeft) catSit else catSitL
         }
-
-        // [1][2] 걷는 자세
-        fun walking(frame: Int): Bitmap {
-            val (bmp, cv, p) = base()
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
-            }
-            // 꼬리 (살짝 흔들림)
-            val tw = if (frame == 1) 0f else 1.6f
-            r(24.5f + tw, 4f, 26.7f + tw, 14f, orange2)
-            r(23.4f + tw, 3.2f, 27f + tw, 5.4f, orange)
-            // 몸
-            o(3.5f, 10.4f, 26.5f, 20.6f, 5f, line)
-            o(4.5f, 11.4f, 25.5f, 19.6f, 4.4f, orange)
-            r(9f, 11.6f, 11f, 19.4f, orange2)
-            r(14.6f, 11.4f, 16.6f, 19.6f, orange2)
-            r(20f, 11.8f, 22f, 19.2f, orange2)
-            o(6.5f, 15.4f, 23.5f, 19.4f, 2.5f, cream)
-            // 다리 (프레임별)
-            if (frame == 1) {
-                r(6.6f, 19.4f, 9f, 24.2f, orange)
-                r(19.8f, 19.4f, 22.2f, 24.2f, orange)
-                r(6.2f, 23f, 9.6f, 25f, cream)
-                r(19.4f, 23f, 22.8f, 25f, cream)
-                r(13f, 19.6f, 15.4f, 21.8f, orange2)
-            } else {
-                r(10.6f, 19.4f, 13f, 24.2f, orange)
-                r(23f, 19.4f, 25.4f, 24.2f, orange)
-                r(10.2f, 23f, 13.6f, 25f, cream)
-                r(22.6f, 23f, 26f, 25f, cream)
-                r(6.4f, 19.6f, 8.8f, 21.8f, orange2)
-            }
-            head(cv, p, 6.2f, 8.6f)
-            return bmp
-        }
-        catFrames = arrayOf(b0, walking(1), walking(2))
-        catFramesL = arrayOf(flipH(b0), flipH(catFrames[1]), flipH(catFrames[2]))
+        val i = ((phase * set.size).toInt() % set.size + set.size) % set.size
+        return set[i]
     }
 
     // -----------------------------------------------------------------------

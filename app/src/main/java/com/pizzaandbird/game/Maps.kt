@@ -740,6 +740,7 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
 /** 골목을 거니는 고양이 */
 class Cat(var x: Float, var y: Float) {
     var state = 0                 // 0 앉아있기, 1 걷기
+    var animT = (Math.random() * 3f).toFloat()   // 대기 동작 위상 (고양이마다 다르게)
     var idleT = 1.5f
     var fromX = 0f; var fromY = 0f
     var toX = 0f; var toY = 0f
@@ -750,6 +751,7 @@ class Cat(var x: Float, var y: Float) {
     val cy: Float get() = y + 12f
 
     fun update(dt: Float, map: GameMap) {
+        animT += dt
         when (state) {
             0 -> {
                 idleT -= dt
@@ -785,8 +787,10 @@ class Cat(var x: Float, var y: Float) {
         }
     }
 
-    val frame: Int get() = if (state == 1) 1 + ((hopT * 3f).toInt() % 2) else 0
-    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 2f) else 0f
+    val walking: Boolean get() = state == 1
+    /** 현재 동작의 진행도 0~1 (걸을 때는 한 칸 이동이 한 사이클) */
+    val phase: Float get() = if (state == 1) hopT else (animT / 3.4f) % 1f
+    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 1.4f) else 0f
 }
 
 /** 플레이어 */

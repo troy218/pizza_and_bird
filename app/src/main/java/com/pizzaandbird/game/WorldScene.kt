@@ -956,7 +956,7 @@ class WorldScene(
                 }
             }
             is Cat -> {
-                val bmp = if (e.faceLeft) a.catFrames[e.frame] else a.catFramesL[e.frame]
+                val bmp = a.catBitmap(e.walking, e.phase, e.faceLeft)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
                 c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
