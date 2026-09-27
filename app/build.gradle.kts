@@ -78,7 +78,8 @@ if (System.getenv("GITHUB_ACTIONS") == "true") {
                 while (nl >= 0) {
                     val line = pending.substring(0, nl).trimEnd()
                     pending.delete(0, nl + 1)
-                    if (line.startsWith("e: ") && reported < 10) {
+                    // "e: file:///…:줄:칸 메시지" 형태의 컴파일러 진단만 (데몬 재시작 안내 등은 제외)
+                    if (line.startsWith("e: file:") && reported < 10) {
                         reported++
                         println("::error::$line")
                     }
