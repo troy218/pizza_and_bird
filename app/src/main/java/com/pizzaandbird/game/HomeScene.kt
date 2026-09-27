@@ -102,6 +102,17 @@ class HomeScene(game: Game) : Scene(game) {
 
         state.px = player.x
         state.py = player.y
+
+        // 메인 버튼 맥락 아이콘 (근처 상호작용 대상)
+        game.hud.contextIcon = nearestInteract()?.let { (target, _) ->
+            when (target) {
+                "oven" -> "🔥"
+                "bed" -> "🛏"
+                "box" -> "📦"
+                "interior" -> "🎨"
+                else -> "🪴"
+            }
+        }
     }
 
     private fun moveBy(dx: Float, dy: Float) {
@@ -262,7 +273,7 @@ class HomeScene(game: Game) : Scene(game) {
             if (near != null) {
                 interact(near.first, near.second)
             } else {
-                game.toast("화덕·침대·인테리어 보드·이사박스에 다가가서 A를 눌러보세요!")
+                game.toast("화덕·침대·인테리어 보드·이사박스에 다가가서 육각 메인 버튼을 눌러보세요!")
             }
             return
         }
