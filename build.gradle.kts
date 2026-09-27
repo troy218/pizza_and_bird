@@ -8,8 +8,8 @@ plugins {
 // TEMP(삭제 예정): 빌드가 실패하면 원인을 PR 코멘트로 남긴다.
 // Actions 로그 서버에 이 샌드박스에서 접근할 수 없어서 쓰는 임시 훅.
 // ────────────────────────────────────────────────────────────────────────────
-gradle.buildFinished {
-    val root = failure ?: return@buildFinished
+gradle.buildFinished { result ->
+    val root = result.failure ?: return@buildFinished
     val sb = StringBuilder()
     val queue = ArrayDeque<Throwable>()
     queue.add(root)
