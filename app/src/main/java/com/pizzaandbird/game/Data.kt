@@ -1197,8 +1197,8 @@ class RegionDef(
     val villager: String,
     val mapW: Int,
     val mapH: Int,
-    val waterEdges: Set<Dir>,
-    val sandEdges: Set<Dir>,
+    val waterEdges: Set<Dir>,  // 지도는 북쪽이 위: 실제 지역의 바다·하천 하구가 놓인 변
+    val sandEdges: Set<Dir>,   // 물과 육지 사이의 해변·갯벌 띠
     val treeDensity: Double,
     val rockDensity: Double,
     val flowerDensity: Double,
@@ -1328,7 +1328,7 @@ object Regions {
             "jeju", "제주", "Jeju", setOf("coast", "mountain", "forest", "wetland"),
             "바람의 섬, 오름의 섬. 귀한 새들이 머무는 곳.",
             "제주엔 없는 게 없어요. 돌하르방처럼 어여쁜 새들도요.",
-            40, 30, setOf(Dir.S, Dir.E, Dir.W), setOf(Dir.S, Dir.E, Dir.W), 0.07, 0.12, 0.05, false, false,
+            40, 30, setOf(Dir.N, Dir.E, Dir.S, Dir.W), setOf(Dir.N, Dir.E, Dir.S, Dir.W), 0.07, 0.12, 0.05, false, false,
             126.53f, 33.50f, "🏝", RegionKind.COAST, "사계절",
             "해안도로를 따라 달리면 섬새와 물새가 계속 나타나요."
         ),
@@ -1386,7 +1386,7 @@ object Regions {
             "sihwa", "시화호", "Sihwa Lake", setOf("water", "wetland", "coast"),
             "죽음의 호수에서 되살아난 큰 호수. 이제는 큰고니의 겨울 궁전.",
             "예전엔 물이 썩었대요. 지금은 고니가 오니까… 자연은 대단하죠.",
-            40, 30, emptySet(), emptySet(), 0.05, 0.02, 0.05, false, true,
+            40, 30, setOf(Dir.W), setOf(Dir.W), 0.05, 0.02, 0.05, false, true,
             126.73f, 37.28f, "🦢", RegionKind.RIVER, "11~2월 (겨울)",
             "상류 습지 쪽이 수심이 얕아 물새가 모여요."
         ),

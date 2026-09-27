@@ -121,7 +121,7 @@ class HomeScene(game: Game) : Scene(game) {
         game.hud.questLabel = null
         game.banner("🏠 우리 집")
 
-        game.audio.playBgm(R.raw.bgm_home)   // 🎵 신비로운 탐험
+        game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
         game.audio.stopAmb()
     }
 
