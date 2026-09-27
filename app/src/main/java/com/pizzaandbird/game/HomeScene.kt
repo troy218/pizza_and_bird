@@ -34,6 +34,9 @@ class HomeScene(game: Game) : Scene(game) {
     private val bedY = 3f * 16f
     private val boxX = 2.5f * 16f
     private val boxY = 6.5f * 16f
+    // 거실의 인테리어 카탈로그. A를 누르면 여러 디자인을 보고 구매한다.
+    private val interiorX = 4.5f * 16f
+    private val interiorY = 6.5f * 16f
 
     /** 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1 */
     private val decorSpots = listOf(
@@ -59,11 +62,17 @@ class HomeScene(game: Game) : Scene(game) {
         game.hud.photoModeHint = false
         game.hud.questLabel = null
         game.banner("🏠 우리 집")
+
+        game.audio.playBgm(R.raw.bgm_home)   // 🎵 신비로운 탐험
+        game.audio.stopAmb()
     }
 
     override fun update(dt: Float) {
         game.hud.update(dt)
-        if (overlay != null) return   // 대화상자/메뉴 중에는 정지
+        if (overlay != null) {
+            game.audio.stopSteps()
+            return   // 대화상자/메뉴 중에는 정지
+        }
         state.playSeconds += dt * 0.4f
         state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
 
@@ -87,6 +96,9 @@ class HomeScene(game: Game) : Scene(game) {
         } else {
             player.animT = 0f
         }
+
+        // 발소리 (나무 바닥)
+        game.audio.steps(if (moving) Audio.Steps.WOOD else Audio.Steps.NONE)
 
         // 현관문
         if (map.feetTile(player.x, player.y) == T.HOUSE_DOOR) {
@@ -113,6 +125,7 @@ class HomeScene(game: Game) : Scene(game) {
 
     private fun exitHome() {
         SaveManager.save(game.context, state)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = WorldScene(game, state.homeRegion, SpawnKind.HOME)
         }
@@ -127,6 +140,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (hypot(ovenX - player.cx, ovenY - player.cy) < 34f) return "oven" to -1
         if (hypot(bedX - player.cx, bedY - player.cy) < 30f) return "bed" to -1
         if (hypot(boxX - player.cx, boxY - player.cy) < 26f) return "box" to -1
+        if (hypot(interiorX - player.cx, interiorY - player.cy) < 28f) return "interior" to -1
         for ((idx, dx0, dy0) in decorSpots) {
             if (hypot(dx0 - player.cx, dy0 - player.cy) < 22f) return "decor" to idx
         }
@@ -141,7 +155,6 @@ class HomeScene(game: Game) : Scene(game) {
                     "따끈한 화덕이 준비됐어요. 어떤 피자를 구워볼까요?\n(도우는 무한! 힐링게임이니까요)",
                     listOf(
                         DialogOverlay.Choice("피자 굽기!") {
-                            it.finished = true
                             it.scene.openOverlay(BakeOverlay(it.scene))
                         },
                         DialogOverlay.Choice("나중에")
@@ -158,6 +171,8 @@ class HomeScene(game: Game) : Scene(game) {
                             game.state.worldTime = 7.2f
                             SaveManager.save(game.context, game.state)
                             game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 ☀️ (행운 +5)")
+                            game.sfx(Audio.Sfx.SPARKLE, 0.7f)
+                            game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.4f)   // 아침 새소리
                         },
                         DialogOverlay.Choice("아직 안 졸려요")
                     )
@@ -168,6 +183,12 @@ class HomeScene(game: Game) : Scene(game) {
                     moveHome(picked)
                 }
             )
+            "interior" -> openOverlay(HouseStyleOverlay(this) { styleId ->
+                state.houseStyleId = styleId
+                SaveManager.save(game.context, state)
+                game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
+                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
+            })
             "decor" -> {
                 if (state.decorOwned.isEmpty()) {
                     openOverlay(
@@ -185,6 +206,7 @@ class HomeScene(game: Game) : Scene(game) {
                             SaveManager.save(game.context, state)
                             val name = Decors.of(picked)?.name ?: "장식"
                             game.toast("장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                            game.sfx(Audio.Sfx.SUCCESS, 0.6f)
                         }
                     )
                 }
@@ -198,16 +220,26 @@ class HomeScene(game: Game) : Scene(game) {
             game.toast("이미 여기가 우리 집이에요!")
             return
         }
-        if (s.money < MOVE_COST) {
-            game.toast("이사 비용이 부족해요… (₩${fmtMoney(MOVE_COST)})")
+        val houseCost = if (s.ownsHome(picked.id)) 0 else HousePrices.forRegion(picked.id)
+        val totalCost = MOVE_COST + houseCost
+        if (s.money < totalCost) {
+            val detail = if (houseCost > 0) "집 매입 ${won(houseCost)} + 이사 ${won(MOVE_COST)}" else "이사 ${won(MOVE_COST)}"
+            game.toast("돈이 부족해요… 필요한 금액: $detail")
+            game.sfx(Audio.Sfx.FAIL, 0.5f)
             return
         }
-        s.money -= MOVE_COST
+        s.money -= totalCost
+        s.ownedHomes.add(picked.id)
         s.homeRegion = picked.id
         s.region = picked.id
         if (picked.id !in s.visited) s.visited.add(picked.id)
         SaveManager.save(game.context, s)
-        game.toast("짐 싸기 완료! 이사 끝~ 📦 → ${picked.name}이(가) 우리 새 집!")
+        if (houseCost > 0) {
+            game.toast("${picked.name} 집을 매입했어요! ${won(houseCost)} · 이사 완료 📦")
+        } else {
+            game.toast("짐 싸기 완료! ${picked.name}의 우리 집으로 이사했어요 📦 · ${won(MOVE_COST)}")
+        }
+        game.sfx(Audio.Sfx.BUY)
     }
 
     // -------------------------------------------------------------------
@@ -235,9 +267,11 @@ class HomeScene(game: Game) : Scene(game) {
             val tId = state.eatBest()
             if (tId == null) {
                 game.toast("피자가 없어요! 화덕에서 구워요 🍕")
+                game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val t = Toppings.of(tId)
                 game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+                game.sfx(Audio.Sfx.EAT, 0.9f)
             }
             return
         }
@@ -246,7 +280,7 @@ class HomeScene(game: Game) : Scene(game) {
             if (near != null) {
                 interact(near.first, near.second)
             } else {
-                game.toast("화덕·침대·이사박스·장식칸에 다가가서 A를 눌러보세요!")
+                game.toast("화덕·침대·인테리어 보드·이사박스에 다가가서 A를 눌러보세요!")
             }
             return
         }
@@ -255,6 +289,7 @@ class HomeScene(game: Game) : Scene(game) {
             if (hypot(ovenX - tap.x, ovenY - tap.y) < 26f) interact("oven", -1)
             else if (hypot(bedX - tap.x, bedY - tap.y) < 24f) interact("bed", -1)
             else if (hypot(boxX - tap.x, boxY - tap.y) < 22f) interact("box", -1)
+            else if (hypot(interiorX - tap.x, interiorY - tap.y) < 24f) interact("interior", -1)
             else {
                 for ((idx, dx0, dy0) in decorSpots) {
                     if (hypot(dx0 - tap.x, dy0 - tap.y) < 18f) {
@@ -275,6 +310,23 @@ class HomeScene(game: Game) : Scene(game) {
         val camXv = camX * WORLD_SCALE
         val camYv = camY * WORLD_SCALE
         map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
+        drawInteriorStyle(c)
+
+        // The house's focal point: a warm, gently flickering wood-fired oven.
+        val ovenScreenX = (ovenX - camX) * WORLD_SCALE
+        val ovenScreenY = (ovenY - camY) * WORLD_SCALE
+        val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
+        uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
+        c.drawCircle(ovenScreenX, ovenScreenY - 11f, 47f + heat * 4f, uiFill)
+        game.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(
+                (9f * 16f - camX) * WORLD_SCALE - 16f,
+                (1f * 16f - camY) * WORLD_SCALE - 8f,
+                (9f * 16f - camX) * WORLD_SCALE + 80f,
+                (1f * 16f - camY) * WORLD_SCALE + 100f
+            )
+        )
 
         val a = game.assets
 
@@ -292,11 +344,12 @@ class HomeScene(game: Game) : Scene(game) {
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
         val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
+        val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = when (player.facing) {
-            Dir.E -> a.playerSide[frame]
-            Dir.W -> a.playerSideL[frame]
-            Dir.N -> a.playerUp[frame]
-            else -> a.playerDown[frame]
+            Dir.E -> ps.side[frame]
+            Dir.W -> ps.sideL[frame]
+            Dir.N -> ps.up[frame]
+            else -> ps.down[frame]
         }
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
@@ -345,6 +398,7 @@ class HomeScene(game: Game) : Scene(game) {
                 "oven" -> ovenX to ovenY
                 "bed" -> bedX to bedY
                 "box" -> boxX to boxY
+                "interior" -> interiorX to interiorY
                 else -> {
                     val s = decorSpots[near.second.coerceIn(0, decorSpots.size - 1)]
                     s.second to s.third
@@ -360,6 +414,49 @@ class HomeScene(game: Game) : Scene(game) {
             val tw = tinyPaint.measureText("!")
             c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
         }
+    }
+
+    /** 선택한 스타일에 따라 바닥·벽·포인트를 다시 칠해 네 가지 집 분위기를 보여준다. */
+    private fun drawInteriorStyle(c: Canvas) {
+        val style = state.houseStyle()
+        val p = uiFill
+        for (y in 0 until map.h) {
+            for (x in 0 until map.w) {
+                val tile = map.t(x, y)
+                val sx = (x * 16f - camX) * WORLD_SCALE
+                val sy = (y * 16f - camY) * WORLD_SCALE
+                when (tile) {
+                    T.FLOOR -> {
+                        p.color = Color.argb(82, Color.red(style.floorTint), Color.green(style.floorTint), Color.blue(style.floorTint))
+                        c.drawRect(sx, sy, sx + 32f, sy + 32f, p)
+                    }
+                    T.WALL_IN -> {
+                        p.color = Color.argb(120, Color.red(style.wallTint), Color.green(style.wallTint), Color.blue(style.wallTint))
+                        c.drawRect(sx, sy, sx + 32f, sy + 32f, p)
+                    }
+                    else -> Unit
+                }
+            }
+        }
+        // 스타일별 포인트 라인/패턴
+        p.color = Color.argb(150, Color.red(style.accentTint), Color.green(style.accentTint), Color.blue(style.accentTint))
+        when (style.id) {
+            "hanok" -> c.drawRect(32f, 64f, 384f, 69f, p)
+            "modern" -> c.drawRect(32f, 190f, 384f, 195f, p)
+            "garden" -> {
+                c.drawCircle(130f, 190f, 14f, p)
+                c.drawCircle(165f, 190f, 10f, p)
+            }
+            else -> c.drawRect(32f, 202f, 384f, 206f, p)
+        }
+        // 인테리어 카탈로그 보드
+        val bx = (interiorX - 10f - camX) * WORLD_SCALE
+        val by = (interiorY - 15f - camY) * WORLD_SCALE
+        p.color = 0xFFF8EFDC.toInt()
+        c.drawRect(bx, by, bx + 20f, by + 24f, p)
+        p.color = style.accentTint
+        c.drawRect(bx + 4f, by + 5f, bx + 16f, by + 8f, p)
+        c.drawRect(bx + 4f, by + 12f, bx + 16f, by + 15f, p)
     }
 
     override fun drawHud(c: Canvas) {

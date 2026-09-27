@@ -21,11 +21,17 @@ class Input(private val game: Game) {
         const val MOVE = 1
         const val UP = 2
         const val KEY = 3
+        const val CANCEL = 4
     }
+
+    /** 탭/드래그 구분 임계값 (실제 화면 px) */
+    private val tapDragPx = 22f
 
     private val lock = Any()
     private val pointerPos = HashMap<Int, PointF>()
     private val pointerCtrl = HashMap<Int, Ctrl>()
+    private val pointerDown = HashMap<Int, PointF>()
+    private val pointerDragged = HashSet<Int>()
     private val queue = ArrayList<QEv>()
     private val keys = HashMap<Int, Boolean>()
     private var tapScreen: PointF? = null
@@ -41,6 +47,14 @@ class Input(private val game: Game) {
     var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
     var isRun = false         // 달리기 홀드 (🏃 버튼 / Shift 키)
+
+    // ----- 로우 터치 (확대/이동 가능한 지도 같은 전체화면 오버레이용) -----
+    /** true 로 두면 모든 터치가 HUD 버튼 대신 rawEvents 로만 전달된다. */
+    var rawMode = false
+    class RawEv(val kind: Int, val id: Int, val x: Float, val y: Float) {
+        companion object { const val DOWN = 0; const val MOVE = 1; const val UP = 2 }
+    }
+    val rawEvents = ArrayList<RawEv>()
 
     fun onTouchEvent(e: MotionEvent): Boolean {
         synchronized(lock) {
@@ -60,7 +74,7 @@ class Input(private val game: Game) {
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     for (i in 0 until e.pointerCount) {
-                        queue.add(QEv(K.UP, e.getX(i), e.getY(i), e.getPointerId(i), 0, 0))
+                        queue.add(QEv(K.CANCEL, e.getX(i), e.getY(i), e.getPointerId(i), 0, 0))
                     }
                 }
             }
@@ -79,28 +93,64 @@ class Input(private val game: Game) {
             evs = ArrayList(queue)
             queue.clear()
         }
-        for (ev in evs) {
+        loop@ for (ev in evs) {
             when (ev.kind) {
                 K.DOWN -> {
                     pointerPos[ev.id] = PointF(ev.x, ev.y)
+                    if (rawMode) {
+                        pointerCtrl[ev.id] = Ctrl.NONE
+                        rawEvents.add(RawEv(RawEv.DOWN, ev.id, ev.x, ev.y))
+                        continue@loop
+                    }
                     val ctrl = game.hud.controlAt(ev.x, ev.y)
                     pointerCtrl[ev.id] = ctrl
-                    press(ctrl)
-                    if (ctrl == Ctrl.NONE) tapScreen = PointF(ev.x, ev.y)
+                    if (ctrl != Ctrl.NONE) {
+                        // 버튼류는 누른 순간에 반응 (A/B/카메라/메뉴)
+                        press(ctrl)
+                    } else {
+                        // 월드 탭은 떼는 순간에 반응 (드래그와 구분)
+                        pointerDown[ev.id] = PointF(ev.x, ev.y)
+                        pointerDragged.remove(ev.id)
+                    }
                 }
                 K.MOVE -> {
                     pointerPos[ev.id]?.set(ev.x, ev.y)
+                    if (rawMode) {
+                        rawEvents.add(RawEv(RawEv.MOVE, ev.id, ev.x, ev.y))
+                        continue@loop
+                    }
                     if (pointerCtrl[ev.id] == Ctrl.NONE) {
-                        val ctrl = game.hud.controlAt(ev.x, ev.y)
-                        if (ctrl != Ctrl.NONE) {
-                            pointerCtrl[ev.id] = ctrl
-                            press(ctrl)
+                        val d = pointerDown[ev.id]
+                        if (d != null) {
+                            val ddx = ev.x - d.x
+                            val ddy = ev.y - d.y
+                            if (ddx * ddx + ddy * ddy > tapDragPx * tapDragPx) pointerDragged.add(ev.id)
+                        }
+                        // D패드만 손가락을 미끄러져서 잡을 수 있게 (버튼 실수 방지)
+                        if (game.hud.controlAt(ev.x, ev.y) == Ctrl.DPAD) {
+                            pointerCtrl[ev.id] = Ctrl.DPAD
+                            pointerDown.remove(ev.id)
+                            pointerDragged.remove(ev.id)
                         }
                     }
                 }
                 K.UP -> {
+                    val ctrl = pointerCtrl[ev.id] ?: Ctrl.NONE
+                    if (!rawMode && ctrl == Ctrl.NONE && ev.id in pointerDown && ev.id !in pointerDragged) {
+                        tapScreen = PointF(ev.x, ev.y)
+                    }
                     pointerPos.remove(ev.id)
                     pointerCtrl.remove(ev.id)
+                    pointerDown.remove(ev.id)
+                    pointerDragged.remove(ev.id)
+                    if (rawMode) rawEvents.add(RawEv(RawEv.UP, ev.id, ev.x, ev.y))
+                }
+                K.CANCEL -> {
+                    pointerPos.remove(ev.id)
+                    pointerCtrl.remove(ev.id)
+                    pointerDown.remove(ev.id)
+                    pointerDragged.remove(ev.id)
+                    if (rawMode) rawEvents.add(RawEv(RawEv.UP, ev.id, ev.x, ev.y))
                 }
                 K.KEY -> {
                     if (ev.act == KeyEvent.ACTION_DOWN) {
@@ -184,6 +234,7 @@ class Input(private val game: Game) {
         justEat = false
         justMap = false
         tapScreen = null
+        rawEvents.clear()
     }
 
     /** 현재 눌린 컨트롤 목록 (시각 피드백용) */

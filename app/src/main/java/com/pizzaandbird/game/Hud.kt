@@ -56,23 +56,6 @@ class Hud(private val game: Game) {
         strokeCap = Paint.Cap.ROUND
     }
 
-    // 한국 실루엣 (정규화 -1..1, y 아래가 +)
-    private val koreaPath = Path()
-    private val jeju = PointF(-0.12f, 0.48f)
-
-    init {
-        val pts = listOf(
-            -0.42f to -0.42f, -0.30f to -0.62f, -0.10f to -0.74f, 0.12f to -0.80f,
-            0.34f to -0.70f, 0.46f to -0.74f, 0.58f to -0.60f, 0.62f to -0.40f,
-            0.70f to -0.22f, 0.74f to -0.02f, 0.70f to 0.14f, 0.52f to 0.18f,
-            0.34f to 0.28f, 0.18f to 0.38f, 0.02f to 0.32f, -0.10f to 0.18f,
-            -0.22f to 0.02f, -0.30f to -0.12f, -0.44f to -0.24f, -0.36f to -0.32f
-        )
-        koreaPath.moveTo(pts[0].first, pts[0].second)
-        for (i in 1 until pts.size) koreaPath.lineTo(pts[i].first, pts[i].second)
-        koreaPath.close()
-    }
-
     // ------------------------------------------------------------------
 
     fun layout(w: Int, h: Int) {
@@ -190,48 +173,57 @@ class Hud(private val game: Game) {
     }
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(126f) + dp(18f)
+    private fun questChipY(): Float = dp(12f) + dp(170f) + dp(22f)
 
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(126f)
+        val h = dp(170f)
 
-        // 패널
-        fill.color = Color.argb(216, 248, 239, 220)
-        stroke.color = 0xFF6B4F35.toInt()
-        stroke.strokeWidth = dp(2.5f)
+        // 프리미엄 패널
         val r = RectF(left, top, left + w, top + h)
-        c.drawRoundRect(r, dp(10f), dp(10f), fill)
-        c.drawRoundRect(r, dp(10f), dp(10f), stroke)
+        UiKit.panel(c, game, r, 12f)
 
         val a = game.assets
 
-        // 배고픔
+        // 배고픔 — 아이콘 메달 + 그라데이션 바
         val iy1 = top + dp(12f)
         val iconSz = dp(16f)
+        fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
+        c.drawCircle(left + dp(20f), iy1 + dp(8f), dp(11f), fill)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy1, left + dp(12f) + iconSz, iy1 + iconSz), a.sprPaint)
         drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger,
             if (s.hunger < 25f) 0xFFE2574C.toInt() else 0xFFF2913C.toInt())
 
         // 행운
         val iy2 = iy1 + dp(22f)
+        fill.color = Color.argb(60, 111, 186, 107)
+        c.drawCircle(left + dp(20f), iy2 + dp(8f), dp(11f), fill)
         c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), iy2, left + dp(12f) + iconSz, iy2 + iconSz), a.sprPaint)
         drawBar(c, left + dp(36f), iy2 + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
 
-        // 돈
+        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(53f))
+
+        // 돈 — 골드 도트 + 금액
+        fill.color = 0xFFF2B63C.toInt()
+        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), fill)
+        stroke.color = 0xFFB5651D.toInt()
+        stroke.strokeWidth = dp(1.2f)
+        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), stroke)
         text.color = 0xFF4A3728.toInt()
         text.textSize = dp(14f)
-        c.drawText("₩ ${fmtMoney(s.money)}", left + dp(12f), iy2 + dp(36f), text)
+        c.drawText(won(s.money), left + dp(28f), iy2 + dp(36f), text)
 
         // 피자 / 카메라
         text.textSize = dp(12f)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
         c.drawText("×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), text)
-        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(54f), iy2 + dp(42f), left + dp(54f) + dp(17f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        c.drawText("Lv.${s.cameraLevel}", left + dp(76f), iy2 + dp(53f), text)
+        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(58f), iy2 + dp(42f), left + dp(58f) + dp(17f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
+        c.drawText("Lv.${s.cameraLevel}", left + dp(79f), iy2 + dp(53f), text)
+
+        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(94f))
 
         // 시각 + 사진
         val night = s.isNight()
@@ -240,52 +232,91 @@ class Hud(private val game: Game) {
         text.textSize = dp(11.5f)
         text.color = 0xFF6B5A48.toInt()
         c.drawText(s.timeLabel(), left + dp(30f), iy2 + dp(73f), text)
-        c.drawText("📷 ${s.photos}", left + dp(76f), iy2 + dp(73f), text)
+        c.drawText("📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), text)
+
+        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
+
+        // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
+        val weather = s.weather()
+        text.color = 0xFF587083.toInt()
+        text.textSize = dp(11.5f)
+        c.drawText("${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), text)
+
+        // 레벨 + 경험치 바
+        val ly = iy2 + dp(96f)
+        text.textSize = dp(11.5f)
+        text.color = 0xFF4A3728.toInt()
+        c.drawText("Lv.${s.level}", left + dp(12f), ly + dp(12f), text)
+        text.textSize = dp(9f)
+        text.color = 0xFF8A7360.toInt()
+        val tt = s.title()
+        c.drawText(tt, left + dp(46f), ly + dp(11f), text)
+        // 바 (프리미엄 그라데이션)
+        val bx = left + dp(12f)
+        val bw = w - dp(24f)
+        val by = ly + dp(16f)
+        val bh = dp(6f)
+        if (s.level >= Progression.MAX_LEVEL) {
+            UiKit.bar(c, game, bx, by, bw, bh, 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
+        } else {
+            UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+        }
+
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {
-        fill.color = Color.argb(255, 214, 197, 164)
-        c.drawRoundRect(RectF(x, y, x + w, y + h), h / 2, h / 2, fill)
-        val p = (v / 100f).coerceIn(0f, 1f)
-        if (p > 0.01f) {
-            fill.color = color
-            c.drawRoundRect(RectF(x + dp(1.5f), y + dp(1.5f), x + (w - dp(1.5f)) * p + dp(1.5f), y + h - dp(1.5f)), h / 2, h / 2, fill)
-        }
-        stroke.color = 0xFF6B4F35.toInt()
-        stroke.strokeWidth = dp(1.5f)
-        c.drawRoundRect(RectF(x, y, x + w, y + h), h / 2, h / 2, stroke)
+        UiKit.bar(c, game, x, y, w, h, v / 100f, UiKit.lighten(color, 36), color)
     }
 
     private fun drawChip(c: Canvas, cx: Float, cy: Float, txt: String) {
-        text.textSize = dp(12f)
-        val tw = text.measureText(txt)
-        val pad = dp(8f)
-        val r = RectF(cx - tw / 2 - pad, cy - dp(12f), cx + tw / 2 + pad, cy + dp(12f))
-        fill.color = Color.argb(200, 58, 52, 74)
-        c.drawRoundRect(r, dp(12f), dp(12f), fill)
-        text.color = 0xFFF8EFDC.toInt()
-        val ty = cy - (text.descent() + text.ascent()) / 2f
-        c.drawText(txt, cx - tw / 2, ty, text)
+        UiKit.darkChip(c, game, cx, cy, txt, 12f)
     }
 
     private fun drawMessages(c: Canvas) {
-        text.textSize = dp(12.5f)
         var y = dp(20f)
         for (m in messages) {
-            val tw = text.measureText(m.text)
+            // 등장 슬라이드 + 페이드인/아웃
+            val age = 2.8f - m.t
+            val inK = (age / 0.22f).coerceIn(0f, 1f)
+            val outK = (m.t.coerceIn(0f, 0.4f) / 0.4f)
+            val alpha = (255 * minOf(inK, outK)).toInt().coerceIn(0, 255)
+            if (alpha < 4) {
+                y += dp(28f)
+                continue
+            }
+            val yy = y + (1f - inK) * -dp(10f)
+            // 긴 문구는 화면에 맞게 축소/말줄임
+            var sizeDp = 12.5f
+            text.textSize = dp(sizeDp)
+            var msg = m.text
+            val maxW = game.screenW - dp(70f)
+            if (text.measureText(msg) > maxW) {
+                sizeDp = 11f
+                text.textSize = dp(sizeDp)
+            }
+            if (text.measureText(msg) > maxW && maxW > dp(60f)) {
+                while (msg.length > 4 && text.measureText("$msg…") > maxW) msg = msg.dropLast(1)
+                msg = "$msg…"
+            }
+            val tw = text.measureText(msg)
             val cx = game.screenW / 2f
-            val pad = dp(9f)
-            val alpha = (255 * (m.t.coerceIn(0f, 0.4f) / 0.4f)).toInt()
-            fill.color = Color.argb((alpha * 0.82f).toInt(), 248, 239, 220)
-            val r = RectF(cx - tw / 2 - pad, y - dp(12f), cx + tw / 2 + pad, y + dp(13f))
-            c.drawRoundRect(r, dp(12f), dp(12f), fill)
-            stroke.color = Color.argb((alpha * 0.9f).toInt(), 107, 79, 53)
+            val pad = dp(10f)
+            val r = RectF(cx - tw / 2 - pad, yy - dp(12f), cx + tw / 2 + pad, yy + dp(13f))
+            // 다크 토스트 + 골드 엣지
+            fill.color = Color.argb((alpha * 0.35f).toInt(), 20, 14, 26)
+            c.drawRoundRect(RectF(r.left, r.top + dp(2f), r.right, r.bottom + dp(2f)), dp(13f), dp(13f), fill)
+            fill.color = Color.argb((alpha * 0.92f).toInt(), 46, 40, 58)
+            c.drawRoundRect(r, dp(13f), dp(13f), fill)
+            stroke.color = Color.argb((alpha * 0.85f).toInt(), 233, 196, 106)
             stroke.strokeWidth = dp(1.5f)
-            c.drawRoundRect(r, dp(12f), dp(12f), stroke)
-            text.color = Color.argb(alpha, 74, 55, 40)
-            val ty = y - (text.descent() + text.ascent()) / 2f
-            c.drawText(m.text, cx - tw / 2, ty, text)
-            y += dp(28f)
+            c.drawRoundRect(r, dp(13f), dp(13f), stroke)
+            // 왼쪽 골드 도트
+            fill.color = Color.argb(alpha, 242, 182, 60)
+            c.drawCircle(r.left + dp(10f), yy + dp(0.5f), dp(3f), fill)
+            text.color = Color.argb(alpha, 248, 239, 220)
+            val ty = yy - (text.descent() + text.ascent()) / 2f
+            c.drawText(msg, cx - tw / 2, ty, text)
+            y += dp(29f)
         }
     }
 
@@ -294,22 +325,43 @@ class Hud(private val game: Game) {
         if (bannerT <= 0f) return
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
-        val fadeIn = (bannerT - 2.1f).coerceIn(0f, 1f)      // 마지막 0.5초 페이드아웃
-        val alpha = (255 * fadeIn).toInt()
+        val fadeOut = (bannerT - 2.1f).coerceIn(0f, 1f)      // 마지막 0.5초 페이드아웃
+        val age = 2.6f - bannerT
+        val inK = (age / 0.3f).coerceIn(0f, 1f)
+        val eased = 1f - (1f - inK) * (1f - inK) * (1f - inK)
+        val alpha = (255 * minOf(fadeOut, eased)).toInt().coerceIn(0, 255)
+        if (alpha < 4) return
 
         text.textSize = dp(26f)
-        text.color = Color.argb(alpha, 248, 239, 220)
         val tw = text.measureText(bt)
         val cx = w / 2f
         val cy = h * 0.24f
-        val r = RectF(cx - tw / 2 - dp(20f), cy - dp(24f), cx + tw / 2 + dp(20f), cy + dp(24f))
-        fill.color = Color.argb((alpha * 0.72f).toInt(), 43, 38, 58)
-        c.drawRoundRect(r, dp(16f), dp(16f), fill)
-        stroke.color = Color.argb((alpha * 0.9f).toInt(), 242, 208, 107)
-        stroke.strokeWidth = dp(2f)
-        c.drawRoundRect(r, dp(16f), dp(16f), stroke)
+        // 등장 팝 스케일
+        val scale = 0.86f + 0.14f * eased
+        c.save()
+        c.scale(scale, scale, cx, cy)
+        val r = RectF(cx - tw / 2 - dp(22f), cy - dp(25f), cx + tw / 2 + dp(22f), cy + dp(25f))
+        fill.color = Color.argb((alpha * 0.4f).toInt(), 20, 14, 26)
+        c.drawRoundRect(RectF(r.left, r.top + dp(3f), r.right, r.bottom + dp(4f)), dp(17f), dp(17f), fill)
+        fill.color = Color.argb((alpha * 0.88f).toInt(), 43, 38, 58)
+        c.drawRoundRect(r, dp(17f), dp(17f), fill)
+        // 상단 광택
+        fill.color = Color.argb((alpha * 0.25f).toInt(), 255, 255, 255)
+        c.drawRoundRect(RectF(r.left + dp(14f), r.top + dp(3f), r.right - dp(14f), r.top + dp(6f)), dp(2f), dp(2f), fill)
+        // 이중 골드 테두리
+        stroke.color = Color.argb((alpha * 0.95f).toInt(), 242, 208, 107)
+        stroke.strokeWidth = dp(2.2f)
+        c.drawRoundRect(r, dp(17f), dp(17f), stroke)
+        stroke.color = Color.argb((alpha * 0.4f).toInt(), 242, 208, 107)
+        stroke.strokeWidth = dp(1f)
+        c.drawRoundRect(
+            RectF(r.left + dp(4f), r.top + dp(4f), r.right - dp(4f), r.bottom - dp(4f)),
+            dp(13f), dp(13f), stroke
+        )
+        text.color = Color.argb(alpha, 248, 239, 220)
         val ty = cy - (text.descent() + text.ascent()) / 2f
         c.drawText(bt, cx - tw / 2, ty, text)
+        c.restore()
     }
 
     private fun drawPhotoHint(c: Canvas) {
@@ -323,12 +375,19 @@ class Hud(private val game: Game) {
     private fun drawControls(c: Canvas) {
         val active = game.input.activeControls()
 
-        // D패드
-        fill.color = Color.argb(88, 40, 36, 54)
+        // D패드 — 섀도우 + 다크 글래스 + 이너 링
+        fill.color = Color.argb(70, 18, 12, 24)
+        c.drawCircle(dpadCx, dpadCy + dp(3f), dpadR, fill)
+        fill.color = Color.argb(110, 40, 36, 54)
         c.drawCircle(dpadCx, dpadCy, dpadR, fill)
+        fill.color = Color.argb(60, 70, 63, 88)
+        c.drawCircle(dpadCx, dpadCy, dpadR * 0.68f, fill)
         stroke.color = Color.argb(150, 248, 239, 220)
         stroke.strokeWidth = dp(2f)
         c.drawCircle(dpadCx, dpadCy, dpadR, stroke)
+        stroke.color = Color.argb(60, 248, 239, 220)
+        stroke.strokeWidth = dp(1f)
+        c.drawCircle(dpadCx, dpadCy, dpadR * 0.68f, stroke)
 
         val tri = dp(10f)
         val inn = dpadR * 0.62f
@@ -349,9 +408,19 @@ class Hud(private val game: Game) {
         triAt(dpadCx - inn, dpadCy, -1f, 0f, dx < -0.25f)
         triAt(dpadCx + inn, dpadCy, 1f, 0f, dx > 0.25f)
         if (Ctrl.DPAD in active) {
-            fill.color = Color.argb(120, 242, 208, 107)
             val v = dpadVector(game.input.dpadTouchPoint())
-            c.drawCircle(dpadCx + v.x * inn, dpadCy + v.y * inn, dp(10f), fill)
+            val kx = dpadCx + v.x * inn
+            val ky = dpadCy + v.y * inn
+            fill.color = Color.argb(90, 20, 12, 8)
+            c.drawCircle(kx, ky + dp(1.5f), dp(13f), fill)
+            fill.color = Color.argb(170, 242, 182, 60)
+            c.drawCircle(kx, ky, dp(13f), fill)
+            fill.color = Color.argb(235, 255, 217, 122)
+            c.drawCircle(kx, ky, dp(8.5f), fill)
+        } else {
+            // 중앙 홈
+            fill.color = Color.argb(70, 20, 16, 28)
+            c.drawCircle(dpadCx, dpadCy, dp(7f), fill)
         }
 
         // A (상호작용)
@@ -388,11 +457,18 @@ class Hud(private val game: Game) {
         val psz = dp(20f)
         c.drawBitmap(pz, null, RectF(eatCx - psz / 2, eatCy - psz / 2, eatCx + psz / 2, eatCy + psz / 2), game.assets.sprPaint)
         if (pizzaN > 0) {
+            val bx = eatCx + eatR * 0.62f
+            val by = eatCy - eatR * 0.62f
+            fill.color = Color.argb(80, 20, 12, 8)
+            c.drawCircle(bx, by + dp(1.5f), dp(8.5f), fill)
             fill.color = 0xFF6B4F35.toInt()
-            c.drawCircle(eatCx + eatR * 0.62f, eatCy - eatR * 0.62f, dp(8.5f), fill)
+            c.drawCircle(bx, by, dp(8.5f), fill)
+            stroke.color = 0xFFF2D06B.toInt()
+            stroke.strokeWidth = dp(1.4f)
+            c.drawCircle(bx, by, dp(8.5f), stroke)
             text.textSize = dp(10f)
             text.color = 0xFFF8EFDC.toInt()
-            c.drawText("$pizzaN", eatCx + eatR * 0.62f - text.measureText("$pizzaN") / 2, eatCy - eatR * 0.62f - (text.descent() + text.ascent()) / 2, text)
+            c.drawText("$pizzaN", bx - text.measureText("$pizzaN") / 2, by - (text.descent() + text.ascent()) / 2, text)
         }
 
         // 메뉴 (≡)
@@ -412,16 +488,28 @@ class Hud(private val game: Game) {
     }
 
     private fun drawButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, label: String?, labelSize: Float) {
+        // 섀도우
+        fill.color = Color.argb(70, 18, 12, 24)
+        c.drawCircle(cx, cy + dp(2.5f), r, fill)
+        // 본문 + 위쪽 광택
         fill.color = color
         c.drawCircle(cx, cy, r, fill)
+        fill.color = Color.argb(52, 255, 255, 255)
+        c.drawCircle(cx - r * 0.18f, cy - r * 0.26f, r * 0.62f, fill)
+        // 테두리 + 이너 광택 링
         stroke.color = Color.argb(190, 248, 239, 220)
         stroke.strokeWidth = dp(2f)
         c.drawCircle(cx, cy, r, stroke)
+        stroke.color = Color.argb(70, 255, 255, 255)
+        stroke.strokeWidth = dp(1f)
+        c.drawCircle(cx, cy, r - dp(3f), stroke)
         if (label != null) {
-            text.color = 0xFF3A2A24.toInt()
             text.textSize = labelSize
             val tw = text.measureText(label)
             val ty = cy - (text.descent() + text.ascent()) / 2f
+            text.color = Color.argb(110, 30, 20, 10)
+            c.drawText(label, cx - tw / 2, ty + dp(1f), text)
+            text.color = 0xFF3A2A24.toInt()
             c.drawText(label, cx - tw / 2, ty, text)
         }
     }
@@ -432,33 +520,38 @@ class Hud(private val game: Game) {
 
     fun drawMinimap(c: Canvas, cx: Float, cy: Float, r: Float, showNames: Boolean) {
         val s = game.state
-        val scale = r * 0.94f
+        // 남한 전체가 원 안에 들어오도록 맞춤
+        val b = KoreaMap.southBounds
+        val fitScale = r * 1.86f / maxOf(b.width(), b.height())
+        val ox = cx - b.centerX() * fitScale
+        val oy = cy - b.centerY() * fitScale
 
-        fun px(mm: Float): Float = cx + mm * scale
-        fun py(mm: Float): Float = cy + mm * scale
+        fun px(mm: Float): Float = ox + mm * fitScale
+        fun py(mm: Float): Float = oy + mm * fitScale
 
-        // 바다
-        fill.color = 0xFFA8D8E8.toInt()
+        // 섀도우 + 바다 (밤에는 깊게)
+        fill.color = Color.argb(80, 18, 12, 24)
+        c.drawCircle(cx, cy + dp(3f), r + dp(1f), fill)
+        fill.color = if (s.isNight()) 0xFF7FA8C8.toInt() else 0xFFA8D8E8.toInt()
         c.drawCircle(cx, cy, r, fill)
 
         c.save()
-        c.translate(cx, cy)
-        c.scale(scale, scale)
-        // 육지
-        fill.color = 0xFFB8DCA0.toInt()
-        c.drawPath(koreaPath, fill)
-        // 제주도
-        c.drawCircle(jeju.x, jeju.y, 0.09f, fill)
+        val clip = Path()
+        clip.addCircle(cx, cy, r, Path.Direction.CW)
+        c.clipPath(clip)
+        c.translate(ox, oy)
+        c.scale(fitScale, fitScale)
+        KoreaMap.drawLand(c, fitScale, 1, s.isNight())
         c.restore()
 
         // 연결선 (방문한 지역끼리)
         linePaint.color = Color.argb(110, 255, 255, 255)
-        linePaint.strokeWidth = dp(1.6f)
+        linePaint.strokeWidth = dp(1.4f)
         for (reg in Regions.ALL) {
             for ((_, targetId) in Regions.exits(reg.id)) {
                 val target = Regions.byId[targetId] ?: continue
                 if (reg.id in s.visited && targetId in s.visited) {
-                    linePaint.alpha = 140
+                    linePaint.alpha = 150
                     c.drawLine(px(reg.mmX), py(reg.mmY), px(target.mmX), py(target.mmY), linePaint)
                 }
             }
@@ -469,48 +562,57 @@ class Hud(private val game: Game) {
             val visited = reg.id in s.visited
             val isHome = reg.id == s.homeRegion
             val isCurrent = reg.id == s.region
-            val dotR = if (isCurrent) r * 0.085f else r * 0.06f
+            val dotR = if (isCurrent) r * 0.075f else r * 0.042f
 
             if (visited) {
-                fill.color = if (isCurrent) 0xFFE2574C.toInt() else 0xFFF7CE5B.toInt()
+                fill.color = if (isCurrent) 0xFFE2574C.toInt() else reg.kind.color
                 c.drawCircle(px(reg.mmX), py(reg.mmY), dotR, fill)
+                stroke.color = Color.argb(200, 255, 255, 255)
+                stroke.strokeWidth = dp(0.9f)
+                c.drawCircle(px(reg.mmX), py(reg.mmY), dotR, stroke)
                 if (isCurrent) {
                     stroke.color = Color.argb(160, 226, 87, 76)
                     stroke.strokeWidth = dp(2f)
-                    val pulse = r * (0.13f + 0.03f * kotlin.math.sin(game.time * 4f))
+                    val pulse = r * (0.12f + 0.03f * kotlin.math.sin(game.time * 4f))
                     c.drawCircle(px(reg.mmX), py(reg.mmY), pulse, stroke)
                 }
             } else {
-                fill.color = Color.argb(120, 90, 80, 70)
-                c.drawCircle(px(reg.mmX), py(reg.mmY), dotR * 0.8f, fill)
+                fill.color = Color.argb(110, 90, 80, 70)
+                c.drawCircle(px(reg.mmX), py(reg.mmY), dotR * 0.75f, fill)
             }
 
-            if (showNames) {
-                text.textSize = dp(11f)
+            if (showNames && (isCurrent || isHome)) {
+                text.textSize = dp(10f)
                 text.color = if (isCurrent) 0xFFE2574C.toInt() else 0xFF4A3728.toInt()
                 val nm = reg.name
                 val tw = text.measureText(nm)
-                c.drawText(nm, px(reg.mmX) - tw / 2, py(reg.mmY) + r * 0.15f, text)
+                c.drawText(nm, px(reg.mmX) - tw / 2, py(reg.mmY) + r * 0.14f, text)
             }
 
-            if (isHome && showNames) {
+            if (isHome) {
                 val hi = game.assets.houseIcon
-                val hw = r * 0.11f
+                val hw = r * 0.10f
                 c.drawBitmap(
                     hi, null,
-                    RectF(px(reg.mmX) - hw / 2, py(reg.mmY) - r * 0.16f - hw, px(reg.mmX) + hw / 2, py(reg.mmY) - r * 0.16f),
+                    RectF(px(reg.mmX) - hw / 2, py(reg.mmY) - r * 0.13f - hw, px(reg.mmX) + hw / 2, py(reg.mmY) - r * 0.13f),
                     game.assets.sprPaint
                 )
             }
         }
 
-        // 테두리
+        // 테두리 — 초코 + 골드 + 광택 헤어라인
         stroke.color = 0xFF6B4F35.toInt()
         stroke.strokeWidth = dp(3f)
         c.drawCircle(cx, cy, r, stroke)
+        stroke.color = 0xFFE9C46A.toInt()
+        stroke.strokeWidth = dp(1.4f)
+        c.drawCircle(cx, cy, r - dp(2.6f), stroke)
         stroke.color = Color.argb(90, 248, 239, 220)
         stroke.strokeWidth = dp(1.2f)
-        c.drawCircle(cx, cy, r - dp(3f), stroke)
+        c.drawCircle(cx, cy, r - dp(4.5f), stroke)
+        // 위쪽 광택
+        fill.color = Color.argb(50, 255, 255, 255)
+        c.drawCircle(cx - r * 0.3f, cy - r * 0.42f, r * 0.28f, fill)
     }
 
     // ------------------------------------------------------------------

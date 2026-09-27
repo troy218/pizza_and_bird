@@ -12,9 +12,9 @@ import android.graphics.Shader
 import java.util.Random
 
 /**
- * 모든 그래픽은 코드로 생성하는 순수 픽셀 아트 에셋 (v0.2 — 2배 해상도).
- * - 타일 32x32 / 캐릭터 32x32 / 새 5종 템플릿
- * - 외부 이미지 파일 없음 — APK 크기 최소화 & 오프라인
+ * 캐릭터와 월드 타일을 코드로 생성하는 픽셀 아트 에셋 (v0.2 — 2배 해상도).
+ * - 타일 32x32 / 캐릭터 32x32 / 새 13종 체형 + 9종 깃무늬 + 비행 2프레임
+ * - 캐릭터/타일은 코드로 생성, 작은 장식 일러스트는 로컬 SVG — 네트워크·외부 라이브러리 없음
  */
 class Assets {
 
@@ -26,10 +26,37 @@ class Assets {
     val shadowPaint = Paint().apply { color = Color.argb(70, 30, 40, 30); isAntiAlias = true }
 
     // 플레이어 --------------------------------------------------------------
-    lateinit var playerDown: Array<Bitmap>      // [0] 서있기 [1][2] 걷기
-    lateinit var playerUp: Array<Bitmap>
-    lateinit var playerSide: Array<Bitmap>      // 오른쪽 방향
-    lateinit var playerSideL: Array<Bitmap>     // 왼쪽 방향 (플립)
+    // 레벨 등급(0~3)별 걷기 스프라이트 세트 — 겉모습(장비)이 좋아진다.
+    class PlayerSet(
+        val down: Array<Bitmap>,   // [0] 서있기 [1][2] 걷기
+        val up: Array<Bitmap>,
+        val side: Array<Bitmap>,   // 오른쪽 방향
+        val sideL: Array<Bitmap>   // 왼쪽 방향 (플립)
+    )
+
+    // 성별 × 레벨 등급별 스프라이트 세트
+    lateinit var playerTiers: Array<PlayerSet>   // 남자, gearTier로 인덱싱
+    lateinit var femaleTiers: Array<PlayerSet>   // 여자
+
+    // 기본(남자 0등급) 접근자 — 기존 코드 호환용
+    val playerDown: Array<Bitmap> get() = playerTiers[0].down
+    val playerUp: Array<Bitmap> get() = playerTiers[0].up
+    val playerSide: Array<Bitmap> get() = playerTiers[0].side
+    val playerSideL: Array<Bitmap> get() = playerTiers[0].sideL
+    val femaleDown: Array<Bitmap> get() = femaleTiers[0].down
+    val femaleUp: Array<Bitmap> get() = femaleTiers[0].up
+    val femaleSide: Array<Bitmap> get() = femaleTiers[0].side
+    val femaleSideL: Array<Bitmap> get() = femaleTiers[0].sideL
+
+    /** 레벨 등급으로 스프라이트 세트 선택 (남자) */
+    fun playerSet(tier: Int): PlayerSet = playerTiers[tier.coerceIn(0, playerTiers.size - 1)]
+
+    /** 성별 + 레벨 등급으로 스프라이트 세트 선택 */
+    fun playerSet(gender: String, tier: Int): PlayerSet {
+        val tiers = if (gender == "female") femaleTiers else playerTiers
+        return tiers[tier.coerceIn(0, tiers.size - 1)]
+    }
+
     lateinit var bikeDown: Bitmap
     lateinit var bikeUp: Bitmap
     lateinit var bikeSide: Bitmap
@@ -47,11 +74,30 @@ class Assets {
     lateinit var catFramesL: Array<Bitmap>      // 오른쪽 바라봄
 
     // 새 ---------------------------------------------------------------------
-    lateinit var birds: Map<String, Bitmap>
+    lateinit var birds: Map<String, Bitmap>                  // 앉은 자세
+    private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
     private var birdsFlipped: Map<String, Bitmap> = emptyMap()
+    private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
 
     // 타일 (32x32) ------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant 또는 프레임]
+
+    // 길 (오토타일 — Roads.kt) --------------------------------------------------
+    private val roadCache = HashMap<Int, Bitmap>()
+    lateinit var medallion: Array<Bitmap>       // 광장 문양 3x3
+    lateinit var drain: Bitmap                  // 빗물받이
+    lateinit var castShadow: Array<Bitmap>      // [위, 왼쪽, 왼쪽위] 접지 그림자
+
+    /** 포장 타일 (이웃 비트마스크로 모양이 정해지고 캐시된다) */
+    fun roadTile(mat: Int, mask: Int, variant: Int, sandy: Boolean): Bitmap {
+        val key = (mat shl 13) or (mask shl 5) or (variant shl 1) or (if (sandy) 1 else 0)
+        var b = roadCache[key]
+        if (b == null) {
+            b = RoadArt.tile(mat, mask, variant, sandy)
+            roadCache[key] = b
+        }
+        return b
+    }
 
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
@@ -110,17 +156,29 @@ class Assets {
     // dir: 0=아래(정면) 1=위(뒤) 2=오른쪽(측면) / frame: 0 서있기 1,2 걷기
     // -----------------------------------------------------------------------
 
-    private class Pal(
+    private data class Pal(
         val hair: Int, val hair2: Int, val skin: Int, val skin2: Int,
         val top: Int, val top2: Int, val pants: Int, val pants2: Int,
         val shoe: Int, val line: Int, val pack: Int, val pack2: Int,
         val eye: Int, val blush: Int
     )
 
+    /** 탐조가 장비 (레벨 등급에 따라 겉모습이 좋아진다) */
+    private class Gear(
+        val cap: Int? = null,        // 탐조 모자 색 (null이면 없음)
+        val capDark: Int = 0,
+        val vest: Int? = null,       // 탐조 조끼 색
+        val vestDark: Int = 0,
+        val scarf: Int? = null,      // 목도리 색
+        val brim: Boolean = false,   // 챙 넓은 모자
+        val feather: Int? = null     // 모자 깃털 장식
+    )
+
     private fun person(
         dir: Int, frame: Int, pl: Pal,
         glasses: Boolean = false, apron: Boolean = false,
-        cane: Boolean = false, small: Boolean = false
+        cane: Boolean = false, small: Boolean = false,
+        gear: Gear? = null
     ): Bitmap {
         val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
@@ -269,6 +327,86 @@ class Assets {
             }
         }
 
+        // ----- 탐조가 장비 (레벨 등급별 겉모습) -----
+        if (gear != null) {
+            // 목도리 (목 언저리 밴드)
+            gear.scarf?.let { sc ->
+                when (dir) {
+                    0 -> {
+                        r(11.6f, 14.2f + oy, 20.4f, 16.4f + oy, sc)
+                        r(18.2f, 16f + oy, 20.2f, 20.2f + oy, sc)   // 늘어진 자락
+                    }
+                    1 -> r(11.4f, 14f + oy, 20.6f, 16f + oy, sc)
+                    else -> {
+                        r(13.6f, 14.2f + oy, 20.6f, 16.4f + oy, sc)
+                        r(13.4f, 16f + oy, 15.4f, 19.6f + oy, sc)
+                    }
+                }
+            }
+            // 조끼 (앞면/측면만 — 뒷면은 배낭이 가림)
+            gear.vest?.let { vs ->
+                when (dir) {
+                    0 -> {
+                        r(9.6f, 16.4f + oy, 12.8f, legTop + 0.2f, vs)
+                        r(19.2f, 16.4f + oy, 22.4f, legTop + 0.2f, vs)
+                        r(13.2f, 15.8f + oy, 18.8f, 17.6f + oy, vs)
+                        r(9.6f, 16.4f + oy, 10.4f, legTop + 0.2f, gear.vestDark)
+                        r(21.6f, 16.4f + oy, 22.4f, legTop + 0.2f, gear.vestDark)
+                    }
+                    2 -> {
+                        r(14.6f, 16.4f + oy, 20.6f, legTop + 0.2f, vs)
+                        r(14.6f, 16.4f + oy, 15.4f, legTop + 0.2f, gear.vestDark)
+                    }
+                    else -> {}
+                }
+            }
+            // 모자 (탐조 캡 / 챙 넓은 모자)
+            gear.cap?.let { cp ->
+                when (dir) {
+                    0, 1 -> {
+                        // 돔
+                        o(10.2f, 2.4f + oy, 21.8f, 8.4f + oy, 3.2f, pl.line)
+                        o(10.8f, 2.8f + oy, 21.2f, 8f + oy, 3f, cp)
+                        r(11.4f, 3.2f + oy, 20.6f, 5.2f + oy, gear.capDark)
+                        // 챙 (정면만, 넓은 모자는 더 크게)
+                        if (dir == 0) {
+                            if (gear.brim) {
+                                o(7.2f, 7.4f + oy, 24.8f, 9.6f + oy, 2f, pl.line)
+                                o(7.6f, 7.6f + oy, 24.4f, 9.2f + oy, 1.6f, cp)
+                            } else {
+                                r(9f, 7.6f + oy, 21.2f, 9.2f + oy, pl.line)
+                                r(9.4f, 7.8f + oy, 20.8f, 8.9f + oy, gear.capDark)
+                            }
+                        }
+                    }
+                    else -> {
+                        o(11.2f, 2.4f + oy, 22.8f, 8.4f + oy, 3.2f, pl.line)
+                        o(11.8f, 2.8f + oy, 22.2f, 8f + oy, 3f, cp)
+                        r(12.4f, 3.2f + oy, 21.6f, 5.2f + oy, gear.capDark)
+                        // 옆 챙 (오른쪽으로)
+                        if (gear.brim) {
+                            o(19.6f, 7f + oy, 27.2f, 9f + oy, 1.8f, cp)
+                        } else {
+                            r(20.2f, 7.2f + oy, 26.4f, 8.6f + oy, cp)
+                        }
+                    }
+                }
+                // 깃털 장식
+                gear.feather?.let { ft ->
+                    when (dir) {
+                        0, 1 -> {
+                            r(20.4f, 1.6f + oy, 21.6f, 5.4f + oy, ft)
+                            r(21.2f, 2.2f + oy, 22.4f, 4.2f + oy, ft)
+                        }
+                        else -> {
+                            r(12.2f, 1.4f + oy, 13.4f, 5.2f + oy, ft)
+                            r(11.4f, 2f + oy, 12.6f, 4f + oy, ft)
+                        }
+                    }
+                }
+            }
+        }
+
         if (cane) {
             r(23.8f, 15f + oy, 25.2f, 30.5f, c(0xFF8A5A33))
             r(22.6f, 14f + oy, 26f, 15.6f, c(0xFF6B431F))
@@ -287,10 +425,32 @@ class Assets {
             shoe = c(0xFF7A4A2B), line = c(0xFF33241C), pack = c(0xFFD9534F), pack2 = c(0xFFB23F44),
             eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        playerDown = Array(3) { person(0, it, pl) }
-        playerUp = Array(3) { person(1, it, pl) }
-        playerSide = Array(3) { person(2, it, pl) }
-        playerSideL = Array(3) { flipH(playerSide[it]) }
+        // 레벨 등급별 장비: 0=새내기, 1=견습(캡), 2=숙련(캡+조끼), 3=명인(챙모자+조끼+목도리+깃털)
+        val gearTiers = arrayOf<Gear?>(
+            null,
+            Gear(cap = c(0xFF4F8F6A), capDark = c(0xFF3C6E50)),
+            Gear(
+                cap = c(0xFF3F6FA0), capDark = c(0xFF2F5580),
+                vest = c(0xFF6B8E4E), vestDark = c(0xFF52703B)
+            ),
+            Gear(
+                cap = c(0xFF8A5A2B), capDark = c(0xFF6E4620),
+                vest = c(0xFF3E6B57), vestDark = c(0xFF2C4E3F),
+                scarf = c(0xFFD9534F), brim = true, feather = c(0xFFF2D06B)
+            )
+        )
+        fun buildTiers(pal: Pal): Array<PlayerSet> = Array(gearTiers.size) { tier ->
+            val g = gearTiers[tier]
+            val down = Array(3) { person(0, it, pal, gear = g) }
+            val up = Array(3) { person(1, it, pal, gear = g) }
+            val side = Array(3) { person(2, it, pal, gear = g) }
+            val sideL = Array(3) { flipH(side[it]) }
+            PlayerSet(down, up, side, sideL)
+        }
+        playerTiers = buildTiers(pl)
+        // 여자 팔레트(머리·상의·바지색만 다름) — 장비는 동일하게 진화
+        val fp = pl.copy(hair = c(0xFF6A3155), hair2 = c(0xFF4A203D), top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B), pants = c(0xFF66529B), pants2 = c(0xFF4D3C7C))
+        femaleTiers = buildTiers(fp)
 
         val bikeCol = c(0xFFC9503A)
         val bikeDark = c(0xFF8A3326)
@@ -567,148 +727,290 @@ class Assets {
     }
 
     // -----------------------------------------------------------------------
-    // 새 (5종 템플릿 + 종별 팔레트, 음영 자동 파생)
+    // 새 (13종 실루엣 + 종별 머리색/깃무늬 + 도주 비행 2프레임)
     // -----------------------------------------------------------------------
 
+    private data class BirdAnchors(
+        val wingL: Float, val wingT: Float, val wingR: Float, val wingB: Float,
+        val chestX: Float, val chestY: Float,
+        val eyeX: Float, val eyeY: Float
+    )
+
     private fun buildBirds() {
-        // 0: 소형 명금 (왼쪽 바라봄)
+        // 모든 스프라이트는 왼쪽을 바라본다. h=머리, a=포인트 컬러.
         val songbird = listOf(
-            "........................",
-            "...cc...................",
-            "..cBBB..................",
-            ".BBBeEB.................",
-            "kkBBBBBttttt............",
-            "kkBBBBBtttttttt.........",
-            ".HBBBBttttttttttt.......",
-            ".HBBBtttTTTTttttttt.....",
-            ".HBBBttTTTTTTtttttttt...",
-            ".BBBBttTTTTTTtttttttttt.",
-            ".BBWWttTTTTTTtttttttttt.",
-            ".BWWWWttTTTTttttttttt...",
-            "..WWWWWtttttttttttt.....",
-            "..WWWWWWWWWWWWWWW.......",
-            "...WWWWWWWWWWW..........",
-            "....WWWWWWWWW...........",
-            ".....ll...ll............",
-            ".....ll...ll............",
-            "....lll...lll..........."
-        )
-        // 1: 물오리 (물 위)
-        val waterfowl = listOf(
             "..........................",
-            "....cc....................",
-            "...BBBB...................",
-            "..BBBeEB..................",
-            ".kkBBBB...................",
-            ".kkBBBBB..................",
-            "...BBBBBB................",
-            "...BBBBBBBBttttttt.......",
-            "...HBBBBBBtttttttttttt...",
-            "..HHBBBBBtttTTTTtttttttt.",
-            "..HBBBBBBttTTTTTTtttttttt",
-            ".BBBBBBBttTTTTTTtttttttt.",
-            ".BWWWWWWWWttTTTTttttttt..",
-            "..WWWWWWWWWWWWWWWWW......",
-            "...WWWWWWWWWWWWWWWW......",
-            "..vvvvvvvvvvvvvvvvvvv....",
-            ".v.vvv...vvvv....vvv....."
+            "...cc.....................",
+            "..chhh....................",
+            ".chheEh...................",
+            "kkhhhhBB..................",
+            "kkhhhBBBBtt...............",
+            ".hhhHBBBtttttt............",
+            ".hhBBBBttTTTtttt...........",
+            "..BBBBttTTTTTtttttt.......",
+            "..BBBWWtTTTTTTtttttttt....",
+            "..BBWWWWttTTTttttttttttt..",
+            "...WWWWWWtttttttttttttttt.",
+            "....WWWWWWWWWWWWWtttt......",
+            ".....WWWWWWWWWWW...........",
+            "......WWWWWWWWW............",
+            ".......ll...ll.............",
+            ".......ll...ll.............",
+            "......lll...lll............"
         )
-        // 2: 섬새/백로형 (긴 목+다리)
-        val wader = listOf(
-            "......................",
-            "....BBB...............",
-            "...BBBBB..............",
-            "...BBeEB..............",
-            "..kBBBB...............",
-            ".kkBBBB...............",
-            ".kkBBBB...............",
-            "..kBBBB...............",
-            "...BBBBB..............",
-            "...BBBBB..............",
-            "....BBBBB.............",
-            "....BBBBBBttttttt.....",
-            "...BBBBBtttttttttttt..",
-            "...HBBBtttTTTTttttttt.",
-            "...HBBBttTTTTTTttttttt",
-            "...HBBtttTTTTTTttttttt",
-            "....BBBtttTTTTttttttt.",
-            "....BWWWWtttttttttt...",
-            "....WWWWWWWWWWWWWW....",
-            ".....WWWWWWWWWWW......",
-            "......ll...ll.........",
-            "......ll...ll.........",
-            "......ll...ll.........",
-            ".....lll...lll........"
-        )
-        // 3: 맹금 (앉은 매)
-        val raptor = listOf(
+        val waterfowl = listOf(
             "............................",
-            "......cc....................",
-            ".....BBBB...................",
-            "....BBeEB...................",
-            "...kkBBBB...................",
-            "...kkBBBB...................",
-            "....BBBB....................",
-            ".....BBBBB..................",
-            ".....BBBBBBtttttt...........",
-            "....HBBBBBtttttttttt........",
-            "....HBBBBtttTTTTttttttt.....",
-            "....HBBBttTTTTTTTtttttttt...",
-            "....HBBBttTTTTTTTtttttttttt.",
-            ".....BBBttTTTTTTtttttttttttt",
-            ".....BBWWttTTTTTtttttttttt..",
-            ".....BWWWWttTTTtttttttttt...",
-            ".....WWWWWWttttttttttt......",
-            ".....WWWWWWWWWWWWWWW........",
-            "......WWWWWWWWWWWW..........",
-            ".......ll....ll.............",
-            ".......ll....ll.............",
-            "......lll....lll............",
-            "......lll....lll............"
+            "....cc......................",
+            "...chhhh....................",
+            "..chheEh....................",
+            ".kkkhhhh....................",
+            ".kkkhhhhBBB.................",
+            "....hhhhBBBBtttt............",
+            ".....BBBBBBttttttttt........",
+            "....HBBBBBttTTTTTtttttt.....",
+            "...HHBBBBttTTTTTTTtttttttt..",
+            "..HBBBBBBttTTTTTTtttttttttt.",
+            "..BBBBBWWttTTTTtttttttttttt",
+            "...BBWWWWWWtttttttttttttt...",
+            "....WWWWWWWWWWWWWWWWWW......",
+            ".....WWWWWWWWWWWWWWWW.......",
+            "..vvvvvvvvvvvvvvvvvvvvvv....",
+            ".v.vvvv...vvvvv....vvvv....."
         )
-        // 4: 올빼미 (정면)
+        val wader = listOf(
+            "........................",
+            "....chhh................",
+            "...chhhhh...............",
+            "...hheEhh...............",
+            "kkkkhhhhh...............",
+            "..kkhhhh................",
+            "....hhhB................",
+            ".....hBBB...............",
+            ".....BBBB...............",
+            ".....BBBBB..............",
+            "......BBBBB.............",
+            "......BBBBBBttttt.......",
+            ".....HBBBBBttttttttt....",
+            ".....HBBBttTTTTttttttt..",
+            ".....HBBBttTTTTTTtttttt.",
+            ".....HBBWWtTTTTttttttttt",
+            "......BWWWWtttttttttttt..",
+            "......WWWWWWWWWWWWWW.....",
+            ".......WWWWWWWWWWW.......",
+            "........ll...ll...........",
+            "........ll...ll...........",
+            "........ll...ll...........",
+            "........ll...ll...........",
+            ".......lll...lll.........."
+        )
+        val raptor = listOf(
+            "..............................",
+            "......cc......................",
+            ".....chhhh....................",
+            "....chheEh....................",
+            "...kkkhhhhh...................",
+            "...kkhhhhBB...................",
+            ".....hhhBBBB..................",
+            "......BBBBBBttt...............",
+            ".....HBBBBBttttttt............",
+            ".....HBBBBttTTTTTtttt.........",
+            ".....HBBBttTTTTTTTtttttt......",
+            ".....HBBBttTTTTTTTTtttttttt...",
+            "......BBBttTTTTTTTttttttttttt.",
+            "......BBWWttTTTTtttttttttttttt",
+            "......BWWWWttTTTtttttttttttt..",
+            "......WWWWWWttttttttttttt.....",
+            "......WWWWWWWWWWWWWWW.........",
+            ".......WWWWWWWWWWWW...........",
+            "........ll....ll...............",
+            "........ll....ll...............",
+            ".......lll....lll..............",
+            ".......lll....lll.............."
+        )
         val owl = listOf(
             "...cc.......cc.....",
             "..cccc.....cccc....",
-            "..BBBBBBBBBBBBBB...",
-            ".BBBBBBBBBBBBBBBB..",
-            ".BBeeEBBBBBEeeBB...",
-            ".BBeeEBBBBBEeeBB...",
-            ".BBBBBBBkkBBBBBB...",
-            ".bBBBBBkkkBBBBBb...",
-            ".bBBBBBBBBBBBBBb...",
-            ".bbBBBBBBBBBBBbb...",
-            ".bbBtBBBBBBtBBbb...",
-            ".bbBBtBBBBtBBBbb...",
-            "..bbBBBBBBBBBbb....",
-            "..bbWWWWWWWWWbb....",
-            "..bWWWWWWWWWWWb....",
-            "..WWWwWWWWwWWWW....",
-            "...WWWWWWWWWW......",
-            "...WWWWWWWWWW......",
-            "....ll....ll.......",
-            "....ll....ll.......",
-            "...lll....lll......"
+            "..hhhhhhhhhhhhhh...",
+            ".hhhhhhhhhhhhhhhh..",
+            ".hheeEhhhhhhEeehh..",
+            ".hheeEhhhhhhEeehh..",
+            ".hhhhhhhkkhhhhhhh..",
+            ".bhhhhhkkkhhhhhhb..",
+            ".bBBBBBBBBBBBBBBb..",
+            ".bbBBBBBBBBBBBBbb..",
+            ".bbBtBBBBBBtBBBbb..",
+            ".bbBBtBBBBtBBBBbb..",
+            "..bbBBBBBBBBBBbb...",
+            "..bbWWWWWWWWWWbb...",
+            "..bWWWWWWWWWWWWb...",
+            "..WWWwWWWWWWwWWWW..",
+            "...WWWWWWWWWWWW.....",
+            "...WWWWWWWWWWWW.....",
+            ".....ll....ll........",
+            ".....ll....ll........",
+            "....lll....lll......."
+        )
+        // 도요·물떼새: 낮은 몸, 긴 부리와 다리
+        val shorebird = listOf(
+            "..............................",
+            ".....chhh.....................",
+            "....chhhhh....................",
+            "kkkkkhheEh....................",
+            "..kkkkhhhhBB..................",
+            "......hhhBBBB.................",
+            ".......BBBBBBttttt............",
+            "......HBBBBBttTTTtttttt.......",
+            "......HBBBWWtTTTTtttttttttt...",
+            "......BBWWWWWtttttttttttttttt.",
+            ".......WWWWWWWWWWWWWWWWW......",
+            "........WWWWWWWWWWWW..........",
+            ".........ll.....ll.............",
+            ".........ll.....ll.............",
+            ".........ll.....ll.............",
+            "........lll.....lll............"
+        )
+        // 갈매기·바닷새: 긴 날개와 쐐기꼬리
+        val seabird = listOf(
+            "...............................",
+            "....chhhh......................",
+            "...chheEhh.....................",
+            "kkkkhhhhBBB....................",
+            ".kkkhhhBBBBBtttt...............",
+            "....HBBBBBBttTTtttttttt........",
+            "...HHBBBBBttTTTTTtttttttttt....",
+            "...HBBBBWWtTTTTTTtttttttttttt..",
+            "...BBBWWWWWttTTttttttttttttttt.",
+            "....WWWWWWWWtttttttttttttttttt",
+            ".....WWWWWWWWWWWWWWWWWWttt.....",
+            ".......WWWWWWWWWWWWW...tt.......",
+            ".........ll....ll................",
+            "........lll....lll..............."
+        )
+        // 딱다구리: 세로로 선 몸과 단단한 꼬리
+        val woodpecker = listOf(
+            "........................",
+            "....aac.................",
+            "...ahhhh................",
+            "..ahheEhh...............",
+            "kkkkhhhhh...............",
+            "..kkhhhBB...............",
+            "....hBBBBB..............",
+            "....HBBBttt.............",
+            "....HBBttTTt............",
+            "....HBBtTTTt............",
+            "....HBBtTTTt............",
+            "....HBBWTTTt............",
+            ".....BWWttt.............",
+            ".....WWWWW..............",
+            "......WWWWt.............",
+            ".......WWWtt............",
+            "........WWttt...........",
+            "........ll.tt...........",
+            "........ll..t...........",
+            ".......lll.............."
+        )
+        // 비둘기·두견이: 둥근 가슴, 긴 꼬리
+        val dove = listOf(
+            "............................",
+            "....chhhh...................",
+            "...chheEhh..................",
+            "..kkhhhhBBB.................",
+            "..kkhhhBBBBBtt..............",
+            "....HBBBBBBtttttt...........",
+            "...HHBBBBBttTTTTtttt........",
+            "...HBBBBWWtTTTTTTtttttt.....",
+            "...BBBWWWWWttTTTTttttttttt..",
+            "....WWWWWWWWttttttttttttttt.",
+            ".....WWWWWWWWWWWWWtttttttttt",
+            ".......WWWWWWWWWWW...tttt....",
+            "........ll....ll..............",
+            "........ll....ll..............",
+            ".......lll....lll............."
+        )
+        // 물총새·파랑새: 머리와 부리가 크고 몸은 짧다
+        val kingfisher = listOf(
+            "............................",
+            ".....cchhh..................",
+            "....chhhhhhh................",
+            "kkkkkkhheEhh................",
+            ".kkkkkhhhhhhB................",
+            "......hhhBBBBttt.............",
+            "......HBBBBBttTTtttt.........",
+            "......HBBBWWtTTTTtttttt......",
+            ".......BBWWWWtttttttttttt....",
+            "........WWWWWWWWWWWtttttt....",
+            ".........WWWWWWWWW...tt......",
+            "..........ll...ll............",
+            ".........lll...lll..........."
+        )
+        // 팔색조형: 통통한 몸, 짧은 꼬리
+        val pitta = listOf(
+            ".........................",
+            "....aahhhh...............",
+            "...aahheEhh..............",
+            "..kkkhhhhhh..............",
+            "...khhhBBBBB.............",
+            "....HBBBBBtttt...........",
+            "...HHBBBBttTTTtt.........",
+            "...HBBBWWtTTTTTtttt......",
+            "...BBWWWWWttTTtttttt.....",
+            "....WWWWWWWWttttttttt....",
+            ".....WWWWWWWWWWWWtt......",
+            "......WWWWWWWWWWW.........",
+            ".......ll....ll...........",
+            "......lll....lll.........."
+        )
+        // 꿩·뜸부기: 묵직한 몸, 땅을 걷는 긴 발
+        val gamebird = listOf(
+            "...............................",
+            "....chhhh......................",
+            "...chheEhh.....................",
+            "..kkhhhhBBB....................",
+            "...khhhBBBBBtt.................",
+            "....HBBBBBBtttttt..............",
+            "...HHBBBBBttTTTTtttt...........",
+            "...HBBBBWWtTTTTTTtttttt........",
+            "...BBBWWWWWttTTTTtttttttttt....",
+            "....WWWWWWWWttttttttttttttttt.",
+            ".....WWWWWWWWWWWWWWttttttttttt",
+            "......WWWWWWWWWWWWW....tttt....",
+            ".......lll.....lll..............",
+            ".......lll.....lll..............",
+            "......llll....llll.............."
+        )
+        // 제비·칼새: 날렵한 가슴과 깊게 갈라진 꼬리
+        val aerial = listOf(
+            "...............................",
+            "....chhh.......................",
+            "...chheEh......................",
+            ".kkkhhhhBBB....................",
+            "...hhhBBBBtttttt...............",
+            "....HBBBttTTTTTtttttt..........",
+            "....HBBWWtTTTTTTtttttttt.......",
+            ".....BWWWWttTTtttttttttttttt...",
+            "......WWWWWWWWWWWWWttttttttttt.",
+            "........WWWWWWWWW....tttt...ttt",
+            ".........ll...ll........tt.tt...",
+            "........lll...lll.........t....."
         )
 
-        val m = LinkedHashMap<String, Bitmap>()
+        val templates = arrayOf(
+            songbird, waterfowl, wader, raptor, owl, shorebird, seabird,
+            woodpecker, dove, kingfisher, pitta, gamebird, aerial
+        )
+        val perched = LinkedHashMap<String, Bitmap>()
         for (d in Birds.ALL) {
             val pal = mapOf(
                 'B' to d.art.body, 'b' to shade(d.art.body, 0.72f), 'H' to shade(d.art.body, 1.18f),
+                'h' to d.art.head, 'a' to d.art.accent,
                 'W' to d.art.belly, 'w' to shade(d.art.belly, 0.82f),
                 't' to d.art.wing, 'T' to shade(d.art.wing, 0.72f),
                 'k' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
-                'e' to c(0xFFFDFDF8), 'E' to c(0xFF1A1611),
+                'e' to c(0xFFFDFDF8), 'E' to c(0xFF17151A),
                 'v' to c(0xFF8FD4EA)
             )
-            val rows = when (d.art.template) {
-                1 -> waterfowl
-                2 -> wader
-                3 -> raptor
-                4 -> owl
-                else -> songbird
-            }
-            var bmp = sprite(rows, pal)
+            val rows = templates[d.art.template.coerceIn(0, templates.lastIndex)]
+            var bmp = decorateBird(sprite(rows, pal), d)
             if (d.art.scale != 1f) {
                 bmp = Bitmap.createScaledBitmap(
                     bmp,
@@ -717,9 +1019,169 @@ class Assets {
                     false
                 )
             }
-            m[d.id] = bmp
+            perched[d.id] = bmp
         }
-        birds = m
+        birds = perched
+    }
+
+    /** 체형마다 안전한 앵커에 1px 깃무늬를 더해 작은 화면에서도 종을 구분한다. */
+    private fun decorateBird(src: Bitmap, def: BirdDef): Bitmap {
+        val bmp = src.copy(Bitmap.Config.ARGB_8888, true)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        val a = when (def.art.template) {
+            1 -> BirdAnchors(11f, 7f, 20f, 12f, 6f, 9f, 6f, 3f)
+            2 -> BirdAnchors(10f, 12f, 18f, 17f, 7f, 13f, 6f, 3f)
+            3 -> BirdAnchors(11f, 8f, 20f, 15f, 7f, 11f, 7f, 3f)
+            4 -> BirdAnchors(4f, 9f, 15f, 16f, 9f, 10f, 5f, 5f)
+            5 -> BirdAnchors(12f, 6f, 21f, 10f, 8f, 8f, 8f, 3f)
+            6 -> BirdAnchors(11f, 5f, 21f, 9f, 7f, 7f, 6f, 2f)
+            7 -> BirdAnchors(8f, 7f, 13f, 14f, 6f, 10f, 6f, 3f)
+            8 -> BirdAnchors(11f, 5f, 20f, 10f, 7f, 8f, 6f, 2f)
+            9 -> BirdAnchors(12f, 6f, 20f, 9f, 8f, 7f, 8f, 3f)
+            10 -> BirdAnchors(10f, 5f, 17f, 10f, 7f, 8f, 7f, 2f)
+            11 -> BirdAnchors(12f, 6f, 21f, 10f, 8f, 8f, 6f, 2f)
+            12 -> BirdAnchors(11f, 4f, 20f, 8f, 7f, 6f, 6f, 2f)
+            else -> BirdAnchors(10f, 6f, 18f, 12f, 6f, 9f, 6f, 3f)
+        }
+        val dark = shade(def.art.body, 0.48f)
+        val pale = if (Color.red(def.art.accent) + Color.green(def.art.accent) + Color.blue(def.art.accent) > 540)
+            def.art.accent else shade(def.art.belly, 1.06f)
+        fun rect(l: Float, t: Float, r: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, r, b, p)
+        }
+        fun dot(x: Float, y: Float, col: Int) = rect(x, y, x + 1.2f, y + 1.2f, col)
+
+        when (def.art.pattern) {
+            BirdPatterns.WING_BARS -> {
+                rect(a.wingL + 1f, a.wingT + 1f, a.wingR - 1f, a.wingT + 2f, pale)
+                rect(a.wingL + 3f, a.wingT + 3.5f, a.wingR, a.wingT + 4.5f, def.art.accent)
+            }
+            BirdPatterns.STREAKED -> {
+                rect(a.chestX, a.chestY, a.chestX + 1f, a.chestY + 4f, dark)
+                rect(a.chestX + 2.2f, a.chestY + 1f, a.chestX + 3.2f, a.chestY + 5f, dark)
+                dot(a.wingL + 3f, a.wingT + 2f, pale)
+                dot(a.wingL + 6f, a.wingT + 4f, pale)
+            }
+            BirdPatterns.BIB -> {
+                rect(a.chestX - 1f, a.chestY - 1f, a.chestX + 3f, a.chestY + 2f, dark)
+                rect(a.chestX + 0.2f, a.chestY + 1f, a.chestX + 1.5f, a.chestY + 5f, dark)
+            }
+            BirdPatterns.DARK_CAP -> {
+                rect(a.eyeX - 2f, a.eyeY - 2.5f, a.eyeX + 3f, a.eyeY - 1f, def.art.accent)
+                rect(a.eyeX - 1f, a.eyeY - 1.2f, a.eyeX + 3.5f, a.eyeY, def.art.accent)
+            }
+            BirdPatterns.SPOTTED -> {
+                dot(a.wingL + 2f, a.wingT + 2f, pale)
+                dot(a.wingL + 5f, a.wingT + 4f, pale)
+                dot(a.wingL + 8f, a.wingT + 2f, pale)
+                dot(a.chestX + 1f, a.chestY + 2f, dark)
+                dot(a.chestX + 3f, a.chestY + 4f, dark)
+            }
+            BirdPatterns.COLLAR -> {
+                rect(a.eyeX + 2.5f, a.eyeY + 2f, a.eyeX + 4f, a.eyeY + 6f, pale)
+                rect(a.eyeX + 4f, a.eyeY + 4.5f, a.eyeX + 6f, a.eyeY + 6f, pale)
+            }
+            BirdPatterns.EYE_STRIPE -> {
+                rect(a.eyeX - 2f, a.eyeY - 0.4f, a.eyeX + 3.5f, a.eyeY + 1f, dark)
+                rect(a.eyeX - 1.5f, a.eyeY - 1.6f, a.eyeX + 1.8f, a.eyeY - 0.6f, pale)
+                dot(a.eyeX, a.eyeY, c(0xFF17151A))
+            }
+            BirdPatterns.IRIDESCENT -> {
+                rect(a.wingL + 1f, a.wingT + 1f, a.wingR - 1f, a.wingT + 2.2f, def.art.accent)
+                rect(a.wingL + 3f, a.wingT + 3f, a.wingR, a.wingT + 4.2f, shade(def.art.accent, 1.16f))
+                dot(a.eyeX + 2f, a.eyeY + 2f, def.art.accent)
+            }
+        }
+        return bmp
+    }
+
+    /** 도망칠 때 실제로 날개를 펄럭이도록 위/아래 2프레임 비행 스프라이트를 만든다. */
+    private fun buildFlightBird(def: BirdDef, wingsUp: Boolean): Bitmap {
+        val bmp = Bitmap.createBitmap(32, 26, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        val art = def.art
+        val outline = shade(art.body, 0.43f)
+        fun oval(l: Float, t: Float, r: Float, b: Float, col: Int) {
+            p.color = col; cv.drawOval(RectF(l, t, r, b), p)
+        }
+        fun path(col: Int, vararg pts: Float) {
+            val q = Path(); q.moveTo(pts[0], pts[1])
+            var i = 2
+            while (i < pts.size) { q.lineTo(pts[i], pts[i + 1]); i += 2 }
+            q.close(); p.color = col; cv.drawPath(q, p)
+        }
+        fun rect(l: Float, t: Float, r: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, r, b, p)
+        }
+
+        val longNeck = art.template == 2
+        val longBill = art.template in setOf(2, 5, 6, 9)
+        val plump = art.template in setOf(1, 4, 8, 10, 11)
+        val bodyTop = if (plump) 8f else 9f
+        val bodyBottom = if (plump) 19f else 18f
+
+        // 꼬리와 뒤쪽 날개
+        path(outline, 21f, 11f, 31f, 7f, 28f, 13f, 31f, 18f, 21f, 16f)
+        path(art.wing, 21f, 12f, 29f, 9f, 27f, 13f, 29f, 16f, 21f, 15f)
+        if (wingsUp) {
+            path(outline, 12f, 12f, 13f, 2f, 17f, 0f, 21f, 12f)
+            path(art.wing, 13f, 11f, 14.5f, 3f, 16.5f, 2f, 19.5f, 12f)
+        } else {
+            path(outline, 12f, 13f, 16f, 25f, 20f, 23f, 21f, 13f)
+            path(art.wing, 13.5f, 13f, 16.5f, 23f, 19f, 21.5f, 19.5f, 12f)
+        }
+
+        // 몸과 배
+        oval(7f, bodyTop, 25f, bodyBottom, outline)
+        oval(8f, bodyTop + 1f, 24f, bodyBottom - 1f, art.body)
+        oval(9f, 13f, 22f, bodyBottom - 1f, art.belly)
+        path(art.wing, 12f, 10f, 22f, 11f, 20f, 16f, 13f, 15f)
+        if (art.pattern == BirdPatterns.WING_BARS || art.pattern == BirdPatterns.IRIDESCENT) {
+            rect(15f, 11f, 21f, 12f, art.accent)
+            rect(16f, 13f, 20f, 14f, shade(art.accent, 1.12f))
+        }
+
+        // 백로·두루미는 목을 길게 뻗고, 나머지는 둥근 머리
+        if (longNeck) {
+            rect(6f, 8f, 13f, 12f, outline)
+            rect(7f, 8.5f, 13f, 11f, art.head)
+            oval(4f, 6f, 11f, 13f, outline)
+            oval(5f, 7f, 10f, 12f, art.head)
+        } else {
+            oval(3f, 7f, 12f, 16f, outline)
+            oval(4f, 8f, 11f, 15f, art.head)
+        }
+        if (art.template == 4) { // 부엉이 귀깃
+            path(art.accent, 4f, 9f, 4f, 4f, 7f, 8f)
+            path(art.accent, 9f, 8f, 12f, 4f, 11f, 10f)
+        }
+
+        // 부리
+        if (longBill) {
+            path(outline, 5f, 10f, 0f, 12f, 5f, 13f)
+            path(art.beak, 5f, 10.8f, 0.8f, 12f, 5f, 12.2f)
+        } else {
+            path(outline, 4.5f, 10f, 0.5f, 12f, 4.5f, 13.5f)
+            path(art.beak, 4.5f, 10.8f, 1.5f, 12f, 4.5f, 12.8f)
+        }
+        rect(5.5f, 9.5f, 7f, 11f, c(0xFFFDFDF8))
+        rect(6f, 10f, 7f, 11f, c(0xFF17151A))
+
+        // 긴 다리는 비행 중 뒤로 모은다.
+        if (art.template in setOf(2, 5)) {
+            rect(22f, 16f, 31f, 17f, art.leg)
+            rect(21f, 18f, 30f, 19f, art.leg)
+        }
+
+        val flightScale = (0.96f + (art.scale - 1f) * 0.55f).coerceIn(0.86f, 1.16f)
+        return if (flightScale == 1f) bmp else Bitmap.createScaledBitmap(
+            bmp,
+            (bmp.width * flightScale).toInt().coerceAtLeast(1),
+            (bmp.height * flightScale).toInt().coerceAtLeast(1),
+            false
+        )
     }
 
     // -----------------------------------------------------------------------
@@ -736,6 +1198,12 @@ class Assets {
         return b
     }
 
+    /** 소품용 접지 그림자 (소품 타일은 배경이 투명하므로 그림자를 직접 얹는다) */
+    private fun propShadow(cv: Canvas, p: Paint, cx: Float, cy: Float, rx: Float, ry: Float) {
+        p.color = c(0x40202C20)
+        cv.drawOval(RectF(cx - rx, cy - ry, cx + rx, cy + ry), p)
+    }
+
     private fun fill(c: Canvas, p: Paint, color: Int) {
         p.color = color
         c.drawRect(0f, 0f, 32f, 32f, p)
@@ -750,6 +1218,35 @@ class Assets {
         }
     }
 
+    private fun grassBase(c: Canvas, p: Paint, r: Random, base: Int = c(0xFF96D07A)) {
+        fill(c, p, base)
+        // 체커 디더링 노이즈 — 클래식 픽셀아트 잔디 특유의 잔물결 질감
+        // (방향성 있는 그라데이션 밴드는 타일이 맵 전체에 반복 배치될 때 줄무늬로 보이므로 사용하지 않음)
+        p.color = shade(base, 0.88f)
+        repeat(20) {
+            val x = r.nextInt(32); val y = r.nextInt(32)
+            if ((x + y) % 2 == 0) c.drawRect(x.toFloat(), y.toFloat(), x + 1f, y + 1f, p)
+        }
+        p.color = shade(base, 1.16f)
+        repeat(14) {
+            val x = r.nextInt(32); val y = r.nextInt(32)
+            if ((x + y) % 2 == 1) c.drawRect(x.toFloat(), y.toFloat(), x + 1f, y + 1f, p)
+        }
+        specks(c, p, r, shade(base, 0.9f), 3)
+        // 풀잎 다발 (좌·중·우 3가닥 + 밝은 팁) — 단순 사각형 대신 자연스러운 tuft 모양
+        repeat(4) {
+            val bx = 2f + r.nextInt(27)
+            val by = 3f + r.nextInt(20)
+            grassTuft(c, p, bx, by, shade(base, 0.74f), shade(base, 0.9f))
+        }
+        repeat(2) {
+            val bx = 2f + r.nextInt(27)
+            val by = 3f + r.nextInt(20)
+            grassTuft(c, p, bx, by, shade(base, 1.22f), shade(base, 1.38f))
+        }
+    }
+
+    /** 풀잎 다발 하나: 좌/중/우 3가닥이 살짝 벌어진 형태 + 중앙 가닥 하이라이트 팁 */
     // ------- 고밀도 픽셀 텍스처 헬퍼 (v0.3 디테일 대업그레이드) -------
 
     /** 짧은 별칭: 픽셀 사각형 */
@@ -875,51 +1372,30 @@ class Assets {
         b
     }
 
-    private fun grassBase(c: Canvas, p: Paint, r: Random, base: Int = c(0xFF96D07A)) {
-        fill(c, p, base)
-        // 3톤 입자 노이즈
-        noise(c, p, r, 0f, 0f, 32f, 32f, shade(base, 0.88f), 12, 1f, 2.4f)
-        noise(c, p, r, 0f, 0f, 32f, 32f, shade(base, 1.07f), 10, 1f, 2f)
-        noise(c, p, r, 0f, 0f, 32f, 32f, shade(base, 0.95f), 8, 1.2f, 3f)
-        // 잔디 잎 (3방향)
-        p.color = shade(base, 0.8f)
-        repeat(8) {
-            val x = r.nextInt(28)
-            val y = r.nextInt(22)
-            val h = 2.6f + r.nextFloat() * 3.4f
-            c.drawRect(x.toFloat(), y.toFloat(), x + 1.2f, y + h, p)
-        }
-        p.color = shade(base, 1.12f)
-        repeat(6) {
-            val x = r.nextInt(28)
-            val y = r.nextInt(22)
-            val h = 2.2f + r.nextFloat() * 2.6f
-            c.drawRect(x.toFloat(), y.toFloat(), x + 1.2f, y + h, p)
-        }
-        // 작은 클로버
-        p.color = shade(base, 0.86f)
-        repeat(2) {
-            val x = 2f + r.nextInt(26)
-            val y = 2f + r.nextInt(26)
-            c.drawRect(x, y, x + 1.6f, y + 1.6f, p)
-            c.drawRect(x - 1.4f, y + 1f, x + 3f, y + 2.2f, p)
-        }
-        // 이슬 하이라이트
-        p.color = Color.argb(120, 240, 255, 235)
-        repeat(2) {
-            val x = r.nextInt(30)
-            val y = r.nextInt(30)
-            c.drawRect(x.toFloat(), y.toFloat(), x + 1.2f, y + 1.2f, p)
-        }
+    private fun grassTuft(c: Canvas, p: Paint, x: Float, y: Float, dark: Int, tip: Int) {
+        p.color = dark
+        c.drawRect(x, y + 1.4f, x + 1f, y + 4.4f, p)          // 왼쪽 가닥
+        c.drawRect(x + 3f, y + 1.8f, x + 4f, y + 4.2f, p)     // 오른쪽 가닥
+        c.drawRect(x + 1.5f, y, x + 2.5f, y + 4.6f, p)        // 중앙 가닥 (가장 큼)
+        p.color = tip
+        c.drawRect(x + 1.5f, y, x + 2.5f, y + 1.3f, p)        // 중앙 가닥 팁 하이라이트
     }
 
     private fun buildTiles() {
-        val list = ArrayList<Array<Bitmap>>()
+        // T 값마다 변형(또는 애니메이션 프레임) 목록을 모은다.
+        // 예전처럼 순서에 의존하지 않고 enum 키로 담아 두므로 어긋날 수가 없다.
+        val map = LinkedHashMap<T, ArrayList<Bitmap>>()
+        var cur: T? = null
+        fun begin(t: T) {
+            cur = t
+            map[t] = ArrayList()
+        }
         fun add(vararg bmps: Bitmap) {
-            list.add(if (bmps.size == 1) arrayOf(bmps[0]) else bmps.toList().toTypedArray())
+            map[cur ?: error("begin(T.…) 을 먼저 불러야 한다")]!!.addAll(bmps)
         }
 
-        // ================= GRASS (6종 변형) =================
+        // GRASS (6종 변형 — 더 다채로운 초원 디테일)
+        begin(T.GRASS)
         add(
             tilePainter { c, p, r ->   // 0: 잔디 기본
                 grassBase(c, p, r)
@@ -993,7 +1469,7 @@ class Assets {
             }
         )
 
-        // ================= TALLGRASS (2종) =================
+begin(T.TALLGRASS)
         add(
             tilePainter { c, p, r ->   // 0: 얕은 풀숲
                 grassBase(c, p, r, c(0xFF8CC46C))
@@ -1033,7 +1509,7 @@ class Assets {
             }
         )
 
-        // ================= FLOWER (3색) =================
+begin(T.FLOWER)
         val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8))
         add(*Array(3) { i ->
             tilePainter { c, p, r ->
@@ -1062,91 +1538,13 @@ class Assets {
             }
         })
 
-        // ================= PATH (3종) =================
-        add(
-            tilePainter { c, p, r ->   // 0: 자갈길
-                fill(c, p, c(0xFFE5D3A0))
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFD6BF87), 16, 1.2f, 3f)
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFF0E2B8), 12, 1f, 2.4f)
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFC9B582), 8, 1f, 1.8f)
-                // 밟힌 자국 (은은한 음영)
-                p.color = Color.argb(28, 120, 90, 40)
-                c.drawOval(RectF(6f, 9f, 18f, 16f), p)
-                c.drawOval(RectF(17f, 20f, 29f, 27f), p)
-            },
-            tilePainter { c, p, r ->   // 1: 조경석 길 (둥근 돌)
-                fill(c, p, c(0xFFCDB88E))
-                val stones = arrayOf(
-                    floatArrayOf(1f, 2f, 12f, 12f), floatArrayOf(13f, 0f, 25f, 10f),
-                    floatArrayOf(26f, 3f, 32f, 13f), floatArrayOf(2f, 13f, 13f, 23f),
-                    floatArrayOf(14f, 11f, 27f, 22f), floatArrayOf(28f, 14f, 32f, 25f),
-                    floatArrayOf(0f, 24f, 11f, 32f), floatArrayOf(12f, 23f, 24f, 32f),
-                    floatArrayOf(25f, 26f, 32f, 32f)
-                )
-                for (s in stones) {
-                    val t = lerpColor(c(0xFFE9DCBC), c(0xFFD9C9A7), r.nextFloat())
-                    px(c, p, s[0], s[1], s[2] - s[0], s[3] - s[1], t)
-                    // 돌 상단 하이라이트 / 하단 음영
-                    px(c, p, s[0] + 1f, s[1], s[2] - s[0] - 2f, 1.4f, shade(t, 1.12f))
-                    px(c, p, s[0], s[3] - 1.6f, s[2] - s[0], 1.6f, shade(t, 0.84f))
-                    px(c, p, s[2] - 1.4f, s[1] + 1f, 1.4f, s[3] - s[1] - 1f, shade(t, 0.88f))
-                    noise(c, p, r, s[0] + 1f, s[1] + 1f, s[2] - 1f, s[3] - 1f, shade(t, 0.94f), 2, 1f, 1.6f)
-                }
-                // 이끼 낀 틈
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF8FA86B), 5, 1f, 1.6f)
-            },
-            tilePainter { c, p, r ->   // 2: 흙길 + 자국
-                fill(c, p, c(0xFFE0CB98))
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFCFB884), 14, 1.2f, 2.8f)
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFEDDFB2), 10, 1f, 2f)
-                // 발자국
-                p.color = Color.argb(52, 110, 82, 38)
-                c.drawOval(RectF(7f, 6f, 12f, 13f), p)
-                c.drawOval(RectF(19f, 18f, 24f, 25f), p)
-                p.color = Color.argb(40, 255, 245, 210)
-                c.drawOval(RectF(7.8f, 6.8f, 11.2f, 12f), p)
-                // 작은 돌
-                px(c, p, 26f, 8f, 3f, 2.2f, c(0xFFB0A88E))
-                px(c, p, 26.4f, 8.4f, 1.6f, 1f, c(0xFFD0C8AC))
-            }
-        )
-
-        // ================= PLAZA (2종) =================
-        add(
-            tilePainter { c, p, r ->   // 0: 석판 광장
-                fill(c, p, c(0xFFC6B58F))
-                // 4분할 석판
-                for (gx in 0 until 2) {
-                    for (gy in 0 until 2) {
-                        val x = gx * 16f + 1.6f
-                        val y = gy * 16f + 1.6f
-                        val t = lerpColor(c(0xFFE9DCBC), c(0xFFDCCBA6), r.nextFloat())
-                        px(c, p, x, y, 12.8f, 12.8f, t)
-                        bevel(c, p, x, y, x + 12.8f, y + 12.8f, shade(t, 1.1f), shade(t, 0.82f), 1.2f)
-                        noise(c, p, r, x + 1.4f, y + 1.4f, x + 11.4f, y + 11.4f, shade(t, 0.95f), 3, 1f, 1.8f)
-                    }
-                }
-                // 틈새 이끼
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF9AA873), 4, 1f, 1.6f)
-            },
-            tilePainter { c, p, r ->   // 1: 패턴 석판 + 균열
-                fill(c, p, c(0xFFC6B58F))
-                px(c, p, 1.6f, 1.6f, 28.8f, 28.8f, c(0xFFE4D6B2))
-                bevel(c, p, 1.6f, 1.6f, 30.4f, 30.4f, c(0xFFF1E6C8), c(0xFFB8A87F), 1.4f)
-                // 대각 패턴
-                px(c, p, 6f, 6f, 8f, 8f, c(0xFFD9C9A7))
-                px(c, p, 18f, 18f, 8f, 8f, c(0xFFD9C9A7))
-                px(c, p, 7f, 7f, 6f, 1.4f, c(0xFFEFE3C2))
-                px(c, p, 19f, 19f, 6f, 1.4f, c(0xFFEFE3C2))
-                // 균열
-                px(c, p, 14f, 2f, 1f, 8f, c(0xFFA0906B))
-                px(c, p, 14.8f, 9f, 1f, 5f, c(0xFFA0906B))
-                px(c, p, 15.6f, 13f, 1f, 7f, c(0xFFA0906B))
-                noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFB0A178), 5, 1f, 1.4f)
-            }
-        )
-
-        // ================= SAND (3종) =================
+begin(T.PATH)
+        for (i in 0 until 3) add(RoadArt.tile(Pave.DIRT, 255, i, false))
+        // PLAZA (석재 포장)
+        begin(T.PLAZA)
+        for (i in 0 until 2) add(RoadArt.tile(Pave.STONE, 255, i, false))
+        // SAND (3종)
+        begin(T.SAND)
         add(
             tilePainter { c, p, r ->   // 0: 모래
                 fill(c, p, c(0xFFF2E1B0))
@@ -1193,7 +1591,7 @@ class Assets {
             }
         )
 
-        // ================= WATER (4프레임 애니메이션) =================
+begin(T.WATER)
         add(*Array(4) { f ->
             tilePainter { c, p, r ->
                 // 깊이감 있는 수직 그라데이션
@@ -1227,7 +1625,7 @@ class Assets {
             }
         })
 
-        // ================= REED (2종) =================
+begin(T.REED)
         add(
             tilePainter { c, p, r ->   // 0: 갈대 군락
                 grassBase(c, p, r, c(0xFF8CC46C))
@@ -1260,7 +1658,7 @@ class Assets {
             }
         )
 
-        // ================= TREE (4종: 참나무/소나무/벚나무/단풍나무) =================
+begin(T.TREE)
         add(
             tilePainter { c, p, r ->   // 0: 참나무
             grassBase(c, p, r)
@@ -1363,7 +1761,7 @@ class Assets {
             px(c, p, 23f, 29f, 2f, 1.4f, c(0xFFD9534F))
         })
 
-        // ================= ROCK (2종) =================
+begin(T.ROCK)
         add(
             tilePainter { c, p, r ->   // 0: 큰 바위
                 grassBase(c, p, r)
@@ -1411,7 +1809,7 @@ class Assets {
             }
         )
 
-        // ================= MOUNTAIN (2종) =================
+begin(T.MOUNTAIN)
         add(
             tilePainter { c, p, r ->   // 0: 바위 절벽 (층리)
                 fill(c, p, c(0xFF77848F))
@@ -1456,7 +1854,7 @@ class Assets {
             }
         )
 
-        // ================= BLDG_WALL (도시 건물 벽돌) =================
+begin(T.BLDG_WALL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFC9BFA8))
             val brickTones = intArrayOf(c(0xFFE0D2B4), c(0xFFE9E2D3), c(0xFFD8CFBA), c(0xFFDDD2B8))
@@ -1481,7 +1879,7 @@ class Assets {
             noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFB5A88F), 6, 1f, 1.4f)
         })
 
-        // ================= BLDG_WIN (2종 창문) =================
+begin(T.BLDG_WIN)
         val curtains = intArrayOf(c(0xFFF2D06B), c(0xFFC3A3E8))
         add(*Array(2) { i ->
             tilePainter { c, p, r ->
@@ -1519,7 +1917,7 @@ class Assets {
             }
         })
 
-        // ================= BLDG_ROOF (도시 옥상 슬레이트) =================
+begin(T.BLDG_ROOF)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF5D6772))
             // 슐레이트 행 (겹침)
@@ -1540,7 +1938,7 @@ class Assets {
             noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF8A949E), 7, 1f, 1.5f)
         })
 
-        // ================= HOUSE_ROOF (기와집 지붕) =================
+begin(T.HOUSE_ROOF)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFB2583F))
             for (row in 0 until 4) {
@@ -1561,7 +1959,7 @@ class Assets {
             px(c, p, 0f, 0f, 32f, 1.2f, c(0xFFE08A67))
         })
 
-        // ================= HOUSE_WALL (집 외벽) =================
+begin(T.HOUSE_WALL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
             // 스터코 노이즈
@@ -1580,7 +1978,7 @@ class Assets {
             noise(c, p, r, 0f, 28f, 32f, 32f, c(0xFFB08A5C), 5, 1f, 1.5f)
         })
 
-        // ================= HOUSE_WIN (꽃상자 창문) =================
+begin(T.HOUSE_WIN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
             noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFEDE0C0), 10, 1f, 1.8f)
@@ -1607,7 +2005,7 @@ class Assets {
             }
         })
 
-        // ================= HOUSE_DOOR (현관) =================
+begin(T.HOUSE_DOOR)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
             noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFEDE0C0), 8, 1f, 1.8f)
@@ -1633,7 +2031,7 @@ class Assets {
             noise(c, p, r, 6f, 29f, 26f, 32f, c(0xFF8A2F35), 5, 1f, 1.3f)
         })
 
-        // ================= TUNNEL (터널 입구) =================
+begin(T.TUNNEL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF77848F))
             vgrad(c, p, 0f, 0f, 32f, 10f, c(0xFF8D9AA8), c(0xFF68727E), 3)
@@ -1669,7 +2067,7 @@ class Assets {
             px(c, p, 15f, 3.2f, 2f, 2f, c(0xFFFFFBE0))
         })
 
-        // ================= FLOOR (실내 나무 바닥 2종) =================
+begin(T.FLOOR)
         add(*Array(2) { i ->
             tilePainter { c, p, r ->
                 val base = if (i == 0) c(0xFFCDA775) else c(0xFFC49E6C)
@@ -1699,7 +2097,7 @@ class Assets {
             }
         })
 
-        // ================= WALL_IN (실내 벽지) =================
+begin(T.WALL_IN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
             // 벽지 줄무늬
@@ -1717,7 +2115,7 @@ class Assets {
             px(c, p, 0f, 26f, 32f, 1.2f, c(0xFFB08A5C))
         })
 
-        // ================= WALL_WIN (실내 창) =================
+begin(T.WALL_WIN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
             for (x in 0 until 32 step 6) {
@@ -1744,7 +2142,7 @@ class Assets {
             px(c, p, 0f, 23f, 32f, 1.2f, c(0xFFB08A5C))
         })
 
-        // ================= OVEN (화덕 2프레임 불꽃) =================
+begin(T.OVEN)
         add(*Array(2) { f ->
             tilePainter { c, p, r ->
                 // 벽돌 화덕
@@ -1799,7 +2197,7 @@ class Assets {
             }
         })
 
-        // ================= BED (침대) =================
+begin(T.BED)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFCDA775))
             // 프레임
@@ -1827,7 +2225,7 @@ class Assets {
             px(c, p, 18.6f, 11f, 8.2f, 1.6f, c(0xFFFFD0C8))
         })
 
-        // ================= BOX (이사 박스) =================
+begin(T.BOX)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFCDA775))
             noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFB98F5E), 6, 1f, 1.6f)
@@ -1855,7 +2253,7 @@ class Assets {
             px(c, p, 7f, 9.6f, 3.4f, 1.2f, c(0xFF7A5A33))
         })
 
-        // ================= DECOR (장식 슬롯) =================
+begin(T.DECOR)
         add(tilePainter { c, p, r ->
             val base = c(0xFFCDA775)
             fill(c, p, base)
@@ -1894,7 +2292,7 @@ class Assets {
             px(c, p, 27.6f, 25f, 1.4f, 4f, c(0xFFE8D5A3))
         })
 
-        // ================= SIGN (이정표) =================
+begin(T.SIGN)
         add(tilePainter { c, p, r ->
             grassBase(c, p, r)
             p.color = Color.argb(56, 26, 46, 28)
@@ -1932,7 +2330,7 @@ class Assets {
             px(c, p, 4f, 13.4f, 5f, 1.2f, c(0xFF6FAE57))
         })
 
-        // ================= BENCH (벤치) =================
+begin(T.BENCH)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFD9C9A7))
             // 석판 배경 (광장)
@@ -1971,7 +2369,7 @@ class Assets {
             dot(c, p, 26f, 15f, c(0xFF33241C))
         })
 
-        // ================= LAMP (가로등) =================
+begin(T.LAMP)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFD9C9A7))
             for (gx in 0 until 2) {
@@ -2006,7 +2404,16 @@ class Assets {
             px(c, p, 8.6f, 1f, 15f, 1.2f, c(0xFF23232B))
         })
 
-        tiles = list.toTypedArray()
+        medallion = RoadArt.medallion(3)
+        drain = RoadArt.drain()
+        castShadow = RoadArt.castShadows()
+
+        tiles = Array(T.ALL.size) { i ->
+            val t = T.ALL[i]
+            val v = map[t] ?: error("타일 아트 누락: $t")
+            if (v.isEmpty()) error("타일 아트 비어 있음: $t")
+            v.toTypedArray()
+        }
     }
 
     /** 타일 좌표 기반 변형 선택 */
@@ -2249,6 +2656,21 @@ class Assets {
         val f = flipH(bird(id))
         birdsFlipped = birdsFlipped + (id to f)
         return f
+    }
+
+    /** 도주 비행 프레임. 종별 팔레트와 체형을 유지하며 좌우 방향도 지원한다. */
+    fun birdFlight(id: String, frame: Int, faceLeft: Boolean): Bitmap {
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        val frames = birdFlights[def.id] ?: arrayOf(
+            buildFlightBird(def, true),
+            buildFlightBird(def, false)
+        ).also { birdFlights[def.id] = it }
+        val i = frame.coerceIn(0, 1)
+        if (faceLeft) return frames[i]
+        val flipped = birdFlightsFlipped[def.id] ?: frames.map(::flipH).toTypedArray().also {
+            birdFlightsFlipped[def.id] = it
+        }
+        return flipped[i]
     }
 
     fun birdW(id: String): Float = bird(id).width.toFloat()
