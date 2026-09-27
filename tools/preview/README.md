@@ -75,6 +75,30 @@ java -cp "tools/preview/out/classes-smoke:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.InputSmoke
 ```
 
+### 퀘스트·상점 및 버튼 회귀 테스트
+
+`navigation_smoke.kt`는 실제 `Input → Game → Overlay`에 DOWN/UP을 서로 다른 프레임으로
+전달합니다. 2400×1080 @ 2×, 1280×720 @ 2×, 2400×1080 @ 3×의 세 환경에서 검사합니다.
+
+- 가방 8개 탭, 상태/퀘스트/일일 의뢰 페이지, 퀘스트·상점 바로가기
+- 상점 네 가지 진열대, 다른 지역에서 상점 이동 취소, 카메라 구매/상세/복귀 및 장식 구매
+- 자전거 모델 → 도색 → 부속품 → 모델 전환: 숨겨진 이전 탭의 영역이 구매/도색을 가로채지 않는지
+- 지도 확대/축소/닫기, 지도 교체·백업 복귀 뒤 raw 입력이 남지 않는지
+- HUD 가방·자전거·카메라·피자·펀치·의뢰·지도·NPC 대화, 메뉴 키 닫기, 음악/효과음/저장/화면 연출 설정
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/navigation_smoke.kt $SRCS \
+  -d tools/preview/out/classes-navigation -jvm-target 17
+java -Djava.awt.headless=true -cp "tools/preview/out/classes-navigation:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.NavigationSmoke
+```
+
+`bike`, `shortcuts`, `raw` 인자로 해당 회귀만 따로 실행할 수도 있습니다.
+전체 실행은 `tools/preview/out/navigation/`에 작은 화면의 상태·퀘스트·상점 스크린샷도 남깁니다.
+JVM 스텁 테스트이므로 실제 Android 기기의 터치/렌더링 확인을 완전히 대신하지는 않습니다.
+
 ### UI 불투명도 회귀 테스트
 
 그림자용 `Paint.alpha`가 창·카드·버튼·게이지·힌트 배경에 남지 않는지 검사합니다.

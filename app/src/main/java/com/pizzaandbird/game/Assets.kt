@@ -789,7 +789,14 @@ class Assets(private val context: Context) {
             apron = look.apron,
             cane = look.cane || kind == NpcKind.ELDER,
             small = look.small || kind == NpcKind.KID,
-            longHair = look.longHair
+            longHair = look.longHair,
+            keepsake = when (kind) {
+                NpcKind.PROFESSOR -> "feather"
+                NpcKind.SHOP -> "clover"
+                NpcKind.ELDER -> "moon"
+                NpcKind.KID -> "rain"
+                else -> if (look.scarf != null) "moon" else "clover"
+            }
         )
     }
 
