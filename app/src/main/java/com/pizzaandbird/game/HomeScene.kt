@@ -48,7 +48,7 @@ class HomeScene(game: Game) : Scene(game) {
 
     /** 창밖 날씨 — 우리 집이 있는 지역의 오늘 날씨 */
     private val homeWeather: Weather
-        get() = WeatherSys.today(state.day, Regions.byId[state.homeRegion] ?: Regions.ALL.first())
+        get() = state.weather()
 
     /** 창문 타일 (x, y) — MapBuilder.buildHome 의 WALL_WIN 과 1:1 */
     private val windowTiles = listOf(2 to 1, 5 to 1, 8 to 1)
@@ -88,11 +88,17 @@ class HomeScene(game: Game) : Scene(game) {
         game.hud.photoModeHint = false
         game.hud.questLabel = null
         game.banner("🏠 우리 집")
+
+        game.audio.playBgm(R.raw.bgm_home)   // 🎵 신비로운 탐험
+        game.audio.stopAmb()
     }
 
     override fun update(dt: Float) {
         game.hud.update(dt)
-        if (overlay != null) return   // 대화상자/메뉴 중에는 정지
+        if (overlay != null) {
+            game.audio.stopSteps()
+            return   // 대화상자/메뉴 중에는 정지
+        }
         state.playSeconds += dt * 0.4f
         state.advanceClock(dt)
         updateMotes(dt)
@@ -117,6 +123,9 @@ class HomeScene(game: Game) : Scene(game) {
         } else {
             player.animT = 0f
         }
+
+        // 발소리 (나무 바닥)
+        game.audio.steps(if (moving) Audio.Steps.WOOD else Audio.Steps.NONE)
 
         // 현관문
         if (map.feetTile(player.x, player.y) == T.HOUSE_DOOR) {
@@ -143,6 +152,7 @@ class HomeScene(game: Game) : Scene(game) {
 
     private fun exitHome() {
         SaveManager.save(game.context, state)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = WorldScene(game, state.homeRegion, SpawnKind.HOME)
         }
@@ -188,6 +198,8 @@ class HomeScene(game: Game) : Scene(game) {
                             game.state.sleepUntilMorning()
                             SaveManager.save(game.context, game.state)
                             game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 ☀️ (행운 +5)")
+                            game.sfx(Audio.Sfx.SPARKLE, 0.7f)
+                            game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.4f)   // 아침 새소리
                         },
                         DialogOverlay.Choice("아직 안 졸려요")
                     )
@@ -202,6 +214,7 @@ class HomeScene(game: Game) : Scene(game) {
                 state.houseStyleId = styleId
                 SaveManager.save(game.context, state)
                 game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
+                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
             })
             "decor" -> {
                 if (state.decorOwned.isEmpty()) {
@@ -220,6 +233,7 @@ class HomeScene(game: Game) : Scene(game) {
                             SaveManager.save(game.context, state)
                             val name = Decors.of(picked)?.name ?: "장식"
                             game.toast("장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                            game.sfx(Audio.Sfx.SUCCESS, 0.6f)
                         }
                     )
                 }
@@ -238,6 +252,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (s.money < totalCost) {
             val detail = if (houseCost > 0) "집 매입 ${won(houseCost)} + 이사 ${won(MOVE_COST)}" else "이사 ${won(MOVE_COST)}"
             game.toast("돈이 부족해요… 필요한 금액: $detail")
+            game.sfx(Audio.Sfx.FAIL, 0.5f)
             return
         }
         s.money -= totalCost
@@ -251,6 +266,7 @@ class HomeScene(game: Game) : Scene(game) {
         } else {
             game.toast("짐 싸기 완료! ${picked.name}의 우리 집으로 이사했어요 📦 · ${won(MOVE_COST)}")
         }
+        game.sfx(Audio.Sfx.BUY)
     }
 
     // -------------------------------------------------------------------
@@ -278,9 +294,11 @@ class HomeScene(game: Game) : Scene(game) {
             val tId = state.eatBest()
             if (tId == null) {
                 game.toast("피자가 없어요! 화덕에서 구워요 🍕")
+                game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val t = Toppings.of(tId)
                 game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+                game.sfx(Audio.Sfx.EAT, 0.9f)
             }
             return
         }
@@ -323,6 +341,22 @@ class HomeScene(game: Game) : Scene(game) {
         drawWindows(c, camXv, camYv)
         drawSunPatches(c, camXv, camYv)
         drawClock(c, camXv, camYv)
+
+        // The house's focal point: a warm, gently flickering wood-fired oven.
+        val ovenScreenX = (ovenX - camX) * WORLD_SCALE
+        val ovenScreenY = (ovenY - camY) * WORLD_SCALE
+        val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
+        uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
+        c.drawCircle(ovenScreenX, ovenScreenY - 11f, 47f + heat * 4f, uiFill)
+        game.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(
+                (9f * 16f - camX) * WORLD_SCALE - 16f,
+                (1f * 16f - camY) * WORLD_SCALE - 8f,
+                (9f * 16f - camX) * WORLD_SCALE + 80f,
+                (1f * 16f - camY) * WORLD_SCALE + 100f
+            )
+        )
 
         val a = game.assets
 
@@ -463,9 +497,9 @@ class HomeScene(game: Game) : Scene(game) {
         val w = homeWeather
         val dl = daylight(h)
         var sky = skyColor(h)
-        if (w != Weather.CLEAR) {
-            val grey = if (w == Weather.FOG || w == Weather.SNOW) 0xFFC4CCD6.toInt() else 0xFF8C98A8.toInt()
-            sky = lerpC(sky, grey, (if (w == Weather.CLOUDY) 0.45f else 0.7f) * (0.25f + 0.75f * dl))
+        if (w != Weather.SUNNY) {
+            val grey = if (w == Weather.SNOW) 0xFFC4CCD6.toInt() else 0xFF8C98A8.toInt()
+            sky = lerpC(sky, grey, (when (w) { Weather.WIND -> 0.25f; Weather.CLOUDY -> 0.45f; else -> 0.7f }) * (0.25f + 0.75f * dl))
         }
         for ((i, wt) in windowTiles.withIndex()) {
             val sx = (wt.first * 16f - camX) * WORLD_SCALE
@@ -478,7 +512,7 @@ class HomeScene(game: Game) : Scene(game) {
             c.drawRect(l, b - 4f, r, b, uiFill)
             c.save()
             c.clipRect(l, t, r, b)
-            if (dl < 0.25f && (w == Weather.CLEAR || w == Weather.CLOUDY)) {
+            if (dl < 0.25f && (w == Weather.SUNNY || w == Weather.CLOUDY)) {
                 for (k in 0 until 3) {
                     val hx = hash2(i, k, 41)
                     val tw = (sin(game.time * (1.5f + k * 0.4f) + hx % 10) * 0.5f + 0.5f)
@@ -493,7 +527,7 @@ class HomeScene(game: Game) : Scene(game) {
                     aaFill.color = sky
                     c.drawCircle(r - 3.8f, t + 3.8f, 2.4f, aaFill)       // 초승달
                 }
-            } else if (dl > 0.5f && w == Weather.CLEAR) {
+            } else if (dl > 0.5f && w == Weather.SUNNY) {
                 // 흘러가는 뭉게구름
                 aaFill.color = Color.argb(210, 255, 255, 255)
                 val cx = l + ((game.time * 1.6f + i * 9f) % 30f) - 6f
@@ -540,7 +574,8 @@ class HomeScene(game: Game) : Scene(game) {
         val dl = daylight(h)
         if (dl <= 0.02f) return
         val wk = when (homeWeather) {
-            Weather.CLEAR -> 1f
+            Weather.SUNNY -> 1f
+            Weather.WIND -> 0.8f
             Weather.CLOUDY -> 0.4f
             else -> 0.15f
         }

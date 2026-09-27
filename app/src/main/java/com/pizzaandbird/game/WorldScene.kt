@@ -32,7 +32,7 @@ class WorldScene(
 
     // 디테일 연출 (날씨·물·발자국·작은 생물·조명) — Fx.kt
     private val fx = WorldFx(map, region.id.hashCode().toLong() + 31L)
-    private var weather = WeatherSys.today(state.day, region)
+    private val weather: Weather get() = state.weather()
     private var stepT = 0f
 
     var photoMode = false
@@ -47,6 +47,8 @@ class WorldScene(
     private var saveT = 20f
     private var dustT = 0f
     private var ambientT = 0f
+    private var chirpT = 4f + rnd.nextFloat() * 6f    // 새 지저귐 효과음 타이머
+    private var owlT = 6f + rnd.nextFloat() * 10f     // 밤 부엉이 효과음 타이머
 
     // 파티클
     private class Pt(
@@ -114,20 +116,21 @@ class WorldScene(
         game.hud.showStats = true
         game.hud.showMinimap = true
         fx.weather = weather
-        game.hud.regionLabel = regionLabel()
+        game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
-        if (weather != Weather.CLEAR) game.toast(weatherLine(weather))
+
+        game.audio.playBgm(R.raw.bgm_world)   // 🎵 새가 날아가는 길
+        updateAmbience()
     }
 
-    private fun regionLabel(): String = "${region.name} · ${weather.emoji} ${weather.label}"
-
-    private fun weatherLine(w: Weather): String = when (w) {
-        Weather.CLEAR -> "☀️ 날이 개었어요! 새들이 기지개를 켜요"
-        Weather.CLOUDY -> "⛅ 구름이 잔뜩 꼈어요"
-        Weather.RAIN -> "🌧 비가 내려요… 빗소리에 발소리가 묻혀요"
-        Weather.FOG -> "🌫 안개가 짙어요. 새에게 더 가까이 다가갈 수 있어요"
-        Weather.SNOW -> "❄️ 눈이 내려요! 발자국이 남아요"
+    /** 낮 → 새소리(숲 지역은 벌새 허밍), 밤 → 바람 환경음 루프 */
+    private fun updateAmbience() {
+        when {
+            state.isNight() -> game.audio.playAmb(R.raw.amb_wind, 0.2f)
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
+            else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
+        }
     }
 
     // -------------------------------------------------------------------
@@ -136,22 +139,41 @@ class WorldScene(
 
     override fun update(dt: Float) {
         game.hud.update(dt)
-        if (overlay != null) return   // 대화상자/메뉴 중에는 세계 정지
+        if (overlay != null) {
+            game.audio.stopSteps()
+            return   // 대화상자/메뉴 중에는 세계 정지
+        }
         state.playSeconds += dt
         state.advanceClock(dt)
-
-        // 날이 바뀌면 날씨도 바뀐다
-        val todayWeather = WeatherSys.today(state.day, region)
-        if (todayWeather != weather) {
-            weather = todayWeather
-            fx.weather = todayWeather
-            game.hud.regionLabel = regionLabel()
-            game.toast(weatherLine(todayWeather))
-        }
+        updateWeather(dt)
+        fx.weather = weather
 
         updatePlayer(dt)
         updateStats(dt)
         checkTileTriggers()
+
+        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~)
+        val stepping = player.moving && !player.bike
+        game.audio.steps(
+            if (stepping) Audio.Steps.GRAVEL else Audio.Steps.NONE,
+            run = stepping && game.input.isRun
+        )
+
+        // 환경음 + 랜덤 지저귐/부엉이
+        updateAmbience()
+        if (state.isNight()) {
+            owlT -= dt
+            if (owlT <= 0f) {
+                owlT = 14f + rnd.nextFloat() * 18f
+                game.sfx(Audio.Sfx.OWL, 0.5f)
+            }
+        } else if (birds.isNotEmpty()) {
+            chirpT -= dt
+            if (chirpT <= 0f) {
+                chirpT = 7f + rnd.nextFloat() * 9f
+                game.sfx(if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2, 0.45f)
+            }
+        }
 
         // 새
         val birdDt = if (photoMode) dt * 0.35f else dt
@@ -159,6 +181,10 @@ class WorldScene(
         while (it.hasNext()) {
             val b = it.next()
             b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult() * weather.fleeK)
+            if (b.state == 2 && !b.fleeCued) {
+                b.fleeCued = true
+                game.sfx(Audio.Sfx.BIRD_FLEE, 0.65f)   // 푸드덕! 도망
+            }
             if (b.gone) it.remove()
         }
 
@@ -219,6 +245,29 @@ class WorldScene(
             val k = (dt * 8f).coerceIn(0f, 1f)
             camX += (tx - camX) * k
             camY += (ty - camY) * k
+        }
+    }
+
+    private fun updateWeather(dt: Float) {
+        state.weatherSeconds -= dt
+        if (state.weatherSeconds > 0f) return
+
+        val old = state.weather()
+        val roll = rnd.nextFloat()
+        val next = when {
+            roll < 0.36f -> Weather.SUNNY
+            roll < 0.57f -> Weather.CLOUDY
+            roll < 0.76f -> Weather.RAIN
+            roll < 0.91f -> Weather.WIND
+            else -> Weather.SNOW
+        }
+        // 눈은 산·북부에서 더 자연스럽지만, 가끔 전국에 내릴 수 있다.
+        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < 0.65f) Weather.CLOUDY else next
+        state.weatherId = chosen.id
+        state.weatherSeconds = 50f + rnd.nextFloat() * 55f
+        if (chosen != old) {
+            game.hud.banner("${chosen.icon} 날씨 변화: ${chosen.label}")
+            game.hud.toast("${chosen.description} · ${chosen.label}")
         }
     }
 
@@ -331,6 +380,8 @@ class WorldScene(
         state.py = player.y
         SaveManager.save(game.context, state)
         if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
+        game.sfx(Audio.Sfx.WHOOSH, 0.8f)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = WorldScene(game, targetId, SpawnKind.TUNNEL, Regions.opposite(edge))
         }
@@ -340,6 +391,7 @@ class WorldScene(
         state.px = player.x
         state.py = player.y
         SaveManager.save(game.context, state)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = HomeScene(game)
         }
@@ -363,7 +415,8 @@ class WorldScene(
         val pool = regionPool()
         if (pool.isEmpty()) return
 
-        val weights = pool.map { it.weight * luckBoost(it) }
+        val currentWeather = state.weather()
+        val weights = pool.map { it.weight * luckBoost(it) * weatherBirdMultiplier(it, currentWeather) }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
         for (i in pool.indices) {
@@ -385,13 +438,20 @@ class WorldScene(
             }
             if (tooClose) continue
             birds.add(FieldBird(def, bx, by))
-            if (def.tier.star >= 3) game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
-            if (state.questBird == def.id) game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+            if (def.tier.star >= 3) {
+                game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
+            }
+            if (state.questBird == def.id) {
+                game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
+            }
             return
         }
     }
 
     private fun snap(b: FieldBird) {
+        game.sfx(Audio.Sfx.SHUTTER)   // 찰칵!
         val a = game.assets
         val bmp = a.bird(b.def.id)
         val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
@@ -501,8 +561,7 @@ class WorldScene(
 
     private fun ambientKind(): String = when {
         weather == Weather.RAIN || weather == Weather.SNOW -> "none"     // 비/눈은 WorldFx가 화면 전체에 그린다
-        weather == Weather.FOG -> if (state.isNight() && "wetland" in region.habitats) "firefly" else "none"
-        region.id == "sokcho" || region.id == "jeju" -> "snow"
+        weather == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
         "forest" in region.habitats -> "leaf"
@@ -518,6 +577,16 @@ class WorldScene(
         val halfW = game.virtW / (2f * WORLD_SCALE)
         val halfH = game.virtH / (2f * WORLD_SCALE)
         when (ambientKind()) {
+            "rain" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
+                Color.argb(150, 100, 160, 210), 1.5f, false
+            )
+            "wind" -> addParticle(
+                camX - 8f, camY + rnd.nextFloat() * halfH * 2f,
+                55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
+                Color.argb(150, 210, 220, 205), 2f, true
+            )
             "leaf" -> addParticle(
                 camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
                 (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,
@@ -614,6 +683,7 @@ class WorldScene(
     private fun restAtBench() {
         state.luck = (state.luck + 2f).coerceAtMost(100f)
         game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
+        game.sfx(Audio.Sfx.SPARKLE, 0.55f)
     }
 
     // -------------------------------------------------------------------
@@ -689,6 +759,7 @@ class WorldScene(
                             state.questReward = def.reward
                             SaveManager.save(game.context, state)
                             game.toast("의뢰 접수: ${def.name} 사진 📷")
+                            game.sfx(Audio.Sfx.NOTIFY, 0.8f)
                         },
                         DialogOverlay.Choice("다음에요…")
                     )
@@ -734,8 +805,10 @@ class WorldScene(
                                     game.state.cameraLevel = lvl + 1
                                     SaveManager.save(game.context, game.state)
                                     game.toast("카메라가 ${next.name}(으)로 업그레이드됐어요! 📷✨")
+                                    game.sfx(Audio.Sfx.BUY)
                                 } else {
                                     game.toast("돈이 부족해요… 박사 의뢰를 해볼까요?")
+                                    game.sfx(Audio.Sfx.FAIL, 0.5f)
                                 }
                             }
                         )
@@ -770,6 +843,7 @@ class WorldScene(
         if (input.justCam) {
             photoMode = !photoMode
             game.hud.photoModeHint = photoMode
+            game.sfx(Audio.Sfx.TAP, 0.6f, if (photoMode) 1.3f else 0.9f)
             if (photoMode) game.toast("카메라 모드! 새를 탭해서 찍어요 📷")
             return
         }
@@ -784,6 +858,7 @@ class WorldScene(
         if (input.justB) {
             player.bike = !player.bike
             state.onBike = player.bike
+            game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
             game.toast(if (player.bike) "자전거 탔다! 쌩~ 🚲" else "자전거에서 내렸어요")
             return
         }
@@ -806,6 +881,7 @@ class WorldScene(
             }
             nearestCat()?.let { cat ->
                 state.luck = (state.luck + 1f).coerceAtMost(100f)
+                game.sfx(Audio.Sfx.SPARKLE, 0.5f, 1.15f)
                 for (i in 0 until 3) {
                     addParticle(
                         cat.cx, cat.cy - 6f,
@@ -862,9 +938,11 @@ class WorldScene(
         val tId = state.eatBest()
         if (tId == null) {
             game.toast("피자가 없어요! 집의 화덕에서 구워요 🍕")
+            game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val t = Toppings.of(tId)
             game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+            game.sfx(Audio.Sfx.EAT, 0.9f)
         }
     }
 
@@ -1029,16 +1107,18 @@ class WorldScene(
     }
 
     private fun drawCloudShadows(c: Canvas, camXv: Float, camYv: Float) {
-        // 맑으면 구름 3조각, 흐리면 6조각 — 비/안개/눈은 하늘 전체가 흐려 그림자가 없다
+        // 맑으면 구름 3조각, 강풍 4조각(빠르게), 흐리면 6조각 — 비/눈은 하늘 전체가 흐려 그림자가 없다
         val n = when (weather) {
-            Weather.CLEAR -> 3
+            Weather.SUNNY -> 3
+            Weather.WIND -> 4
             Weather.CLOUDY -> 6
             else -> 0
         }
+        val windK = if (weather == Weather.WIND) 3.2f else 1f   // 바람 부는 날엔 구름 그림자가 빠르게 지나간다
         if (n == 0) return
         cloudPaint.color = Color.argb(if (weather == Weather.CLOUDY) 34 else 26, 18, 30, 56)
         for (i in 0 until n) {
-            val speed = 7f + (i % 3) * 3.5f + (i / 3) * 2f
+            val speed = (7f + (i % 3) * 3.5f + (i / 3) * 2f) * windK
             val w = 250f + (i % 3) * 70f
             val span = map.w * 32f + 800f
             val cxw = ((game.time * speed + i * 430f) % span) - 400f

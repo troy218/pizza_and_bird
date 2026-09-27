@@ -19,58 +19,38 @@ import kotlin.math.sin
 // ===========================================================================
 // 디테일 연출 모음 (v0.3.1)
 //
-//  - Weather / WeatherSys : 날마다 바뀌는 지역별 날씨 (맑음·흐림·비·안개·눈)
+//  - Weather 연출 배율     : 그림자 세기·새 경계·스폰 간격 (날씨 자체는 Weather.kt)
 //  - Glow / LightMap      : 부드러운 방사형 조명 (밤에 가로등·창문·반딧불이 어둠을 밝힌다)
 //  - WorldFx              : 필드의 살아있는 디테일 — 물 깊이/반짝임, 발자국, 물웅덩이,
 //                           나비·잠자리·나방, 물고기 파문, 머리 위 철새 그림자, 굴뚝 연기,
-//                           비/눈/안개 화면 효과, 풀숲이 발을 덮는 효과
+//                           비/눈/강풍 화면 효과, 풀숲이 발을 덮는 효과
 //
 // 모든 좌표 규칙은 기존 코드와 같다: 월드 논리 px(타일 16) × WORLD_SCALE = 가상 화면 px.
 // ===========================================================================
 
-/** 날씨. shadowK = 햇빛 그림자 세기, fleeK = 새 경계 거리 배율, spawnK = 새 스폰 간격 배율 */
-enum class Weather(
-    val label: String,
-    val emoji: String,
-    val shadowK: Float,
-    val fleeK: Float,
-    val spawnK: Float
-) {
-    CLEAR("맑음", "☀️", 1f, 1f, 1f),
-    CLOUDY("흐림", "⛅", 0.45f, 1f, 1f),
-    RAIN("비", "🌧", 0.12f, 0.95f, 1.3f),     // 빗소리에 발소리가 묻힌다 (살짝 덜 경계), 새는 덜 나온다
-    FOG("안개", "🌫", 0.25f, 0.85f, 1.1f),    // 안개 속에선 더 가까이 다가갈 수 있다
-    SNOW("눈", "❄️", 0.3f, 1f, 1.1f)
-}
+// 날씨 자체(종류·변화·새 출현 가중치)는 Weather.kt 가 담당한다. 여기서는 연출/체감 배율만 붙인다.
 
-object WeatherSys {
-    /** 겨울 분위기가 강한 곳 — 눈이 내릴 수 있다 */
-    private val SNOWY = setOf("sokcho", "cheorwon", "hallasan", "imjin", "gwangneung")
-
-    private fun mix(v: Int): Int {
-        var h = v * -0x61c88647
-        h = h xor (h ushr 15)
-        h *= 0x2c1b3c6d
-        h = h xor (h ushr 12)
-        return h and 0x7fffffff
+/** 햇빛 그림자 세기 (맑을수록 진하다) */
+val Weather.shadowK: Float
+    get() = when (this) {
+        Weather.SUNNY -> 1f
+        Weather.WIND -> 0.8f
+        Weather.CLOUDY -> 0.45f
+        Weather.SNOW -> 0.3f
+        Weather.RAIN -> 0.12f
     }
 
-    /** (날짜, 지역) → 날씨. 결정적이라 같은 날 같은 지역은 항상 같은 날씨 */
-    fun today(day: Int, region: RegionDef): Weather {
-        if (day <= 1) return Weather.CLEAR          // 첫날은 늘 맑게!
-        val r = mix(day * 7919 + region.id.hashCode()) % 100
-        val watery = "coast" in region.habitats || "wetland" in region.habitats || "water" in region.habitats
-        return when {
-            region.id in SNOWY && r < 24 -> Weather.SNOW
-            r < 46 -> Weather.CLEAR
-            r < 66 -> Weather.CLOUDY
-            r < 81 -> Weather.RAIN
-            watery && r < 93 -> Weather.FOG
-            r < 88 -> Weather.CLOUDY
-            else -> Weather.CLEAR
-        }
+/** 새 경계 거리 배율 — 빗소리에 발소리가 묻혀 살짝 덜 경계한다 */
+val Weather.fleeK: Float
+    get() = if (this == Weather.RAIN) 0.92f else 1f
+
+/** 새 스폰 간격 배율 — 비/눈 오는 날은 조금 뜸하다 */
+val Weather.spawnK: Float
+    get() = when (this) {
+        Weather.RAIN -> 1.15f
+        Weather.SNOW -> 1.1f
+        else -> 1f
     }
-}
 
 // ---------------------------------------------------------------------------
 // 부드러운 빛 스프라이트
@@ -178,7 +158,7 @@ fun hash2(x: Int, y: Int, salt: Int = 0): Int {
 
 class WorldFx(private val map: GameMap, seed: Long) {
 
-    var weather = Weather.CLEAR
+    var weather = Weather.SUNNY
     private val rnd = Random(seed)
 
     /** 물 깊이 (0 = 물 아님, 1 = 물가, 2, 3 = 깊음) */
@@ -460,14 +440,14 @@ class WorldFx(private val map: GameMap, seed: Long) {
 
     private fun updateCritters(dt: Float, pcx: Float, pcy: Float) {
         val day = daylight(hour)
-        val calm = weather == Weather.CLEAR || weather == Weather.CLOUDY
+        val calm = weather == Weather.SUNNY || weather == Weather.CLOUDY
         critterT -= dt
         if (critterT <= 0f) {
             critterT = 1.1f
             val butterflies = critters.count { it.kind == 0 }
             val flies = critters.count { it.kind == 1 }
             if (day > 0.6f && calm) {
-                val maxB = if (weather == Weather.CLEAR) 4 else 2
+                val maxB = if (weather == Weather.SUNNY) 4 else 2
                 for (i in 0 until 6) {
                     val (tx, ty) = randomVisibleTile()
                     val tile = map.t(tx, ty)
@@ -536,7 +516,7 @@ class WorldFx(private val map: GameMap, seed: Long) {
         flockT -= dt
         if (flockT <= 0f) {
             flockT = 22f + rnd.nextFloat() * 26f
-            if (weather != Weather.FOG && flocks.size < 2) {
+            if (weather != Weather.RAIN && weather != Weather.SNOW && flocks.size < 2) {
                 val fromLeft = rnd.nextBoolean()
                 val vx = (if (fromLeft) 1f else -1f) * (46f + rnd.nextFloat() * 18f)
                 val vy = (rnd.nextFloat() - 0.5f) * 24f
@@ -647,7 +627,7 @@ class WorldFx(private val map: GameMap, seed: Long) {
                     // 3) 반짝이는 윤슬 (맑은 낮엔 햇빛, 밤엔 달빛)
                     val h = hash2(x, y, 3)
                     val tw = sin(time * (1.3f + (h % 7) * 0.12f) + (h % 628) / 100f)
-                    val gate = if (weather == Weather.CLEAR) 0.86f else 0.95f
+                    val gate = if (weather == Weather.SUNNY) 0.86f else 0.95f
                     if (tw > gate) {
                         val a = ((tw - gate) / (1f - gate) * (if (dayK > 0.3f) 230 else 150)).toInt()
                         val gx = sx + 5f + (h % 22)
@@ -962,16 +942,19 @@ class WorldFx(private val map: GameMap, seed: Long) {
                     c.drawOval(rect, line)
                 }
             }
-            Weather.FOG -> {
-                fill.color = Color.argb(62, 226, 230, 236)
-                c.drawRect(0f, 0f, w, h, fill)
-                // 느리게 흘러가는 안개 덩어리
-                for (i in 0 until 5) {
-                    val span = w + 700f
-                    val fx = ((time * (9f + i * 3f) + i * 260f) % span) - 350f
-                    val fy = h * (0.15f + i * 0.18f) + sin(time * 0.2f + i) * 16f
-                    Glow.draw(c, Glow.soft, fx, fy, 260f + i * 20f, 80f, 70)
+            Weather.WIND -> {
+                // 휙휙 지나가는 바람결 (가는 곡선 두 줄)
+                line.strokeWidth = 1.4f
+                for (i in 0 until 7) {
+                    val span = w + 320f
+                    val sx = ((time * (360f + i * 45f) + i * 213f) % span) - 160f
+                    val sy = h * (0.08f + i * 0.13f) + sin(time * 1.3f + i * 1.7f) * 12f
+                    val len = 46f + (i % 3) * 18f
+                    line.color = Color.argb(70, 236, 242, 236)
+                    c.drawLine(sx, sy, sx + len, sy - 3f, line)
+                    c.drawLine(sx + len * 0.35f, sy + 6f, sx + len * 0.9f, sy + 4f, line)
                 }
+                line.strokeWidth = 1f
             }
             Weather.SNOW -> {
                 fill.color = Color.argb(22, 210, 222, 240)
@@ -982,7 +965,7 @@ class WorldFx(private val map: GameMap, seed: Long) {
                     c.drawRect(flakeX[i], flakeY[i], flakeX[i] + s, flakeY[i] + s, fill)
                 }
             }
-            Weather.CLEAR -> {}
+            Weather.SUNNY -> {}
         }
     }
 

@@ -43,6 +43,8 @@ class TitleScene(game: Game) : Scene(game) {
         game.hud.questLabel = null
         game.hud.photoModeHint = false
         game.hud.regionLabel = ""
+        game.audio.stopAmb()
+        game.audio.playBgm(R.raw.bgm_title)   // 🎵 신비로운 세계
     }
 
     override fun update(dt: Float) {
@@ -134,6 +136,9 @@ class TitleScene(game: Game) : Scene(game) {
         val bob = sin(t * 2.2f) * 5f
         val pz = a.pizzaIconBig
         c.drawBitmap(pz, 384f, 336f + bob, a.sprPaint)
+        p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
+        c.drawCircle(658f, 380f, 43f, p)
+        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f, 334f, 696f, 424f))
         val bird = a.bird("sparrow")
         c.drawBitmap(bird, 296f, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
         val fb = sin(t * 2.6f + 1f) * 7f
