@@ -80,6 +80,9 @@ class Game(val context: Context) {
         if (ov != null) {
             ov.handleInput(input)
             ov.update(dt)
+            // 오버레이가 스스로 닫힘을 요청하면 다음 프레임부터 씬 입력을 받는다.
+            // 대화에서 새 오버레이를 연 경우에는 새 오버레이를 보존한다.
+            if (ov.finished && scene.overlay === ov) scene.closeOverlay()
         } else {
             scene.handleInput(input)
         }

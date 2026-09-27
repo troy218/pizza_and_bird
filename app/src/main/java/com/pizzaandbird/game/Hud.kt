@@ -207,7 +207,7 @@ class Hud(private val game: Game) {
         // 돈
         text.color = 0xFF4A3728.toInt()
         text.textSize = dp(14f)
-        c.drawText("₩ ${fmtMoney(s.money)}", left + dp(12f), iy2 + dp(36f), text)
+        c.drawText(won(s.money), left + dp(12f), iy2 + dp(36f), text)
 
         // 피자 / 카메라
         text.textSize = dp(12f)

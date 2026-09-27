@@ -7,12 +7,13 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
- * v1 세이브는 자동으로 마이그레이션된다.
+ * 세이브 형식 v3: 인테리어 스타일과 지역별 집 소유권을 추가했다.
+ * v1/v2 세이브는 자동으로 마이그레이션된다.
  */
 class GameState {
 
     var started = false            // 첫 집 선택 완료(=세이브 존재)
+    var gender = "male"          // 플레이어 캐릭터: male / female
     var inHome = false             // 현재 집 안에 있는지
     var money = 0                  // 용돈(원)
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
@@ -22,9 +23,12 @@ class GameState {
     val birdCounts = LinkedHashMap<String, Int>()   // 도감: 새별 촬영 횟수
     val bestStars = LinkedHashMap<String, Int>()    // 도감: 새별 최고 별점
     val visited = LinkedHashSet<String>()           // 방문한 지역
+    val ownedHomes = LinkedHashSet<String>()        // 매입한 지역별 집
+    val ownedHouseStyles = LinkedHashSet<String>()  // 구매한 인테리어 스타일
 
-    var homeRegion = "seoul"       // 집이 있는 지역
-    var region = "seoul"           // 현재 지역
+    var homeRegion = START_REGION_ID       // 집이 있는 지역
+    var region = START_REGION_ID           // 현재 지역
+    var houseStyleId = "cozy"              // 현재 집 인테리어
     var px = 0f                    // 월드 좌표(px)
     var py = 0f
     var onBike = false
@@ -106,6 +110,11 @@ class GameState {
 
     // ------------------ 장식 ------------------
 
+    /** 현재 적용 중인 인테리어 스타일 */
+    fun houseStyle(): HouseStyle = HouseStyles.of(houseStyleId)
+
+    fun ownsHome(regionId: String): Boolean = regionId in ownedHomes
+
     /** 설치된 장식의 행운 보너스 합 */
     fun decorLuck(): Int {
         var s = 0
@@ -122,10 +131,11 @@ class GameState {
     // ------------------------------------------------------------------
 
     /** 새로운 게임 시작: 선택한 지역에 집 정착 */
-    fun reset(homeRegionId: String) {
+    fun reset(@Suppress("UNUSED_PARAMETER") homeRegionId: String = START_REGION_ID) {
         started = true
         inHome = false
-        money = 0
+        // 첫 정착지는 항상 서울. 다른 지역은 여행 후 집을 매입한다.
+        money = 30000
         hunger = 100f
         luck = 50f
         for (i in pizzas.indices) pizzas[i] = 0
@@ -133,9 +143,14 @@ class GameState {
         birdCounts.clear()
         bestStars.clear()
         visited.clear()
-        homeRegion = homeRegionId
-        region = homeRegionId
-        visited.add(homeRegionId)
+        homeRegion = START_REGION_ID
+        region = START_REGION_ID
+        visited.add(START_REGION_ID)
+        ownedHomes.clear()
+        ownedHomes.add(START_REGION_ID)
+        ownedHouseStyles.clear()
+        ownedHouseStyles.add("cozy")
+        houseStyleId = "cozy"
         px = 0f
         py = 0f
         onBike = false
@@ -153,8 +168,9 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 2)
+        put("v", 3)
         put("started", started)
+        put("gender", gender)
         put("inHome", inHome)
         put("money", money)
         put("hunger", hunger.toDouble())
@@ -162,6 +178,9 @@ class GameState {
         put("cameraLevel", cameraLevel)
         put("homeRegion", homeRegion)
         put("region", region)
+        put("houseStyleId", houseStyleId)
+        put("ownedHomes", JSONArray().apply { ownedHomes.forEach { put(it) } })
+        put("ownedHouseStyles", JSONArray().apply { ownedHouseStyles.forEach { put(it) } })
         put("px", px.toDouble())
         put("py", py.toDouble())
         put("onBike", onBike)
@@ -183,13 +202,33 @@ class GameState {
             val s = GameState()
             val v = j.optInt("v", 1)
             s.started = j.optBoolean("started", false)
+            s.gender = j.optString("gender", "male")
             s.inHome = j.optBoolean("inHome", false)
             s.money = j.optInt("money", 0)
             s.hunger = j.optDouble("hunger", 100.0).toFloat()
             s.luck = j.optDouble("luck", 50.0).toFloat()
             s.cameraLevel = j.optInt("cameraLevel", 1)
-            s.homeRegion = j.optString("homeRegion", "seoul")
+            s.homeRegion = j.optString("homeRegion", START_REGION_ID)
             s.region = j.optString("region", s.homeRegion)
+            s.houseStyleId = j.optString("houseStyleId", "cozy")
+            val oh = j.optJSONArray("ownedHomes")
+            if (oh != null) {
+                for (i in 0 until oh.length()) {
+                    val id = oh.optString(i, "")
+                    if (id in Regions.byId) s.ownedHomes.add(id)
+                }
+            }
+            // v1/v2 세이브에는 소유 집 목록이 없었으므로 당시 집을 자동 보존한다.
+            s.ownedHomes.add(s.homeRegion)
+            val os = j.optJSONArray("ownedHouseStyles")
+            if (os != null) {
+                for (i in 0 until os.length()) {
+                    val id = os.optString(i, "")
+                    if (id in HouseStyles.byId) s.ownedHouseStyles.add(id)
+                }
+            }
+            s.ownedHouseStyles.add("cozy")
+            if (s.houseStyleId !in s.ownedHouseStyles) s.houseStyleId = "cozy"
             s.px = j.optDouble("px", 0.0).toFloat()
             s.py = j.optDouble("py", 0.0).toFloat()
             s.onBike = j.optBoolean("onBike", false)
