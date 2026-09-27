@@ -22,9 +22,9 @@ abstract class Overlay(val scene: Scene) {
      * true 면 이 오버레이가 화면 대부분을 덮어, 뒤 월드가 두드러지지 않는다
      * (가방·지도·상점처럼 큰 패널이 뜨는 화면).
      *
-     * true 인 동안 Game.render() 는 월드 비트맵을 매 프레임 다시 그리지 않고
-     * 몇 프레임에 한 번만 갱신한다. 월드는 프레임마다 수천 번 drawBitmap 을 하므로,
-     * 메뉴가 떠 있는 동안 이것을 줄이는 것이 버튼이 붙는 지를 살리는 핵심이다.
+     * true 인 동안 Game.render() 는 마지막 월드 비트맵을 재사용한다.
+     * 월드 업데이트도 오버레이가 열려 있으면 멈추므로, 메뉴 입력 도중 수천 번의
+     * drawBitmap 이 간헐적으로 끼어들지 않는다. 닫힌 첫 프레임에는 다시 그린다.
      * (부분창 대화상자처럼 뒤 화면이 그대로 보이는 오버레이는 false 로 둔다)
      */
     open val coversWorld: Boolean get() = false
@@ -128,12 +128,15 @@ class DialogOverlay(
         if (choices.isEmpty()) listOf(Choice("확인")) else choices
 
     private var choiceRects: List<RectF> = emptyList()
+    private var drawnShift = 0f
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
         if (tap != null) {
+            // 버튼은 등장 애니메이션 동안 아래에 보인다. 마지막 렌더의 이동량으로 판정한다.
+            val y = tap.y - drawnShift
             for (i in choiceRects.indices) {
-                if (choiceRects[i].contains(tap.x, tap.y)) {
+                if (choiceRects[i].contains(tap.x, y)) {
                     pick(i)
                     return
                 }
@@ -183,7 +186,8 @@ class DialogOverlay(
 
         // 등장: 아래에서 위로 부드럽게
         c.save()
-        c.translate(0f, enterShift())
+        drawnShift = enterShift()
+        c.translate(0f, drawnShift)
         panel(c, r, scene)
 
         if (title.isNotEmpty()) {
@@ -228,7 +232,7 @@ class DialogOverlay(
 // ---------------------------------------------------------------------------
 
 class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
     init {
@@ -804,7 +808,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     textP.color = if (done) 0xFF397547.toInt() else 0xFF4A3728.toInt()
                     c.drawText(q.title, tagR.right + dp(scene, 6f), qr.top + dp(scene, 13f), textP)
 
-                    val progText = "${q.progressText} · +₩${scene.won(q.rewardMoney)}"
+                    val progText = "${q.progressText} · +₩${fmtMoney(q.rewardMoney)}"
                     textP.textSize = textDp(scene, 9.5f)
                     textP.color = if (done) 0xFF2D6930.toInt() else 0xFFB5651D.toInt()
                     c.drawText(progText, qr.right - textP.measureText(progText) - dp(scene, 8f), qr.top + dp(scene, 13f), textP)
@@ -839,7 +843,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 textP.color = if (done) 0xFF397547.toInt() else 0xFF4A3728.toInt()
                 c.drawText(dq.title, tagR.right + dp(scene, 6f), dqr.top + dp(scene, 13f), textP)
 
-                val progText = if (done) "완료! +₩${scene.won(dq.rewardMoney)}" else "${dq.progressText} · +₩${scene.won(dq.rewardMoney)}"
+                val progText = if (done) "완료! +₩${fmtMoney(dq.rewardMoney)}" else "${dq.progressText} · +₩${fmtMoney(dq.rewardMoney)}"
                 textP.textSize = textDp(scene, 9.5f)
                 textP.color = if (done) 0xFF2D6930.toInt() else 0xFF8A7360.toInt()
                 c.drawText(progText, dqr.right - textP.measureText(progText) - dp(scene, 8f), dqr.top + dp(scene, 13f), textP)
@@ -860,14 +864,14 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val right = panelR.right - dp(scene, 16f)
         var ty = contentTop() + dp(scene, 6f)
 
-        // 레벨 / 칭호
+        // 레벨 / 칭호 — 아바타는 HD 세트(96px)를 32 도트 크기로 되돌려 그린다
         val a = g.assets
-        val ps = a.playerSet(s.gender, s.gearTier())
+        val ps = a.playerSet(s.gender, s.gearTier(), true)
         val avatar = ps.idle.frame(Dir.S, (g.time / Anim.IDLE.frameTime).toInt())
-        val ak = dp(scene, 2.2f)
-        c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
+        val ak = dp(scene, 2.2f) * CharacterArt.SIZE
+        a.drawPlayerIn(c, avatar, RectF(left, ty, left + ak, ty + ak))
 
-        val tx = left + avatar.width * ak + dp(scene, 12f)
+        val tx = left + ak + dp(scene, 12f)
         textP.textSize = textDp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("Lv.${s.level}  ${s.title()}", tx, ty + dp(scene, 16f), textP)
@@ -1379,8 +1383,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             val photoR = RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 27f))
             fillP.color = 0xFF25252B.toInt()
             c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), fillP)
-            PhotoArchive.prefetch(g.context, record.fileName)   // 넘길 때 프레임을 지키기 위한 선행 디코드
-            val bmp = PhotoArchive.load(g.context, record.fileName)
+            val bmp = PhotoArchive.image(g.context, record.fileName) // 없으면 백그라운드 로딩 중
             if (bmp != null) {
                 val k = maxOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
                 val dw = bmp.width * k
@@ -1609,9 +1612,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     "1" -> "1배 (성능 우선)"
                     "2" -> "2배 (고화질)"
                     "3" -> "3배 (최고 화질)"
-                    else -> "자동 (2K 기준)"
+                    else -> "자동 (${g.worldScale}배 · 프레임 우선)"
                 } },
-                "월드 렌더 해상도 — 높을수록 또렷해요",
+                "버벅이면 월드만 낮춰요 (글씨·버튼은 선명하게)",
                 action = {
                     g.state.renderScale = when (g.state.renderScale) {
                         "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
@@ -1771,7 +1774,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
  * 흔들림은 4단계로 줄이거나 완전히 끌 수 있다. 바꾸면 바로 저장된다.
  */
 class CameraFxOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -1888,7 +1891,7 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class DecorShopOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2051,7 +2054,7 @@ class DecorPickOverlay(
     private val slot: Int,
     private val onPick: (Int) -> Unit
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2184,7 +2187,7 @@ class DecorPickOverlay(
 // ---------------------------------------------------------------------------
 
 class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2332,7 +2335,7 @@ class HouseStyleOverlay(
     scene: Scene,
     private val onApply: (String) -> Unit
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2454,7 +2457,7 @@ class HouseStyleOverlay(
 // ---------------------------------------------------------------------------
 
 class BikeShopOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2473,7 +2476,11 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
     private var pageRects = ArrayList<Pair<RectF, Int>>()
     private var closeRect = RectF()
     private var panelR = RectF()
-    private val pixelPaint = Paint().apply { isAntiAlias = false; isFilterBitmap = false }
+    // 자전거 미리보기 — HD 스프라이트(96px)를 상점 칸 크기로 줄여 붙이므로 보간을 켠다
+    private val pixelPaint = Paint().apply { isAntiAlias = false; isFilterBitmap = true }
+
+    /** 월드용 자전거 세트를 마지막으로 배경 준비한 도색 조합 */
+    private var warmedBikeKey = ""
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
@@ -2642,10 +2649,13 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = dp(scene, if (equipped) 2.5f else 1.5f)
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
 
-            // 모델 미리보기 (현재 도색·부속품 그대로)
-            val set = g.assets.bikeSet(s.gender, s.gearTier(), s.bikeStyleOf(bike.id))
+            // 모델 미리보기 (현재 도색·부속품 그대로) — 옆모습 한 장만 그린다(HD)
             val iw = dp(scene, 44f)
-            c.drawBitmap(set.side[0], null, RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.left + dp(scene, 4f) + iw, r.top + dp(scene, 4f) + iw), pixelPaint)
+            c.drawBitmap(
+                g.assets.bikePreviewFrame(s.gender, s.gearTier(), s.bikeStyleOf(bike.id)), null,
+                RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.left + dp(scene, 4f) + iw, r.top + dp(scene, 4f) + iw),
+                pixelPaint
+            )
 
             textP.textSize = textDp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
@@ -2692,12 +2702,23 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
         val s = g.state
         swatchRects = ArrayList()
 
-        // 큰 미리보기
-        val set = g.assets.bikeSet(s.gender, s.gearTier(), s.bikeStyle())
+        // 큰 미리보기 — 지금 고른 도색·부속품을 바로 보여 준다.
+        // (여기서도 한 장만 그린다. 타는 데 필요한 전체 세트는 배경에서 미리 만들어 둔다)
         val pv = dp(scene, 96f)
         val px = panelR.left + dp(scene, 20f)
         val py = panelR.top + dp(scene, 92f)
-        c.drawBitmap(set.side[0], null, RectF(px, py, px + pv, py + pv), pixelPaint)
+        c.drawBitmap(
+            g.assets.bikePreviewFrame(s.gender, s.gearTier(), s.bikeStyle()), null,
+            RectF(px, py, px + pv, py + pv), pixelPaint
+        )
+        // 도색을 바꾸면 월드에서 쓸 세트도 새로 필요하다 — 바뀐 순간에만 배경 준비를 건다
+        val warmKey = "${s.bikeFrameColor}|${s.bikeTireColor}|${s.bikeSaddleColor}|${s.bikeId}"
+        if (warmKey != warmedBikeKey) {
+            warmedBikeKey = warmKey
+            g.assets.warmSprites {
+                g.assets.bikeSet(s.gender, s.gearTier(), s.bikeStyle())
+            }
+        }
         textP.textSize = textDp(scene, 12.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText(s.bike().name, px + pv + dp(scene, 16f), py + dp(scene, 26f), textP)
@@ -2778,7 +2799,7 @@ class BakeOverlay(
     private val dough: Dough = Dough.CLASSIC,
     private val topping: Ingredients.ToppingDef? = null
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -3794,7 +3815,7 @@ class LevelUpOverlay(
     private val fromLevel: Int,
     private val toLevel: Int
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -3816,7 +3837,9 @@ class LevelUpOverlay(
         dim(c, scene, 150)
 
         val cw = minOf(w * 0.62f, dp(scene, 360f))
-        val chh = dp(scene, 244f)
+        // 높이는 캐릭터(32 도트 × 3.4dp)와 아래 3줄(레벨·칭호·숙련 포인트)에
+        // 장비 안내 한 줄까지 겹치지 않고 들어가는 값이다 (244dp 였을 때는 겹쳤다)
+        val chh = dp(scene, 268f)
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
@@ -3832,34 +3855,36 @@ class LevelUpOverlay(
 
         val a = g.assets
         // 레벨업 축하 — 폴짝폴짝 뛰며 만세!
+        // 여기는 캐릭터를 화면 가득(약 300px) 띄우는 순간이라 [CHEER_PX]=256px 로
+        // 따로 그려 둔 프레임을 쓴다 — "확대한 도트"가 아니라 진짜 그림이 된다.
         val cheer = a.cheerFrames(s.gender, s.gearTier())
         val bmp = cheer[(g.time / 0.1f).toInt() % cheer.size]
-        val k = dp(scene, 3.4f)
-        val bx = r.centerX() - bmp.width * k / 2f
+        val k = dp(scene, 3.4f) * CharacterArt.SIZE          // 32 도트 기준 크기(화면 px)
+        val bx = r.centerX() - k / 2f
         val by = r.top + dp(scene, 58f)
-        c.drawOval(RectF(bx + dp(scene, 6f), by + bmp.height * k - dp(scene, 4f), bx + bmp.width * k - dp(scene, 6f), by + bmp.height * k + dp(scene, 4f)), a.shadowPaint)
-        c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+        c.drawOval(RectF(bx + dp(scene, 6f), by + k - dp(scene, 4f), bx + k - dp(scene, 6f), by + k + dp(scene, 4f)), a.shadowPaint)
+        c.drawBitmap(bmp, null, RectF(bx, by, bx + k, by + k), a.sprPaint)
 
         textP.textSize = textDp(scene, 18f)
         textP.color = 0xFF4A3728.toInt()
         val lv = "Lv.$fromLevel  to  Lv.$toLevel"
-        c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + bmp.height * k + dp(scene, 26f), textP)
+        c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + k + dp(scene, 26f), textP)
 
         textP.textSize = textDp(scene, 13f)
         textP.color = 0xFF6FAE6F.toInt()
         val title = "「 ${Progression.title(toLevel)} 」"
-        c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + bmp.height * k + dp(scene, 46f), textP)
+        c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + k + dp(scene, 46f), textP)
 
         textP.textSize = textDp(scene, 11.5f)
         textP.color = 0xFF3F6FB0.toInt()
         val sp = "숙련 포인트 +${s.skillPoints}  (메뉴 › 성장 에서 능력 강화!)"
-        c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + bmp.height * k + dp(scene, 64f), textP)
+        c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + k + dp(scene, 64f), textP)
 
         if (Progression.gearTier(fromLevel) != Progression.gearTier(toLevel)) {
             textP.textSize = textDp(scene, 11f)
             textP.color = 0xFFB5651D.toInt()
             val gearMsg = "새 탐조 장비를 갖췄어요!"
-            c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 26f), textP)
+            c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 14f), textP)
         }
 
         textP.textSize = textDp(scene, 10f)
@@ -3877,7 +3902,7 @@ class LevelUpOverlay(
  * 손가락으로 끌어 이동, 두 손가락으로 확대/축소, 지역을 누르면 상세 정보.
  */
 class MapOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -4581,7 +4606,7 @@ private fun gearSubLine(gear: CamGear): String = when (gear) {
 }
 
 class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -4840,7 +4865,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
 // ---------------------------------------------------------------------------
 
 class GearBagOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -5038,7 +5063,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 

@@ -324,15 +324,19 @@ class CharacterSelectScene(game: Game) : Scene(game) {
             p.color = 0xFF6B4F35.toInt()
             c.drawRoundRect(r, 18f, 18f, p)
             p.style = Paint.Style.FILL
+            // 카드 미리보기는 고해상도(128px)를 64px 칸에 줄여 그린다 — 보간을 켜야 결이 산다
+            p.isFilterBitmap = true
             c.drawBitmap(bmp, null, RectF(r.centerX()-32f, r.top+18f, r.centerX()+32f, r.top+82f), p)
+            p.isFilterBitmap = false
             val lp = Type.paintPx(22f, true, 0.04f, Type.INK)
             c.drawText(label, r.centerX()-lp.measureText(label)/2f, r.bottom-25f, lp)
         }
         val t = game.time
-        val maleIdle = game.assets.playerSet("male", 0).idle
-        val femaleIdle = game.assets.playerSet("female", 0).idle
-        card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
-        card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
+        // 카드용 미리보기(정면 12프레임 · 128px) — 카드가 화면에서 3배로 그려져도 뭉개지지 않는다
+        val maleIdle = game.assets.playerAvatarFrames("male", 0)
+        val femaleIdle = game.assets.playerAvatarFrames("female", 0)
+        card(male, "남자", game.state.gender == "male", maleIdle[((t / Anim.IDLE.frameTime).toInt() % maleIdle.size + maleIdle.size) % maleIdle.size])
+        card(female, "여자", game.state.gender == "female", femaleIdle[(((t + 0.8f) / Anim.IDLE.frameTime).toInt() % femaleIdle.size + femaleIdle.size) % femaleIdle.size])
     }
 
     override fun drawHud(c: Canvas) {

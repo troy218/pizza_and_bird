@@ -19,6 +19,16 @@ import org.xmlpull.v1.XmlPullParser
 class SvgIllustrations(private val assets: AssetManager) {
     private val cache = HashMap<String, SvgDocument>()
 
+    /** 부팅 스레드에서 작은 공통 UI 아이콘을 래스터화해 첫 메뉴 프레임의 XML/비트맵 작업을 없앤다. */
+    fun preloadUiIcons() {
+        val files = try { assets.list("ui").orEmpty() } catch (_: Exception) { return }
+        for (file in files) {
+            if (!file.endsWith(".svg")) continue
+            val path = "ui/$file"
+            try { cache[path] = load(path) } catch (_: Exception) { /* 첫 사용 시 다시 로드 */ }
+        }
+    }
+
     fun draw(canvas: Canvas, name: String, bounds: RectF) {
         if (bounds.width() <= 0f || bounds.height() <= 0f) return
         val document = cache[name] ?: load(name).also { cache[name] = it }

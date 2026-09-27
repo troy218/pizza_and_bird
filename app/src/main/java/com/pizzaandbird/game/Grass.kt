@@ -28,7 +28,8 @@ import kotlin.math.sqrt
  *  DEPTH   밑동이 캐릭터 발보다 아래면 전경 레이어로 그려져서 진짜 밭을 헤치며 걷는다
  * ```
  *
- * [update]는 맵 전체 풀잎(~2천 개)을 갱신하고, [draw]는 뷰 안에 있는 것만 그린다.
+ * [update]와 [draw]는 카메라 주변 풀잎만 처리한다. 화면 밖에서는 적분을 쉬고
+ * 다시 들어올 때 그 시각의 바람 자세로 이어 준다.
  */
 class GrassField(map: GameMap) {
 
@@ -62,6 +63,8 @@ class GrassField(map: GameMap) {
 
         private const val COL_W = 8f           // 바람 필드를 8px 열 단위로 한 번만 계산
         private const val PHASE_LAG = 0.55f    // 풀잎별 진동 위상차 (돌풍에는 적용하지 않음)
+        // 카메라 이동·줌·흔들림에도 화면 가장자리 풀잎이 미리 살아 있도록 하는 여유.
+        private const val UPDATE_PAD = 80f
 
         private const val NO_GRASS = -2        // 이 지형에는 풀을 심지 않는다는 표식
     }
@@ -77,7 +80,8 @@ class GrassField(map: GameMap) {
         /** 현재 상태 (IDLE~RECOVER). 상태 머신이 디버깅/튜닝에서 쓰는 현재 노드. */
         var state: Int = S_IDLE,
         /** RECOVER 잔여 시간 — 0이면 회복 완료. "방금 밟혔는가"를 기억하는 타이머. */
-        var rec: Float = 0f
+        var rec: Float = 0f,
+        var lastUpdate: Float = 0f
     )
 
     private val blades = ArrayList<Blade>()
@@ -161,6 +165,25 @@ class GrassField(map: GameMap) {
         else -> if (r.nextFloat() < 0.42f) 0 else (if (r.nextFloat() < 0.78f) 1 else 2)
     }
 
+    /** 밑동 y 순으로 정렬된 목록에서 [y] 이상 / 초과인 첫 풀잎. */
+    private fun firstAtOrAfter(y: Float): Int {
+        var lo = 0; var hi = blades.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (blades[mid].y < y) lo = mid + 1 else hi = mid
+        }
+        return lo
+    }
+
+    private fun firstAfter(y: Float): Int {
+        var lo = 0; var hi = blades.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (blades[mid].y <= y) lo = mid + 1 else hi = mid
+        }
+        return lo
+    }
+
     // -----------------------------------------------------------------------
     // 바람 필드
     // -----------------------------------------------------------------------
@@ -194,29 +217,49 @@ class GrassField(map: GameMap) {
     // 갱신 — 상태 머신
     // -----------------------------------------------------------------------
 
-    /** fx, fy = 캐릭터 발끝 렌더 월드 좌표(32px 타일) / bike = 자전거 탑승 여부 */
-    fun update(dt: Float, time: Float, fx: Float, fy: Float, bike: Boolean) {
+    /**
+     * 플레이어와 현재 카메라 주변의 풀만 적분한다 (단위: 32px 타일 월드 좌표).
+     * 먼 풀잎은 그려지지도 밟히지도 않으므로 업데이트할 이유가 없다.
+     */
+    fun update(dt: Float, time: Float, fx: Float, fy: Float, bike: Boolean,
+               camX: Float, camY: Float, viewW: Float, viewH: Float) {
         if (dt <= 0f) return
+        val x0 = camX - UPDATE_PAD
+        val x1 = camX + viewW + UPDATE_PAD
+        val y0 = camY - UPDATE_PAD
+        val y1 = camY + viewH + UPDATE_PAD
+        val last = windSquall.size - 1
 
-        // 바람 필드는 열 단위로 한 번만 계산하고, 풀잎은 두 시점 값을 자기 위상으로 보간한다.
-        // → sin 호출이 풀잎 수에서 열 수로 줄어든다.
-        for (i in windSquall.indices) {
+        // 바람 필드도 화면 근처 열만 계산. 카메라가 새 위치로 이동했을 때는
+        // 아래에서 풀잎을 현 시각의 바람 자세로 옮겨 멈춰 있는 풀이 나타나지 않는다.
+        val col0 = (x0 / COL_W).toInt().coerceIn(0, last)
+        val col1 = (x1 / COL_W).toInt().coerceIn(0, last)
+        for (i in col0..col1) {
             val wx = i * COL_W
             windSquall[i] = squallAt(wx, time)
             windOscA[i] = oscAt(wx, time)
             windOscB[i] = oscAt(wx, time + PHASE_LAG)
         }
-        val last = windSquall.size - 1
         val rad = if (bike) 15.5f else 11f
         val rad2 = rad * rad
         val half = (dt * 0.5f).coerceAtMost(1f / 60f)   // 큰 dt에서도 스프링이 터지지 않게 분할 적분
 
-        for (i in blades.indices) {
+        for (i in firstAtOrAfter(y0) until firstAfter(y1)) {
             val b = blades[i]
-            val ci = (b.x / COL_W).toInt().let { if (it > last) last else if (it < 0) 0 else it }
+            if (b.x < x0 || b.x > x1) continue
+            val ci = (b.x / COL_W).toInt().coerceIn(0, last)
             val oa = windOscA[ci]
             val w = windSquall[ci] + oa + (windOscB[ci] - oa) * b.phase01
             val m = abs(w)
+            val elapsed = time - b.lastUpdate
+            if (elapsed > 0.12f || elapsed < 0f) {
+                // 화면 밖에서 보낸 시간만큼 RECOVER를 진행시키고 자연스러운 바람 자세로 복귀.
+                b.rec = (b.rec - elapsed.coerceAtLeast(0f)).coerceAtLeast(0f)
+                b.lean = w * LEAN_AMP
+                b.curl = w * CURL_AMP
+                b.leanV = 0f; b.curlV = 0f
+            }
+            b.lastUpdate = time
 
             var st = if (m > GUST_TH) S_GUST else if (m > SWAY_TH) S_SWAY else S_IDLE
             var tLean = w * LEAN_AMP
@@ -284,10 +327,12 @@ class GrassField(map: GameMap) {
         val y0 = camY - 22f
         val y1 = camY + vh + 22f
         val p = grassPaint
-        for (i in blades.indices) {
+        val split = firstAfter(feetY) // 뒤쪽은 발보다 위/같고, 앞쪽은 발보다 아래
+        val from = if (layer == LAYER_FRONT) maxOf(firstAtOrAfter(y0), split) else firstAtOrAfter(y0)
+        val to = if (layer == LAYER_FRONT) firstAfter(y1) else minOf(firstAfter(y1), split)
+        for (i in from until to) {
             val b = blades[i]
-            if (b.x < x0 || b.x > x1 || b.y < y0 || b.y > y1) continue
-            if ((layer == LAYER_FRONT) != (b.y > feetY)) continue
+            if (b.x < x0 || b.x > x1) continue
             val bmp = a.grassPose(b.kind, b.lean.roundToInt(), b.curl.roundToInt())
             c.drawBitmap(bmp, b.x - camX - a.grassOx[b.kind], b.y - camY - a.grassOy[b.kind], p)
         }

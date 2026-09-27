@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PointF
-import android.graphics.PorterDuff
 import android.graphics.RectF
 
 /** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 32px 렌더 */
@@ -33,18 +32,35 @@ private const val VIRT_W_MAX = 1280
 /** 월드 슈퍼샘플 비트맵 상한 (픽셀 수 — 메모리 가드, ≈52MB @ARGB8888, 4K@2× 허용) */
 private const val WORLD_BITMAP_MAX_PIXELS = 13_000_000L
 
-/** 오버레이(메뉴/대화) 등장 연출 시간(초) — 이 동안은 입력을 막아 오발을 막는다.
- * 너무 길면 버튼이 "씹히는" 느낌이 나므로 재빠르게 열리되 눈에 보이는 수준으로 짧게. */
-private const val OVERLAY_ENTER_SEC = 0.09f
-
 /**
- * 화면을 덮는 오버레이가 떠 있는 동안 월드를 몇 프레임에 한 번 다시 그릴지.
- *
- * 1 = 매 프레임(원래 동작), 3 = 20Hz 로 줄인다. 월드는 비싸고(프레임당 비트맵 드로우
- * 약 2000회) 오버레이가 떠 있는 동안에는 뒤에서 거의 보이지 않으므로, 눈에 띄지 않을
- * 간격으로만 줄이는 편이 화면과 성능 둘 다 안전하다.
+ * 자동 화질은 2×/3×로 시작하지만 실제 프레임을 못 맞추면 한 단계 낮춘다.
+ * 가끔 발생하는 GC/화면 전환 히치 한두 번에는 반응하지 않고, 90개의 *월드*
+ * 프레임 중 25개 이상이 늦을 때만 변경한다. 복귀 시 재상향하지 않아 화질이
+ * 계속 오르내리지 않는다 (앱 재실행/설정 변경/화면 크기 변경 시 재평가).
  */
-private const val WORLD_COVER_REDRAW_EVERY = 3
+internal class AutoRenderBudget {
+    private var frames = 0
+    private var late = 0
+
+    fun reset() { frames = 0; late = 0 }
+
+    fun observe(workNanos: Long, intervalNanos: Long): Boolean {
+        if (workNanos <= 0L || intervalNanos <= 0L) return false
+        if (workNanos > 250_000_000L || intervalNanos > 250_000_000L) {
+            reset() // 일시정지/화면 전환 등은 성능 표본이 아니다
+            return false
+        }
+        frames++
+        // 게임 업데이트+그리기 작업이 예산을 넘거나, 프레임 간격이 늘어지면서
+        // 렌더도 무거웠을 때만 센다. Surface 제출/vsync 대기만 길어진 경우는 제외.
+        if (workNanos >= 17_000_000L ||
+            (workNanos >= 12_000_000L && intervalNanos >= 25_000_000L)) late++
+        if (frames < 90) return false
+        val overloaded = late >= 25
+        reset()
+        return overloaded
+    }
+}
 
 /**
  * 게임 전역 컨텍스트: 씬 관리, 2K 기준 가상 해상도 스케일링, 페이드 전환.
@@ -54,8 +70,8 @@ private const val WORLD_COVER_REDRAW_EVERY = 3
  *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 초광폭은 좌우, 4:3보다 좁은 창은 상하 여백)
  * - **월드 슈퍼샘플링**: 월드는 `worldScale`(정수 1~3배) 비트맵에 렌더된 뒤 화면에 출력된다.
  *   스프라이트는 정수배로 커지므로 픽셀 아트 격자가 흐트러지지 않고,
- *   FHD=2×(1080p 네이티브) · QHD(2K)=2×(업스케일 1.33, 기존 2.67 대비 픽셀 굵기 절반) · 4K=3×
- * - **HUD/오버레이/텍스트**: 항상 실제 화면 해상도에 직접 렌더 — 2K에서도 글자가 선명하다
+ *   FHD=2× · QHD=2× · 4K=3×부터 시작하며, 자동 모드는 실제 프레임이 늦으면 낮은 배율로 전환한다
+ * - **HUD/오버레이/텍스트**: 항상 실제 화면 해상도에 직접 렌더 — 월드 배율을 내려도 글자가 선명하다
  * - 설정 › 화질에서 렌더 배율(자동/1×/2×/3×)과 화면 보간을 바꿀 수 있다
  */
 class Game(val context: Context) {
@@ -75,12 +91,25 @@ class Game(val context: Context) {
     var worldScale = 1
         private set
 
+    /**
+     * 캐릭터·자전거를 HD 스프라이트로 그릴지.
+     *
+     * 월드가 2배 이상 슈퍼샘플이면 화면에 붙는 도트 하나가 2~3 기기 픽셀이라
+     * HD 그림을 원래 크기로 줄여 그려도 뭉개지지 않는다(디테일만 새로 보인다).
+     * 1배(저해상 기기 · 화질 1×)에서는 예전처럼 32px 도트를 그대로 쓴다.
+     */
+    val hdSprites: Boolean get() = worldScale >= 2
+
     var worldBitmap: Bitmap = Bitmap.createBitmap(virtW, virtH, Bitmap.Config.ARGB_8888)
         private set
     var worldCanvas = Canvas(worldBitmap)
         private set
 
     val state: GameState = SaveManager.load(context)
+    // 'auto'에서만 적용되는 세션 내 상한. 유저가 직접 고른 1×/2×/3×는 건드리지 않는다.
+    private var autoScaleCap = 3
+    private var lastRenderScaleSetting = state.renderScale
+    private val autoBudget = AutoRenderBudget()
     val assets = Assets(context)
     val illustrations = SvgIllustrations(context.assets)
     val audio = Audio(context).apply {
@@ -93,6 +122,9 @@ class Game(val context: Context) {
     var scene: Scene = TitleScene(this)
     var transition: Transition? = null
 
+    /** 백그라운드 준비를 이미 요청한 장비 등급 (중복 요청 방지) */
+    private var warmedGearTier = -1
+
     var screenW = 0
     var screenH = 0
     var viewScale = 1f
@@ -100,43 +132,42 @@ class Game(val context: Context) {
     var viewOffY = 0f
     var time = 0f
 
-    // 오버레이 등장 연출 (잠깐 입력을 막아 실수 입력을 방지하기도 한다)
-    private var overlayAnimRef: Overlay? = null
-    private var overlayAnimT = 0f
-    private var overlayLayer: Bitmap? = null
-    private var overlayLayerCanvas: Canvas? = null
-    private val overlayFadePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    /** 다음 장비 등급 준비 확인 타이머(초) */
+    private var warmCheck = 0f
 
     /** 렌더 합성용 스크래치 사각형 — 프레임마다 할당하지 않도록 재사용 */
     private val screenDstRect = RectF()
-    // 월드 비트맵을 다시 그려야 하는 상태인지 (크기 변경으로 새 비트맵이 생겼을 때)
+    // 크기/화질 변경으로 비트맵을 새로 만들었을 때, 덮는 오버레이 뒤라도 한 번 그린다.
     private var worldStale = true
-    // 직전 프레임에 월드를 건너뛰었는지 — 오버레이가 닫히는 순간 한 장 되돌린다
-    private var worldSkipped = false
-    // 가리는 오버레이가 떠 있는 동안, 몇 프레임에 한 번 월드를 다시 그릴지 센다
-    private var worldSkipTick = 0
 
     val density: Float = context.resources.displayMetrics.density
 
     init {
+        illustrations.preloadUiIcons()
         // 스프라이트 생성 비용을 부팅(백그라운드 스레드)에서 미리 치른다.
-        //  - 현재 캐릭터 동작 세트: 첫 프레임 렉 방지
-        //  - 양 성별 0티어: 캐릭터 선택 화면이 열리는 순간 다른 성별 세트(프레임 120장)를
-        //    만들며 얼던 것을 방지 — 카드 두 장(남/여 0티어)이 바로 움직인다.
+        //  - 현재 캐릭터 동작 세트(HD · 도트 두 벌): 첫 프레임 렉 방지
+        //  - 캐릭터 선택 카드(남/여): 카드가 열리는 순간 얼지 않게
+        //    (HD 세트를 통째로 만들면 프레임 176장 × 2 이라 무겁다 — 카드용은
+        //     정면 12프레임짜리 작은 세트를 따로 쓴다)
         val other = if (state.gender == "female") "male" else "female"
-        assets.playerSet(state.gender, state.gearTier())
-        assets.playerSet(other, state.gearTier())
-        assets.playerSet("male", 0)
-        assets.playerSet("female", 0)
-        // 타이틀/지역선택 화면의 새도 미리 만들어 둔다 — 598종 조류 데이터
-        // 클래스 로딩까지 이 시점(백그라운드)에서 끝내 첫 프레임 히치를 없앤다.
-        assets.bird("sparrow")
+        assets.playerSet(state.gender, state.gearTier(), true)
+        assets.playerSet(state.gender, state.gearTier(), false)
+        assets.playerAvatarFrames(other, 0)
+        assets.playerAvatarFrames(state.gender, 0)
+        // 지금 타는 자전거 세트도 백그라운드에서 준비해 둔다 — 자전거를 처음 타는
+        // 순간(페달 첫 프레임)에 32프레임을 만들며 멈추지 않게.
+        warmNextGear()
+        assets.warmSprites { assets.bikeSet(state.gender, state.gearTier(), state.bikeStyle()) }
+        // 타이틀/지역선택의 새는 부팅 스레드에서 사진 기준색까지 읽어 둔다.
+        // 나머지 새의 JPEG는 게임 스레드에서 풀지 않고 백그라운드에 요청한다.
+        assets.preloadBird("sparrow")
         assets.birdFlipped("sparrow")
-        assets.bird("crane")
-        assets.bird("owl")
-        assets.bird("gull")
-        assets.bird("greattit")
-        assets.bird("egret")
+        assets.preloadBird("crane")
+        assets.preloadBird("owl")
+        assets.preloadBird("gull")
+        assets.preloadBird("greattit")
+        assets.preloadBird("egret")
+        assets.preloadBird("magpie")
         assets.birdFlipped("magpie")
     }
 
@@ -148,6 +179,9 @@ class Game(val context: Context) {
         if (screenW == w && screenH == h) return
         screenW = w
         screenH = h
+        // 분할 화면/해상도 변경 시 새 화면 크기에 맞춰 자동 화질을 다시 측정한다.
+        autoScaleCap = 3
+        autoBudget.reset()
         // The current renderer keeps its 540px virtual height and adapts virtual width
         // to aspect ratio (720..1280). This preserves the game's 2K-era layout while
         // avoiding any stretch on 4:3 tablets/foldables and on ultrawide phones.
@@ -171,7 +205,8 @@ class Game(val context: Context) {
 
     /** 설정(state.renderScale)과 화면 크기로 월드 배율 결정 */
     private fun computeWorldScale(w: Int, h: Int): Int {
-        val auto = (h / VIRT_H).coerceIn(1, 3)   // FHD=2 · QHD=2 · 4K=3
+        val auto = (h / VIRT_H).coerceIn(1, 3).coerceAtMost(autoScaleCap)
+        // FHD=2 · QHD=2 · 4K=3에서 시작, 부족한 기기에서만 1단계씩 낮춘다.
         val s = when (state.renderScale) {
             "1" -> 1
             "2" -> 2
@@ -189,14 +224,42 @@ class Game(val context: Context) {
         val bw = (virtW * worldScale).coerceAtLeast(1)
         val bh = (virtH * worldScale).coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+        val old = worldBitmap
         worldBitmap = bmp
         worldCanvas = Canvas(bmp)
+        old.recycle() // 설정/자동 조절 때 2K·4K 버퍼가 GC까지 중복 상주하지 않게 한다
         // 새 비트맵은 비어 있다 — 오버레이가 떠 있어도 이 프레임은 반드시 월드를 그린다
         worldStale = true
     }
 
+    /**
+     * 다음 장비 등급(레벨 6·12·19·25)의 캐릭터 세트와 만세 동작을 **미리** 만들어 둔다.
+     *
+     * 레벨업 화면은 캐릭터를 가장 크게 띄우는 순간이라, 그때 처음 세트를 만들면
+     * 화면이 그대로 멈춘다(HD 한 벌 ≈ 0.2초). 다음 레벨에서 등급이 바뀌는 순간에
+     * 백그라운드로 준비해 두면 레벨업이 곧바로 뜬다.
+     */
+    private fun warmNextGear() {
+        val lv = state.level
+        if (lv >= Progression.MAX_LEVEL) return
+        val next = Progression.gearTier(lv + 1)
+        if (next == Progression.gearTier(lv) || next == warmedGearTier) return
+        warmedGearTier = next
+        val gender = state.gender
+        assets.warmSprites {
+            assets.playerSet(gender, next, true)
+            assets.playerSet(gender, next, false)
+        }
+        assets.warmSprites { assets.cheerFrames(gender, next) }
+    }
+
     /** 화질 설정 변경 후 호출 — 배율/보간을 다시 적용한다 */
     fun applyRenderQuality() {
+        if (state.renderScale != lastRenderScaleSetting) {
+            lastRenderScaleSetting = state.renderScale
+            autoScaleCap = 3
+            autoBudget.reset()
+        }
         assets.pxPaint.isFilterBitmap = state.smoothScreen
         if (screenW > 0 && screenH > 0) {
             val newScale = computeWorldScale(screenW, screenH)
@@ -204,6 +267,24 @@ class Game(val context: Context) {
                 worldScale = newScale
                 rebuildWorldBitmap()
             }
+        }
+    }
+
+    /** SurfaceView에서 한 프레임을 제출한 직후 호출. 실제 기기에서만 자동 배율을 조절한다. */
+    @Synchronized
+    fun onFrameRendered(workNanos: Long, intervalNanos: Long) {
+        if (state.renderScale != "auto" || worldScale <= 1 || screenW <= 0 || screenH <= 0 ||
+            transition != null || scene.overlay != null ||
+            (scene !is WorldScene && scene !is HomeScene && scene !is LandmarkScene)) {
+            autoBudget.reset()
+            return
+        }
+        if (!autoBudget.observe(workNanos, intervalNanos)) return
+        autoScaleCap = (worldScale - 1).coerceAtLeast(1)
+        val nextScale = computeWorldScale(screenW, screenH)
+        if (nextScale != worldScale) {
+            worldScale = nextScale
+            rebuildWorldBitmap()
         }
     }
 
@@ -250,6 +331,12 @@ class Game(val context: Context) {
     @Synchronized
     fun update(dt: Float) {
         time += dt
+        // 다음 장비 등급 그림이 필요해지기 전에 미리 준비해 둔다 (1초에 한 번만 확인)
+        warmCheck -= dt
+        if (warmCheck <= 0f) {
+            warmCheck = 1f
+            warmNextGear()
+        }
         audio.update(dt)   // BGM/환경음 페이드 진행
         input.process()
         val tr = transition
@@ -260,30 +347,17 @@ class Game(val context: Context) {
             return
         }
         val ov = scene.overlay
-        if (ov !== overlayAnimRef) {        // 새 오버레이가 열렸다면 등장 연출 시작
-            overlayAnimRef = ov
-            overlayAnimT = 0f
-        }
         if (ov == null && input.rawMode) input.rawMode = false
         if (ov != null) {
-            overlayAnimT += dt
-            // 등장 연출이 끝나기 전에는 입력을 받아 치지 않아 오발을 막는다
-            if (overlayAnimT >= OVERLAY_ENTER_SEC) ov.handleInput(input)
+            // 입력은 등장 애니메이션과 무관하게 즉시 받는다. 한 프레임의 입력은
+            // endFrame()에서 지워지므로 메뉴를 연 터치가 새 오버레이에 다시 전달되지 않는다.
+            // (기존 90ms 입력 금지는 빠른 탭을 통째로 버려 버튼이 먹통처럼 보였다.)
+            ov.handleInput(input)
             ov.update(dt)
-            // 오버레이가 스스로 닫힘을 요청하면 다음 프레임부터 씬 입력을 받는다.
             // 대화에서 새 오버레이를 연 경우(오버레이 체이닝)에는 새 오버레이를 보존한다.
             if (ov.finished && scene.overlay === ov) scene.closeOverlay()
-            // 체이닝으로 오버레이가 바뀌었다면 새 오버레이의 등장 연출을 처음부터 시작
-            if (scene.overlay !== overlayAnimRef) {
-                overlayAnimRef = scene.overlay
-                overlayAnimT = 0f
-            }
         } else {
             scene.handleInput(input)
-            if (scene.overlay !== overlayAnimRef) {
-                overlayAnimRef = scene.overlay
-                overlayAnimT = 0f
-            }
         }
         scene.update(dt)
         input.endFrame()
@@ -291,30 +365,19 @@ class Game(val context: Context) {
 
     @Synchronized
     fun render(c: Canvas) {
-        // 월드 재렌더는 이 게임에서 가장 비싼 한 번이다(프레임당 2000회 가까운 비트맵 드로우).
-        // 화면을 덮는 오버레이(가방·지도·상점·베이킹…)가 떠 있으면 시선이 이미 오버레이에
-        // 머물러 있어 월드 비트맵을 매 프레임 다시 그릴 필요가 없다.
-        // 대신 [WORLD_COVER_REDRAW_EVERY] 프레임에 한 번은 다시 그린다 —
-        // 완전히 멈추면 뒤 월드가 뚝뚝한 화면으로 보이고, 오버레이를 닫은 뒤에야
-        // 반영되어야 할 변화(장식 배치 등)가 늦게 나타나기 때문이다.
+        // 월드 재렌더는 프레임당 비트맵 드로우 약 2000회. 전체 화면 오버레이가
+        // 열린 동안 월드 씬의 업데이트도 멈추므로 기존 마지막 프레임을 재사용한다.
+        // 3프레임마다 다시 그리던 방식은 메뉴 입력 프레임마다 주기적인 끊김을 만들었다.
+        // 오버레이를 닫으면 !covered 로 그 프레임에 즉시 최신 월드를 다시 그린다.
         val ov = scene.overlay
         val covered = ov != null && ov.coversWorld && transition == null
-        // 오버레이가 닫혔다면 곧바로 한 장을 다시 그린다
-        if (worldSkipped && !covered) worldStale = true
-        if (covered && !worldStale && ++worldSkipTick >= WORLD_COVER_REDRAW_EVERY) worldStale = true
-        val redrawWorld = !covered || worldStale
-        if (redrawWorld) {
-            // 월드: 가상 좌표계로 그리고 worldScale배 슈퍼샘플 비트맵에 기록
+        if (!covered || worldStale) {
             val wc = worldCanvas
             wc.save()
             wc.scale(worldScale.toFloat(), worldScale.toFloat())
             scene.drawWorld(wc)
             wc.restore()
             worldStale = false
-            worldSkipped = false
-            worldSkipTick = 0
-        } else {
-            worldSkipped = true
         }
         // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())
@@ -327,50 +390,10 @@ class Game(val context: Context) {
         // HUD는 오버레이 아래에도 보인다(조이스틱·액션 버튼·가방 바가 그대로 살아 있다)
         // 그래서 오버레이를 열어도 항상 그린다.
         scene.drawHud(c)
-        drawOverlay(c)
+        // 오버레이 자체의 dim/enterShift 연출만 사용한다. 기존의 화면 크기 ARGB
+        // 임시 비트맵 합성은 열 때마다 수 MB를 할당하고 첫 프레임을 늦췄다.
+        ov?.draw(c)
         transition?.draw(c, screenW.toFloat(), screenH.toFloat())
-    }
-
-    /** 오버레이를 그린다 — 열리는 순간 살짝 줄어들며 페이드인하는 연출을 붙인다. */
-    private fun drawOverlay(c: Canvas) {
-        val ov = scene.overlay ?: return
-        val prog = (overlayAnimT / OVERLAY_ENTER_SEC).coerceIn(0f, 1f)
-        if (prog >= 1f || screenW <= 0 || screenH <= 0) {
-            ov.draw(c)
-            return
-        }
-        val bmp: Bitmap
-        val lc: Canvas
-        val existing = overlayLayer
-        val existingC = overlayLayerCanvas
-        if (existing != null && existingC != null && existing.width == screenW && existing.height == screenH) {
-            bmp = existing
-            lc = existingC
-        } else {
-            val nb = Bitmap.createBitmap(screenW, screenH, Bitmap.Config.ARGB_8888)
-            val nbc = Canvas(nb)
-            overlayLayer = nb
-            overlayLayerCanvas = nbc
-            bmp = nb
-            lc = nbc
-        }
-        lc.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        ov.draw(lc)
-
-        // 살짝 크게 시작해서 제자리로 안착 — 테두리가 잘리지 않도록 1보다 크게 시작
-        val inv = 1f - prog
-        val eased = 1f - inv * inv * inv
-        val alpha = (255 * (prog / 0.55f).coerceAtMost(1f)).toInt()
-        val k = 1.035f - 0.035f * eased
-        val cx = screenW / 2f
-        val cy = screenH / 2f
-        c.save()
-        c.translate(cx, cy)
-        c.scale(k, k)
-        c.translate(-cx, -cy)
-        overlayFadePaint.alpha = alpha
-        c.drawBitmap(bmp, 0f, 0f, overlayFadePaint)
-        c.restore()
     }
 
     /** 페이드 전환 (액션은 화면이 완전히 어두워진 순간 실행) */

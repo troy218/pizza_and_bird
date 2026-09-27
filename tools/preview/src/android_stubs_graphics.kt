@@ -50,6 +50,7 @@ object GfxStats {
     @JvmStatic var decodes = 0L
     /** 그리기/입력 스레드(=게임 스레드)에서 일어난 디코드만 — 병목의 핵심 지표 */
     @JvmStatic var decodesMain = 0L
+    @JvmStatic var compressionsMain = 0L
     @JvmStatic var drawPath = 0L
     @JvmStatic var drawRoundRect = 0L
     @JvmStatic var drawRect = 0L
@@ -60,7 +61,7 @@ object GfxStats {
 
     @JvmStatic fun reset() {
         gradients = 0L; dashes = 0L; blurFilters = 0L; bitmaps = 0L; rectfs = 0L
-        paths = 0L; paints = 0L; decodes = 0L; decodesMain = 0L
+        paths = 0L; paints = 0L; decodes = 0L; decodesMain = 0L; compressionsMain = 0L
         drawPath = 0L; drawRoundRect = 0L; drawRect = 0L; drawCircle = 0L
         drawText = 0L; drawBitmap = 0L; drawLine = 0L
     }
@@ -676,6 +677,8 @@ class Bitmap internal constructor(val image: BufferedImage) {
 
     fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean =
         try {
+            if (Thread.currentThread().name == "main") GfxStats.compressionsMain++
+            GfxStats.site("Compress")
             javax.imageio.ImageIO.write(image, "png", stream)
             true
         } catch (_: Exception) {
@@ -694,6 +697,15 @@ class Bitmap internal constructor(val image: BufferedImage) {
 
     fun getPixel(x: Int, y: Int): Int = image.getRGB(x, y)
 
+    /** android.graphics.Bitmap.getPixels 와 같은 서명 (도트 후처리에서 사용) */
+    fun getPixels(pixels: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {
+        image.getRGB(x, y, width, height, pixels, offset, stride)
+    }
+
+    fun setPixels(pixels: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {
+        image.setRGB(x, y, width, height, pixels, offset, stride)
+    }
+
     fun copy(config: Config, isMutable: Boolean): Bitmap {
         val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         out.setData(image.copyData(null))
@@ -711,6 +723,7 @@ class Bitmap internal constructor(val image: BufferedImage) {
         @JvmStatic
         fun createBitmap(width: Int, height: Int, config: Config): Bitmap {
             GfxStats.bitmaps++
+            GfxStats.site("Bitmap")
             return Bitmap(BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB))
         }
 
@@ -827,6 +840,9 @@ object BitmapFactory {
 
     @JvmStatic
     fun decodeFile(path: String): Bitmap? = try {
+        GfxStats.decodes++
+        if (Thread.currentThread().name == "main") GfxStats.decodesMain++
+        GfxStats.site("Decode file")
         val img = javax.imageio.ImageIO.read(java.io.File(path))
         if (img == null) {
             null

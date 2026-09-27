@@ -13,13 +13,13 @@ import com.pizzaandbird.game.SpawnKind
 import com.pizzaandbird.game.WorldScene
 
 /**
- * "가리는 오버레이가 떠 있는 동안 월드를 적게 다시 그린다" 최적화의 정합성 프로브.
+ * "가리는 오버레이가 떠 있는 동안 마지막 월드 비트맵을 재사용한다" 최적화의 정합성 프로브.
  *
  * Game.render() 는 화면을 덮는 오버레이(가방·지도·상점…)가 떠 있는 동안 월드
- * 비트맵을 매 프레임 다시 그리지 않는다. 월드는 프레임당 drawBitmap 이 약 2000회라
- * 이게 버튼이 붙는 지의 주원인이었고, 결과는 세 가지라 각각 확인한다.
+ * 비트맵을 재사용한다. 월드는 프레임당 drawBitmap 이 약 2000회라
+ * 3프레임마다 한번씩 다시 그리면 그 프레임의 버튼만 느려진다.
  *
- *   A. 가방이 떠 있는 동안 월드가 매 프레임 그려지지 않는다 (병목이 실제로 줄었다)
+ *   A. 가방이 떠 있는 동안 월드를 그리는 프레임이 아예 없다
  *   B. 가방을 닫은 다음 프레임에 월드가 다시 그려진다 (오래된 화면을 붙여 보여주지 않는다)
  *   C. 그 뒤에도 월드가 계속 갱신된다 (멈춘 월드가 아니다)
  *
@@ -66,16 +66,15 @@ object WorldResumeSmoke {
         val menu = MenuOverlay(g.scene as Scene)
         (g.scene as Scene).openOverlay(menu)
         repeat(30) { g.update(1f / 60f) }        // 등장 연출 포함 0.5초
-        var coveredDrops = 0
-        repeat(10) { coveredDrops += oneFrameDrawBitmaps(g, c).toInt() }
-        val coveredPerFrame = coveredDrops / 10.0
+        val coveredFrames = List(10) { oneFrameDrawBitmaps(g, c) }
+        val coveredWorst = coveredFrames.maxOrNull() ?: 0.0
 
-        if (coveredPerFrame < worldPerFrame * 0.6) {
-            println("OK   가방이 떠 있는 동안 월드 재생성 감소 ${"%.0f".format(coveredPerFrame)} < " +
-                "${"%.0f".format(worldPerFrame)} (drawBitmap/frame)")
+        if (coveredWorst < worldPerFrame * 0.6) {
+            println("OK   가방이 떠 있는 모든 프레임에서 월드 재생성 없음 " +
+                "(${"%.0f".format(coveredWorst)} < ${"%.0f".format(worldPerFrame)} drawBitmap)")
         } else {
-            println("FAIL 가방이 떠 있어도 월드를 매 프레임 그린다 " +
-                "(${"%.0f".format(coveredPerFrame)} vs ${"%.0f".format(worldPerFrame)})")
+            println("FAIL 가방이 떠 있을 때 주기적인 월드 재렌더가 끼어든다 " +
+                "(${"%.0f".format(coveredWorst)} vs ${"%.0f".format(worldPerFrame)})")
             failed = true
         }
 
