@@ -447,7 +447,8 @@ class Viewfinder(private val game: Game) {
         val labelY = (py + rOut + 30f).coerceIn(150f, game.virtH - 112f)
         val lbl = "사거리 ${fmt(rangeTiles)}칸"
         val sub = "★3 ≤ ${fmt(rangeTiles * 0.38f)}칸 · ★2 ≤ ${fmt(rangeTiles * 0.72f)}칸"
-        text.textSize = 12.5f
+        text.textSize = TypeScale.px(12.5f)
+        textSoft.textSize = TypeScale.px(9.6f)
         val lw = maxOf(text.measureText(lbl), textSoft.measureText(sub)) + 30f
         val plate = RectF(px - lw / 2f, labelY - 15f, px + lw / 2f, labelY + 15f)
         glass(c, plate, 8f, (196 * k).toInt(), (110 * k).toInt())
@@ -455,7 +456,6 @@ class Viewfinder(private val game: Game) {
         c.drawCircle(plate.left + 12f, plate.centerY(), 3.1f, fill)
         text.color = Color.argb((228 * k).toInt(), 252, 246, 232)
         c.drawText(lbl, plate.left + 21f, plate.top + 13.5f, text)
-        textSoft.textSize = 9.6f
         textSoft.color = Color.argb((170 * k).toInt(), 214, 206, 190)
         c.drawText(sub, plate.left + 21f, plate.top + 25.5f, textSoft)
     }
@@ -538,7 +538,7 @@ class Viewfinder(private val game: Game) {
         val (stars, col) = zone(ratio)
         val label = if (seen) "★".repeat(stars) + "☆".repeat(3 - stars) else "미확인 ?"
         val chipCol = if (seen) col else GOLD
-        text.textSize = 11f
+        text.textSize = TypeScale.px(11f)
         val tw = text.measureText(label)
         val r = RectF(cx - (tw + 20f) / 2f, y - 11f, cx + (tw + 20f) / 2f, y + 7f)
         glass(c, r, 6f, (168 * k).toInt(), (96 * k).toInt())
@@ -658,11 +658,11 @@ class Viewfinder(private val game: Game) {
         val info = if (inRange) "★".repeat(stars) + "☆".repeat(3 - stars) + "  ·  ${fmt(dTiles)}칸"
         else "더 가까이!  ·  ${fmt(dTiles)}칸"
 
-        text.textSize = 13.5f
+        text.textSize = TypeScale.px(13.5f)
         val nameW = text.measureText(name)
-        text.textSize = 10.5f
+        text.textSize = TypeScale.px(10.5f)
         val tierW = text.measureText(tierStr) + 14f
-        text.textSize = 11.5f
+        text.textSize = TypeScale.px(11.5f)
         val infoW = text.measureText(info)
         val rowNameW = 20f + nameW + (if (seen) 8f + tierW else 0f) + 14f
         val rowInfoW = 20f + infoW + 14f
@@ -690,7 +690,7 @@ class Viewfinder(private val game: Game) {
             c.drawCircle(plate.left + 11f, plate.centerY(), 4.8f, stroke)
         }
 
-        text.textSize = 13.5f
+        text.textSize = TypeScale.px(13.5f)
         text.color = if (seen) Color.argb(244, 252, 248, 238) else Color.argb(215, 202, 197, 212)
         c.drawText(name, plate.left + 20f, plate.top + 16f, text)
 
@@ -700,12 +700,12 @@ class Viewfinder(private val game: Game) {
             val badge = RectF(plate.left + 28f + nameW, plate.top + 5f, plate.left + 28f + nameW + tierW, plate.top + 18f)
             fill.color = Color.argb(230, Color.red(tierBg), Color.green(tierBg), Color.blue(tierBg))
             c.drawRoundRect(badge, 4f, 4f, fill)
-            text.textSize = 10.5f
+            text.textSize = TypeScale.px(10.5f)
             text.color = Color.argb(250, 255, 252, 244)
             c.drawText(tierStr, badge.left + 7f, badge.centerY() + 3.6f, text)
         }
 
-        text.textSize = 11.5f
+        text.textSize = TypeScale.px(11.5f)
         text.color = if (inRange) Color.argb(236, Color.red(col), Color.green(col), Color.blue(col))
         else Color.argb(210, 246, 240, 224)
         c.drawText(info, plate.left + 20f, plate.top + 31f, text)
@@ -914,11 +914,11 @@ class Viewfinder(private val game: Game) {
         val a = (255 * fade).toInt().coerceIn(0, 255)
         if (a < 4) return
         val bob = sin(clock * 2.2f) * 3f
-        val cy = h * 0.64f + bob
+        val cy = h * 0.69f + bob
         val line1 = "새를 탭해 촬영하세요"
         val line2 = "카메라 버튼을 다시 누르면 나갑니다"
-        text.textSize = 15f
-        textSoft.textSize = 11.5f
+        text.textSize = TypeScale.px(15f)
+        textSoft.textSize = TypeScale.px(11.5f)
         val pw = maxOf(text.measureText(line1), textSoft.measureText(line2)) + 44f
         val plate = RectF(w / 2f - pw / 2f, cy - 27f, w / 2f + pw / 2f, cy + 27f)
         glass(c, plate, 12f, (176 * a / 255), (96 * a / 255))
@@ -930,10 +930,9 @@ class Viewfinder(private val game: Game) {
             RectF(plate.left + 12f, plate.centerY() - iw * 9f / 22f, plate.left + 12f + iw, plate.centerY() + iw * 9f / 22f),
             game.assets.sprPaint
         )
-        text.textSize = 15f
+        text.textSize = TypeScale.px(15f)
         text.color = Color.argb(a, 255, 250, 235)
         c.drawText(line1, plate.left + 50f, plate.top + 21f, text)
-        textSoft.textSize = 11.5f
         textSoft.color = Color.argb((a * 0.72f).toInt(), 226, 220, 206)
         c.drawText(line2, plate.left + 50f, plate.top + 40f, textSoft)
     }

@@ -50,8 +50,6 @@ class Input(private val game: Game) {
     var justMenu = false
     var justBack = false
     var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
-    var justLeft = false      // 좌 (오버레이 목록 넘기기용 엣지 트리거)
-    var justRight = false     // 우
     var justMap = false       // 큰 지도 (미니맵 탭)
     var isRun = false         // 달리기 홀드 (🏃 버튼 / Shift 키)
 
@@ -212,8 +210,6 @@ class Input(private val game: Game) {
                             KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
                             KeyEvent.KEYCODE_E -> justEat = true
                             KeyEvent.KEYCODE_BACK -> justBack = true
-                            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> justLeft = true
-                            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> justRight = true
                         }
                     } else if (ev.act == KeyEvent.ACTION_UP) {
                         keys.remove(ev.keyCode)
@@ -275,12 +271,15 @@ class Input(private val game: Game) {
 
     /**
      * 가상 월드 좌표 탭 (씬이 소비).
-     * Game.screenToWorld 가 씬의 카메라 오프셋과 망원 배율(CameraRig.zoom)까지 역변환해 준다.
+     * 레터박스 바깥 터치는 월드 입력으로 흘리지 않고, 화면 오프셋/배율은
+     * Game.screenToWorld가 카메라 오프셋과 망원 배율까지 함께 역변환한다.
      */
     fun consumeTapWorld(): PointF? {
         val t = tapScreen
         tapScreen = null
-        return t?.let { game.screenToWorld(it) }
+        if (t == null) return null
+        if (!game.isInsideVirtualViewport(t)) return null
+        return game.screenToWorld(t)
     }
 
     /** 프레임 끝: 엣지 트리거 초기화 */
@@ -292,8 +291,6 @@ class Input(private val game: Game) {
         justBack = false
         justEat = false
         justMap = false
-        justLeft = false
-        justRight = false
         tapScreen = null
         rawEvents.clear()
     }

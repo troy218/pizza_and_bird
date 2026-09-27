@@ -58,6 +58,13 @@ if [ ! -s "tools/preview/fonts/NotoSansKR-Regular.ttf" ] || [ ! -s "tools/previe
     || echo "WARN: 폰트 다운로드 실패 (npm @expo-google-fonts/noto-sans-kr)" >> preview/build.log
 fi
 
+# ---------------------------------------------------------------- R 스텁
+# res/raw·res/drawable 를 훑어 프리뷰용 R 클래스를 다시 만든다 (새 리소스로 컴파일이 깨지지 않게)
+if [ -f tools/preview/gen_r_stub.py ]; then
+  python3 tools/preview/gen_r_stub.py >> preview/build.log 2>&1 \
+    || echo "WARN: R 스텁 생성 실패 — 기존 tools/preview/src/r_stub.kt 로 진행" >> preview/build.log
+fi
+
 # ---------------------------------------------------------------- compile & render
 STATUS="ok"
 if [ -x "$KCBIN" ]; then

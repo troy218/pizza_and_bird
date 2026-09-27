@@ -11,8 +11,11 @@ android {
         applicationId = "com.pizzaandbird.game"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.4.2-beta01"
+        // [P10] 릴리스 워크플로우(release-aab.yml)가 태그에서 버전을 읽어
+        // -PVERSION_CODE / -PVERSION_NAME 속성으로 주입한다. (docs/RELEASE.md §3 버전 규칙)
+        // 로컬/푸시 CI 빌드는 아래 기본값을 그대로 사용 — 기존 동작 유지.
+        versionCode = (providers.gradleProperty("VERSION_CODE").orNull ?: "9").toInt()
+        versionName = providers.gradleProperty("VERSION_NAME").orNull ?: "0.4.2-beta01"
     }
 
     // ---------------------------------------------------------------

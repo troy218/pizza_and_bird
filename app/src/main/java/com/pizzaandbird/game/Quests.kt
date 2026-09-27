@@ -105,39 +105,205 @@ object MainStory {
 
     val CHAPTERS = listOf(
         Chapter("프롤로그 · 빈 도감", "할머니의 낡은 수첩", rewardMoney = 5000, rewardExp = 25,
-            intro = "이 수첩은 자네 할머니가 남긴 탐조 기록일세. 마지막 장에는 이렇게 쓰여 있지. ‘새를 안다는 건 함께 살 방법을 배우는 일.’ 나와 이 지도를 이어 보겠나?",
-            complete = "좋아. 종수 경쟁이 아니라, 만난 장소와 마음까지 적는 거야. 첫 장은 우리 동네 새들로 시작하지."),
+            intro = "이 수첩은 자네 할머니가 남긴 탐조 기록일세. 나와 그이는 이십 년 넘게 같은 쌍안경 가방을 나눠 메고 다녔지. 귀퉁이는 접히고 군데군데 잉크가 번졌지만, 마지막 장에는 또렷하게 이렇게 쓰여 있네. ‘새를 안다는 건 함께 살 방법을 배우는 일.’ 자네가 이 빈 페이지를 이어 준다면, 나도 오랜만에 다시 수첩을 펼 용기가 날 것 같군.",
+            complete = "좋아, 시작해 보세. 종수를 다투는 시합이 아니라 만난 장소와 그때 든 마음까지 함께 적는 기록일세. 멀리 갈 것 없이, 오늘 아침 자네 창밖을 스쳐 간 새들부터 이름을 물어보게."),
         Chapter("1장 · 창밖의 이웃", "이름을 알면 풍경이 달라진다", minLevel = 2, minLifers = 5,
             collection = "동네 첫 만남", rewardMoney = 12000, rewardExp = 55,
-            intro = "멀리 떠나기 전에 매일 스쳐 가던 이웃부터 만나게. 참새와 까치도 오래 바라보면 저마다 다른 하루를 살고 있지.",
-            complete = "자네 사진엔 흔한 새가 아니라 ‘이웃’이 찍혔군. 그런데 수첩 사이에서 나무 두드리는 소리를 적은 쪽지가 나왔네."),
+            intro = "멀리 떠나기 전에 매일 스쳐 가던 이웃부터 만나게. 참새와 까치, 직박구리와 박새, 멧비둘기까지 — 흔하다고 지나쳤던 새들에게도 저마다 다른 하루가 있다네. 이름 하나를 알고 나면 늘 걷던 골목이 조금 다르게 보이기 시작할 걸세.",
+            complete = "자네 사진엔 흔한 새가 아니라 ‘이웃’이 찍혔군. 그런데 수첩을 정리하다 사이에 끼워 둔 낡은 쪽지를 하나 발견했네. 나무를 두드리는 소리에 대해 적어 둔 모양인데, 함께 확인하러 가 보겠나?"),
         Chapter("2장 · 숲의 모스 부호", "딱다구리 세 종의 두드림", minLevel = 4,
             collection = "딱다구리 기본 3종", rewardMoney = 30000, rewardExp = 110,
-            intro = "쇠딱다구리, 오색딱다구리, 청딱다구리. 세 목수의 크기와 무늬를 비교해 보게. 둥지 가까이 가지 말고 떨어진 나무에서 기다리는 걸세.",
-            complete = "두드림은 숲이 살아 있다는 전보였어. 하지만 숲만으로는 지도를 완성할 수 없지. 물길을 따라가 보세."),
+            intro = "쪽지가 가리킨 곳은 뒷산 숲이었네. 쇠딱다구리, 오색딱다구리, 청딱다구리 — 세 목수의 크기와 배 무늬, 등 색을 천천히 비교해 보게. 두드리는 소리가 들리는 나무 밑동에 바짝 다가서지는 말게. 그 안이 둥지일 수도 있으니까.",
+            complete = "두드림은 숲이 살아 있다는 전보 같은 거였어. 나도 오랜만에 그 소리를 다시 들으니 마음이 놓이는군. 하지만 숲의 이야기만으로는 지도를 완성할 수 없지. 이번엔 물길을 따라가 보세."),
         Chapter("3장 · 물길의 기억", "강과 습지가 이어 주는 길", minLevel = 7, minLifers = 30, minVisited = 5,
             collection = "물총새과 4종", rewardMoney = 65000, rewardExp = 190,
-            intro = "물총새과 네 종을 찾아 물길의 색을 기록하게. 청도요는 이름과 달리 도요류라는 것도 기억하고. 정확한 이름이 정확한 보호의 시작이니까.",
-            complete = "서울의 하천과 남쪽 계곡이 새들의 길로 이어졌군. 수첩 여백에 할머니가 ‘계절은 날개를 타고 온다’고 적었네."),
+            intro = "물총새과 네 종을 찾아 물길의 색을 기록해 보게. 물총새, 호반새, 청호반새, 뿔호반새 — 참, 이름만 비슷한 청도요는 사실 물총새가 아니라 도요류라네. 정확한 이름을 아는 일이 정확한 보호의 시작이라고, 자네 할머니는 늘 말했었지.",
+            complete = "서울의 하천과 남쪽 계곡이 새들의 길로 이어졌군. 수첩 여백을 다시 보니 할머니가 작은 글씨로 이렇게 적어 두셨네. ‘계절은 날개를 타고 온다.’ 다음 장은 그 말이 무슨 뜻인지 몸으로 알게 될 걸세."),
         Chapter("4장 · 계절의 날개", "한반도를 건너는 여행자들", minLevel = 11, minLifers = 70, minVisited = 10,
             collection = "겨울 오리 삼색", minThreeStars = 5, rewardMoney = 120000, rewardExp = 300,
-            intro = "가창오리 무리는 밤하늘을 강처럼 흐르지. 원앙과 청머리오리까지 기록하고, 열 곳의 풍경을 이어 철새의 길을 그려 보게.",
-            complete = "지도 위 점들이 하나의 이동 경로가 됐어. 이제 비슷해 보이는 작은 새도 서두르지 않고 읽을 눈이 필요하네."),
+            intro = "가창오리 무리는 밤하늘을 강처럼 흐르지. 원앙과 청머리오리까지 함께 기록하며, 열 곳의 풍경을 이어 철새들이 그리는 커다란 길을 그려 보게. 한 마리가 아니라 무리 전체가 한 계절을 옮기고 있다는 걸 느껴 보게나.",
+            complete = "지도 위에 흩어져 있던 점들이 마침내 하나의 이동 경로로 이어졌군. 굉장한 풍경이었을 걸세. 이제부터는 서두르지 않고, 비슷해 보이는 작은 새들의 미세한 차이까지 읽어 낼 눈이 필요하네."),
         Chapter("5장 · 갯벌의 쉼표", "작은 차이를 읽는 눈", minLevel = 15, minLifers = 110, minVisited = 16,
             collection = "도요 입문 4종", minThreeStars = 12, rewardMoney = 220000, rewardExp = 440,
-            intro = "도요물떼새에게 갯벌은 긴 여행문의 쉼표일세. 부리와 다리만 보지 말고 먹이 행동과 무리 간 거리까지 천천히 기록하게.",
-            complete = "이젠 자네가 내 사진의 동정 오류를 찾아내겠군. 그러나 귀한 새를 찾는 것보다 더 어려운 건 그 자리를 지키는 일이야."),
+            intro = "도요물떼새에게 갯벌은 긴 여행길의 쉼표 같은 곳일세. 부리 길이와 다리 색만 볼 게 아니라, 먹이를 찾는 걸음걸이와 무리 사이의 거리까지 천천히 기록해 보게. 서두르는 눈에는 다 똑같아 보이지만, 기다리는 눈에는 전부 다르게 보인다네.",
+            complete = "허, 이젠 자네가 내 사진의 동정 오류까지 짚어내는군. 몰라볼 만큼 늘었네. 하지만 귀한 새를 찾아내는 일보다 훨씬 어려운 게 하나 남아 있지. 바로 그 자리를 지키는 일일세."),
         Chapter("6장 · 지켜 보는 사람", "발견보다 먼저 배워야 할 거리", minLevel = 20, minLifers = 160, minVisited = 24,
             collection = "보전의 깃발", minThreeStars = 25, rewardMoney = 400000, rewardExp = 650,
-            intro = "저어새와 노랑부리백로의 사진 한 장보다 번식지의 평온이 먼저일세. 위치를 함부로 퍼뜨리지 않고, 길을 벗어나지 않는 관찰자가 되어 주게.",
-            complete = "좋은 기록자는 새를 소유하지 않아. 물러설 때를 아는 사람이야. 이제 수첩의 마지막 빈 장만 남았네."),
+            intro = "저어새와 노랑부리백로의 사진 한 장보다 번식지의 평온이 언제나 먼저일세. 위치를 함부로 퍼뜨리지 말고, 정해진 길에서 벗어나지 말게. 자네가 찍고 싶은 마음보다 새가 살아야 할 자리를 먼저 생각하는 사람이 되어 주게.",
+            complete = "좋은 기록자는 새를 소유하지 않고, 물러설 때를 아는 사람이야. 사실 나도 한동안은 그 거리를 지키지 못해 카메라를 내려놓았던 시절이 있었네. 이제 수첩엔 마지막 빈 장 하나만 남았군."),
         Chapter("마지막 장 · 함께 사는 지도", "전설의 탐조가가 남길 문장", minLevel = Progression.MAX_LEVEL,
             rewardMoney = 1000000, rewardExp = 0,
-            intro = "마지막 장은 내가 정해 줄 수 없네. 지금까지 만난 풍경과 새를 되새기며, 만렙에 오른 자네가 직접 답을 써 주게.",
-            complete = "‘우리가 새를 바라보는 동안, 새도 살아갈 내일을 얻기를.’ 훌륭하군. 메인 이야기는 여기서 멈추지만, 계절과 새의 이야기는 끝나지 않아. 의뢰와 도장 깨기는 언제든 계속하게.")
+            intro = "마지막 장은 내가 대신 써 줄 수 없다네. 동네 골목에서 시작해 숲과 물길, 철새의 큰 길과 갯벌의 작은 차이, 그리고 지켜야 할 거리까지 — 지금까지 걸어온 길을 되새기며 자네가 직접 문장을 남겨 주게. 만렙에 오른 지금이라면 그 답을 이미 알고 있을지도 모르지.",
+            complete = "‘우리가 새를 바라보는 동안, 새도 살아갈 내일을 얻기를.’ 훌륭하군. 자네 할머니가 남긴 첫 문장에서 시작해, 자네가 마지막 문장을 완성했네. 메인 이야기는 여기서 멈추지만 계절과 새의 이야기는 끝나지 않아. 의뢰와 도장 깨기는 언제든 계속하게.")
     )
 
     fun current(s: GameState): Chapter? = if (s.mainQuestFinished) null else CHAPTERS.getOrNull(s.mainQuestStage)
+}
+
+/**
+ * 메인 퀘스트 자동 진행 어드바이저.
+ *
+ * "위치도 모르는데" — 현재 장의 목표를 풀어서 어디로 가야 하는지(·왜 거기인지)를
+ * 자동 계산한다. 메인 퀘스트 카드/대화를 누르면 이 결과로 바로 이동한다.
+ *
+ * 우선순위:
+ *  1. 컬렉션 미완료 — 남은 새가 가장 많이 출현하는 지역
+ *  2. 방문 부족 — 지역 루트 그래프(BFS) 기준 가장 가까운 미방문 지역
+ *  3. 레벨·라이퍼·3성 부족 — 아직 못 찍은 새가 가장 많은 지역
+ *
+ * 보리 박사는 모든 지역 광장에 상주하므로 목표 달성 시 "현재 지역"이 정답이다.
+ */
+object MainQuestAdvisor {
+
+    data class Advice(
+        val regionId: String,
+        val regionName: String,
+        val reason: String,      // 왜 여기인지 (메뉴 카드·박사 대화에 표시)
+        val tip: String,         // 도착하면 뭘 해야 하는지 (토스트/팁)
+        val alreadyThere: Boolean = false
+    )
+
+    // 미니맵이 매 프레임 요청하므로 상태가 바뀔 때까지 결과를 재사용한다.
+    private var cacheKey = ""
+    private var cacheValue: Advice? = null
+
+    fun advise(s: GameState): Advice? {
+        val chapter = MainStory.current(s) ?: return null
+        val key = listOf(
+            s.mainQuestStage, s.mainQuestFinished, s.level, s.birdCounts.size,
+            s.bestStars.values.count { it >= 3 }, s.visited.size, s.region
+        ).joinToString("|")
+        if (key == cacheKey) return cacheValue
+        val advice = compute(s, chapter)
+        cacheKey = key
+        cacheValue = advice
+        return advice
+    }
+
+    private fun compute(s: GameState, chapter: MainStory.Chapter): Advice {
+        // 목표 달성 — 지금 이곳이 정답 (보리 박사는 모든 지역의 광장에 있다)
+        if (chapter.isComplete(s)) {
+            val cur = Regions.byId[s.region] ?: Regions.ALL.first()
+            return Advice(
+                cur.id, cur.name,
+                "목표 달성 · 현재 지역의 광장에서 보리 박사에게 보고하세요",
+                "보리 박사는 중앙 광장 한가운데 있어요",
+                alreadyThere = true
+            )
+        }
+
+        // 지역별 새 풀 (낮+밤 통합 — 밤새도 여기서 나온다)
+        val pools = HashMap<String, Set<String>>()
+        for (r in Regions.ALL) {
+            pools[r.id] = (Birds.poolFor(r, false) + Birds.poolFor(r, true))
+                .mapTo(LinkedHashSet()) { it.id }
+        }
+        val freshCount = pools.mapValues { (_, ids) ->
+            ids.count { id -> (s.birdCounts[id] ?: 0) == 0 }
+        }
+
+        // 1) 컬렉션 미완료 — 남은 새가 나가는 지역
+        val col = chapter.collectionDef()
+        val missing = col?.species?.filterNot { s.hasBirdName(it) } ?: emptyList()
+        val missingDefs = missing.mapNotNull { Birds.byName[it] }
+        if (missing.isNotEmpty()) {
+            var best = Regions.ALL.first()
+            var bestHit = -1
+            var bestFresh = -1
+            for (r in Regions.ALL) {
+                val hit = missingDefs.count { it.id in pools[r.id]!! }
+                val fresh = freshCount[r.id]!!
+                if (hit > bestHit || (hit == bestHit && fresh > bestFresh)) {
+                    bestHit = hit; bestFresh = fresh; best = r
+                }
+            }
+            val hitDefs = missingDefs.filter { it.id in pools[best.id]!! }
+            if (hitDefs.isNotEmpty()) {
+                val names = hitDefs.take(3).joinToString("·") { it.name } +
+                    (if (hitDefs.size > 3) " 외" else "")
+                val habitats = hitDefs.flatMap { it.habitats }.distinct()
+                    .joinToString("·") { HabitatLabels[it] ?: it }
+                return Advice(
+                    best.id, best.name,
+                    "남은 새 ${missing.size}종 중 ${hitDefs.size}종이 여기 · $names",
+                    "(${habitats}) 구역에서 천천히 기다리면 새가 와요"
+                )
+            }
+            // (모든 지역에 남은 새가 나지 않는 이례적인 경우 — 3단계로 내려가 기록용 지역 추천)
+        }
+
+        // 2) 방문 부족 — 가장 가까운 미방문 지역
+        if (s.visited.size < chapter.minVisited) {
+            val nearest = nearestUnvisited(s, freshCount)
+            if (nearest != null) {
+                return Advice(
+                    nearest.id, nearest.name,
+                    "방문 ${s.visited.size}/${chapter.minVisited}곳 · 가장 가까운 미방문 지역",
+                    nearest.tip.ifBlank { "도착만 해도 방문 기록이 돼요" }
+                )
+            }
+        }
+
+        // 3) 레벨·라이퍼·3성 — 못 찍은 새가 많은 지역
+        var best = Regions.ALL.first()
+        var bestFresh = -1
+        for (r in Regions.ALL) {
+            val fresh = freshCount[r.id]!!
+            if (fresh > bestFresh) { bestFresh = fresh; best = r }
+        }
+        if (bestFresh <= 0) {
+            // 새를 이미 전부 본 극소수 — 지역 이동의 이득이 없다
+            val cur = Regions.byId[s.region] ?: Regions.ALL.first()
+            return Advice(
+                cur.id, cur.name,
+                "모든 새를 이미 봤어요 · 촬영으로만 경험치가 남아요",
+                "어디서든 계속 촬영하면 레벨이 오릅니다",
+                alreadyThere = true
+            )
+        }
+        val goals = buildList {
+            if (chapter.minLevel > 1) add("Lv.${s.level}/${chapter.minLevel}")
+            if (chapter.minLifers > 0 && s.birdCounts.size < chapter.minLifers)
+                add("라이퍼 ${s.birdCounts.size}/${chapter.minLifers}종")
+            if (chapter.minThreeStars > 0)
+                add("3성 ${s.bestStars.values.count { it >= 3 }}/${chapter.minThreeStars}종")
+        }.joinToString(" · ")
+        return Advice(
+            best.id, best.name,
+            "${if (goals.isEmpty()) "기록을 늘리기엔" else goals} · 여길 못 본 새가 ${bestFresh}종",
+            best.tip.ifBlank { "낯선 새를 하나씩 기록하면 레벨이 빠르게 올라요" }
+        )
+    }
+
+    /** 지역 루트 그래프(터널 연결)에서 가장 가까운 미방문 지역. 동점엔 새 기록 기회 많은 쪽. */
+    private fun nearestUnvisited(s: GameState, freshCount: Map<String, Int>): RegionDef? {
+        val dist = HashMap<String, Int>()
+        dist[s.region] = 0
+        val queue = ArrayDeque<String>()
+        queue.add(s.region)
+        while (queue.isNotEmpty()) {
+            val cur = queue.removeFirst()
+            val d = dist[cur]!!
+            for ((_, nid) in Regions.exits(cur)) {
+                if (nid !in dist) {
+                    dist[nid] = d + 1
+                    queue.add(nid)
+                }
+            }
+        }
+        var best: RegionDef? = null
+        var bestD = Int.MAX_VALUE
+        var bestFresh = -1
+        for (r in Regions.ALL) {
+            if (r.id in s.visited) continue
+            val d = dist[r.id] ?: continue
+            val fresh = freshCount[r.id]!!
+            if (d < bestD || (d == bestD && fresh > bestFresh)) {
+                bestD = d; bestFresh = fresh; best = r
+            }
+        }
+        return best
+    }
 }
 
 fun GameState.hasBirdName(name: String): Boolean {

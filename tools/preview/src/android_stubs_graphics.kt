@@ -343,7 +343,7 @@ private fun cycle(tileMode: TileMode): java.awt.MultipleGradientPaint.CycleMetho
 open class Xfermode
 
 /** 프리뷰용 타입페이스 — 실제 폰트 선택은 StubText 가 담당 */
-class Typeface private constructor(val name: String) {
+class Typeface internal constructor(val name: String) {
     companion object {
         const val NORMAL = 0
         const val BOLD = 1
@@ -408,8 +408,12 @@ object StubText {
     @Volatile var bold: Font? = null
 
     private val fontCache = ConcurrentHashMap<String, Font>()
+    private val assetCache = ConcurrentHashMap<String, Font>()
     private val metricsCache = ConcurrentHashMap<Font, FontMetrics>()
     private val scratch: BufferedImage = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+
+    /** assets 를 찾을 위치 — [android.content.res.AssetManager] 와 같은 규칙. */
+    @Volatile var assetRoot: File = File("app/src/main/assets")
 
     fun loadFromDir(dir: File) {
         try {
@@ -424,19 +428,73 @@ object StubText {
         }
     }
 
-    fun fontFor(size: Float, bold: Boolean): Font {
-        val base = (if (bold) this.bold else null) ?: regular ?: Font(Font.SANS_SERIF, Font.PLAIN, 12)
-        val key = (if (bold && this.bold == null) "B:" else "R:") + size
+    /**
+     * assets 폴더에 든 게임 글꼴(app/src/main/assets/font 의 ttf)을 실제로 읽어 온다.
+     * 이게 있어야 프리뷰 스크린샷이 기기와 같은 글꼴로 나온다.
+     * 없으면 null → 폴백(NotoSansKR)으로 그린다.
+     */
+    fun assetFont(path: String): Font? = assetCache.getOrPut(path) {
+        val f = listOf(File(assetRoot, path), File("app/src/main/assets/$path"), File(path))
+            .firstOrNull { it.isFile } ?: return null
+        try {
+            Font.createFont(Font.TRUETYPE_FONT, f)
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
+    fun fontFor(size: Float, bold: Boolean): Font = fontFor(size, bold, null, 0f)
+
+    /**
+     * 페인트가 요구하는 글꼴 — 커스텀 typeface(assets) > 폴백 폰트 순.
+     * [track] 은 안드로이드 letterSpacing(em)과 같은 의미로 자간을 준다.
+     */
+    fun fontFor(size: Float, bold: Boolean, typeface: Typeface?, track: Float): Font {
+        val asset = typeface?.name?.let { if (it.endsWith(".ttf", true) || it.endsWith(".otf", true)) assetFont(it) else null }
+        val fake = asset == null && bold && this.bold == null
+        val base = asset ?: (if (bold) this.bold else null) ?: regular ?: Font(Font.SANS_SERIF, Font.PLAIN, 12)
+        val key = "${typeface?.name ?: if (bold) "B" else "R"}|$size|$fake|$track"
         return fontCache.getOrPut(key) {
-            if (bold && this.bold == null)
-                base.deriveFont(Font.BOLD, size)
-            else
-                base.deriveFont(size)
+            var f = if (fake) base.deriveFont(Font.BOLD, size) else base.deriveFont(size)
+            if (track != 0f) {
+                @Suppress("UNCHECKED_CAST")
+                f = f.deriveFont(mapOf(java.awt.font.TextAttribute.TRACKING to track)
+                    as Map<java.awt.font.TextAttribute, Any>)
+            }
+            f
         }
     }
 
     fun metrics(font: Font): FontMetrics =
         metricsCache.getOrPut(font) { scratch.createGraphics().getFontMetrics(font) }
+
+    /**
+     * 안드로이드(Minikin)와 같은 글꼴 대체 — 커스텀 글꼴에 없는 글자는 시스템 글꼴로 그린다.
+     * 문자열을 "그릴 수 있는 글꼴"이 같은 구간으로 쪼개 돌려준다.
+     */
+    fun runs(text: String, primary: Font, size: Float, bold: Boolean): List<Pair<String, Font>> {
+        if (text.isEmpty()) return emptyList()
+        if (primary.canDisplayUpTo(text) < 0) return listOf(text to primary)
+        val fb = fontFor(size, bold, null, 0f)
+        val out = ArrayList<Pair<String, Font>>()
+        val sb = StringBuilder()
+        var cur = primary
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            val n = Character.charCount(cp)
+            val f = if (primary.canDisplay(cp)) primary else fb
+            if (f !== cur && sb.isNotEmpty()) {
+                out.add(sb.toString() to cur)
+                sb.setLength(0)
+            }
+            cur = f
+            sb.appendCodePoint(cp)
+            i += n
+        }
+        if (sb.isNotEmpty()) out.add(sb.toString() to cur)
+        return out
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -508,22 +566,23 @@ class Paint {
             color = ((value and 0xFF) shl 24) or (color and 0x00FFFFFF)
         }
 
+    /** 이 페인트가 실제로 쓰는 AWT 폰트 (typeface · 자간까지 반영) */
+    internal fun awtFont(): Font = StubText.fontFor(textSize, isFakeBoldText, typeface, letterSpacing)
+
     fun measureText(text: String): Float {
-        val f = StubText.fontFor(textSize, isFakeBoldText)
-        return StubText.metrics(f).stringWidth(text).toFloat()
+        val f = awtFont()
+        val runs = StubText.runs(text, f, textSize, isFakeBoldText)
+        if (runs.size <= 1) return StubText.metrics(f).stringWidth(text).toFloat()
+        var w = 0f
+        for ((part, font) in runs) w += StubText.metrics(font).stringWidth(part).toFloat()
+        return w
     }
 
-    fun ascent(): Float {
-        val f = StubText.fontFor(textSize, isFakeBoldText)
-        return -StubText.metrics(f).ascent.toFloat()
-    }
+    fun ascent(): Float = -StubText.metrics(awtFont()).ascent.toFloat()
 
-    fun descent(): Float {
-        val f = StubText.fontFor(textSize, isFakeBoldText)
-        return StubText.metrics(f).descent.toFloat()
-    }
+    fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(StubText.fontFor(textSize, isFakeBoldText))
+    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
 }
 
 // ---------------------------------------------------------------------------
@@ -794,7 +853,27 @@ class Canvas {
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         colorize(paint)
-        g.font = StubText.fontFor(paint.textSize, paint.isFakeBoldText)
+        val base = paint.awtFont()
+        // 글꼴에 없는 글자(이모지·기호)는 기기와 똑같이 시스템 글꼴로 대체해 그린다
+        val runs = StubText.runs(text, base, paint.textSize, paint.isFakeBoldText)
+        if (runs.size > 1 && paint.style != Paint.Style.STROKE) {
+            var cx = x
+            for ((part, font) in runs) {
+                g.font = font
+                g.drawString(part, cx, y)
+                cx += StubText.metrics(font).stringWidth(part).toFloat()
+            }
+            return
+        }
+        g.font = base
+        if (paint.style == Paint.Style.STROKE) {
+            // 스티커 글자의 테두리 — 글리프 외곽선을 따 와서 실제로 선을 긋는다
+            strokeOf(paint)
+            val gv = g.font.createGlyphVector(g.fontRenderContext, text)
+            g.draw(AffineTransform.getTranslateInstance(x.toDouble(), y.toDouble())
+                .createTransformedShape(gv.outline))
+            return
+        }
         g.drawString(text, x, y)
     }
 
