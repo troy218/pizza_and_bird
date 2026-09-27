@@ -1691,7 +1691,7 @@ class Assets(private val context: Context) {
                 px(cv, p, x.toFloat(), (32 - h).toFloat(), 2f, h.toFloat(), c(0xFF577D42))
                 px(cv, p, x + 0.7f, (32 - h + 2).toFloat(), 0.8f, h - 3f, c(0xFFA4BF64))
                 px(cv, p, x - 0.5f, (32 - h - 4).toFloat(), 3f, 5f, c(0xFF81502F))
-                px(cv, p, x, (32 - h - 3).toFloat(), 1.4f, 3f, c(0xFFB27945))
+                px(cv, p, x.toFloat(), (32 - h - 3).toFloat(), 1.4f, 3f, c(0xFFB27945))   // main 컴파일 오류 수정(Int→Float)
             }
         } else {
             for ((x, y, s) in listOf(Triple(5, 22, 8), Triple(17, 25, 10), Triple(25, 19, 7))) {
