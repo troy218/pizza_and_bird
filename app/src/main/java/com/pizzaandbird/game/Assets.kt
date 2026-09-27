@@ -13,6 +13,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.util.LruCache
 import java.util.Random
+import java.util.concurrent.LinkedBlockingQueue
 import kotlin.math.roundToInt
 
 // 살아있는 풀 리그 상수 (파일 최상위 — 클래스 본문 안에서는 const val 을 쓸 수 없다)
@@ -91,7 +92,30 @@ class Assets(private val context: Context) {
     private val birdPoseCache = LinkedHashMap<BirdPoseKey, Bitmap>()
     private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
     private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
-    private val birdReferencePalettes = HashMap<String, BirdRenderPalette>()
+    // 새 사진 기준색 캐시 — 미리 읽기 스레드와 게임 스레드가 함께 본다.
+    private val birdReferencePalettes = java.util.concurrent.ConcurrentHashMap<String, BirdRenderPalette>()
+
+    /**
+     * 새 사진 기준색을 미리 계산해 두는 전용 스레드.
+     *
+     * 기준색은 그 새를 처음 그릴 때 사진(jpg)을 한 번 풀어 계산하는데, 도감 '다음' 을
+     * 누른 그 프레임에 이 디코드가 끼면 버튼이 잠깐 멈춘다. 미리 계산해 두면 그땐 캐시만 본다.
+     */
+    private val birdPaletteQueue = LinkedBlockingQueue<String>()
+    private val birdPalettePending = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private val birdPaletteThread = Thread({
+        while (true) {
+            val id = birdPaletteQueue.take()
+            try {
+                Birds.byId[id]?.let { birdReferencePalette(it) }
+            } catch (_: Exception) {
+            } finally {
+                birdPalettePending.remove(id)
+            }
+        }
+    }, "PizzaAndBirdPalette").apply { isDaemon = true; start() }
+
 
     // 타일 (32x32) ------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant 또는 프레임]
@@ -3460,38 +3484,116 @@ begin(T.LAMP)
     fun birdH(id: String): Float = bird(id).height.toFloat()
 
     // -----------------------------------------------------------------------
-    // 조류 대도감 실제 사진 및 썸네일 (LruCache)
+    // 조류 대도감 실제 사진 및 썸네일 — 백그라운드 로더 + LruCache
+    //
+    //  JPEG를 게임 스레드에서 푸는 순간 그 프레임이 10~30ms 흔들린다.
+    //  도감 '다음' 을 누르면 한 프레임에 12장, 새 상세의 '다음' 을 누르면
+    //  고화질 사진 한 장이 같이 디코드돼서 버튼이 눌린 직후 카드가 났다.
+    //  로더 스레드가 미리 풀어두고, 그리는 쪽은 "있으면 그린다"만 한다
+    //  (없는 동안은 도감 화면이 이미 그려 놓은 도트 스프라이트가 대신 나온다).
     // -----------------------------------------------------------------------
-    private val photoCache = LruCache<Int, Bitmap>(24)
-    private val thumbCache = LruCache<Int, Bitmap>(128)
-
-    /** 조류 고화질 실제 사진 (assets/birds/{num}.jpg) */
-    fun birdPhoto(num: Int): Bitmap? {
-        if (num <= 0) return null
-        photoCache.get(num)?.let { return it }
-        return try {
-            context.assets.open("birds/$num.jpg").use { stream ->
-                BitmapFactory.decodeStream(stream)?.also {
-                    photoCache.put(num, it)
-                }
-            }
-        } catch (_: Exception) {
-            null
-        }
+    private val photoLoader = AssetImageLoader("PizzaAndBirdPhoto", 24) { num ->
+        context.assets.open("birds/$num.jpg").use { BitmapFactory.decodeStream(it) }
+    }
+    private val thumbLoader = AssetImageLoader("PizzaAndBirdThumb", 160) { num ->
+        context.assets.open("birds_thumb/$num.jpg").use { BitmapFactory.decodeStream(it) }
+            ?: context.assets.open("birds/$num.jpg").use { BitmapFactory.decodeStream(it) }
     }
 
-    /** 도감 그리드용 최적화 썸네일 (assets/birds_thumb/{num}.jpg) */
+    /** 조류 고화질 실제 사진 (assets/birds/{num}.jpg) — 없으면 로더에 부탁하고 null */
+    fun birdPhoto(num: Int): Bitmap? {
+        if (num <= 0) return null
+        photoLoader.cached(num)?.let { return it }
+        photoLoader.request(num)
+        return null
+    }
+
+    /** 미리 받아두라고 알림만 한다 (버튼을 누르는 순간 미리 풀어두게) */
+    fun prefetchBirdPhoto(num: Int) {
+        if (num > 0 && photoLoader.cached(num) == null) photoLoader.request(num)
+    }
+
+    fun prefetchBirdThumb(num: Int) {
+        if (num > 0 && thumbLoader.cached(num) == null) thumbLoader.request(num)
+    }
+
+    /** 새 사진 기준색을 미리 계산한다 (디코드는 전용 스레드). */
+    fun prefetchBirdPalette(birdId: String) {
+        if (birdId.isBlank() || birdReferencePalettes.containsKey(birdId)) return
+        if (!birdPalettePending.add(birdId)) return
+        birdPaletteQueue.put(birdId)
+    }
+
+    /** 도감 그리드용 최적화 썸네일 (assets/birds_thumb/{num}.jpg) — 없으면 로더에 부탁하고 null */
     fun birdThumb(num: Int): Bitmap? {
         if (num <= 0) return null
-        thumbCache.get(num)?.let { return it }
-        return try {
-            context.assets.open("birds_thumb/$num.jpg").use { stream ->
-                BitmapFactory.decodeStream(stream)?.also {
-                    thumbCache.put(num, it)
-                }
+        thumbLoader.cached(num)?.let { return it }
+        thumbLoader.request(num)
+        return null
+    }
+
+    /**
+     * 로더가 요청한 이미지를 다 풀 때까지 잠시 기다린다.
+     * 프리뷰 스크린샷·회귀 테스트 전용 — 실제 게임 루프에서는 부르지 않는다.
+     */
+    fun awaitImages(timeoutMs: Long = 5000L): Boolean {
+        val until = System.nanoTime() + timeoutMs * 1_000_000L
+        while (System.nanoTime() < until) {
+            if (!photoLoader.busy() && !thumbLoader.busy()) return true
+            Thread.sleep(4L)
+        }
+        return false
+    }
+
+    /**
+     * assets 의 이미지 하나를 낮은 우선순위 스레드에서 미리 푸는 로더.
+     * 같은 번호는 한 번만 요청하고, 다 풀리면 LruCache 에 들어간다.
+     */
+    private class AssetImageLoader(
+        threadName: String,
+        cacheSize: Int,
+        private val decode: (Int) -> Bitmap?
+    ) {
+        private val cache = LruCache<Int, Bitmap>(cacheSize)
+        private val queued = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+        private val jobs = LinkedBlockingQueue<Int>()
+        @Volatile private var running = false
+
+        init {
+            Thread({ loop() }, threadName).apply {
+                isDaemon = true
+                priority = Thread.MIN_PRIORITY
+                start()
             }
-        } catch (_: Exception) {
-            birdPhoto(num)
+        }
+
+        fun cached(num: Int): Bitmap? = cache.get(num)
+
+        fun request(num: Int) {
+            if (num <= 0) return
+            if (cache.get(num) != null) return
+            if (queued.add(num)) jobs.put(num)
+        }
+
+        fun busy(): Boolean = running || jobs.isNotEmpty() || queued.isNotEmpty()
+
+        private fun loop() {
+            while (true) {
+                val num = try {
+                    jobs.take()
+                } catch (_: InterruptedException) {
+                    return
+                }
+                running = true
+                val bmp = try {
+                    decode(num)
+                } catch (_: Exception) {
+                    null
+                }
+                if (bmp != null) cache.put(num, bmp)
+                queued.remove(num)
+                running = false
+            }
         }
     }
 

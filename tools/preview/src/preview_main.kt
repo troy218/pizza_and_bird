@@ -227,13 +227,24 @@ object PreviewMain {
         var t = 0f
         while (t < seconds) {
             game.update(dt)
+            // 등장 연출(Overlay.bornAt · UiKit.enter)도 게임 시간으로 — 같은 소스를 돌리면
+            // 화면이 매번 똑같이 나오도록(프리뷰 SystemClock 는 시뮬레이션 시간만 흐른다)
+            android.os.SystemClock.advance(dt)
             t += dt
         }
     }
 
-    private fun renderScreen(game: Game, name: String) {
+    /**
+     * @param settlePhotos 사진(도감)이 있는 화면이면 true. 백그라운드 로더 스레드가
+     *   채운 사진을 기다렸다가 다시 그려야 실제 화면(사진이 다 올라온 상태)이 찍힌다.
+     */
+    private fun renderScreen(game: Game, name: String, settlePhotos: Boolean = false) {
         val bmp = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
+        if (settlePhotos) {
+            game.render(c)                 // 첫 그림이 로더에 요청을 넣어준다
+            game.assets.awaitImages()      // 로더 스레드가 다 채우기를 기다린다
+        }
         game.render(c)
         ImageIO.write(bmp.image, "png", File(outDir, "$name.png"))
         println("  + $name.png")
@@ -372,7 +383,7 @@ object PreviewMain {
         val tabs = tabCls.enumConstants
         for ((i, tab) in tabs.withIndex()) {
             setField(menu, "tab", tab)
-            renderScreen(game, "17_menu_tab${i + 1}")
+            renderScreen(game, "17_menu_tab${i + 1}", settlePhotos = true)
         }
 
         // 피자 굽기 (v0.4: 피자 12종 — 화덕/일반 계열)
@@ -397,7 +408,7 @@ object PreviewMain {
         val photo = PhotoResultOverlay(scene, Birds.byId["crane"]!!, 3, true, 2, "의뢰 완료! +₩7,800 (3성 보너스)")
         scene.openOverlay(photo)
         simulate(game, 0.9f)
-        renderScreen(game, "24_photo_result")
+        renderScreen(game, "24_photo_result", settlePhotos = true)
 
         // 큰 지도
         scene.closeOverlay()

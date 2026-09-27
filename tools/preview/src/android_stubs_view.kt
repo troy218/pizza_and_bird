@@ -52,3 +52,14 @@ class KeyEvent {
         const val KEYCODE_SHIFT_RIGHT = 60
     }
 }
+
+/** tools/preview — android.view.View 스텁 (BootView 컴파일용). 실제 화면에는 뜨지 않는다. */
+open class View(val context: android.content.Context) {
+    var width: Int = 0
+    var height: Int = 0
+    val isAttachedToWindow: Boolean = false
+    open fun onDraw(c: android.graphics.Canvas) {}
+    fun postInvalidateDelayed(delayMillis: Long) {}
+    fun postInvalidate() {}
+    fun invalidate() {}
+}

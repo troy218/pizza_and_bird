@@ -246,6 +246,9 @@ class RegionSelectOverlay(
     scene: Scene,
     private val onPick: (RegionDef) -> Unit
 ) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드는 가려지니 재사용한다 */
+    override val coversWorld: Boolean get() = true
+
 
     private var selected: RegionDef? = null
     private var cardRects: List<RectF> = emptyList()
