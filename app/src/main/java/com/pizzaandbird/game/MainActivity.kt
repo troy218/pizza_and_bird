@@ -13,20 +13,37 @@ class MainActivity : Activity() {
 
     private var gameView: GameView? = null
 
+    /** 앱이 포그라운드에 있는지 (부팅 완료 콜백이 게임 스레드를 켤지 판단) */
+    private var uiResumed = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        gameView = GameView(this)
-        setContentView(gameView)
+        // 스플래시를 먼저 띄운다 — Game/Assets 생성(비트맵 수백 장·폰트·세이브)이
+        // 길어서, 예전처럼 여기서 다 만들면 앱을 켜고도 한동안 화면이 얼어 있었다.
+        setContentView(BootView(this))
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        Thread({
+            val game = Game(this)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val gv = GameView(this, game)
+                if (uiResumed) gv.onResume()
+                gameView = gv
+                setContentView(gv)
+                hideSystemUi()
+            }
+        }, "PizzaAndBirdBoot").start()
     }
 
     override fun onResume() {
         super.onResume()
+        uiResumed = true
         gameView?.onResume()
         hideSystemUi()
     }
 
     override fun onPause() {
+        uiResumed = false
         gameView?.onPause()
         super.onPause()
     }

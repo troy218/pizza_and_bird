@@ -33,6 +33,9 @@ class WorldScene(
     private val player = Player()
     private val birds = ArrayList<FieldBird>()
     private val cats = ArrayList<Cat>()
+    // 재사용 정렬 버퍼: 매 프레임 엔티티 목록을 새로 만들지 않아 GC 부하를 줄인다.
+    private val drawEntities = ArrayList<Any>(map.npcs.size + 16)
+    private val drawEntityOrder = Comparator<Any> { a, b -> sortY(a).compareTo(sortY(b)) }
     private val rnd = Random(region.id.hashCode().toLong() + 7L)
     private val viewfinder = Viewfinder(game)
 
@@ -1061,14 +1064,22 @@ class WorldScene(
         return null
     }
 
+    private fun signDirection(sx: Int, sy: Int): Dir = when {
+        sy <= 2 -> Dir.N
+        sy >= map.h - 5 -> Dir.S
+        sx <= 3 -> Dir.W
+        else -> Dir.E
+    }
+
+    private fun directionName(dir: Dir): String = when (dir) {
+        Dir.N -> "북쪽"
+        Dir.E -> "동쪽"
+        Dir.S -> "남쪽"
+        Dir.W -> "서쪽"
+    }
+
     private fun signTarget(sx: Int, sy: Int): RegionDef? {
-        val dir = when {
-            sy <= 2 -> Dir.N
-            sy >= map.h - 5 -> Dir.S
-            sx <= 3 -> Dir.W
-            else -> Dir.E
-        }
-        val targetId = Regions.exits(map.region.id)[dir] ?: return null
+        val targetId = Regions.exits(map.region.id)[signDirection(sx, sy)] ?: return null
         return Regions.byId[targetId]
     }
 
@@ -1077,7 +1088,7 @@ class WorldScene(
         val ty = (vy / 16f).toInt()
         if (map.t(tx, ty) == T.SIGN) {
             val target = signTarget(tx, ty)
-            if (target != null) game.toast("🪧 이 터널 -> ${target.name}")
+            if (target != null) game.toast("🪧 ${directionName(signDirection(tx, ty))} 터널 → ${target.name}")
         }
     }
 
@@ -1355,7 +1366,7 @@ class WorldScene(
             nearTile(T.SIGN)?.let { (sx, sy) ->
                 val target = signTarget(sx, sy)
                 if (target != null) {
-                    game.toast("🪧 이 터널 -> ${target.name}")
+                    game.toast("🪧 ${directionName(signDirection(sx, sy))} 터널 → ${target.name}")
                     return
                 }
             }
@@ -1504,13 +1515,13 @@ class WorldScene(
         drawCloudShadows(c, camXv, camYv)
 
         // 엔티티 (y 정렬)
-        val ents = ArrayList<Any>(map.npcs.size + birds.size + cats.size + 1)
-        ents.addAll(map.npcs)
-        ents.addAll(cats)
-        ents.addAll(birds)
-        ents.add(player)
-        ents.sortBy { sortY(it) }
-        for (e in ents) drawEntity(c, e)
+        drawEntities.clear()
+        drawEntities.addAll(map.npcs)
+        drawEntities.addAll(cats)
+        drawEntities.addAll(birds)
+        drawEntities.add(player)
+        drawEntities.sortWith(drawEntityOrder)
+        for (e in drawEntities) drawEntity(c, e)
 
         // 살아있는 풀 — 지면에 고정된 전경으로 발목을 가린다. 엔티티에 풀을 붙여 그리지 않는다.
         c.save()

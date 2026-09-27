@@ -38,6 +38,8 @@ class HomeScene(game: Game) : Scene(game) {
         textSize = 14f
     }
     private val uiFill = Paint()
+    private val promptPaint = Paint().apply { color = 0xFFF2D06B.toInt() }
+    private val ovenIllustrationBounds = RectF()
     private val aaFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val aaStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -119,7 +121,7 @@ class HomeScene(game: Game) : Scene(game) {
         game.hud.questLabel = null
         game.banner("🏠 우리 집")
 
-        game.audio.playBgm(R.raw.bgm_home)   // 🎵 신비로운 탐험
+        game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
         game.audio.stopAmb()
     }
 
@@ -434,15 +436,13 @@ class HomeScene(game: Game) : Scene(game) {
         val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
         uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
         c.drawCircle(ovenScreenX, ovenScreenY - 11f, 47f + heat * 4f, uiFill)
-        game.illustrations.draw(
-            c, "wood_fired_oven.svg",
-                RectF(
-                (12f * 16f - camX) * WORLD_SCALE - 16f,
-                (1f * 16f - camY) * WORLD_SCALE - 8f,
-                (12f * 16f - camX) * WORLD_SCALE + 80f,
-                (1f * 16f - camY) * WORLD_SCALE + 100f
-                )
-            )
+        ovenIllustrationBounds.set(
+            (12f * 16f - camX) * WORLD_SCALE - 16f,
+            (1f * 16f - camY) * WORLD_SCALE - 8f,
+            (12f * 16f - camX) * WORLD_SCALE + 80f,
+            (1f * 16f - camY) * WORLD_SCALE + 100f
+        )
+        game.illustrations.draw(c, "wood_fired_oven.svg", ovenIllustrationBounds)
 
         val a = game.assets
 
@@ -497,9 +497,7 @@ class HomeScene(game: Game) : Scene(game) {
             val bob = sin(game.time * 3f) * 2.5f
             val bx = (pos.first - camX) * WORLD_SCALE
             val by = (pos.second - camY) * WORLD_SCALE - 30f + bob
-            val p = Paint()
-            p.color = 0xFFF2D06B.toInt()
-            c.drawCircle(bx, by, 9f, p)
+            c.drawCircle(bx, by, 9f, promptPaint)
             tinyPaint.textSize = 14f
             val tw = tinyPaint.measureText("!")
             c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
