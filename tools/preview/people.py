@@ -294,9 +294,9 @@ def render(direction, pose, look):
 
     ground = 31.4
     footH = 1.7 * sc
-    legLen = 7.5 * sc
-    thigh, shin = 3.9 * sc, 3.6 * sc
-    torsoH = 6.7 * sc
+    legLen = 8.3 * sc
+    thigh, shin = 4.2 * sc, 3.9 * sc
+    torsoH = 6.1 * sc
     headR = 6.5 * sc
     headGap = 6.3 * sc
 
@@ -319,11 +319,11 @@ def render(direction, pose, look):
     else:
         tL, tR = shoulderX - 6.2 * sc, shoulderX + 6.2 * sc
 
-    hipHalf = 3.1 * sc
+    hipHalf = 2.45 * sc
     shHalf = (5.0 if direction == SIDE else 7.0) * sc
 
     def leg_root(side):
-        return hipX + side * hipHalf * (0.35 if direction == SIDE else 1.0)
+        return hipX + side * hipHalf * (0.5 if direction == SIDE else 1.0)
 
     def arm_root(side):
         y = shoulderY + 1.3 * sc + (pose.shoulderR if side > 0 else pose.shoulderL)
@@ -379,10 +379,10 @@ def render(direction, pose, look):
     # ---- 몸통 본체 -------------------------------------------------------
     def draw_torso():
         top = shoulderY - 0.6
-        bot = hipY + 1.4 * sc
+        bot = hipY + 2.3 * sc
         bw = pose.breath * 0.32
-        g.rrect(tL - 0.9 - bw, top - 0.9, tR + 0.9 + bw, bot + 0.9, 3.8 * sc, pal.line)
-        g.rrect(tL - bw, top, tR + bw, bot, 3.3 * sc, pal.top)
+        g.rrect(tL - 0.9 - bw, top - 0.9, tR + 0.9 + bw, bot + 0.6, 3.0 * sc, pal.line)
+        g.rrect(tL - bw, top, tR + bw, bot, 2.6 * sc, pal.top)
         if direction == SIDE:
             g.rrect(tL + (tR - tL) * 0.45, top + 0.8, tR - 0.4, bot - 0.5, 2.2 * sc, pal.top2)
         else:

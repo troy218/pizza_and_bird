@@ -414,10 +414,10 @@ object CharacterArt {
 
         val ground = 31.4f
         val footH = 1.7f * sc
-        val legLen = 7.5f * sc
-        val thigh = 3.9f * sc
-        val shin = 3.6f * sc
-        val torsoH = 6.7f * sc
+        val legLen = 8.3f * sc
+        val thigh = 4.2f * sc
+        val shin = 3.9f * sc
+        val torsoH = 6.1f * sc
         val headR = 6.5f * sc
         val headGap = 6.3f * sc
 
@@ -439,10 +439,10 @@ object CharacterArt {
         } else {
             tL = shoulderX - 6.2f * sc; tR = shoulderX + 6.2f * sc
         }
-        val hipHalf = 3.1f * sc
+        val hipHalf = 2.45f * sc
         val shHalf = (if (direction == SIDE) 5f else 7f) * sc
 
-        fun legRoot(side: Float) = hipX + side * hipHalf * (if (direction == SIDE) 0.35f else 1f)
+        fun legRoot(side: Float) = hipX + side * hipHalf * (if (direction == SIDE) 0.5f else 1f)
         fun armRootX(side: Float) = hipX + leanPx + side * shHalf * (if (direction == SIDE) 0.2f else 1f)
         fun armRootY(side: Float) =
             shoulderY + 1.3f * sc + (if (side > 0) pose.shoulderR else pose.shoulderL)
@@ -503,10 +503,10 @@ object CharacterArt {
         // ---- 몸통 ------------------------------------------------------------
         fun drawTorso() {
             val top = shoulderY - 0.6f
-            val bot = hipY + 1.4f * sc
+            val bot = hipY + 2.3f * sc
             val bw = pose.breath * 0.32f
-            g.rrect(tL - 0.9f - bw, top - 0.9f, tR + 0.9f + bw, bot + 0.9f, 3.8f * sc, pal.line)
-            g.rrect(tL - bw, top, tR + bw, bot, 3.3f * sc, pal.top)
+            g.rrect(tL - 0.9f - bw, top - 0.9f, tR + 0.9f + bw, bot + 0.6f, 3.0f * sc, pal.line)
+            g.rrect(tL - bw, top, tR + bw, bot, 2.6f * sc, pal.top)
             if (direction == SIDE) {
                 g.rrect(tL + (tR - tL) * 0.45f, top + 0.8f, tR - 0.4f, bot - 0.5f, 2.2f * sc, pal.top2)
             } else {
