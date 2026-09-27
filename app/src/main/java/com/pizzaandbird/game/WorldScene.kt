@@ -1144,50 +1144,28 @@ class WorldScene(
     }
 
     private fun talkTo(npc: Npc) {
+        if (SideStories.intercept(this, npc)) return   // [P08] 사이드 스토리 진행 중이면 우선
+        val dlg = Dialogues.Ctx(map.region.id, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)   // [P08]
         when (npc.kind) {
             NpcKind.PROFESSOR -> talkProfessor()
             NpcKind.SHOP -> talkShop()
             NpcKind.VILLAGER -> {
-                val storyHint = when (state.mainQuestStage) {
-                    0, 1 -> "멀리 가기 전에도 창밖의 새부터 천천히 보면 좋아요."
-                    2 -> "숲에서 나무 구멍을 발견해도 가까이 들여다보면 안 돼요. 둥지일 수 있거든요."
-                    3 -> "물가 새는 건너편에서 봐도 충분히 아름다워요."
-                    4 -> "철새가 쉬는 곳에서는 무리 쪽으로 걷지 않는 게 이 동네 약속이에요."
-                    5 -> "갯벌에는 사람 눈에 안 보이는 새들의 식탁이 아주 많대요."
-                    else -> "희귀새 위치를 바로 퍼뜨리기 전에 새가 안전할지 한 번 생각해 주세요."
-                }
                 openOverlay(DialogOverlay(this, npc.name,
-                    "\"${map.region.villager}\n$storyHint\"",
+                    Dialogues.villager(dlg),
                     listOf(DialogOverlay.Choice("기억할게요"))))
             }
             NpcKind.KID -> {
-                val lines = listOf(
-                    "우와, 카메라 멋져요! 저도 크면 탐조할 거예요!",
-                    "저기요, 저 새 이름 알아요? 어… 까먹었어요.",
-                    "자전거 타면 빨리 가지만 금방 배고파져요!",
-                    "박사님이 낡은 새 수첩을 들고 찾고 있었어요. 가보실래요?",
-                    "새 둥지를 찾으면 비밀로 해 줘야 해요. 새끼가 놀라잖아요!",
-                    "저는 도감 숫자보다 새 이름을 하나 제대로 아는 게 더 좋아요."
-                )
                 openOverlay(
                     DialogOverlay(
-                        this, npc.name, "\"${lines[rnd.nextInt(lines.size)]}\"",
+                        this, npc.name, Dialogues.kid(dlg),
                         listOf(DialogOverlay.Choice("ㅎㅎ 귀엽다"))
                     )
                 )
             }
             NpcKind.ELDER -> {
-                val lines = listOf(
-                    "요즘 젊은이들은 참 부지런해요.",
-                    "옛날엔 이 동네에 두루미가 많이 왔었지…",
-                    "피자도 잘 먹고 다니게. 몸이 자본이야.",
-                    "해 지기 전에 들어가게. 밤엔 부엉이가 나온다네.",
-                    "자네 할머니도 새를 많이 보려 하기보다 오래 보려 했지.",
-                    "귀한 새를 봤다면 발자국을 남기지 않는 게 가장 좋은 자랑이라네."
-                )
                 openOverlay(
                     DialogOverlay(
-                        this, npc.name, "\"${lines[rnd.nextInt(lines.size)]}\"",
+                        this, npc.name, Dialogues.elder(dlg),
                         listOf(DialogOverlay.Choice("다녀오겠습니다"))
                     )
                 )
@@ -1669,6 +1647,16 @@ class WorldScene(
                         val tw = tinyPaint.measureText("!")
                         c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
                     }
+                } else if (SideStories.hasMarker(game.context, map.region.id, e.kind)) {
+                    // [P08] 사이드 스토리 대기/진행 중인 NPC 머리 위 💬 마커 (에피소드 완료 시 사라짐)
+                    val bx = sx + 16f
+                    val by = sy - 12f
+                    bubbleFill.color = 0xFF8FC7F0.toInt()
+                    c.drawCircle(bx, by, 9f, bubbleFill)
+                    c.drawCircle(bx, by, 9f, bubbleStroke)
+                    tinyPaint.textSize = 13f
+                    val tw = tinyPaint.measureText("💬")
+                    c.drawText("💬", bx - tw / 2, by + 5f, tinyPaint)
                 }
             }
             is Cat -> {

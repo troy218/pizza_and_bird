@@ -79,7 +79,11 @@ open class Context {
         return android.graphics.drawable.VectorArtDrawable.load(name)
     }
 
-    open fun getSharedPreferences(name: String, mode: Int): SharedPreferences = InMemorySharedPreferences()
+    private val prefsCache = java.util.concurrent.ConcurrentHashMap<String, SharedPreferences>()
+
+    /** Android와 동일하게 이름당 하나의 prefs 인스턴스를 반환한다 (게임 전체에서 같은 저장소). */
+    open fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+        prefsCache.computeIfAbsent(name) { InMemorySharedPreferences() }
 
     open fun getSystemService(name: String): Any? = null
 
