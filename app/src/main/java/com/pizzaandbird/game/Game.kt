@@ -41,8 +41,8 @@ private const val OVERLAY_ENTER_SEC = 0.09f
  * 게임 전역 컨텍스트: 씬 관리, 2K 기준 가상 해상도 스케일링, 페이드 전환.
  *
  * ## 2K 렌더링 아키텍처 (v0.4)
- * - **가상 해상도**: 세로 540 고정 · 가로는 화면 비율에 맞춰 720~1280으로 자동 확장
- *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 레터박스 없이 넓게 보인다)
+ * - **가상 해상도**: 세로 540 고정 · 가로는 화면 비율에 맞춰 720~1280으로 자동 조정
+ *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 초광폭은 좌우, 4:3보다 좁은 창은 상하 여백)
  * - **월드 슈퍼샘플링**: 월드는 `worldScale`(정수 1~3배) 비트맵에 렌더된 뒤 화면에 출력된다.
  *   스프라이트는 정수배로 커지므로 픽셀 아트 격자가 흐트러지지 않고,
  *   FHD=2×(1080p 네이티브) · QHD(2K)=2×(업스케일 1.33, 기존 2.67 대비 픽셀 굵기 절반) · 4K=3×
@@ -119,18 +119,31 @@ class Game(val context: Context) {
         assets.birdFlipped("magpie")
     }
 
+    @Synchronized
     fun onSurfaceChanged(w: Int, h: Int) {
+        // Some devices briefly report a zero-sized surface while entering split-screen.
+        // Keep the last valid frame/layout until Android supplies the replacement size.
+        if (w <= 0 || h <= 0) return
+        if (screenW == w && screenH == h) return
         screenW = w
         screenH = h
-        // 1) 가상 너비 = 세로 540 기준 화면 비율 (클램프로 극단 비율 대응)
-        virtW = (VIRT_H.toFloat() * w / h.toFloat()).toInt().coerceIn(VIRT_W_MIN, VIRT_W_MAX)
-        // 2) 월드 슈퍼샘플 배율 (설정 반영 + 메모리 가드)
-        worldScale = computeWorldScale(w, h)
-        rebuildWorldBitmap()
-        // 3) 화면 매핑: 세로 길이에 정확히 맞춘다 (가로는 클램프 시에만 아주 작은 여백)
-        viewScale = h.toFloat() / virtH.toFloat()
+        // The current renderer keeps its 540px virtual height and adapts virtual width
+        // to aspect ratio (720..1280). This preserves the game's 2K-era layout while
+        // avoiding any stretch on 4:3 tablets/foldables and on ultrawide phones.
+        val nextVirtW = (VIRT_H.toFloat() * w / h.toFloat()).toInt().coerceIn(VIRT_W_MIN, VIRT_W_MAX)
+        val oldVirtW = virtW
+        val oldWorldScale = worldScale
+        virtW = nextVirtW
+        val nextWorldScale = computeWorldScale(w, h)
+        val bitmapChanged = nextVirtW != oldVirtW || nextWorldScale != oldWorldScale
+        worldScale = nextWorldScale
+        if (bitmapChanged) rebuildWorldBitmap()
+        // Fit the aspect-adaptive virtual surface without distortion. If a narrow
+        // foldable/split window falls below the supported 4:3 virtual minimum, fit by
+        // width and letterbox vertically; ultrawide/clamped surfaces pillarbox instead.
+        viewScale = minOf(w.toFloat() / virtW.toFloat(), h.toFloat() / virtH.toFloat())
         viewOffX = (w - virtW * viewScale) / 2f
-        viewOffY = 0f
+        viewOffY = (h - virtH * viewScale) / 2f
         hud.layout(w, h)
         scene.onLayout()
     }
@@ -172,12 +185,20 @@ class Game(val context: Context) {
     }
 
     /** 실제 터치 좌표 -> 가상 화면 좌표 (여백 포함). */
-    fun screenToVirtual(p: PointF): PointF = PointF(
-        (p.x - viewOffX) / viewScale,
-        (p.y - viewOffY) / viewScale
-    )
+    @Synchronized
+    fun screenToVirtual(p: PointF): PointF {
+        val s = viewScale.takeIf { it > 0f } ?: return PointF(p.x, p.y)
+        return PointF((p.x - viewOffX) / s, (p.y - viewOffY) / s)
+    }
+
+    @Synchronized
+    fun isInsideVirtualViewport(screen: PointF): Boolean {
+        val virtual = screenToVirtual(screen)
+        return virtual.x in 0f..virtW.toFloat() && virtual.y in 0f..virtH.toFloat()
+    }
 
     /** 실제 터치 좌표 -> 현재 씬의 절대 월드 좌표 (렌더링 카메라 오프셋 포함). */
+    @Synchronized
     fun screenToWorld(p: PointF): PointF {
         val v = screenToVirtual(p)
         val camera = scene.cameraOffset()
@@ -206,6 +227,7 @@ class Game(val context: Context) {
 
     // ---------------------------------------------------------------------
 
+    @Synchronized
     fun update(dt: Float) {
         time += dt
         audio.update(dt)   // BGM/환경음 페이드 진행
@@ -247,6 +269,7 @@ class Game(val context: Context) {
         input.endFrame()
     }
 
+    @Synchronized
     fun render(c: Canvas) {
         // 월드: 가상 좌표계로 그리고 worldScale배 슈퍼샘플 비트맵에 기록
         val wc = worldCanvas

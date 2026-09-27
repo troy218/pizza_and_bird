@@ -1,5 +1,5 @@
-# preview build 2026-09-27 07:54:56Z
-# commit: c1a2880814c449f5037cc8194322b310d70f19e7
+# preview build 2026-09-27 08:06:20Z
+# commit: df049a7cafce3841af972571f9491f55ad92f7dc
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
@@ -61,18 +61,12 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790495652751.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790496335782.json
 
-BUILD SUCCESSFUL in 44s
+BUILD SUCCESSFUL in 45s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-import android.graphics.BitmapFactory
-                        ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:14:21: error: unresolved reference 'LruCache'.
-import android.util.LruCache
-                    ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:3046:30: error: unresolved reference 'LruCache'.
     private val photoCache = LruCache<Int, Bitmap>(24)
                              ^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Assets.kt:3047:30: error: unresolved reference 'LruCache'.
@@ -258,12 +252,18 @@ app/src/main/java/com/pizzaandbird/game/Season.kt:155:74: error: too many argume
 app/src/main/java/com/pizzaandbird/game/Season.kt:155:96: error: too many arguments for 'fun drawOval(oval: RectF, paint: Paint): Unit'.
             c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
                                                                                                ^^^^^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:206:57: error: unresolved reference 'amb_night'.
+app/src/main/java/com/pizzaandbird/game/Type.kt:25:50: error: unresolved reference 'packageName'.
+        val value = ctx.getSharedPreferences(ctx.packageName + PREFS_SUFFIX, android.content.Context.MODE_PRIVATE)
+                                                 ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:33:50: error: unresolved reference 'packageName'.
+        val prefs = ctx.getSharedPreferences(ctx.packageName + PREFS_SUFFIX, android.content.Context.MODE_PRIVATE)
+                                                 ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:208:57: error: unresolved reference 'amb_night'.
             state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
                                                         ^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:207:68: error: unresolved reference 'amb_sea'.
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:209:68: error: unresolved reference 'amb_sea'.
             "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
                                                                    ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:208:69: error: unresolved reference 'amb_forest'.
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:210:69: error: unresolved reference 'amb_forest'.
             "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
                                                                     ^^^^^^^^^^
