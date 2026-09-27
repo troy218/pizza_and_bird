@@ -51,28 +51,35 @@ object TypeScale {
 /**
  * 텍스트 역할 — 화면마다 손으로 크기를 맞추지 말고 여기 있는 역할만 쓴다.
  * (sizeDp: 글자 크기 · bold: 굵기 · track: 자간(em) · lineDp: 줄 간격)
+ *
+ * 수치는 내장 글꼴(주아 · 고운돋움)에 맞춰 잡았다. 주아는 같은 크기에서 글자가
+ * 조금 작고 좁게 보여서 제목 계열을 살짝 키우고 자간을 줄였고, 본문은 힐링 게임답게
+ * 줄 간격을 한 숨 더 벌려 두었다.
  */
 enum class Role(val sizeDp: Float, val bold: Boolean, val track: Float, val lineDp: Float) {
-    HERO(38f, true, 0.06f, 46f),        // 타이틀 화면 로고
-    DISPLAY(21f, true, 0.06f, 27f),     // 화면을 뒤덮는 큰 제목 (사진 결과, 배너)
-    TITLE(16f, true, 0.04f, 21f),       // 패널 제목
-    HEADING(13.5f, true, 0.03f, 19f),   // 카드/리스트 이름
-    LABEL(12.2f, true, 0.02f, 17f),     // 버튼 · 칩 · 탭
-    BODY(12.6f, false, 0f, 18.5f),      // 본문 (가독성 때문에 보통 두께)
-    CAPTION(11f, false, 0f, 16f),       // 보조 설명
-    MICRO(8.4f, false, 0f, 12f),        // 아주 작은 보조 글자
+    HERO(40f, true, 0.045f, 48f),       // 타이틀 화면 로고
+    DISPLAY(22f, true, 0.04f, 28f),     // 화면을 뒤덮는 큰 제목 (사진 결과, 배너)
+    TITLE(16.8f, true, 0.025f, 22f),    // 패널 제목
+    HEADING(14f, true, 0.02f, 19.5f),   // 카드/리스트 이름
+    LABEL(12.6f, true, 0.015f, 17f),    // 버튼 · 칩 · 탭
+    BODY(12.8f, false, 0.005f, 19.5f),  // 본문 (가독성 때문에 보통 두께)
+    CAPTION(11.2f, false, 0.005f, 16.5f), // 보조 설명
+    MICRO(8.6f, false, 0f, 12f),        // 아주 작은 보조 글자
     EMOJI(20f, false, 0f, 24f)          // 이모지 단독
 }
 
 /**
  * 게임 타이포그래피 — "글꼴은 제자리에, 감성은 살짝 귀엽게".
  *
- * 1. 한글/본문 → 시스템 sans-serif(따뜻한 색 + 약한 자간).
- *                둥근 한글 폰트(Jua · BM Jua · Gaegu … 전부 SIL OFL)를 쓰고 싶으면
- *                app/src/main/assets/font/ 에 ttf/otf 하나만 넣으면 자동으로 연결된다.
+ * 1. 한글/본문 → 앱에 내장한 둥근 한글 글꼴 두 벌(assets/font, 둘 다 SIL OFL 1.1).
+ *      · 굵은 글씨(제목·버튼·이름)  = display_jua.ttf      — Jua(배달의민족 주아), 동글동글 손글씨풍
+ *      · 보통 글씨(본문·설명)       = body_gowundodum.ttf  — Gowun Dodum(고운돋움), 부드럽고 담백
+ *    파일 이름 앞이 display / body 면 자동으로 제 역할에 꽂힌다. 폴더가 비어 있으면
+ *    예전처럼 시스템 sans-serif 로 조용히 내려간다(글꼴 없다고 죽지 않는다).
+ *    글꼴에 없는 글자(이모지·한자·희귀 음절)는 안드로이드가 시스템 글꼴로 대체한다.
  * 2. 숫자·영문·기호 → 코드로 생성한 5x7 픽셀 디스플레이 폰트([PixelFont]).
  *                게임 아트가 전부 픽셀이니까 숫자도 픽셀이 자연스럽다.
- *                한글/이모지가 섞인 문장은 자동으로 시스템 폰트로 넘어간다.
+ *                한글/이모지가 섞인 문장은 자동으로 한글 글꼴로 넘어간다.
  * 3. 크기·굵기·자간·줄간격은 [Role]이 정한다. 색은 아래 팔레트를 쓴다.
  */
 object Type {
@@ -94,42 +101,81 @@ object Type {
     var d = 1f
         private set
 
-    private var base: Typeface? = null
-    private val bound = ArrayList<Pair<Paint, Boolean>>()
+    /** 굵은 역할(제목·버튼·이름)에 쓰는 글꼴 — assets/font/display_*.ttf */
+    private var display: Typeface? = null
 
-    /** 앱 시작 시 한 번 호출. assets/font 의 폰트를 글꼴로 쓰게 한다(없으면 시스템 폰트). */
+    /** 보통 역할(본문·설명)에 쓰는 글꼴 — assets/font/body_*.ttf */
+    private var body: Typeface? = null
+
+    /** [init] 전에 만들어진 공유 페인트 — 글꼴이 준비되면 한 번 갈아 끼운다. */
+    private val bound = ArrayList<Pair<Paint, Boolean>>()
+    private var ready = false
+
+    /** 앱 시작 시 한 번 호출. assets/font 의 글꼴을 물려 준다(없으면 시스템 글꼴). */
     fun init(ctx: Context) {
         TypeScale.of(ctx)
         d = ctx.resources.displayMetrics.density
-        base = loadFromAssets(ctx)
+        loadFromAssets(ctx)
+        // 정적 초기화 때 만들어진 페인트(Overlays.textP 등)도 새 글꼴로 갈아 끼운다.
         for ((p, bold) in bound) p.typeface = face(bold)
+        bound.clear()
+        ready = true
+        fills.clear()
+        edges.clear()
     }
 
-    private fun loadFromAssets(ctx: Context): Typeface? = try {
-        val files = (ctx.assets.list("font") ?: emptyArray())
-            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
-        val pick = files.sortedByDescending {
-            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
-        }.firstOrNull()
-        if (pick != null) Typeface.createFromAsset(ctx.assets, "font/$pick") else null
-    } catch (_: Exception) {
-        null
+    /**
+     * assets/font 안의 ttf/otf 를 이름으로 골라 담는다.
+     *   "display..." 로 시작하면 제목용, "body..." 또는 "text..." 면 본문용,
+     *   그 외는 남는 자리에 채운다. 한 벌만 넣어 두면 제목·본문이 같은 글꼴을 쓴다.
+     */
+    private fun loadFromAssets(ctx: Context) {
+        display = null
+        body = null
+        try {
+            val files = (ctx.assets.list("font") ?: emptyArray())
+                .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+                .sorted()
+            for (f in files) {
+                val tf = try {
+                    Typeface.createFromAsset(ctx.assets, "font/$f")
+                } catch (_: Exception) {
+                    null
+                } ?: continue
+                val n = f.lowercase()
+                when {
+                    n.startsWith("display") || n.contains("title") ||
+                        n.contains("bold") || n.contains("black") -> if (display == null) display = tf
+                    n.startsWith("body") || n.startsWith("text") ||
+                        n.contains("regular") -> if (body == null) body = tf
+                    display == null -> display = tf
+                    body == null -> body = tf
+                }
+            }
+            if (display == null) display = body
+            if (body == null) body = display
+        } catch (_: Exception) {
+            display = null
+            body = null
+        }
     }
 
     /** 이미 만들어 둔 공유 페인트에 글꼴을 건다(공용 페인트를 만들 때 호출). */
     fun bind(p: Paint, bold: Boolean): Paint {
         p.typeface = face(bold)
-        bound.add(p to bold)
+        // init 이 끝난 뒤(씬마다) 만들어지는 페인트는 이미 제 글꼴을 받았으니 붙잡아 두지 않는다.
+        if (!ready) bound.add(p to bold)
         return p
     }
 
+    /**
+     * 역할에 맞는 글꼴. bold = 제목 글꼴(주아), 보통 = 본문 글꼴(고운돋움).
+     * 두 글꼴 모두 한 가지 굵기라서 가짜 볼드를 씌우지 않는다 — 씌우면 획이 뭉개진다.
+     */
     fun face(bold: Boolean): Typeface {
-        val b = base
-        return when {
-            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
-            bold -> Typeface.create(b, Typeface.BOLD)
-            else -> b
-        }
+        val tf = if (bold) display else body
+        if (tf != null) return tf
+        return Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
     }
 
     // ----- 페인트 (캐시) -----

@@ -126,6 +126,7 @@ class WorldScene(
         val (sx, sy) = when (spawnKind) {
             SpawnKind.SAVED -> state.px to state.py
             SpawnKind.HOME -> 376f to 12.2f * 16f
+            SpawnKind.FAST -> 18f * 16f to 14f * 16f   // 중앙 광장 — 보리 박사 바로 옆
             SpawnKind.TUNNEL -> when (spawnDir) {
                 Dir.N -> 312f to 3f * 16f
                 Dir.S -> 312f to (map.h - 4f) * 16f
@@ -138,6 +139,7 @@ class WorldScene(
         state.py = sy
         player.facing = when (spawnKind) {
             SpawnKind.TUNNEL -> Regions.opposite(spawnDir)
+            SpawnKind.FAST -> Dir.N      // 광장 한가운데(박사 방향)을 바라본다
             else -> Dir.S
         }
         player.bike = spawnKind == SpawnKind.SAVED && state.onBike
@@ -1230,10 +1232,15 @@ class WorldScene(
         val chapter = MainStory.current(state) ?: return
         val ready = chapter.isComplete(state)
         val objective = chapter.objective(state)
+        val advice = MainQuestAdvisor.advise(state)
+        val adviceLine = advice?.let { adv ->
+            if (adv.alreadyThere) "\n📍 ${adv.tip}" else "\n📍 추천 장소: ${adv.regionName}"
+        } ?: ""
         openOverlay(
             DialogOverlay(
                 this, chapter.title,
-                "\"${chapter.intro}\"\n\n목표: $objective" + if (ready) "\n✓ 기록을 정리할 준비가 됐어요." else "",
+                "\"${chapter.intro}\"\n\n목표: $objective" +
+                    (if (ready) "\n✓ 기록을 정리할 준비가 됐어요." else "") + adviceLine,
                 buildList {
                     if (!state.mainQuestStarted) {
                         add(DialogOverlay.Choice("수첩을 이어 쓸게요") { completeMainChapter(chapter) })
@@ -1241,6 +1248,11 @@ class WorldScene(
                         add(DialogOverlay.Choice("기록을 보여드릴게요") { completeMainChapter(chapter) })
                     } else {
                         add(DialogOverlay.Choice("목표를 기억할게요"))
+                    }
+                    advice?.let { adv ->
+                        if (!adv.alreadyThere && adv.regionId != state.region) {
+                            add(DialogOverlay.Choice("🚲 이동하기") { fastTravel(game, adv.regionId) })
+                        }
                     }
                     add(DialogOverlay.Choice("사진 의뢰 보기") { showSideQuest() })
                 }
