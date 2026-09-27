@@ -105,8 +105,8 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A),
         spot = NpcSpot.AVENUE,
-        stock = null,                                  // 본점 = 전 제품
-        sale = emptySet(),                             // 본점은 정가 — 분점이 특화로 싸게 판다
+        stockIds = null,                                  // 본점 = 전 제품
+        saleKinds = emptySet(),                             // 본점은 정가 — 분점이 특화로 싸게 판다
         flagship = true
     )
 
@@ -126,8 +126,8 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF2E2620, 0xFFC3A3E8, 0xFF9F7FC8, 0xFF4A6FA5, 0xFF8A5A33),
         spot = NpcSpot.AVENUE,
-        stock = BASIC + setOf("c_tough", "c_zoom20", "c_travel", "b_m43", "l_m43_1260", "l_m43_100400"),
-        sale = setOf(GearKind.COMPACT)
+        stockIds = BASIC + setOf("c_tough", "c_zoom20", "c_travel", "b_m43", "l_m43_1260", "l_m43_100400"),
+        saleKinds = setOf(GearKind.COMPACT)
     )
 
     private val CHUNCHEON = CityShop(
@@ -146,11 +146,11 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF5B4632, 0xFFC9B47E, 0xFFA99460, 0xFF6B6A4F, 0xFF8A6A4F, vest = 0xFF7A8A5A),
         spot = NpcSpot.MARKET,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "c_zoom20", "b_dslr_entry", "b_apsc_entry", "l_kit1855", "l_55210",
             "l_70300", "l_150600c", "acc_tripod", "acc_strap"
         ),
-        sale = setOf(GearKind.ACCESSORY)
+        saleKinds = setOf(GearKind.ACCESSORY)
     )
 
     private val GANGNEUNG = CityShop(
@@ -169,11 +169,11 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF4A2F1D, 0xFFC89B6A, 0xFFA97C50, 0xFF6B5A48, 0xFF4F7D3F),
         spot = NpcSpot.AVENUE,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "b_apsc_mid", "b_dslr_mid", "b_ff_entry", "l_2470f28", "l_100400",
             "l_1635f4", "l_70300"
         ),
-        sale = setOf(GearKind.BODY)
+        saleKinds = setOf(GearKind.BODY)
     )
 
     private val SOKCHO = CityShop(
@@ -192,10 +192,10 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF4A3728, 0xFFF2B63C, 0xFFD09A2C, 0xFF4F7D3F, 0xFF8A5A33, cap = 0xFFE2853C),
         spot = NpcSpot.MARKET,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "c_bridge60", "b_m43", "l_m43_300f4", "l_m43_100400", "l_150600c", "acc_tripod", "tc_14"
         ),
-        sale = setOf(GearKind.LENS)
+        saleKinds = setOf(GearKind.LENS)
     )
 
     private val DAEJEON = CityShop(
@@ -214,10 +214,10 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF5B3A29, 0xFFF2A15C, 0xFFD07F3E, 0xFF6B4F35, 0xFFE2574C, cap = 0xFFF2B63C),
         spot = NpcSpot.AVENUE,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "b_dslr_entry", "b_apsc_entry", "l_kit1855", "l_55210", "l_35f18", "acc_adapter"
         ),
-        sale = setOf(GearKind.BODY)
+        saleKinds = setOf(GearKind.BODY)
     )
 
     private val JEONJU = CityShop(
@@ -236,10 +236,10 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF3A2A22, 0xFFD05A6A, 0xFFA8404F, 0xFF4A4A6A, 0xFFF2B63C, longHair = true),
         spot = NpcSpot.MARKET,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "c_retro", "c_apsc_prime", "b_mf", "l_35f18", "l_90macro", "l_mf_55", "l_mf_100200"
         ),
-        sale = setOf(GearKind.LENS)
+        saleKinds = setOf(GearKind.LENS)
     )
 
     private val DAEGU = CityShop(
@@ -258,10 +258,10 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF2E2620, 0xFFE2574C, 0xFFB23F44, 0xFF3F4A6F, 0xFFF2B63C, scarf = 0xFFE2574C),
         spot = NpcSpot.AVENUE,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "b_dslr_entry", "b_dslr_mid", "l_70300", "l_100400", "l_200600", "acc_tripod", "acc_blind"
         ),
-        sale = setOf(GearKind.BODY)
+        saleKinds = setOf(GearKind.BODY)
     )
 
     private val GWANGJU = CityShop(
@@ -280,10 +280,10 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF2A2F3A, 0xFF6FA8C8, 0xFF4F87A8, 0xFF3A4A5A, 0xFFCFD2D8),
         spot = NpcSpot.MARKET,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "c_one_fast", "c_ff", "b_ff_entry", "b_ff_hires", "l_2470f28", "l_1635f4", "acc_blind"
         ),
-        sale = setOf(GearKind.ACCESSORY)
+        saleKinds = setOf(GearKind.ACCESSORY)
         )
 
     private val ULSAN = CityShop(
@@ -302,8 +302,8 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF4A4A33, 0xFF7A9E4F, 0xFF5C7C3A, 0xFF6B5A48, 0xFF9AA3AD, vest = 0xFF5C7C3A),
         spot = NpcSpot.AVENUE,
-        stock = BASIC + setOf("c_bridge_pro", "b_ff_hires", "b_flagship", "l_800f63", "tc_20", "acc_tripod"),
-        sale = setOf(GearKind.BODY)
+        stockIds = BASIC + setOf("c_bridge_pro", "b_ff_hires", "b_flagship", "l_800f63", "tc_20", "acc_tripod"),
+        saleKinds = setOf(GearKind.BODY)
     )
 
     private val BUSAN = CityShop(
@@ -322,10 +322,10 @@ object CameraShops {
         ),
         look = CityShop.look(0xFFEDEAE2, 0xFFF8F6F0, 0xFFDCD8CE, 0xFF8A93A0, 0xFFB23F44, cane = true, scarf = 0xFFB23F44),
         spot = NpcSpot.MARKET,
-        stock = BASIC + setOf(
+        stockIds = BASIC + setOf(
             "b_flagship", "b_ff_bird", "l_500f4", "l_600f4", "l_300f28", "tc_14", "tc_20", "acc_blind"
         ),
-        sale = setOf(GearKind.LENS)
+        saleKinds = setOf(GearKind.LENS)
     )
 
     private val JEJU = CityShop(
@@ -344,8 +344,8 @@ object CameraShops {
         ),
         look = CityShop.look(0xFF3A3F4A, 0xFFEAF3F6, 0xFFCBD9E0, 0xFF4A6FA5, 0xFF8A6A4F, cap = 0xFF3F6FB0),
         spot = NpcSpot.MARKET,
-        stock = BASIC + setOf("c_tough", "c_zoom20", "b_m43", "l_m43_1260", "l_m43_100400", "acc_raincover"),
-        sale = setOf(GearKind.COMPACT)
+        stockIds = BASIC + setOf("c_tough", "c_zoom20", "b_m43", "l_m43_1260", "l_m43_100400", "acc_raincover"),
+        saleKinds = setOf(GearKind.COMPACT)
     )
 
     /** 진열 순서 = 도시 순서 (`Regions.ALL` 의 도시 12곳과 동일) */

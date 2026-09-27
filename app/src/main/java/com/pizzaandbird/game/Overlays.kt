@@ -578,7 +578,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     "가장 가까운 가게 — $nearName ${near.shopName} · ${near.spot.label} (터널 ${hops}칸)\n" +
                     "\"${near.greeting}\"",
                 listOf(
-                    DialogOverlay.Choice("🚲 $nearName으로 이동") {
+                    DialogOverlay.Choice("🚲 ${nearName}으로 이동") {
                         g.toast("🚲 $nearName ${near.spot.label}로 출발!")
                         finished = true
                         fastTravel(g, near.regionId)
@@ -5204,7 +5204,8 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
             "가격 ${won(price)}" + (if (sale) " (여기 특화 할인 · 정가 ${won(gear.price)})" else "") +
                 " · 보유 ${won(s.money)}"
         )
-        if (shop != null && !shop.carries(gear.id)) {
+        val hereShop = shop          // 커스텀 getter → 스마트 캐스트가 안 된다 (지역 변수로 잡는다)
+        if (hereShop != null && !hereShop.carries(gear.id)) {
             body.append("\n이 동네 진열대엔 없어요 · 판매 도시: ${CameraShops.soldInLabels(gear.id)}")
         }
         scene.openOverlay(
