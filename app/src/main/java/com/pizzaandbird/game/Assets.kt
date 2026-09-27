@@ -2335,13 +2335,7 @@ begin(T.SIGN)
             // 글씨 줄
             px(c, p, 7f, 6.4f, 11f, 1.6f, c(0xFF4A3728))
             px(c, p, 7f, 9.6f, 8f, 1.4f, c(0xFF4A3728))
-            // 화살표
-            val path = Path()
-            p.color = c(0xFF4A3728)
-            path.moveTo(21f, 6.6f); path.lineTo(25.6f, 9.6f); path.lineTo(21f, 12.4f)
-            path.close()
-            c.drawPath(path, p)
-            px(c, p, 18.4f, 8.6f, 3.4f, 2f, c(0xFF4A3728))
+            // 지도에서 실제 연결 방향(N/E/S/W)을 받아 그릴 수 있도록 판자 화살표 자리는 비워 둔다.
             // 못
             dot(c, p, 5.6f, 5f, c(0xFF33241C))
             dot(c, p, 26.4f, 5f, c(0xFF33241C))

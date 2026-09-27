@@ -1,6 +1,9 @@
 package com.pizzaandbird.game
 
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import java.util.Random
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -78,6 +81,10 @@ class GrassField(map: GameMap) {
     )
 
     private val blades = ArrayList<Blade>()
+    private val grassPaint = Paint().apply {
+        isFilterBitmap = false
+        colorFilter = PorterDuffColorFilter(map.mapStyle.foliageFilter, PorterDuff.Mode.MULTIPLY)
+    }
     private val windOscA: FloatArray    // 진동 성분 @ t
     private val windOscB: FloatArray    // 진동 성분 @ t + PHASE_LAG (풀잎별 위상용)
     private val windSquall: FloatArray  // 돌풍 성분 — 전선이 또렷해야 하므로 위상 분리를 하지 않는다
@@ -276,7 +283,7 @@ class GrassField(map: GameMap) {
         val x1 = camX + vw + 22f
         val y0 = camY - 22f
         val y1 = camY + vh + 22f
-        val p = a.sprPaint
+        val p = grassPaint
         for (i in blades.indices) {
             val b = blades[i]
             if (b.x < x0 || b.x > x1 || b.y < y0 || b.y > y1) continue
