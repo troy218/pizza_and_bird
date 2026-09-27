@@ -95,6 +95,7 @@ class Assets {
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
     lateinit var pizzaIconBig: Bitmap
+    lateinit var pizzaArts: Array<Bitmap>       // Pizzas.ALL 순서(id) — 피자 종류별 아이콘
     lateinit var cloverIcon: Bitmap
     lateinit var cameraIcon: Bitmap
     lateinit var houseIcon: Bitmap
@@ -1619,6 +1620,108 @@ class Assets {
             c.drawRect(15.4f, 7f, 16.6f, 8.4f, p)
         })
 
+        // RANGE_TOP (가정용 오븐 윗부분 — 레인지 후드 + 백스플래시 + 조리도구 선반)
+        begin(T.RANGE_TOP)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFCDA775))
+            p.color = c(0xFF9A9AA6)
+            c.drawRect(1f, 0f, 31f, 32f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(2.4f, 0f, 29.6f, 32f, p)
+            // 레인지 후드 (스틸)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(2.4f, 0f, 29.6f, 7.4f, p)
+            p.color = c(0xFF8C919C)
+            c.drawRect(2.4f, 5.6f, 29.6f, 7.4f, p)
+            p.color = c(0xFFD5D8DF)
+            c.drawRect(4f, 1.2f, 28f, 2.4f, p)
+            p.color = c(0xFFF7E9A8)
+            c.drawRect(13f, 6f, 19f, 7.4f, p)
+            // 백스플래시 타일
+            p.color = c(0xFFDCE8E6)
+            c.drawRect(4f, 9f, 28f, 24f, p)
+            p.color = c(0xFFC4D3D0)
+            c.drawRect(4f, 13.8f, 28f, 14.6f, p)
+            c.drawRect(4f, 18.8f, 28f, 19.6f, p)
+            c.drawRect(9.6f, 9f, 10.4f, 24f, p)
+            c.drawRect(15.6f, 9f, 16.4f, 24f, p)
+            c.drawRect(21.6f, 9f, 22.4f, 24f, p)
+            // 걸어 둔 나무 주걱 / 스틸 뒤집개
+            p.color = c(0xFFB98F5E)
+            c.drawRect(8f, 9.5f, 9.6f, 21f, p)
+            p.color = c(0xFFC9A87B)
+            c.drawRect(7f, 19f, 10.6f, 23f, p)
+            p.color = c(0xFF6B6B78)
+            c.drawRect(23f, 9.5f, 24.6f, 20f, p)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(21.6f, 19f, 26f, 23f, p)
+            // 선반 + 토마토 소스·바질 병
+            p.color = c(0xFFB98F5E)
+            c.drawRect(3.4f, 25f, 28.6f, 26.6f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(6f, 26.6f, 26f, 32f, p)
+            p.color = c(0xFFE2574C)
+            c.drawRect(11f, 21.5f, 14.4f, 25f, p)
+            p.color = c(0xFF6B4F35)
+            c.drawRect(11.8f, 20.4f, 13.6f, 21.6f, p)
+            p.color = c(0xFF6FAE57)
+            c.drawRect(15.6f, 22f, 18.6f, 25f, p)
+            p.color = c(0xFF3F7D46)
+            c.drawRect(16.2f, 21f, 18f, 22.2f, p)
+        })
+        // RANGE (가정용 오븐 — 쿡탑 + 오븐 창, 2프레임 불빛)
+        begin(T.RANGE)
+        for (f in 0 until 2) {
+            add(tilePainter { c, p, r ->
+                fill(c, p, c(0xFFCDA775))
+                p.color = c(0xFF9A9AA6)
+                c.drawRect(1f, 0f, 31f, 31f, p)
+                p.color = c(0xFFEFEDE6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 29.6f, p)
+                // 쿡탑 (윗면, 스틸) + 화구 2개
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 10f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(2.4f, 9f, 29.6f, 10.4f, p)
+                p.color = c(0xFFD5D8DF)
+                c.drawRect(3.6f, 2f, 28.4f, 2.8f, p)
+                p.color = c(0xFF3A3F4A)
+                c.drawCircle(10f, 5.8f, 3.2f, p)
+                c.drawCircle(22f, 5.8f, 3.2f, p)
+                p.color = c(0xFF5A626C)
+                c.drawCircle(10f, 5.8f, 2f, p)
+                c.drawCircle(22f, 5.8f, 2f, p)
+                p.color = if (f == 0) c(0xFFF2913C) else c(0xFFE2574C)
+                c.drawCircle(10f, 5.8f, 1.2f, p)
+                // 노브 3개 + 오븐 손잡이
+                p.color = c(0xFF4A4A55)
+                c.drawRect(6.6f, 11.6f, 9.4f, 13.6f, p)
+                c.drawRect(14.6f, 11.6f, 17.4f, 13.6f, p)
+                c.drawRect(22.6f, 11.6f, 25.4f, 13.6f, p)
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(4f, 15f, 28f, 16.6f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(4f, 16.6f, 28f, 17.2f, p)
+                // 오븐 창 (안에서 피자가 익는 중 — 프레임마다 불빛 밝기가 다름)
+                p.color = c(0xFF23232B)
+                c.drawRect(6f, 18.4f, 26f, 27.4f, p)
+                p.color = c(0xFF3A2A28)
+                c.drawRect(7.4f, 19.6f, 24.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFE07A2C) else c(0xFFF2913C)
+                c.drawRect(8.4f, 21f, 23.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFF2B63C) else c(0xFFF7CE5B)
+                c.drawRect(9.6f, 22f, 22.4f, 24.4f, p)
+                p.color = c(0xFFE2574C)
+                c.drawRect(11f, 22.6f, 13f, 23.6f, p)
+                c.drawRect(17f, 23f, 19f, 24f, p)
+                p.color = c(0xFF5A5A66)
+                c.drawRect(8.4f, 19.6f, 24.6f, 20.4f, p)
+                // 하단 받침
+                p.color = c(0xFF6B6B78)
+                c.drawRect(3f, 29.6f, 29f, 31.4f, p)
+            })
+        }
+
         medallion = RoadArt.medallion(3)
         drain = RoadArt.drain()
         castShadow = RoadArt.castShadows()
@@ -1630,6 +1733,9 @@ class Assets {
             v.toTypedArray()
         }
     }
+
+    /** 피자 종류별 아이콘 (id = Pizzas.ALL 인덱스) */
+    fun pizzaArt(pizzaId: Int): Bitmap = pizzaArts[pizzaId.coerceIn(0, pizzaArts.size - 1)]
 
     /** 타일 좌표 기반 변형 선택 */
     fun tileVariant(tileOrdinal: Int, x: Int, y: Int): Int {
@@ -1667,6 +1773,44 @@ class Assets {
         val pizzaBmp = sprite(pizza, pal + ('A' to c(0xFF7D9C4F)))
         pizzaIcon = pizzaBmp
         pizzaIconBig = Bitmap.createScaledBitmap(pizzaBmp, pizzaBmp.width * 4, pizzaBmp.height * 4, false)
+
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
+        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        val pizzaOven = listOf(
+            "......................",
+            ".....cckccccckc.....",
+            "...ckCCCCCCCCCCkc...",
+            "..cCCRRCCCCCRRCCCc..",
+            "..kCCRRCCACCRRCCd...",
+            ".cCCCCCCCCCCCCCCCd..",
+            ".cCRRCCCACCCRRCCk...",
+            ".kCRRCCCCCCCRRCCd...",
+            ".cCCCCCRRCCACCCCd...",
+            ".cCCACCRRCCCCCCd....",
+            ".cCCCCCCCCCRRCCk....",
+            ".dCCCCCCCCCRRCCd....",
+            "..dkddddddkdd......",
+            "...ddddkddddd......",
+            "......................"
+        )
+        pizzaArts = Array(Pizzas.ALL.size) { i ->
+            val def = Pizzas.ALL[i]
+            if (def.kind == PizzaKind.OVEN) {
+                sprite(
+                    pizzaOven, mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            } else {
+                sprite(
+                    pizza, mapOf(
+                        'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            }
+        }
 
         cloverIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
             val cv = Canvas(this)
