@@ -127,6 +127,8 @@ class HomeScene(game: Game) : Scene(game) {
         state.py = player.y
 
         game.hud.showControls = true
+        game.hud.showPunch = false
+        game.hud.punchHot = false
         game.hud.showStats = true
         game.hud.showMinimap = false
         game.hud.regionLabel = "우리 집"

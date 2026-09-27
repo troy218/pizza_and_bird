@@ -1514,9 +1514,12 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
         }
 }
 
-/** 골목을 거니는 고양이 */
+/**
+ * 골목을 거니는 고양이.
+ * 새를 살금살금 쫓다가, 펀치를 맞으면 빙글 돌며 하늘로 날아간다.
+ */
 class Cat(var x: Float, var y: Float) {
-    var state = 0                 // 0 앉아있기, 1 걷기
+    var state = 0                 // 0 앉아있기, 1 걷기, 2 날아감
     var animT = (Math.random() * 3f).toFloat()   // 대기 동작 위상 (고양이마다 다르게)
     var idleT = 1.5f
     var fromX = 0f; var fromY = 0f
@@ -1524,10 +1527,64 @@ class Cat(var x: Float, var y: Float) {
     var hopT = 0f
     var faceLeft = true
 
+    /** 새를 노리는 중 */
+    var stalking = false
+    var pouncing = false
+    var pounceCued = false
+    var pounceT = 0f
+    /** 잡아먹거나 길이 막힌 뒤 잠시 쉬는 시간 */
+    var calmT = 0f
+    /** 지금 노리는 새 (알림이 같은 새에 반복되지 않게) */
+    var preyId: String? = null
+    var stuckT = 0f
+
+    // 펀치 — 날아가는 동안의 물리
+    var launched = false
+    var vx = 0f
+    var vy = 0f
+    var spin = 0f
+    var spinV = 0f
+    var launchT = 0f
+    var air = 0f
+
     val cx: Float get() = x + 14f
     val cy: Float get() = y + 12f
 
+    /** 플레이어가 민 방향으로 퉁겨 보낸다. dir 은 정규화하지 않아도 된다. */
+    fun launch(dirX: Float, dirY: Float, spinSign: Float) {
+        val len = sqrt(dirX * dirX + dirY * dirY).coerceAtLeast(0.001f)
+        vx = dirX / len * 460f
+        vy = dirY / len * 460f
+        spin = 0f
+        spinV = spinSign * 840f
+        launchT = 0f
+        air = 0f
+        launched = true
+        stalking = false
+        pouncing = false
+        pounceCued = false
+        preyId = null
+        calmT = 0f
+        state = 2
+        if (dirX != 0f) faceLeft = dirX < 0f
+    }
+
     fun update(dt: Float, map: GameMap) {
+        if (launched) {
+            val step = dt.coerceAtMost(0.05f)
+            launchT += step
+            val drag = (1f - 0.55f * step).coerceAtLeast(0.9f)
+            vx *= drag
+            vy *= drag
+            x += vx * step
+            y += vy * step
+            spin += spinV * step
+            val u = (launchT / LAUNCH_TIME).coerceIn(0f, 1f)
+            air = sin((u * Math.PI).toFloat()) * 34f
+            animT += step
+            return
+        }
+        if (calmT > 0f) calmT -= dt
         animT += dt
         when (state) {
             0 -> {
@@ -1564,10 +1621,57 @@ class Cat(var x: Float, var y: Float) {
         }
     }
 
-    val walking: Boolean get() = state == 1
-    /** 현재 동작의 진행도 0~1 (걸을 때는 한 칸 이동이 한 사이클) */
-    val phase: Float get() = if (state == 1) hopT else (animT / 3.4f) % 1f
-    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 1.4f) else 0f
+    /**
+     * 새를 향해 다가간다.
+     * @return 1 추적 중, 2 잡았다, 0 길이 막힘
+     */
+    fun chase(tx: Float, ty: Float, dt: Float, map: GameMap): Int {
+        calmT = 0f
+        val dx = tx - cx
+        val dy = ty - cy
+        val dist = sqrt(dx * dx + dy * dy).coerceAtLeast(0.001f)
+        val wasPouncing = pouncing
+        pouncing = dist < 28f
+        if (pouncing && !wasPouncing) pounceCued = false
+        if (!pouncing) pounceCued = false
+        if (pouncing) pounceT += dt * 7f else pounceT = 0f
+        val catchR = if (pouncing) 13f else 10f
+        if (dist <= catchR) return 2
+        val speed = if (pouncing) 128f else 36f
+        val step = if (speed * dt < dist) speed * dt else dist
+        val nx = x + dx / dist * step
+        val ny = y + dy / dist * step
+        val txx = ((nx + 14f) / 16f).toInt()
+        val tyy = ((ny + 14f) / 16f).toInt()
+        if (!map.walkableTile(txx, tyy)) return 0
+        x = nx
+        y = ny
+        state = 1
+        hopT = (hopT + dt / 0.24f) % 1f
+        if (dx != 0f) faceLeft = dx < 0f
+        animT += dt
+        return if (dist - step <= catchR) 2 else 1
+    }
+
+    val walking: Boolean get() = state == 1 || launched
+    /** 현재 동작의 진행도 0~1 (걸을 때는 한 칸 이동이 한 사이클, 날 때는 다리가 허우적) */
+    val phase: Float get() = when {
+        launched -> (launchT * 8f) % 1f
+        state == 1 -> hopT % 1f
+        else -> (animT / 3.4f) % 1f
+    }
+    val lift: Float get() = when {
+        pouncing -> sin((pounceT * Math.PI).toFloat()).coerceAtLeast(0f) * 5f
+        state == 1 && !launched -> sin((hopT * Math.PI).toFloat()) * 1.4f
+        else -> 0f
+    }
+    val gone: Boolean get() = launched && launchT >= LAUNCH_TIME
+    /** 날아가는 막판에 점점 옅어진다 */
+    val fade: Float get() = if (!launched || launchT < 0.86f) 1f else ((LAUNCH_TIME - launchT) / (LAUNCH_TIME - 0.86f)).coerceIn(0f, 1f)
+
+    companion object {
+        const val LAUNCH_TIME = 1.18f
+    }
 }
 
 /** 플레이어 */

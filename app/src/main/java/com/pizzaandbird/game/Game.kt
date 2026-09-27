@@ -51,6 +51,9 @@ private const val OVERLAY_ENTER_SEC = 0.09f
  */
 class Game(val context: Context) {
 
+    /** 고양이 펀치 안내를 이번 실행에서 이미 보여 줬는가 */
+    var catPunchHintShown = false
+
     // 글꼴(roles·픽셀 폰트·dp 배율)을 먼저 준비한다 — 아래에서 그리는 모든 글자가 여기 의존한다.
     init { Type.init(context) }
 

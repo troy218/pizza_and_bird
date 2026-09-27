@@ -70,6 +70,10 @@ class Hud(private val game: Game) {
     /** 메인 버튼에 표시할 맥락 아이콘(근처 상호작용 대상). null이면 기본 주먹 아이콘. 씬이 매 프레임 설정 */
     var contextIcon: String? = null
 
+    /** 월드에서만 펀치 버튼을 그린다. punchHot 이면 사거리 안에 고양이가 있다. */
+    var showPunch = false
+    var punchHot = false
+
     // ----- 조이스틱 상태 (듀랑고식 플로팅) -----
     var stickHeld = false
         private set
@@ -89,6 +93,7 @@ class Hud(private val game: Game) {
     var bikeCx = 0f; var bikeCy = 0f; var bikeR = 0f          // 자전거 (아크)
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
     var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
+    var punchCx = 0f; var punchCy = 0f; var punchR = 0f       // 펀치 (고양이 날리기)
     var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
 
@@ -220,6 +225,11 @@ class Hud(private val game: Game) {
         camBR = arcR; val (cx2, cy2) = arc(120f); camBCx = cx2; camBCy = cy2
         eatR = arcR; val (ex, ey) = arc(168f); eatCx = ex; eatCy = ey
 
+        // 펀치 — 피자 버튼 왼쪽. 고양이 사거리 안이면 붉게 뛴다.
+        punchR = dp(18f)
+        punchCx = (eatCx - dp(54f)).coerceIn(punchR + dp(8f), wf - punchR - dp(8f))
+        punchCy = (eatCy + dp(2f)).coerceIn(punchR + dp(8f), hf - punchR - dp(8f))
+
         // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
         menuR = dp(17f)
         menuCx = dp(18f) + menuR
@@ -261,6 +271,7 @@ class Hud(private val game: Game) {
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
         if (inCircle(x, y, camBCx, camBCy, camBR * 1.3f)) return Ctrl.CAM
         if (inCircle(x, y, eatCx, eatCy, eatR * 1.3f)) return Ctrl.EAT
+        if (showPunch && inCircle(x, y, punchCx, punchCy, punchR * 1.22f)) return Ctrl.PUNCH
         if (hitMinimap(x, y)) return Ctrl.MAP
         // 듀랑고식: 왼쪽 아래 구역은 어디를 짚어도 그 자리가 조이스틱
         // ('움직이는 스틱'을 면 고정 자리 근처에서만 잡힌다)
@@ -752,6 +763,28 @@ class Hud(private val game: Game) {
             val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
             val nt = "$pizzaN"
             c.drawText(nt, bx - np.measureText(nt) / 2, Type.midBaseline(np, by), np)
+        }
+
+        // 펀치 (👊) — 근처 고양이를 날려 보낸다. 사거리 안이면 붉은 펄스.
+        if (showPunch) {
+            val punchPressed = Ctrl.PUNCH in active
+            val hot = punchHot
+            if (hot) {
+                val pulse = 0.5f + 0.5f * sin(game.time * 7.2f)
+                stroke.color = Color.argb((90 + (110 * pulse).toInt()).coerceIn(0, 255), 226, 72, 58)
+                stroke.strokeWidth = dp(3.2f)
+                c.drawCircle(punchCx, punchCy, punchR + dp(3.5f) + dp(3f) * pulse, stroke)
+            }
+            drawArcButton(
+                c, punchCx, punchCy, punchR,
+                when {
+                    punchPressed -> 0xFFD99B26.toInt()
+                    hot -> 0xFFE2574C.toInt()
+                    else -> Color.argb(220, 74, 74, 88)
+                },
+                punchPressed
+            )
+            drawGlyph(c, punchCx, punchCy, "👊", dp(16f))
         }
 
         // ------------------------------------------------------------
