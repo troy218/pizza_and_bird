@@ -7,9 +7,10 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
+ * 세이브 형식 v4: 자전거 모델·도색·부속품 커스텀을 추가했다.
+ * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
- * v1·v2 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
+ * v1·v2·v3 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
  */
 class GameState {
 
@@ -54,6 +55,14 @@ class GameState {
 
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
+
+    // 자전거 (탈것은 자전거만!) ------------------------------------------
+    val ownedBikes = LinkedHashSet<String>()      // 소유한 자전거 모델 id
+    var bikeId = "basic"                          // 장착 중인 자전거 모델
+    var bikeFrameColor = 0                        // 프레임 도색 (BikeColors.FRAME 인덱스)
+    var bikeTireColor = 0                         // 바퀴 색 (BikeColors.TIRE 인덱스)
+    var bikeSaddleColor = 0                       // 안장·그립 색 (BikeColors.SADDLE 인덱스)
+    val ownedBikeParts = LinkedHashSet<String>()  // 장착한 부속품 id (구매=장착)
 
     // ------------------------------------------------------------------
 
@@ -156,8 +165,8 @@ class GameState {
     /** 이동 속도 배율 (튼튼한 다리) */
     fun speedMult(): Float = 1f + 0.06f * skillRank("legs")
 
-    /** 피자 최대 소지 개수 (넉넉한 배낭) */
-    fun pizzaCapEff(): Int = PIZZA_CAP + skillRank("pack")
+    /** 피자 최대 소지 개수 (넉넉한 배낭 + 자전거 부속품) */
+    fun pizzaCapEff(): Int = PIZZA_CAP + skillRank("pack") + bikePizzaBonus()
 
     /** 새 도망 반경 배율 (고요한 발걸음) — 작을수록 가까이 갈 수 있음 */
     fun fleeMult(): Float = (1f - 0.08f * skillRank("quiet")).coerceAtLeast(0.5f)
@@ -215,7 +224,55 @@ class GameState {
     }
 
     /** 희귀새 출현 계산에 쓰는 실효 행운 */
-    fun effectiveLuck(): Float = (luck + decorLuck()).coerceAtMost(100f)
+    fun effectiveLuck(): Float = (luck + decorLuck() + bikeLuck()).coerceAtMost(100f)
+
+    // ------------------ 자전거 ------------------
+
+    /** 장착 중인 자전거 모델 */
+    fun bike(): Bikes.Bike = Bikes.of(bikeId)
+
+    /** 자전거 외형 (모델 + 도색 + 부속품) */
+    fun bikeStyle(): BikeStyle = bikeStyleOf(bikeId)
+
+    /** 특정 모델을 현재 도색·부속품으로 꾸민 외형 (상점 미리보기용) */
+    fun bikeStyleOf(modelId: String): BikeStyle = BikeStyle(
+        modelId,
+        BikeColors.frame(bikeFrameColor),
+        BikeColors.tire(bikeTireColor),
+        BikeColors.saddle(bikeSaddleColor),
+        basket = "basket" in ownedBikeParts,
+        rack = "rack" in ownedBikeParts,
+        light = "light" in ownedBikeParts,
+        streamers = "streamers" in ownedBikeParts,
+        bell = "bell" in ownedBikeParts
+    )
+
+    /** 자전거 주행 속도 배율 */
+    fun bikeSpeedMult(): Float = bike().speed
+
+    /** 자전거 주행 시 배고픔 소모 배율 */
+    fun bikeHungerMult(): Float = bike().hunger
+
+    /** 자전거 탑승 시 새 도망 반경 배율 (전조등 등 부속품 효과 포함) */
+    fun bikeScareMult(): Float {
+        var m = bike().scare
+        for (id in ownedBikeParts) m *= BikeParts.of(id)?.scareMult ?: 1f
+        return m
+    }
+
+    /** 자전거가 주는 행운 보너스 (모델 + 부속품) */
+    fun bikeLuck(): Int {
+        var n = bike().luck
+        for (id in ownedBikeParts) n += BikeParts.of(id)?.luck ?: 0
+        return n
+    }
+
+    /** 자전거 부속품이 늘려 주는 피자 소지 한도 */
+    fun bikePizzaBonus(): Int {
+        var n = 0
+        for (id in ownedBikeParts) n += BikeParts.of(id)?.pizza ?: 0
+        return n
+    }
 
     // ------------------------------------------------------------------
 
@@ -252,6 +309,13 @@ class GameState {
         weatherSeconds = 55f
         for (i in decorSlots.indices) decorSlots[i] = -1
         decorOwned.clear()
+        ownedBikes.clear()
+        ownedBikes.add("basic")
+        bikeId = "basic"
+        bikeFrameColor = 0
+        bikeTireColor = 0
+        bikeSaddleColor = 0
+        ownedBikeParts.clear()
         level = 1
         exp = 0
         skillPoints = 0
@@ -263,7 +327,7 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 3)
+        put("v", 4)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
@@ -298,6 +362,12 @@ class GameState {
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
+        put("ownedBikes", JSONArray().apply { ownedBikes.forEach { put(it) } })
+        put("bikeId", bikeId)
+        put("bikeFrameColor", bikeFrameColor)
+        put("bikeTireColor", bikeTireColor)
+        put("bikeSaddleColor", bikeSaddleColor)
+        put("ownedBikeParts", JSONArray().apply { ownedBikeParts.forEach { put(it) } })
     }
 
     companion object {
@@ -396,6 +466,27 @@ class GameState {
                 for (i in 0 until dwn.length()) {
                     val id = dwn.optInt(i, -1)
                     if (id >= 0) s.decorOwned.add(id)
+                }
+            }
+            // 자전거 (v3 이하 세이브에는 기본 자전거만 있다)
+            val ob = j.optJSONArray("ownedBikes")
+            if (ob != null) {
+                for (i in 0 until ob.length()) {
+                    val id = ob.optString(i, "")
+                    if (id in Bikes.byId) s.ownedBikes.add(id)
+                }
+            }
+            s.ownedBikes.add("basic")   // 기본 자전거는 항상 보유
+            s.bikeId = j.optString("bikeId", "basic")
+            if (s.bikeId !in s.ownedBikes) s.bikeId = "basic"
+            s.bikeFrameColor = j.optInt("bikeFrameColor", 0)
+            s.bikeTireColor = j.optInt("bikeTireColor", 0)
+            s.bikeSaddleColor = j.optInt("bikeSaddleColor", 0)
+            val obp = j.optJSONArray("ownedBikeParts")
+            if (obp != null) {
+                for (i in 0 until obp.length()) {
+                    val id = obp.optString(i, "")
+                    if (id in BikeParts.byId) s.ownedBikeParts.add(id)
                 }
             }
             return s

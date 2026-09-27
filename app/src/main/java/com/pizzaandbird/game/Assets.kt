@@ -55,10 +55,23 @@ class Assets {
         return tiers[tier.coerceIn(0, tiers.size - 1)]
     }
 
-    lateinit var bikeDown: Bitmap
-    lateinit var bikeUp: Bitmap
-    lateinit var bikeSide: Bitmap
-    lateinit var bikeSideL: Bitmap
+    // 자전거 탑승 스프라이트 (모델·도색·부속품·성별별로 생성해 캐시한다)
+    class BikeSet(val down: Bitmap, val up: Bitmap, val side: Bitmap, val sideL: Bitmap)
+
+    private val bikeCache = LinkedHashMap<String, BikeSet>()
+
+    /** 자전거 탑승 스프라이트 — 성별 + 자전거 스타일(모델·도색·부속품)에 따라 그려진다 */
+    fun bikeSet(gender: String, style: BikeStyle): BikeSet {
+        val key = "${if (gender == "female") "f" else "m"}|${style.cacheKey}"
+        bikeCache[key]?.let { return it }
+        val set = buildBikeSet(gender == "female", style)
+        bikeCache[key] = set
+        while (bikeCache.size > 48) {
+            val eldest = bikeCache.keys.first()
+            bikeCache.remove(eldest)
+        }
+        return set
+    }
 
     // NPC -------------------------------------------------------------------
     lateinit var npcProfessor: Bitmap
@@ -416,13 +429,21 @@ class Assets {
     // 플레이어 & 자전거
     // -----------------------------------------------------------------------
 
+    private fun malePal(): Pal = Pal(
+        hair = c(0xFF4A2F1D), hair2 = c(0xFF382314), skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
+        top = c(0xFFF2B63C), top2 = c(0xFFD99B26), pants = c(0xFF4A6FA5), pants2 = c(0xFF3A5A8A),
+        shoe = c(0xFF7A4A2B), line = c(0xFF33241C), pack = c(0xFFD9534F), pack2 = c(0xFFB23F44),
+        eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
+    )
+
+    /** 여자 팔레트(머리·상의·바지색만 다름) — 장비는 동일하게 진화 */
+    private fun femalePal(): Pal = malePal().copy(
+        hair = c(0xFF6A3155), hair2 = c(0xFF4A203D), top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B),
+        pants = c(0xFF66529B), pants2 = c(0xFF4D3C7C)
+    )
+
     private fun buildPlayers() {
-        val pl = Pal(
-            hair = c(0xFF4A2F1D), hair2 = c(0xFF382314), skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
-            top = c(0xFFF2B63C), top2 = c(0xFFD99B26), pants = c(0xFF4A6FA5), pants2 = c(0xFF3A5A8A),
-            shoe = c(0xFF7A4A2B), line = c(0xFF33241C), pack = c(0xFFD9534F), pack2 = c(0xFFB23F44),
-            eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
-        )
+        val pl = malePal()
         // 레벨 등급별 장비: 0=새내기, 1=견습(캡), 2=숙련(캡+조끼), 3=명인(챙모자+조끼+목도리+깃털)
         val gearTiers = arrayOf<Gear?>(
             null,
@@ -446,38 +467,42 @@ class Assets {
             PlayerSet(down, up, side, sideL)
         }
         playerTiers = buildTiers(pl)
-        // 여자 팔레트(머리·상의·바지색만 다름) — 장비는 동일하게 진화
-        val fp = pl.copy(hair = c(0xFF6A3155), hair2 = c(0xFF4A203D), top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B), pants = c(0xFF66529B), pants2 = c(0xFF4D3C7C))
+        val fp = femalePal()
         femaleTiers = buildTiers(fp)
 
-        val bikeCol = c(0xFFC9503A)
-        val bikeDark = c(0xFF8A3326)
-        val tire = c(0xFF3A3A44)
-        val tireIn = c(0xFF5A5A66)
-        val metal = c(0xFF9AA0AD)
+    }
 
-        fun bikeBase(cv: Canvas, p: Paint) {
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawCircle(cx, cy, rad, p)
-            }
-            // 바퀴
-            cir(8f, 26f, 6f, c(0xFF23232B)); cir(8f, 26f, 5.1f, tire); cir(8f, 26f, 2f, tireIn)
-            cir(24f, 26f, 6f, c(0xFF23232B)); cir(24f, 26f, 5.1f, tire); cir(24f, 26f, 2f, tireIn)
-            cir(8f, 26f, 1f, metal); cir(24f, 26f, 1f, metal)
-            // 프레임
-            r(8.5f, 19.5f, 23.5f, 22f, bikeCol)
-            r(12f, 14.5f, 14.5f, 20f, bikeCol)
-            r(20.5f, 13.5f, 23f, 20.5f, bikeCol)
-            r(8.5f, 21.4f, 23.5f, 22.4f, bikeDark)
+    // -----------------------------------------------------------------------
+    // 자전거 탑승 스프라이트 (모델 · 도색 · 부속품별로 그린다)
+    // -----------------------------------------------------------------------
+
+    private fun buildBikeSet(female: Boolean, style: BikeStyle): BikeSet {
+        val pl = if (female) femalePal() else malePal()
+        val frame = style.frame.argb
+        val frameDark = shade(frame, 0.68f)
+        val tireCol = style.tire.argb
+        val tireIn = shade(tireCol, 1.55f)
+        val saddleCol = style.saddle.argb
+        val metal = c(0xFF9AA0AD)
+        val rim = c(0xFF23232B)
+        val helmet = c(0xFFD9534F)
+        val helmetDark = c(0xFFB23F44)
+        val kind = style.modelId
+
+        // 모델별 바퀴 크기 / 타이어 두께 (옆모습 기준)
+        val (wr, ring) = when (kind) {
+            "minivelo" -> 4.6f to 1.0f
+            "bmx" -> 5.0f to 1.3f
+            "road", "fixie" -> 5.7f to 0.8f
+            "mtb" -> 6.2f to 1.7f
+            "cruiser" -> 6.3f to 1.8f
+            else -> 6.0f to 1.1f            // basic/city/ebike/tandem
         }
 
-        // 옆모습 (오른쪽)
+        // ----- 옆모습 (오른쪽) -----
+        val sideBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         run {
-            val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-            val cv = Canvas(bmp)
+            val cv = Canvas(sideBmp)
             val p = Paint()
             fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
                 p.color = col; cv.drawRect(l, t, rr, b, p)
@@ -488,14 +513,147 @@ class Assets {
             fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
                 p.color = col; cv.drawCircle(cx, cy, rad, p)
             }
-            bikeBase(cv, p)
-            // 안장/핸들
-            r(10.2f, 13.6f, 15.6f, 15.6f, c(0xFF33241C))
-            r(19f, 11.8f, 25.2f, 13.8f, c(0xFF33241C))
-            r(23.4f, 11.2f, 25.6f, 14.4f, c(0xFF23232B))
-            // 페달
-            cir(15f, 22.2f, 1.7f, metal)
-            r(13.8f, 23.2f, 16.6f, 24.6f, c(0xFF23232B))
+            fun line(x1: Float, y1: Float, x2: Float, y2: Float, w: Float, col: Int) {
+                p.color = col; p.style = Paint.Style.STROKE; p.strokeWidth = w
+                cv.drawLine(x1, y1, x2, y2, p)
+                p.style = Paint.Style.FILL
+            }
+            fun wheel(cx: Float, cy: Float, rad: Float) {
+                cir(cx, cy, rad, rim)
+                cir(cx, cy, rad - ring, tireCol)
+                cir(cx, cy, (rad - ring) * 0.42f, tireIn)
+                cir(cx, cy, 1f, metal)
+            }
+
+            // 바퀴
+            when (kind) {
+                "vintage" -> {
+                    wheel(7.5f, 27f, 4.4f)                    // 작은 뒷바퀴
+                    cir(23f, 21.5f, 8.2f, rim)                // 커다란 앞바퀴
+                    cir(23f, 21.5f, 7.1f, tireCol)
+                    cir(23f, 21.5f, 3f, tireIn)
+                    cir(23f, 21.5f, 1.1f, metal)
+                }
+                "tandem" -> {
+                    wheel(7f, 26f, 5.8f)
+                    wheel(25.5f, 26f, 5.8f)
+                }
+                else -> {
+                    wheel(8f, 26f, wr)
+                    wheel(24f, 26f, wr)
+                }
+            }
+
+            // 프레임 (모델별)
+            when (kind) {
+                "road", "fixie" -> {
+                    line(8f, 26f, 15f, 22f, 2f, frame)          // 체인스테이
+                    line(15f, 22f, 13f, 14.5f, 2.2f, frame)     // 시트튜브
+                    line(8.2f, 25.2f, 13f, 15.2f, 1.5f, frame)  // 시트스테이
+                    line(15f, 21.4f, 21.8f, 15.5f, 2.2f, frame) // 다운튜브
+                    line(13.2f, 15.2f, 21.2f, 14.8f, 2f, frame) // 탑튜브
+                    line(21.5f, 15.2f, 24f, 26f, 2f, frame)     // 포크
+                    line(8.6f, 26.6f, 15.2f, 22.8f, 1.2f, frameDark)
+                    if (kind == "fixie") r(16.4f, 18.2f, 18.8f, 19.1f, frameDark) // 픽시 로고 줄
+                }
+                "cruiser" -> {
+                    line(8.5f, 21f, 22.5f, 21f, 2.4f, frame)    // 크랭크 튜브
+                    line(9f, 20.4f, 13.5f, 14.8f, 2.2f, frame)  // 시트스테이
+                    line(13.5f, 14.8f, 15f, 20.6f, 2f, frame)   // 시트튜브
+                    line(15.5f, 20.2f, 21.5f, 15f, 2f, frame)   // 다운튜브(곡선 느낌)
+                    line(21.5f, 15f, 23.8f, 25.5f, 2f, frame)   // 포크
+                    line(8.5f, 22.3f, 23.5f, 22.3f, 1.2f, frameDark)
+                }
+                "bmx" -> {
+                    line(8f, 25.5f, 14.5f, 21.5f, 2.2f, frame)
+                    line(14.5f, 21.5f, 12.8f, 15f, 2.2f, frame)
+                    line(8.2f, 24.8f, 12.8f, 15.6f, 1.5f, frame)
+                    line(14.5f, 21f, 20.8f, 15.5f, 2.2f, frame)
+                    line(13f, 15.4f, 20.5f, 15f, 2f, frame)
+                    line(20.6f, 15.2f, 23.5f, 25.5f, 2f, frame)
+                    r(8.4f, 22.6f, 23.2f, 23.5f, frameDark)
+                }
+                "minivelo" -> {
+                    r(9f, 19.8f, 23f, 21.8f, frame)
+                    r(12.2f, 15f, 14.4f, 20.2f, frame)
+                    r(20.4f, 14f, 22.6f, 20.4f, frame)
+                    r(9f, 21.2f, 23f, 22f, frameDark)
+                }
+                "tandem" -> {
+                    r(6.5f, 19.8f, 26.5f, 21.8f, frame)    // 긴 프레임
+                    r(10.4f, 15f, 12.6f, 20.2f, frame)     // 뒤 시트튜브
+                    r(18.4f, 14.6f, 20.6f, 20.2f, frame)   // 앞 시트튜브
+                    r(23.8f, 13.6f, 25.8f, 20.4f, frame)   // 헤드
+                    r(6.5f, 21.2f, 26.5f, 22f, frameDark)
+                    r(7.8f, 13.6f, 13.2f, 15.4f, saddleCol) // 뒤 탑승자 안장
+                }
+                "vintage" -> {
+                    line(8f, 23f, 13f, 13f, 2.2f, frame)        // 백본
+                    line(13f, 13f, 21.5f, 12.2f, 2f, frame)     // 상단 튜브
+                    line(21.2f, 12.2f, 23f, 20.5f, 2.2f, frame) // 헤드/포크
+                    line(7.5f, 27f, 11.8f, 16f, 1.6f, frame)    // 뒤 포크
+                    line(8f, 22.4f, 12.5f, 13.6f, 1.2f, frameDark)
+                }
+                else -> {
+                    // basic / city / mtb / ebike — 가로 메인 프레임
+                    r(8.5f, 19.5f, 23.5f, 22f, frame)
+                    r(12f, 14.5f, 14.5f, 20f, frame)
+                    r(20.5f, 13.5f, 23f, 20.5f, frame)
+                    r(8.5f, 21.4f, 23.5f, 22.4f, frameDark)
+                    if (kind == "mtb") {
+                        r(21f, 16f, 23.6f, 21.5f, metal)   // 서스펜션 포크
+                        r(21.2f, 16.4f, 23.4f, 19.4f, frame)
+                    }
+                    if (kind == "ebike") {
+                        o(17.5f, 18.4f, 22.6f, 21.8f, 1.2f, rim)        // 배터리 (프레임 위)
+                        o(17.8f, 18.7f, 22.3f, 21.5f, 1f, c(0xFF4A4A56))
+                        r(18.4f, 19.3f, 21.4f, 20.2f, c(0xFF6FB6C9))
+                        cir(21.9f, 20.7f, 0.7f, c(0xFF7ADB8A))
+                    }
+                }
+            }
+
+            // 안장 / 핸들 / 페달
+            when (kind) {
+                "road", "fixie" -> {
+                    r(11f, 13.6f, 15.4f, 15.2f, saddleCol)         // 좁은 안장
+                    r(18.6f, 11.6f, 23.4f, 13.2f, saddleCol)       // 스템
+                    o(22.6f, 12.2f, 25.4f, 15.6f, 1.6f, saddleCol) // 드롭바
+                    r(23.8f, 13.2f, 25.4f, 14.2f, rim)             // 그립
+                }
+                "bmx" -> {
+                    r(10.4f, 13.8f, 15.2f, 15.6f, saddleCol)
+                    r(21.6f, 10.2f, 22.8f, 14.6f, metal)               // 긴 스템
+                    r(20.2f, 8.6f, 25.8f, 10.2f, saddleCol)        // 하이바
+                    r(24.6f, 8.2f, 25.8f, 11.2f, rim)
+                }
+                "cruiser" -> {
+                    r(9.8f, 13.2f, 16.2f, 15.4f, saddleCol)        // 푹신한 넓은 안장
+                    r(18.2f, 11.2f, 25.4f, 13.2f, saddleCol)       // 와이드 핸들
+                    o(23.6f, 10.4f, 25.6f, 13.4f, 1.2f, rim)
+                }
+                "vintage" -> {
+                    r(11.4f, 12f, 16f, 13.6f, saddleCol)           // 높은 안장
+                    r(20.2f, 8.6f, 25.8f, 10.2f, saddleCol)        // 숙인 핸들
+                    r(24.4f, 8.2f, 25.8f, 11.4f, rim)
+                }
+                else -> {
+                    r(10.2f, 13.6f, 15.6f, 15.6f, saddleCol)
+                    r(19f, 11.8f, 25.2f, 13.8f, saddleCol)
+                    r(23.4f, 11.2f, 25.6f, 14.4f, rim)
+                    if (kind == "mtb") r(18.4f, 10.8f, 25.4f, 12.4f, saddleCol) // 라이저 바
+                }
+            }
+            cir(15f, 22.2f, 1.7f, metal)                            // 크랭크
+            r(13.8f, 23.2f, 16.6f, 24.6f, rim)                      // 페달
+
+            // 부속품 중 뒤쪽(짐받이) — 라이더보다 먼저
+            if (style.rack) {
+                r(6.2f, 20.4f, 12.6f, 21.4f, metal)
+                r(6.6f, 21.4f, 7.6f, 23.2f, metal)
+                r(11.2f, 21.4f, 12.2f, 23.2f, metal)
+            }
+
             // 라이더 — 다리
             r(12.5f, 15.5f, 16.2f, 21.5f, pl.pants)
             r(13.2f, 20.8f, 17.2f, 23.2f, pl.shoe)
@@ -508,18 +666,38 @@ class Assets {
             // 머리 + 헬멧
             cir(18.2f, 5f, 5f, pl.line)
             cir(18.2f, 5f, 4.3f, pl.skin)
-            p.color = c(0xFFD9534F)
+            p.color = helmet
             cv.drawArc(RectF(13.6f, 0.4f, 22.8f, 7.4f), 180f, 180f, true, p)
-            r(13.8f, 4.2f, 23f, 5.6f, c(0xFFB23F44))
+            r(13.8f, 4.2f, 23f, 5.6f, helmetDark)
             r(15.4f, 5.4f, 21f, 6.2f, pl.skin)
-            bikeSide = bmp
-            bikeSideL = flipH(bmp)
+
+            // 부속품 중 앞쪽(바구니/전조등/방울/스트리머)
+            if (style.basket) {
+                o(23.6f, 12.6f, 29.8f, 18.8f, 1.6f, c(0xFFC9A05C))
+                r(24.2f, 14.2f, 29.2f, 15f, c(0xFFB08840))
+                r(24.2f, 16.2f, 29.2f, 17f, c(0xFFB08840))
+                r(23.2f, 11.8f, 24.4f, 19.2f, c(0xFFA07838))
+            }
+            if (style.light) {
+                cir(24.6f, 12.2f, 1.8f, metal)
+                cir(25.4f, 12.2f, 1.2f, c(0xFFF2E3C2))
+                cir(25.8f, 12.2f, 0.6f, c(0xFFFFF8E0))
+            }
+            if (style.bell) {
+                cir(21.6f, 10.9f, 1.4f, c(0xFFD9A03C))
+                cir(21.6f, 10.5f, 0.6f, c(0xFFF2D06B))
+            }
+            if (style.streamers) {
+                r(21.2f, 13.9f, 23.6f, 14.8f, c(0xFFDB6B9A))
+                r(20f, 15.1f, 22.8f, 15.9f, c(0xFFF2D06B))
+                r(19f, 16.3f, 21.2f, 16.9f, c(0xFF6FB6C9))
+            }
         }
 
-        // 뒤모습
+        // ----- 뒤모습 -----
+        val upBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         run {
-            val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-            val cv = Canvas(bmp)
+            val cv = Canvas(upBmp)
             val p = Paint()
             fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
                 p.color = col; cv.drawRect(l, t, rr, b, p)
@@ -530,8 +708,17 @@ class Assets {
             fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
                 p.color = col; cv.drawCircle(cx, cy, rad, p)
             }
+            val wr2 = when (kind) {
+                "minivelo" -> 3.4f
+                "bmx" -> 3.8f
+                "road", "fixie" -> 4f
+                "cruiser", "mtb", "vintage" -> 4.7f
+                else -> 4.4f
+            }
             // 뒷바퀴
-            cir(16f, 28.5f, 4.4f, c(0xFF23232B)); cir(16f, 28.5f, 3.6f, tire); cir(16f, 28.5f, 1.4f, tireIn)
+            cir(16f, 28.5f, wr2, rim)
+            cir(16f, 28.5f, wr2 - ring * 0.8f, tireCol)
+            cir(16f, 28.5f, (wr2 - ring * 0.8f) * 0.4f, tireIn)
             // 라이더(뒤)
             cir(16f, 8.2f, 5.6f, pl.line)
             cir(16f, 8.2f, 4.9f, pl.hair)
@@ -539,23 +726,35 @@ class Assets {
             o(10.6f, 14.6f, 21.4f, 23.6f, 3f, pl.top)
             o(11.4f, 15.4f, 20.6f, 22.8f, 2.5f, pl.pack)
             r(13.2f, 17f, 18.8f, 21.4f, pl.pack2)
-            // 팔(핸들쪽)
-            r(8.4f, 16.5f, 11.6f, 19.5f, pl.top2)
-            r(20.4f, 16.5f, 23.6f, 19.5f, pl.top2)
-            r(6.8f, 16.2f, 9.2f, 18.6f, c(0xFF23232B))
-            r(22.8f, 16.2f, 25.2f, 18.6f, c(0xFF23232B))
+            // 팔(핸들쪽) — 핸들 폭은 모델마다
+            val hx = when (kind) {
+                "road", "fixie" -> 1.6f
+                "cruiser" -> -1.6f
+                else -> 0f
+            }
+            r(8.4f + hx, 16.5f, 11.6f + hx, 19.5f, pl.top2)
+            r(20.4f - hx, 16.5f, 23.6f - hx, 19.5f, pl.top2)
+            r(6.8f + hx, 16.2f, 9.2f + hx, 18.6f, rim)
+            r(22.8f - hx, 16.2f, 25.2f - hx, 18.6f, rim)
+            // 부속품 (뒤에서 보이는 것들)
+            if (style.rack) r(10.4f, 24.2f, 21.6f, 25.2f, metal)
+            if (style.light) cir(16f, 16.2f, 1.5f, c(0xFFF2E3C2))
+            if (style.bell) cir(24.4f - hx, 15.6f, 1.2f, c(0xFFD9A03C))
+            if (style.streamers) {
+                r(6.4f + hx, 18.8f, 9.2f + hx, 21.6f, c(0xFFDB6B9A))
+                r(22.8f - hx, 18.8f, 25.6f - hx, 21.6f, c(0xFFF2D06B))
+            }
             // 다리
             r(11.6f, 23.6f, 15f, 27.6f, pl.pants)
             r(17f, 23.6f, 20.4f, 27.6f, pl.pants)
             r(11f, 26.6f, 15.4f, 28.8f, pl.shoe)
             r(16.6f, 26.6f, 21f, 28.8f, pl.shoe)
-            bikeUp = bmp
         }
 
-        // 정면
+        // ----- 정면 -----
+        val downBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         run {
-            val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-            val cv = Canvas(bmp)
+            val cv = Canvas(downBmp)
             val p = Paint()
             fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
                 p.color = col; cv.drawRect(l, t, rr, b, p)
@@ -566,31 +765,60 @@ class Assets {
             fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
                 p.color = col; cv.drawCircle(cx, cy, rad, p)
             }
+            val wr2 = when (kind) {
+                "minivelo" -> 3.4f
+                "bmx" -> 3.8f
+                "road", "fixie" -> 4f
+                "cruiser", "mtb", "vintage" -> 4.7f
+                else -> 4.4f
+            }
             // 앞바퀴
-            cir(16f, 28.5f, 4.4f, c(0xFF23232B)); cir(16f, 28.5f, 3.6f, tire); cir(16f, 28.5f, 1.4f, tireIn)
-            // 핸들바(정면)
-            r(7f, 17.2f, 25f, 19.4f, c(0xFF33241C))
-            r(6.4f, 16.6f, 8.6f, 19.8f, c(0xFF23232B))
-            r(23.4f, 16.6f, 25.6f, 19.8f, c(0xFF23232B))
+            cir(16f, 28.5f, wr2, rim)
+            cir(16f, 28.5f, wr2 - ring * 0.8f, tireCol)
+            cir(16f, 28.5f, (wr2 - ring * 0.8f) * 0.4f, tireIn)
+            // 핸들바(정면) — 폭은 모델마다
+            val hx = when (kind) {
+                "road", "fixie" -> 1.6f
+                "cruiser" -> -1.6f
+                else -> 0f
+            }
+            r(7f + hx, 17.2f, 25f - hx, 19.4f, saddleCol)
+            r(6.4f + hx, 16.6f, 8.6f + hx, 19.8f, rim)
+            r(23.4f - hx, 16.6f, 25.6f - hx, 19.8f, rim)
+            // 부속품 (정면에서 보이는 것들)
+            if (style.basket) {
+                o(10.6f, 19.8f, 21.4f, 23.4f, 1.4f, c(0xFFC9A05C))
+                r(11.4f, 21f, 20.6f, 21.8f, c(0xFFB08840))
+            }
+            if (style.light) {
+                cir(16f, 16.2f, 1.8f, metal)
+                cir(16f, 16.2f, 1.1f, c(0xFFFFF8E0))
+            }
+            if (style.bell) cir(23.2f - hx, 15.8f, 1.2f, c(0xFFD9A03C))
+            if (style.streamers) {
+                r(6.2f + hx, 19.6f, 9f + hx, 22.4f, c(0xFFDB6B9A))
+                r(23f - hx, 19.6f, 25.8f - hx, 22.4f, c(0xFFF2D06B))
+            }
             // 라이더(정면)
             cir(16f, 8.2f, 5.6f, pl.line)
             cir(16f, 8.2f, 4.9f, pl.skin)
-            p.color = c(0xFFD9534F)
+            p.color = helmet
             cv.drawArc(RectF(10.6f, 3.4f, 21.4f, 9.6f), 180f, 180f, true, p)
-            r(10.8f, 6.8f, 21.2f, 8.2f, c(0xFFB23F44))
+            r(10.8f, 6.8f, 21.2f, 8.2f, helmetDark)
             r(12.8f, 8.6f, 14.4f, 10.6f, pl.eye)
             r(17.6f, 8.6f, 19.2f, 10.6f, pl.eye)
             r(14.6f, 11.4f, 17.4f, 12.4f, pl.blush)
             o(10.6f, 14.6f, 21.4f, 23.6f, 3f, pl.top)
             r(18f, 15.4f, 21f, 23f, pl.top2)
-            r(8.4f, 16.5f, 11.6f, 19.5f, pl.top2)
-            r(20.4f, 16.5f, 23.6f, 19.5f, pl.top2)
+            r(8.4f + hx, 16.5f, 11.6f + hx, 19.5f, pl.top2)
+            r(20.4f - hx, 16.5f, 23.6f - hx, 19.5f, pl.top2)
             r(11.6f, 23.6f, 15f, 27.6f, pl.pants)
             r(17f, 23.6f, 20.4f, 27.6f, pl.pants)
             r(11f, 26.6f, 15.4f, 28.8f, pl.shoe)
             r(16.6f, 26.6f, 21f, 28.8f, pl.shoe)
-            bikeDown = bmp
         }
+
+        return BikeSet(downBmp, upBmp, sideBmp, flipH(sideBmp))
     }
 
     // -----------------------------------------------------------------------
