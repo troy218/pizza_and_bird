@@ -184,6 +184,10 @@
 
 ### 길(도로) 시스템 — v0.3
 
+![서울 지역 전체 지도](img/road_design_seoul.png)
+
+![중앙 광장 확대](img/road_design_plaza.png)
+
 길은 "PATH 타일 한 장"이 아니라 **지면 위에 얹는 포장 레이어**다.
 
 | 레이어 | 내용 |
