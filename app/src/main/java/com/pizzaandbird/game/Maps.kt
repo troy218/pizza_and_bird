@@ -378,6 +378,15 @@ object MapBuilder {
         }
         for (d in region.waterEdges) waterBand(d, 3, T.WATER)
         for (d in region.sandEdges) waterBand(d, 2, T.SAND)
+        // 물 가장자리의 갈대 띠: 습지·강 지역의 특징을 맵 구조에도 드러낸다.
+        if (region.kind == RegionKind.WETLAND || region.kind == RegionKind.RIVER) {
+            for (d in region.waterEdges) when (d) {
+                Dir.N -> for (x in 2 until w - 2) if (rnd.nextBoolean()) setGround(x, 3, T.REED)
+                Dir.S -> for (x in 2 until w - 2) if (rnd.nextBoolean()) setGround(x, h - 4, T.REED)
+                Dir.W -> for (y in 2 until h - 2) if (rnd.nextBoolean()) setGround(3, y, T.REED)
+                Dir.E -> for (y in 2 until h - 2) if (rnd.nextBoolean()) setGround(w - 4, y, T.REED)
+            }
+        }
 
         // 2. 육지 가장자리 (산맥/수림) -----------------------------------------
         val borderTile = if (region.rockDensity >= 0.08) T.MOUNTAIN else T.TREE
@@ -741,7 +750,23 @@ object MapBuilder {
         }
 
         // 13. 자연물 --------------------------------------------------------------------
-        repeat(3) {
+        // 지역의 실제 경관을 반영한 작은 군락: 해안은 모래·바위, 습지는 갈대,
+        // 강은 자갈과 물억새, 산지는 바위와 침엽수, 도시는 꽃과 가로수.
+        // (참고: 한국문화원 관광 자료의 제주 화산암/곶자왈, 순천만 갈대 습지,
+        // 우포늪 내륙습지 소개를 바탕으로 한 게임용 단순화.)
+        val isWet = region.kind == RegionKind.WETLAND || "wetland" in region.habitats
+        val isCoast = region.kind == RegionKind.COAST || "coast" in region.habitats
+        val isMountain = region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats
+        val isRiver = region.kind == RegionKind.RIVER || "water" in region.habitats
+
+        // 큰 자연물 군락: 같은 종류를 뭉치되 군락끼리는 충분히 떨어뜨린다.
+        val groveCount = when {
+            isMountain -> 6
+            isWet -> 4
+            isCoast -> 3
+            else -> 3
+        }
+        repeat(groveCount) {
             val gx = 5 + rnd.nextInt(w - 10)
             val gy = 5 + rnd.nextInt(h - 10)
             val gr = 2 + rnd.nextInt(2)
@@ -750,7 +775,14 @@ object MapBuilder {
                 if (reserved[y][x] || t[y][x] != T.GRASS.ordinal) continue
                 val dx = x - gx; val dy = y - gy
                 if (dx * dx + dy * dy <= gr * gr && rnd.nextFloat() < 0.8f) {
-                    t[y][x] = T.TREE.ordinal
+                    val groveTile = when {
+                        isWet -> if (rnd.nextBoolean()) T.REED else T.TALLGRASS
+                        isCoast -> if (rnd.nextBoolean()) T.ROCK else T.TALLGRASS
+                        isRiver -> if (rnd.nextInt(3) == 0) T.REED else T.ROCK
+                        else -> T.TREE
+                    }
+                    t[y][x] = groveTile.ordinal
+                    if (groveTile == T.REED || groveTile == T.TALLGRASS) base[y][x] = groveTile.ordinal
                     reserved[y][x] = true
                 }
             }
@@ -760,6 +792,11 @@ object MapBuilder {
             if (reserved[y][x] || t[y][x] != T.GRASS.ordinal) continue
             val r = rnd.nextDouble()
             when {
+                // 습지·강은 갈대/물억새를 우선하고, 산은 바위와 숲을 우선한다.
+                isWet && r < 0.22 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
+                isRiver && r < 0.13 -> t[y][x] = T.ROCK.ordinal
+                isCoast && r < 0.12 -> t[y][x] = T.ROCK.ordinal
+                isMountain && r < 0.12 -> t[y][x] = T.ROCK.ordinal
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
                 r < region.treeDensity + region.flowerDensity -> {
                     t[y][x] = T.FLOWER.ordinal
