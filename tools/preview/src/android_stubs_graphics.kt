@@ -614,7 +614,10 @@ class Canvas {
             else -> BasicStroke.JOIN_MITER
         }
         g.stroke = if (dash != null) {
-            BasicStroke(p.strokeWidth, cap, join, 10f, dash.intervals, dash.phase)
+            // Android은 음수/큰 dash phase를 허용하지만 Java2D는 예외 — 0..주기 구간으로 정규화
+            val total = dash.intervals.sum()
+            val ph = if (total > 0f) ((dash.phase % total) + total) % total else 0f
+            BasicStroke(p.strokeWidth, cap, join, 10f, dash.intervals, ph)
         } else {
             BasicStroke(p.strokeWidth, cap, join)
         }
