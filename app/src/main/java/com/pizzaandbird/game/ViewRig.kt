@@ -17,7 +17,10 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * 몰입형 카메라 리그 (Camera Movement / Motion).
+ * 몰입형 시점 리그 (Camera Movement / Motion).
+ *
+ * ※ 촬영 장비(바디·렌즈)를 다루는 `Cameras.kt`의 `CameraRig` 와는 다른 것이다.
+ *   이쪽은 "화면이 어떻게 움직이는가"만 담당한다.
  *
  * 2D 탑다운 픽셀 화면에서 "그 공간에 실제로 있는 느낌"을 만들기 위한 다섯 가지 연출을 한곳에 모았다.
  *
@@ -128,7 +131,7 @@ private class Impulse(k: Float, c: Float) {
     }
 }
 
-class CameraRig(private val state: GameState) {
+class ViewRig(private val state: GameState) {
 
     // ---------- 렌더러가 읽는 결과값 ----------
     /** 뷰포트 좌상단 (월드 논리 px) */

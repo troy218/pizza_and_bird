@@ -347,8 +347,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
         val mins = (s.playSeconds / 60f).toInt()
         val timeStr = if (mins >= 60) "${mins / 60}시간 ${mins % 60}분" else "${mins}분"
-        val cam = CameraDefs.LEVELS[(s.cameraLevel - 1).coerceIn(0, CameraDefs.LEVELS.size - 1)]
-        val nextCam = if (s.cameraLevel < CameraDefs.LEVELS.size) CameraDefs.LEVELS[s.cameraLevel] else null
+        val rig = s.rig()
         val decorLuck = s.decorLuck()
 
         var y = contentTop()
@@ -422,25 +421,32 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         }
         y += lvH + dp(scene, 6f)
 
-        // 3) 카메라 스트립
-        val camH = dp(scene, 28f)
+        // 3) 카메라 스트립 — 지금 장비(조합)와 촬영 반경. 누르면 장비 가방이 열린다.
+        val camH = dp(scene, 34f)
         val camR = RectF(left, y, right, y + camH)
         drawCard(c, scene, camR)
+        val camIconW = dp(scene, 44f)
+        c.drawBitmap(
+            g.assets.camProfile(rig.look), null,
+            RectF(left + dp(scene, 6f), camR.centerY() - camIconW * 10f / 32f, left + dp(scene, 6f) + camIconW, camR.centerY() + camIconW * 10f / 32f),
+            g.assets.sprPaint
+        )
+        val camTx = left + dp(scene, 54f)
         textP.textSize = dp(scene, 11f)
-        val camCy = camR.centerY() - (textP.descent() + textP.ascent()) / 2f
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("📷 ${cam.name} · ${cam.rangeTiles}칸", left + dp(scene, 10f), camCy, textP)
-        textP.textSize = dp(scene, 10f)
-        if (nextCam != null) {
-            textP.color = 0xFF3F6FB0.toInt()
-            val narrow = (right - left) < dp(scene, 340f)
-            val nextTxt = if (narrow) "다음 ${won(nextCam.cost)}" else "다음 ▶ ${nextCam.name} ${won(nextCam.cost)}"
-            c.drawText(nextTxt, right - dp(scene, 10f) - textP.measureText(nextTxt), camCy, textP)
-        } else {
-            textP.color = 0xFFB5651D.toInt()
-            val maxTxt = "★ 최고 등급 ★"
-            c.drawText(maxTxt, right - dp(scene, 10f) - textP.measureText(maxTxt), camCy, textP)
+        var camName = rig.title
+        val camMaxW = (right - camTx) - dp(scene, 92f)
+        if (textP.measureText(camName) > camMaxW && camMaxW > dp(scene, 40f)) {
+            while (camName.length > 1 && textP.measureText("$camName…") > camMaxW) camName = camName.dropLast(1)
+            camName = "$camName…"
         }
+        c.drawText(camName, camTx, camR.top + dp(scene, 15f), textP)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("환산 ${rig.teleMm}mm · 반경 ${rig.reach.fmt1()}칸 · ${rig.sensor.label}", camTx, camR.top + dp(scene, 27f), textP)
+        val bagR = RectF(right - dp(scene, 78f), camR.centerY() - dp(scene, 11f), right - dp(scene, 6f), camR.centerY() + dp(scene, 11f))
+        UiKit.button(c, g, bagR, "🎒 장비 가방", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 9.5f)
+        btnRects.add(Triple(bagR, "gearbag") { scene.openOverlay(GearBagOverlay(scene)) })
         y += camH + dp(scene, 6f)
 
         // 4) 정보 그리드 — 남은 높이에 맞춰 자동 배분 (2열 x 4행)
@@ -486,6 +492,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             val vty = cr.centerY() - (textP.descent() + textP.ascent()) / 2f
             c.drawText(value, cr.right - dp(scene, 8f) - textP.measureText(value), vty, textP)
         }
+
     }
 
     private fun drawQuest(c: Canvas) {
@@ -1045,7 +1052,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             drawCard(c, scene, footR)
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.3.3-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
+            c.drawText("🍕 Pizza and Bird v0.4.0-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)
@@ -1845,7 +1852,10 @@ class PhotoResultOverlay(
     private val night: Boolean = false,
     private val expGain: Int = 0,
     private val levelsGained: Int = 0,
-    private val prevLevel: Int = 1
+    private val prevLevel: Int = 1,
+    private val reachTiles: Float = 0f,
+    private val exif: String = "",
+    private val notes: List<String> = emptyList()
 ) : Overlay(scene) {
 
     private var t = 0f
@@ -1940,6 +1950,15 @@ class PhotoResultOverlay(
         val photoH = minOf(photoW * 0.74f, cardH - inset - dp(scene, 96f))
         val photo = RectF(card.left + inset, card.top + inset, card.left + inset + photoW, card.top + inset + photoH)
         drawPhoto(c, photo)
+        // EXIF 스트립 — 어떤 설정으로 찍혔는지
+        if (exif.isNotEmpty()) {
+            val stripH = dp(scene, 13f)
+            fillP.color = Color.argb(160, 20, 18, 26)
+            c.drawRect(photo.left, photo.bottom - stripH, photo.right, photo.bottom, fillP)
+            textP.textSize = dp(scene, 8.5f)
+            textP.color = 0xFFF2E3C2.toInt()
+            c.drawText(exif, photo.left + dp(scene, 5f), photo.bottom - dp(scene, 4f), textP)
+        }
         strokeP.color = Color.argb(46, 40, 32, 24)
         strokeP.strokeWidth = dp(scene, 1f)
         c.drawRoundRect(photo, 0f, 0f, strokeP)
@@ -1990,9 +2009,19 @@ class PhotoResultOverlay(
         // 캡션: 촬영 정보
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF9A8570.toInt()
+        var camTxt = cameraTxt
+        val camMaxW = cardW - dp(scene, 130f)
+        if (camTxt.isNotBlank() && textP.measureText(camTxt) > camMaxW && camMaxW > dp(scene, 40f)) {
+            while (camTxt.length > 1 && textP.measureText("$camTxt…") > camMaxW) camTxt = camTxt.dropLast(1)
+            camTxt = "$camTxt…"
+        }
         val info = buildString {
-            if (cameraTxt.isNotBlank()) append("$cameraTxt · ")
-            if (distTiles > 0f) append(String.format("%.1f칸 · ", distTiles))
+            if (camTxt.isNotBlank()) append("$camTxt · ")
+            if (distTiles > 0f) {
+                append(String.format("%.1f", distTiles))
+                if (reachTiles > 0f) append(String.format("/%.1f", reachTiles))
+                append("칸 · ")
+            }
             if (timeTxt.isNotBlank()) append("$timeTxt · ")
             append("촬영 ${count}회")
         }
@@ -2048,6 +2077,19 @@ class PhotoResultOverlay(
             c.drawRoundRect(er, dp(scene, 13f), dp(scene, 13f), strokeP)
             textP.color = 0xFFB4F0B4.toInt()
             c.drawText(expTxt, er.centerX() - textP.measureText(expTxt) / 2, er.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+        }
+
+        // 촬영 노트 — 장비가 사진에 어떤 영향을 줬는지
+        if (notes.isNotEmpty() && t > 0.5f) {
+            textP.textSize = dp(scene, 10f)
+            var ny = badgeY + (if (expGain > 0) dp(scene, 30f) else dp(scene, 4f))
+            for (n in notes.take(3)) {
+                val bad = n.contains("노이즈") || n.contains("흔들") || n.contains("물방울")
+                textP.color = Color.argb(235, if (bad) 246 else 176, if (bad) 176 else 232, if (bad) 156 else 176)
+                val nt = (if (bad) "· " else "· ") + n
+                c.drawText(nt, cx - textP.measureText(nt) / 2, ny, textP)
+                ny += dp(scene, 13f)
+            }
         }
 
         // 안내 (깜빡임)
@@ -2223,7 +2265,8 @@ class PhotoResultOverlay(
         val maxBH = r.height() * 0.46f
         // 멀리서 찍었을수록 새가 작게 나온다 (망원 컷 느낌)
         val rel = if (distTiles > 0f) {
-            (distTiles / CameraDefs.range(scene.game.state.cameraLevel)).coerceIn(0f, 1f)
+            val reach = if (reachTiles > 0f) reachTiles else scene.game.state.rig().reach
+            (distTiles / reach).coerceIn(0f, 1f)
         } else 0.4f
         val k = minOf(maxBW / bmp.width, maxBH / bmp.height) * (1f - 0.28f * rel)
         val bw = bmp.width * k
@@ -2304,7 +2347,6 @@ class PhotoResultOverlay(
         }
     }
 }
-
 // ---------------------------------------------------------------------------
 // 레벨업 축하
 // ---------------------------------------------------------------------------
@@ -2838,6 +2880,695 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
             c.drawText(ln, x, y, textP)
             y += dp(scene, 12f)
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 카메라 상점 (사진용품점 진열대) — 컴팩트 / 바디 / 렌즈 / 액세서리
+// ---------------------------------------------------------------------------
+
+/** 장비 카드 한 줄을 그리는 공용 코드 (상점·장비 가방에서 함께 쓴다) */
+private fun drawGearCard(
+    c: Canvas, scene: Scene, r: RectF, gear: CamGear,
+    look: CamLook?, spec: String, sub: String, highlight: Boolean
+) {
+    drawCard(c, scene, r, highlight, if (highlight) 0xFFB5651D.toInt() else 0xFFC9A87B.toInt(), if (highlight) 2.2f else 1.5f)
+
+    // 장비 그림 (렌즈 길이가 보이는 측면 아이콘)
+    val iconW = dp(scene, 52f)
+    val iconH = iconW * 20f / 32f
+    if (look != null) {
+        val bmp = scene.game.assets.camProfile(look)
+        c.drawBitmap(
+            bmp, null,
+            RectF(r.left + dp(scene, 6f), r.centerY() - iconH / 2f, r.left + dp(scene, 6f) + iconW, r.centerY() + iconH / 2f),
+            scene.game.assets.sprPaint
+        )
+    } else {
+        textP.textSize = dp(scene, 22f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText(gear.kind.emoji, r.left + dp(scene, 18f), r.centerY() + dp(scene, 8f), textP)
+    }
+
+    val tx = r.left + dp(scene, 62f)
+    // 이름 + 등급 칩
+    textP.textSize = dp(scene, 12.5f)
+    textP.color = 0xFF4A3728.toInt()
+    c.drawText(gear.fullName, tx, r.top + dp(scene, 16f), textP)
+    val gLabel = gear.grade.label
+    textP.textSize = dp(scene, 8.5f)
+    val gw = textP.measureText(gLabel) + dp(scene, 10f)
+    val gr = RectF(r.right - gw - dp(scene, 96f), r.top + dp(scene, 5f), r.right - dp(scene, 96f), r.top + dp(scene, 19f))
+    fillP.color = gear.grade.color
+    c.drawRoundRect(gr, dp(scene, 7f), dp(scene, 7f), fillP)
+    textP.color = 0xFFFFF8E8.toInt()
+    c.drawText(gLabel, gr.centerX() - textP.measureText(gLabel) / 2, gr.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+    textP.textSize = dp(scene, 9.5f)
+    textP.color = 0xFF3F6FB0.toInt()
+    c.drawText(spec, tx, r.top + dp(scene, 29f), textP)
+    textP.color = 0xFF8A7360.toInt()
+    c.drawText(sub, tx, r.top + dp(scene, 41f), textP)
+}
+
+/** 장비 목록에 쓰는 한 줄 요약 */
+private fun gearSpecLine(gear: CamGear): String = when (gear) {
+    is CompactCam -> gear.specLine
+    is CamBody -> gear.specLine
+    is CamLens -> gear.specLine
+    is TeleConv -> gear.specLine
+    is CamAccessory -> gear.effect
+}
+
+/** 장비 목록에 쓰는 보조 설명 */
+private fun gearSubLine(gear: CamGear): String = when (gear) {
+    is CompactCam ->
+        "줌 ${gear.zoomX.fmt1()}배 · 반경 ${CameraRigs.reachFor(gear.teleMm).fmt1()}칸 · ${gear.burst.fmt1()}fps · ${gear.weightG}g" +
+            (if (gear.weatherProof) " · 방진방적" else "")
+    is CamBody ->
+        "AF ${gear.afScore.fmt1()} · IBIS ${gear.ibis.fmt1()} · 크롭 ${gear.sensor.crop.fmt1()}× · ${gear.weightG}g" +
+            (if (gear.birdAf) " · 조류 AF" else "")
+    is CamLens ->
+        gear.mounts.joinToString("/") + " · OS ${gear.os.fmt1()} · 해상력 ${gear.sharp.fmt1()}" +
+            (if (gear.tcOk) " · TC 가능" else "")
+    is TeleConv -> gear.desc
+    is CamAccessory -> gear.desc
+}
+
+class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : Overlay(scene) {
+
+    private enum class Tab(val label: String) {
+        COMPACT("컴팩트"), BODY("바디"), LENS("렌즈"), ACC("액세서리")
+    }
+
+    private var tab = Tab.values()[startTab.coerceIn(0, Tab.values().size - 1)]
+    private var page = startPage.coerceAtLeast(0)
+    private val tabRects = ArrayList<Pair<RectF, Tab>>()
+    private val buyRects = ArrayList<Pair<RectF, CamGear>>()
+    private val infoRects = ArrayList<Pair<RectF, CamGear>>()
+    private var prevRect = RectF()
+    private var nextRect = RectF()
+    private var closeRect = RectF()
+    private var panelR = RectF()
+
+    private val perPage = 4
+
+    private fun items(): List<CamGear> = when (tab) {
+        Tab.COMPACT -> CameraGear.COMPACTS.sortedBy { it.price }
+        Tab.BODY -> CameraGear.BODIES.sortedBy { it.price }
+        Tab.LENS -> CameraGear.LENSES.sortedBy { it.price }
+        Tab.ACC -> (CameraGear.TELECONVS + CameraGear.ACCESSORIES).sortedBy { it.price }
+    }
+
+    override fun handleInput(input: Input) {
+        val tap = input.consumeTapScreen()
+        if (input.justB || input.justBack) { finished = true; return }
+        if (tap == null) return
+        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        for ((r, t) in tabRects) {
+            if (r.contains(tap.x, tap.y)) { tab = t; page = 0; return }
+        }
+        if (prevRect.contains(tap.x, tap.y)) { if (page > 0) page--; return }
+        if (nextRect.contains(tap.x, tap.y)) {
+            if ((page + 1) * perPage < items().size) page++
+            return
+        }
+        for ((r, g) in buyRects) {
+            if (r.contains(tap.x, tap.y)) { buy(g); return }
+        }
+        for ((r, g) in infoRects) {
+            if (r.contains(tap.x, tap.y)) { showInfo(g); return }
+        }
+    }
+
+    private fun showInfo(gear: CamGear) {
+        val s = scene.game.state
+        val backTab = tab.ordinal
+        val backPage = page
+        val body = StringBuilder()
+        body.append(gear.desc).append("\n")
+        body.append(gearSpecLine(gear)).append("\n")
+        body.append(gearSubLine(gear)).append("\n")
+        when (gear) {
+            is CompactCam -> {
+                body.append("최단 촬영 ${CameraRigs.minDistFor(gear.wideMm, false).fmt1()}칸 · 손떨림 보정 ${gear.stab.fmt1()}\n")
+                if (gear.luck > 0) body.append("찍는 재미 보너스: 행운 +${gear.luck}\n")
+            }
+            is CamBody -> {
+                body.append("${Mounts.label(gear.mount)} · ${if (gear.weatherProof) "방진방적" else "실내·맑은 날 권장"}\n")
+                body.append("같은 렌즈를 써도 환산 초점거리가 ${gear.sensor.crop.fmt1()}배가 돼요\n")
+            }
+            is CamLens -> {
+                val cur = CameraGear.body(s.bodyId)
+                if (cur != null) {
+                    val problem = CameraGear.mountProblem(cur, gear, s.hasAdapter())
+                    if (problem == null) {
+                        val eq = (gear.teleMm * cur.sensor.crop).toInt()
+                        body.append("지금 바디(${cur.name})에 물리면 환산 ${eq}mm\n")
+                    } else {
+                        body.append("⚠ $problem\n")
+                    }
+                }
+                body.append(if (gear.macro) "접사 렌즈 — 아주 가까이서 찍을 수 있어요\n" else "")
+            }
+            is TeleConv -> body.append("망원 단렌즈·고급 줌에만 물릴 수 있어요\n")
+            is CamAccessory -> body.append("효과: ${gear.effect}\n")
+        }
+        body.append("가격 ${won(gear.price)} · 보유 ${won(s.money)}")
+        scene.openOverlay(
+            DialogOverlay(
+                scene, gear.fullName, body.toString(),
+                listOf(
+                    DialogOverlay.Choice(if (gear.id in s.ownedGear) "보유중" else "구매 ${won(gear.price)}") {
+                        buy(gear)
+                        it.scene.openOverlay(CameraShopOverlay(it.scene, backTab, backPage))
+                    },
+                    DialogOverlay.Choice("닫기") {
+                        it.scene.openOverlay(CameraShopOverlay(it.scene, backTab, backPage))
+                    }
+                )
+            )
+        )
+    }
+
+    private fun buy(gear: CamGear) {
+        val g = scene.game
+        val s = g.state
+        if (gear.id in s.ownedGear) {
+            g.toast("이미 갖고 있는 장비예요!")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
+            return
+        }
+        if (s.money < gear.price) {
+            g.toast("돈이 부족해요… (${won(gear.price)})")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
+            return
+        }
+        g.sfx(Audio.Sfx.BUY)
+        s.money -= gear.price
+        s.ownedGear.add(gear.id)
+        // 산 장비는 가능하면 바로 장착해 준다
+        when (gear) {
+            is CompactCam -> {
+                s.compactId = gear.id
+                s.useIlc = false
+                g.toast("${gear.name} 구매! 바로 목에 걸었어요 📷")
+            }
+            is CamBody -> {
+                s.bodyId = gear.id
+                val lens = CameraGear.lens(s.lensId)
+                s.useIlc = lens != null && CameraGear.canMount(gear, lens, s.hasAdapter())
+                g.toast(
+                    if (s.useIlc) "${gear.name} 구매! 렌즈를 물려 장착했어요 📷"
+                    else "${gear.name} 구매! 이제 마운트가 맞는 렌즈가 필요해요 🔭"
+                )
+            }
+            is CamLens -> {
+                val body = CameraGear.body(s.bodyId)
+                if (body != null && CameraGear.canMount(body, gear, s.hasAdapter())) {
+                    s.lensId = gear.id
+                    if (!gear.tcOk) s.tcId = null
+                    s.useIlc = true
+                    g.toast("${gear.name} 구매! ${body.name}에 물렸어요 🔭")
+                } else {
+                    s.lensId = s.lensId ?: gear.id
+                    g.toast("${gear.name} 구매! 맞는 바디에 물려 보세요 🔩")
+                }
+            }
+            is TeleConv -> {
+                val lens = CameraGear.lens(s.lensId)
+                if (lens != null && lens.tcOk) {
+                    s.tcId = gear.id
+                    g.toast("${gear.name} 장착! 초점거리가 ×${gear.mul.fmt1()} 늘어났어요")
+                } else {
+                    g.toast("${gear.name} 구매! TC를 지원하는 렌즈에 물려 보세요")
+                }
+            }
+            is CamAccessory -> g.toast("${gear.name} 구매! 효과가 바로 적용돼요 🎒")
+        }
+        s.invalidateRig()
+        SaveManager.save(g.context, s)
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 150)
+
+        val pw = minOf(w * 0.94f, dp(scene, 520f))
+        val ph = minOf(h * 0.92f, dp(scene, 430f))
+        panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
+        panel(c, panelR, scene)
+
+        closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 6f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 32f))
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+        textP.textSize = dp(scene, 14f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("📷 사진용품점 진열대", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val rig = s.rig()
+        c.drawText(
+            "보유 ${won(s.money)} · 지금 장비: ${rig.title} (환산 ${rig.teleMm}mm)",
+            panelR.left + dp(scene, 14f), panelR.top + dp(scene, 38f), textP
+        )
+
+        // 탭
+        tabRects.clear()
+        val nTabs = Tab.values().size
+        val gap = dp(scene, 5f)
+        val tabW = (panelR.width() - dp(scene, 24f) - gap * (nTabs - 1)) / nTabs
+        for ((i, t) in Tab.values().withIndex()) {
+            val r = RectF(
+                panelR.left + dp(scene, 12f) + i * (tabW + gap), panelR.top + dp(scene, 44f),
+                panelR.left + dp(scene, 12f) + i * (tabW + gap) + tabW, panelR.top + dp(scene, 68f)
+            )
+            fillP.color = if (t == tab) 0xFF6B4F35.toInt() else 0xFFF2E3C2.toInt()
+            c.drawRoundRect(r, dp(scene, 7f), dp(scene, 7f), fillP)
+            textP.textSize = dp(scene, 11.5f)
+            textP.color = if (t == tab) 0xFFF8EFDC.toInt() else 0xFF6B4F35.toInt()
+            c.drawText(t.label, r.centerX() - textP.measureText(t.label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+            tabRects.add(r to t)
+        }
+
+        // 목록
+        buyRects.clear()
+        infoRects.clear()
+        val all = items()
+        val maxPage = ((all.size - 1) / perPage).coerceAtLeast(0)
+        if (page > maxPage) page = maxPage
+        val from = page * perPage
+        val shown = all.subList(from, minOf(from + perPage, all.size))
+
+        var ty = panelR.top + dp(scene, 74f)
+        val rowH = dp(scene, 50f)
+        for (gear in shown) {
+            val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH - dp(scene, 5f))
+            val look = when (gear) {
+                is CompactCam -> gear.look
+                is CamBody -> gear.look
+                is CamLens -> CamLook(
+                    2, 0xFF3A3A44.toInt(), 0xFF23232B.toInt(), 0xFF6FA8DC.toInt(),
+                    gear.barrelLen, gear.barrelDia, gear.barrelCol, gear.hood, false, false
+                )
+                else -> null
+            }
+            val owned = gear.id in s.ownedGear
+            drawGearCard(c, scene, r, gear, look, gearSpecLine(gear), gearSubLine(gear), owned)
+
+            val br = RectF(r.right - dp(scene, 88f), r.centerY() - dp(scene, 14f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 14f))
+            if (owned) {
+                drawButton(c, scene, br, "보유중", Color.argb(90, 200, 190, 175), Color.argb(150, 74, 55, 40), 11f)
+            } else if (s.money >= gear.price) {
+                drawButton(c, scene, br, won(gear.price), 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
+                buyRects.add(br to gear)
+            } else {
+                drawButton(c, scene, br, won(gear.price), Color.argb(110, 200, 190, 175), Color.argb(170, 74, 55, 40), 10.5f)
+            }
+            infoRects.add(RectF(r.left, r.top, r.right - dp(scene, 92f), r.bottom) to gear)
+            ty += rowH
+        }
+
+        // 페이지 버튼
+        val by = panelR.bottom - dp(scene, 32f)
+        prevRect = RectF(panelR.left + dp(scene, 14f), by, panelR.left + dp(scene, 74f), by + dp(scene, 24f))
+        nextRect = RectF(panelR.right - dp(scene, 74f), by, panelR.right - dp(scene, 14f), by + dp(scene, 24f))
+        drawButton(c, scene, prevRect, "◀ 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val pg = "${page + 1} / ${maxPage + 1}  ·  항목을 누르면 자세한 성능"
+        c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 장비 가방 — 컴팩트/바디/렌즈/TC 조립 & 성능 확인
+// ---------------------------------------------------------------------------
+
+class GearBagOverlay(scene: Scene) : Overlay(scene) {
+
+    private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
+    private var closeRect = RectF()
+    private var panelR = RectF()
+
+    override fun handleInput(input: Input) {
+        val tap = input.consumeTapScreen()
+        if (input.justB || input.justBack) { finished = true; return }
+        if (tap == null) return
+        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        for ((r, _, action) in btnRects) {
+            if (r.contains(tap.x, tap.y)) { action(); return }
+        }
+    }
+
+    private fun statBar(c: Canvas, x: Float, y: Float, w: Float, label: String, v: Float, max: Float, col: Int) {
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF6B5A48.toInt()
+        c.drawText(label, x, y + dp(scene, 8f), textP)
+        val bx = x + dp(scene, 46f)
+        val bw = w - dp(scene, 46f)
+        val bh = dp(scene, 8f)
+        fillP.color = 0xFFD6C5A4.toInt()
+        c.drawRoundRect(RectF(bx, y + dp(scene, 1f), bx + bw, y + dp(scene, 1f) + bh), bh / 2, bh / 2, fillP)
+        val k = (v / max).coerceIn(0f, 1f)
+        if (k > 0.02f) {
+            fillP.color = col
+            c.drawRoundRect(RectF(bx, y + dp(scene, 1f), bx + bw * k, y + dp(scene, 1f) + bh), bh / 2, bh / 2, fillP)
+        }
+        textP.textSize = dp(scene, 8.5f)
+        textP.color = 0xFF8A7360.toInt()
+        val t = v.fmt1()
+        c.drawText(t, bx + bw + dp(scene, 4f), y + dp(scene, 8f), textP)
+    }
+
+    private fun pick(kind: GearKind) {
+        scene.openOverlay(GearPickOverlay(scene, kind))
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 150)
+
+        val pw = minOf(w * 0.94f, dp(scene, 520f))
+        val ph = minOf(h * 0.92f, dp(scene, 420f))
+        panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
+        panel(c, panelR, scene)
+        btnRects.clear()
+
+        closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 6f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 32f))
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+        val rig = s.rig()
+        textP.textSize = dp(scene, 14f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("🎒 장비 가방", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
+
+        // 현재 조합 카드
+        val cardR = RectF(panelR.left + dp(scene, 12f), panelR.top + dp(scene, 32f), panelR.right - dp(scene, 12f), panelR.top + dp(scene, 116f))
+        drawCard(c, scene, cardR, true, 0xFFB5651D.toInt(), 2f)
+
+        val iconW = dp(scene, 92f)
+        val iconH = iconW * 20f / 32f
+        c.drawBitmap(
+            g.assets.camProfile(rig.look), null,
+            RectF(cardR.left + dp(scene, 8f), cardR.top + dp(scene, 8f), cardR.left + dp(scene, 8f) + iconW, cardR.top + dp(scene, 8f) + iconH),
+            g.assets.sprPaint
+        )
+        textP.textSize = dp(scene, 12.5f)
+        textP.color = 0xFF4A3728.toInt()
+        val tx = cardR.left + dp(scene, 108f)
+        c.drawText(rig.title, tx, cardR.top + dp(scene, 18f), textP)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF3F6FB0.toInt()
+        c.drawText(rig.specLine(), tx, cardR.top + dp(scene, 32f), textP)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText(
+            "${rig.reachLabel()} · ${rig.weightG}g" + (if (rig.luck > 0) " · 행운 +${rig.luck}" else ""),
+            tx, cardR.top + dp(scene, 44f), textP
+        )
+        if (rig.tags.isNotEmpty()) {
+            textP.color = 0xFF5E934F.toInt()
+            c.drawText("# " + rig.tags.joinToString(" # "), tx, cardR.top + dp(scene, 56f), textP)
+        }
+
+        // 성능 바
+        val colW = (cardR.width() - dp(scene, 24f)) / 3f
+        val sy = cardR.top + dp(scene, 62f)
+        statBar(c, cardR.left + dp(scene, 10f), sy, colW, "화질", rig.iq, 10f, 0xFF6FBA6B.toInt())
+        statBar(c, cardR.left + dp(scene, 10f) + colW, sy, colW, "저조도", rig.lowLight, 10f, 0xFF3F6FB0.toInt())
+        statBar(c, cardR.left + dp(scene, 10f) + colW * 2, sy, colW, "AF", rig.af, 10f, 0xFFE2574C.toInt())
+        val sy2 = sy + dp(scene, 13f)
+        statBar(c, cardR.left + dp(scene, 10f), sy2, colW, "흔들림", rig.steady, 10f, 0xFFB05AC0.toInt())
+        statBar(c, cardR.left + dp(scene, 10f) + colW, sy2, colW, "사거리", rig.reach, 13f, 0xFFF2B63C.toInt())
+        statBar(c, cardR.left + dp(scene, 10f) + colW * 2, sy2, colW, "연사", rig.burst.coerceAtMost(30f), 30f, 0xFF5AA0B0.toInt())
+
+        // 모드 전환
+        var y = cardR.bottom + dp(scene, 8f)
+        val halfW = (panelR.width() - dp(scene, 32f)) / 2f
+        val modeA = RectF(panelR.left + dp(scene, 12f), y, panelR.left + dp(scene, 12f) + halfW, y + dp(scene, 26f))
+        val modeB = RectF(modeA.right + dp(scene, 8f), y, modeA.right + dp(scene, 8f) + halfW, y + dp(scene, 26f))
+        drawButton(
+            c, scene, modeA, "일체형 컴팩트",
+            if (!s.useIlc) 0xFF6FBA6B.toInt() else 0xFFF2E3C2.toInt(),
+            if (!s.useIlc) 0xFFFFF8E8.toInt() else 0xFF6B4F35.toInt(), 11f
+        )
+        btnRects.add(Triple(modeA, "compact") {
+            s.useIlc = false
+            s.invalidateRig()
+            SaveManager.save(g.context, s)
+            g.sfx(Audio.Sfx.TAP)
+            g.toast("일체형 컴팩트를 꺼냈어요 📷")
+        })
+        val canIlc = s.ilcReady()
+        drawButton(
+            c, scene, modeB, "렌즈교환식",
+            if (s.useIlc) 0xFF6FBA6B.toInt() else if (canIlc) 0xFFF2E3C2.toInt() else Color.argb(80, 200, 190, 175),
+            if (s.useIlc) 0xFFFFF8E8.toInt() else 0xFF6B4F35.toInt(), 11f
+        )
+        btnRects.add(Triple(modeB, "ilc") {
+            if (s.ilcReady()) {
+                s.useIlc = true
+                s.invalidateRig()
+                SaveManager.save(g.context, s)
+                g.sfx(Audio.Sfx.TAP)
+                g.toast("바디 + 렌즈를 조립했어요 🔭")
+            } else {
+                g.sfx(Audio.Sfx.FAIL, 0.5f)
+                g.toast("마운트가 맞는 바디와 렌즈가 모두 필요해요")
+            }
+        })
+
+        // 슬롯 4개
+        y += dp(scene, 32f)
+        val slotH = dp(scene, 30f)
+        fun slot(label: String, value: String, kind: GearKind, enabled: Boolean) {
+            val r = RectF(panelR.left + dp(scene, 12f), y, panelR.right - dp(scene, 12f), y + slotH - dp(scene, 4f))
+            drawCard(c, scene, r, enabled, if (enabled) 0xFFB5651D.toInt() else 0xFFC9A87B.toInt(), 1.3f)
+            textP.textSize = dp(scene, 10.5f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(label, r.left + dp(scene, 10f), r.centerY() + dp(scene, 4f), textP)
+            textP.textSize = dp(scene, 11.5f)
+            textP.color = if (enabled) 0xFF4A3728.toInt() else 0xFF9A8B7A.toInt()
+            c.drawText(value, r.left + dp(scene, 74f), r.centerY() + dp(scene, 4f), textP)
+            val br = RectF(r.right - dp(scene, 66f), r.centerY() - dp(scene, 11f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 11f))
+            drawButton(c, scene, br, "바꾸기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10f)
+            btnRects.add(Triple(br, label) { pick(kind) })
+            y += slotH
+        }
+
+        slot("컴팩트", CameraGear.compact(s.compactId)?.name ?: "없음", GearKind.COMPACT, !s.useIlc)
+        slot("바디", CameraGear.body(s.bodyId)?.name ?: "없음", GearKind.BODY, s.useIlc)
+        val lensName = CameraGear.lens(s.lensId)?.let { l ->
+            val b = CameraGear.body(s.bodyId)
+            val bad = b != null && !CameraGear.canMount(b, l, s.hasAdapter())
+            l.name + if (bad) "  ⚠ 마운트 불일치" else ""
+        } ?: "없음"
+        slot("렌즈", lensName, GearKind.LENS, s.useIlc)
+        slot("텔레컨버터", CameraGear.tc(s.tcId)?.name ?: "없음", GearKind.TELECONV, s.useIlc)
+
+        // 액세서리
+        y += dp(scene, 2f)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF6B5A48.toInt()
+        val accs = CameraGear.ACCESSORIES.filter { it.id in s.ownedGear }
+        val accTxt = if (accs.isEmpty()) "보유 액세서리: 없음 (상점 액세서리 탭)"
+            else "보유 액세서리: " + accs.joinToString(", ") { it.name }
+        for (ln in g.hud.wrapText(accTxt, textP, panelR.width() - dp(scene, 28f)).take(2)) {
+            c.drawText(ln, panelR.left + dp(scene, 14f), y + dp(scene, 10f), textP)
+            y += dp(scene, 12f)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 장비 선택 (가방에서 슬롯 교체)
+// ---------------------------------------------------------------------------
+
+class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene) {
+
+    private val pickRects = ArrayList<Pair<RectF, String>>()
+    private var closeRect = RectF()
+    private var panelR = RectF()
+    private var page = 0
+    private var prevRect = RectF()
+    private var nextRect = RectF()
+    private val perPage = 4
+
+    private fun owned(): List<CamGear> {
+        val s = scene.game.state
+        return CameraGear.ALL.filter { it.kind == kind && it.id in s.ownedGear }.sortedBy { it.price }
+    }
+
+    override fun handleInput(input: Input) {
+        val tap = input.consumeTapScreen()
+        if (input.justB || input.justBack) { back(); return }
+        if (tap == null) return
+        if (closeRect.contains(tap.x, tap.y)) { back(); return }
+        if (prevRect.contains(tap.x, tap.y)) { if (page > 0) page--; return }
+        if (nextRect.contains(tap.x, tap.y)) {
+            if ((page + 1) * perPage < owned().size + 1) page++
+            return
+        }
+        for ((r, id) in pickRects) {
+            if (r.contains(tap.x, tap.y)) { equip(id); return }
+        }
+    }
+
+    private fun back() {
+        scene.openOverlay(GearBagOverlay(scene))
+    }
+
+    private fun equip(id: String) {
+        val g = scene.game
+        val s = g.state
+        when (kind) {
+            GearKind.COMPACT -> {
+                s.compactId = id
+                s.useIlc = false
+                g.toast("${CameraGear.compact(id)?.name}을(를) 꺼냈어요 📷")
+            }
+            GearKind.BODY -> {
+                s.bodyId = id
+                val body = CameraGear.body(id)
+                val lens = CameraGear.lens(s.lensId)
+                if (body != null && lens != null && !CameraGear.canMount(body, lens, s.hasAdapter())) {
+                    g.toast("바디를 바꿨어요. 이 렌즈와는 마운트가 달라요 ⚠")
+                } else {
+                    s.useIlc = s.ilcReady()
+                    g.toast("${body?.name}을(를) 장착했어요")
+                }
+            }
+            GearKind.LENS -> {
+                val body = CameraGear.body(s.bodyId)
+                val lens = CameraGear.lens(id)
+                if (body != null && lens != null && !CameraGear.canMount(body, lens, s.hasAdapter())) {
+                    g.toast(CameraGear.mountProblem(body, lens, s.hasAdapter()) ?: "결합할 수 없어요")
+                } else {
+                    s.lensId = id
+                    if (lens != null && !lens.tcOk) s.tcId = null
+                    s.useIlc = s.ilcReady()
+                    g.toast("${lens?.name}을(를) 물렸어요 🔭")
+                }
+            }
+            GearKind.TELECONV -> {
+                val lens = CameraGear.lens(s.lensId)
+                if (id.isEmpty()) {
+                    s.tcId = null
+                    g.toast("텔레컨버터를 뺐어요")
+                } else if (lens == null || !lens.tcOk) {
+                    g.toast("지금 렌즈는 텔레컨버터를 지원하지 않아요")
+                } else {
+                    s.tcId = id
+                    g.toast("텔레컨버터 장착! 초점거리가 늘어났어요")
+                }
+            }
+            else -> {}
+        }
+        if (kind == GearKind.COMPACT && id.isEmpty()) s.compactId = CameraGear.STARTER
+        s.invalidateRig()
+        SaveManager.save(g.context, s)
+        back()
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 160)
+
+        val pw = minOf(w * 0.92f, dp(scene, 480f))
+        val ph = minOf(h * 0.9f, dp(scene, 400f))
+        panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
+        panel(c, panelR, scene)
+
+        closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 6f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 32f))
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+        textP.textSize = dp(scene, 13.5f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("${kind.emoji} ${kind.label} 선택", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("가진 장비만 보여요 · 상점에서 더 살 수 있어요", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 38f), textP)
+
+        pickRects.clear()
+        val list = ArrayList<CamGear?>()
+        list.addAll(owned())
+        if (kind == GearKind.TELECONV) list.add(null)   // "빼기" 항목
+
+        val maxPage = ((list.size - 1) / perPage).coerceAtLeast(0)
+        if (page > maxPage) page = maxPage
+        val from = page * perPage
+        val shown = list.subList(from, minOf(from + perPage, list.size))
+
+        var ty = panelR.top + dp(scene, 46f)
+        val rowH = dp(scene, 50f)
+        for (gear in shown) {
+            val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH - dp(scene, 5f))
+            if (gear == null) {
+                drawCard(c, scene, r)
+                textP.textSize = dp(scene, 12f)
+                textP.color = 0xFF4A3728.toInt()
+                c.drawText("텔레컨버터 빼기", r.left + dp(scene, 14f), r.centerY() + dp(scene, 4f), textP)
+                pickRects.add(r to "")
+            } else {
+                val look = when (gear) {
+                    is CompactCam -> gear.look
+                    is CamBody -> gear.look
+                    is CamLens -> CamLook(
+                        2, 0xFF3A3A44.toInt(), 0xFF23232B.toInt(), 0xFF6FA8DC.toInt(),
+                        gear.barrelLen, gear.barrelDia, gear.barrelCol, gear.hood, false, false
+                    )
+                    else -> null
+                }
+                val equipped = when (kind) {
+                    GearKind.COMPACT -> gear.id == s.compactId
+                    GearKind.BODY -> gear.id == s.bodyId
+                    GearKind.LENS -> gear.id == s.lensId
+                    GearKind.TELECONV -> gear.id == s.tcId
+                    else -> false
+                }
+                drawGearCard(c, scene, r, gear, look, gearSpecLine(gear), gearSubLine(gear), equipped)
+                if (equipped) {
+                    textP.textSize = dp(scene, 9f)
+                    textP.color = 0xFF6FBA6B.toInt()
+                    c.drawText("장착중", r.right - dp(scene, 44f), r.centerY() + dp(scene, 4f), textP)
+                }
+                pickRects.add(r to gear.id)
+            }
+            ty += rowH
+        }
+
+        if (list.isEmpty()) {
+            textP.textSize = dp(scene, 11.5f)
+            textP.color = 0xFF8A7360.toInt()
+            val msg = "가진 ${kind.label}이(가) 없어요. 사진용품점에서 먼저 사 보세요!"
+            c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY(), textP)
+        }
+
+        val by = panelR.bottom - dp(scene, 32f)
+        prevRect = RectF(panelR.left + dp(scene, 14f), by, panelR.left + dp(scene, 74f), by + dp(scene, 24f))
+        nextRect = RectF(panelR.right - dp(scene, 74f), by, panelR.right - dp(scene, 14f), by + dp(scene, 24f))
+        drawButton(c, scene, prevRect, "◀ 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val pg = "${page + 1} / ${maxPage + 1}"
+        c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
     }
 }
 

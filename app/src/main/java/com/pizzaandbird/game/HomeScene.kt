@@ -22,7 +22,7 @@ class HomeScene(game: Game) : Scene(game) {
     private val player = Player()
 
     /** 집 안에서도 같은 카메라 리그를 쓴다 (걸음 출렁임 · 화덕 충격) */
-    private val rig = CameraRig(game.state)
+    private val rig = ViewRig(game.state)
 
     /** 캔버스 원점에 대응하는 월드 좌표 */
     private var camX = 0f
@@ -123,7 +123,7 @@ class HomeScene(game: Game) : Scene(game) {
         game.audio.stopAmb()
     }
 
-    override fun camera(): CameraRig = rig
+    override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
@@ -450,6 +450,14 @@ class HomeScene(game: Game) : Scene(game) {
         val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        // 집 안에서도 카메라는 목에 걸고 다닌다
+        val camDir = when (player.facing) {
+            Dir.E -> 2
+            Dir.W -> 3
+            Dir.N -> 1
+            else -> 0
+        }
+        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)

@@ -13,8 +13,8 @@ import kotlin.math.sin
 abstract class Scene(val game: Game) {
     var overlay: Overlay? = null
 
-    /** 이 씬의 몰입 카메라 리그 (없는 씬도 있다 — 타이틀/지역선택 등) */
-    open fun camera(): CameraRig? = null
+    /** 이 씬의 시점 리그(화면 움직임). 없는 씬도 있다 — 타이틀/지역선택 등 */
+    open fun camera(): ViewRig? = null
 
     open fun update(dt: Float) {}
     open fun drawWorld(c: Canvas) {}
@@ -206,7 +206,7 @@ class TitleScene(game: Game) : Scene(game) {
         button(contRect, "이어하기", game.state.started)
 
         // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
-        val info = "v0.3.3 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with 🍕"
+        val info = "v0.4.0 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with 🍕"
         Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
     }
 

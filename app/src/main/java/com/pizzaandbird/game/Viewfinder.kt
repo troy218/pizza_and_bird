@@ -153,7 +153,8 @@ class Viewfinder(private val game: Game) {
     ) {
         val w = game.virtW.toFloat()
         val h = game.virtH.toFloat()
-        val rangeTiles = CameraDefs.range(state.cameraLevel)
+        val rig = state.rig()
+        val rangeTiles = rig.reach
         val rangePx = rangeTiles * 16f * WORLD_SCALE * zoom
         val px = sx(playerCx, camX, zoom)
         val py = sy(playerCy, camY, zoom)
@@ -164,7 +165,7 @@ class Viewfinder(private val game: Game) {
         drawGrain(c, w, h)
         drawVignette(c, w, h)
 
-        drawRange(c, px, py, rangePx, rangeTiles)
+        drawRange(c, px, py, rangePx, rangeTiles, rig.minDist * 16f * WORLD_SCALE, rig.minDist)
 
         val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles, zoom)
         if (focus?.def?.id != focusId) {
@@ -297,12 +298,12 @@ class Viewfinder(private val game: Game) {
     }
 
     /** 사거리 원 + 별점 구역 링 */
-    private fun drawRange(c: Canvas, px: Float, py: Float, rangePx: Float, rangeTiles: Float) {
+    private fun drawRange(c: Canvas, px: Float, py: Float, rangePx: Float, rangeTiles: Float, minPx: Float, minTiles: Float) {
         // 사거리 안쪽을 아주 살짝 밝게
         fill.color = Color.argb(9, 255, 250, 235)
         c.drawCircle(px, py, rangePx, fill)
         fill.color = Color.argb(9, 255, 250, 235)
-        c.drawCircle(px, py, rangePx * 0.67f, fill)
+        c.drawCircle(px, py, rangePx * 0.72f, fill)
 
         ring.strokeWidth = 1.7f
         ring.pathEffect = DashPathEffect(floatArrayOf(11f, 9f), -clock * 14f)
@@ -312,9 +313,18 @@ class Viewfinder(private val game: Game) {
         ring.pathEffect = null
         ring.strokeWidth = 1.3f
         ring.color = Color.argb(74, 111, 186, 107)
-        c.drawCircle(px, py, rangePx * 0.34f, ring)
+        c.drawCircle(px, py, rangePx * 0.38f, ring)
         ring.color = Color.argb(74, 242, 182, 60)
-        c.drawCircle(px, py, rangePx * 0.67f, ring)
+        c.drawCircle(px, py, rangePx * 0.72f, ring)
+
+        // 최단 촬영 거리 — 초망원은 너무 가까우면 화각에 안 들어온다
+        if (minTiles > 0.9f) {
+            ring.strokeWidth = 1.5f
+            ring.pathEffect = DashPathEffect(floatArrayOf(6f, 6f), clock * 10f)
+            ring.color = Color.argb(150, 226, 87, 76)
+            c.drawCircle(px, py, minPx, ring)
+            ring.pathEffect = null
+        }
 
         // 라벨: 사거리 (원 아래쪽, 화면 안으로 보정)
         val labelY = (py + rangePx + 18f).coerceIn(120f, game.virtH - 104f)
@@ -328,8 +338,8 @@ class Viewfinder(private val game: Game) {
 
         // 별점 구역 라벨 (왼쪽 수평선 위)
         text.textSize = 11.5f
-        zoneLabel(c, "★3", px - rangePx * 0.34f - 6f, py, 0xFF9BD98F.toInt())
-        zoneLabel(c, "★2", px - rangePx * 0.67f - 6f, py, 0xFFF2C86B.toInt())
+        zoneLabel(c, "★3", px - rangePx * 0.38f - 6f, py, 0xFF9BD98F.toInt())
+        zoneLabel(c, "★2", px - rangePx * 0.72f - 6f, py, 0xFFF2C86B.toInt())
     }
 
     private fun zoneLabel(c: Canvas, s: String, x: Float, y: Float, color: Int) {
@@ -530,10 +540,14 @@ class Viewfinder(private val game: Game) {
         c.drawText(clockTxt, cr.left + 13f, cr.centerY() + 5.5f, mono)
 
         // 우측: 장비 + 사거리
-        val cam = CameraDefs.LEVELS[(state.cameraLevel - 1).coerceIn(0, CameraDefs.LEVELS.size - 1)]
+        val rig = state.rig()
         text.textSize = 13f
-        val nameTxt = "${cam.name}  Lv.${state.cameraLevel}"
-        val subTxt = "사거리 ${fmt(cam.rangeTiles)}칸 · 찍은 사진 ${state.photos}장"
+        var nameTxt = rig.title
+        if (text.measureText(nameTxt) > 250f) {
+            while (nameTxt.length > 1 && text.measureText("$nameTxt…") > 250f) nameTxt = nameTxt.dropLast(1)
+            nameTxt = "$nameTxt…"
+        }
+        val subTxt = "환산 ${rig.teleMm}mm · ${rig.sensor.label} · 사거리 ${fmt(rig.reach)}칸"
         val bw = maxOf(text.measureText(nameTxt), text.measureText(subTxt)) + 24f
         val br = RectF(w - 40f - bw, y, w - 40f, y + 44f)
         fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
@@ -572,17 +586,15 @@ class Viewfinder(private val game: Game) {
         c.drawRoundRect(r, 10f, 10f, stroke)
 
         // 왼쪽: 촬영 정보
-        val lvl = state.cameraLevel
-        val iso = 100 * (1 shl ((lvl - 1).coerceIn(0, 4) / 2))
-        val fnum = when (lvl) { 1 -> "f/2.2"; 2 -> "f/2.2"; 3 -> "f/2.8"; 4 -> "f/2.8"; else -> "f/4.0" }
-        val shutter = when (lvl) { 1 -> "1/60"; 2 -> "1/90"; 3 -> "1/125"; 4 -> "1/200"; else -> "1/320" }
+        val rig = state.rig()
         mono.textSize = 12.5f
         mono.color = Color.argb((225 * k).toInt(), 232, 226, 240)
-        c.drawText("ISO $iso  $fnum  $shutter", r.left + 14f, r.top + 22f, mono)
+        c.drawText(rig.exifLine(state.darkness()), r.left + 14f, r.top + 22f, mono)
         mono.textSize = 11f
         mono.color = Color.argb((190 * k).toInt(), 206, 200, 216)
-        val count = state.birdCounts.size
-        c.drawText("도감 ${count}종 · 관측 ${state.photos}컷", r.left + 14f, r.top + 40f, mono)
+        val burstTxt = "${fmt(rig.burst)}fps"
+        val steadyTxt = if (rig.steady >= 5f) "IS ●" else "IS ○"
+        c.drawText("$burstTxt · $steadyTxt · ${rig.weightG}g · 관측 ${state.photos}컷", r.left + 14f, r.top + 40f, mono)
 
         // 오른쪽: 거리 게이지
         val gx = r.right - 190f
@@ -593,11 +605,11 @@ class Viewfinder(private val game: Game) {
         c.drawRoundRect(RectF(gx, gy, gx + gw, gy + gh), 4.5f, 4.5f, fill)
         // 구역: ★3 (초록) / ★2 (노랑) / ★1 (빨강)
         fill.color = Color.argb((170 * k).toInt(), 111, 186, 107)
-        c.drawRoundRect(RectF(gx + 1f, gy + 1f, gx + gw * 0.34f, gy + gh - 1f), 4f, 4f, fill)
+        c.drawRoundRect(RectF(gx + 1f, gy + 1f, gx + gw * 0.38f, gy + gh - 1f), 4f, 4f, fill)
         fill.color = Color.argb((150 * k).toInt(), 242, 182, 60)
-        c.drawRoundRect(RectF(gx + gw * 0.34f, gy + 1f, gx + gw * 0.67f, gy + gh - 1f), 4f, 4f, fill)
+        c.drawRoundRect(RectF(gx + gw * 0.38f, gy + 1f, gx + gw * 0.72f, gy + gh - 1f), 4f, 4f, fill)
         fill.color = Color.argb((130 * k).toInt(), 226, 87, 76)
-        c.drawRoundRect(RectF(gx + gw * 0.67f, gy + 1f, gx + gw - 1f, gy + gh - 1f), 4f, 4f, fill)
+        c.drawRoundRect(RectF(gx + gw * 0.72f, gy + 1f, gx + gw - 1f, gy + gh - 1f), 4f, 4f, fill)
 
         text.textSize = 11f
         if (focus != null) {
@@ -703,8 +715,8 @@ class Viewfinder(private val game: Game) {
 
     /** 거리 비율 -> (별점, 색) */
     private fun zone(ratio: Float): Pair<Int, Int> = when {
-        ratio < 0.34f -> 3 to 0xFF7FD07A.toInt()
-        ratio < 0.67f -> 2 to 0xFFF2C86B.toInt()
+        ratio < 0.38f -> 3 to 0xFF7FD07A.toInt()
+        ratio < 0.72f -> 2 to 0xFFF2C86B.toInt()
         else -> 1 to 0xFFE2574C.toInt()
     }
 
