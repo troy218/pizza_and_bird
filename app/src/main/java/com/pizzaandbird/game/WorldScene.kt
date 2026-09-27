@@ -2,9 +2,7 @@ package com.pizzaandbird.game
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.DashPathEffect
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import java.util.Random
 import kotlin.math.abs
@@ -29,6 +27,7 @@ class WorldScene(
     private val birds = ArrayList<FieldBird>()
     private val cats = ArrayList<Cat>()
     private val rnd = Random(region.id.hashCode().toLong() + 7L)
+    private val viewfinder = Viewfinder(game)
 
     // 디테일 연출 (날씨·물·발자국·작은 생물·조명) — Fx.kt
     private val fx = WorldFx(map, region.id.hashCode().toLong() + 31L)
@@ -37,6 +36,10 @@ class WorldScene(
 
     var photoMode = false
         private set
+
+    /** 촬영 결과 카드 (셔터가 닫힌 뒤에 띄운다) */
+    private var pendingOverlay: Overlay? = null
+    private var snapDelay = 0f
 
     private var camX = 0f
     private var camY = 0f
@@ -69,16 +72,9 @@ class WorldScene(
         color = 0xFF6B4F35.toInt()
         strokeWidth = 1.6f
     }
-    private val dashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        color = Color.argb(200, 255, 250, 235)
-        strokeWidth = 2.4f
-        pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
-    }
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
 
     init {
         state.region = region.id
@@ -95,6 +91,8 @@ class WorldScene(
             }
         }
         player.set(sx, sy)
+        state.px = sx
+        state.py = sy
         player.facing = when (spawnKind) {
             SpawnKind.TUNNEL -> Regions.opposite(spawnDir)
             else -> Dir.S
@@ -142,6 +140,18 @@ class WorldScene(
         if (overlay != null) {
             game.audio.stopSteps()
             return   // 대화상자/메뉴 중에는 세계 정지
+        }
+
+        // 촬영 결과 카드를 닫으면 닫혀 있던 셔터가 다시 열린다
+        if (viewfinder.isClosed && pendingOverlay == null) viewfinder.release()
+        if (photoMode) viewfinder.update(dt)
+        val po = pendingOverlay
+        if (po != null) {
+            snapDelay -= dt
+            if (snapDelay <= 0f) {
+                pendingOverlay = null
+                openOverlay(po)
+            }
         }
         state.playSeconds += dt
         state.advanceClock(dt)
@@ -223,7 +233,7 @@ class WorldScene(
         state.px = player.x
         state.py = player.y
         state.onBike = player.bike
-        game.hud.questLabel = when {
+        game.hud.questLabel = if (photoMode) null else when {
             state.questBird != null -> "서브: ${Birds.byId[state.questBird!!]?.name ?: "?"} 사진"
             state.mainQuestFinished -> null
             state.mainQuestStarted -> MainStory.current(state)?.let { "메인: ${it.title}" }
@@ -513,12 +523,21 @@ class WorldScene(
         b.fleeT = 0f
 
         SaveManager.save(game.context, state)
-        openOverlay(
-            PhotoResultOverlay(
-                this, b.def, stars, isNew, prev + 1, questLine,
-                expGain, levelsGained, prevLevel
-            )
+
+        // 셔터가 닫힌 뒤(0.15초) 결과 카드(폴라로이드)가 뜬다
+        viewfinder.shot()
+        game.haptic()
+        pendingOverlay = PhotoResultOverlay(
+            this, b.def, stars, isNew, prev + 1, questLine,
+            distTiles = distPx / 16f,
+            timeTxt = state.timeLabel(),
+            cameraTxt = CameraDefs.name(state.cameraLevel),
+            night = state.isNight(),
+            expGain = expGain,
+            levelsGained = levelsGained,
+            prevLevel = prevLevel
         )
+        snapDelay = 0.15f
     }
 
     private fun trySnapAt(vx: Float, vy: Float) {
@@ -527,7 +546,9 @@ class WorldScene(
         for (b in birds) {
             if (b.state == 2) continue
             val d = hypot(b.cx - vx, b.cy - vy)
-            if (d < 14f && d < bestD) { best = b; bestD = d }
+            // 카메라 모드에선 AF 박스를 살짝 빗나가게 탭해도 잡히도록 넉넉하게
+            val tapR = if (photoMode) 21f else 14f
+            if (d < tapR && d < bestD) { best = b; bestD = d }
         }
         val target = best
         if (target == null) {
@@ -923,8 +944,7 @@ class WorldScene(
     override fun handleInput(input: Input) {
         if (input.justBack) {
             if (photoMode) {
-                photoMode = false
-                game.hud.photoModeHint = false
+                setPhotoMode(false)
             } else {
                 openOverlay(MenuOverlay(this))
             }
@@ -935,10 +955,7 @@ class WorldScene(
             return
         }
         if (input.justCam) {
-            photoMode = !photoMode
-            game.hud.photoModeHint = photoMode
-            game.sfx(Audio.Sfx.TAP, 0.6f, if (photoMode) 1.3f else 0.9f)
-            if (photoMode) game.toast("카메라 모드! 새를 탭해서 찍어요 📷")
+            setPhotoMode(!photoMode)
             return
         }
         if (input.justMap) {
@@ -1000,7 +1017,8 @@ class WorldScene(
         val tap = input.consumeTapWorld()
         if (tap != null) {
             if (photoMode) {
-                trySnapAt(tap.x, tap.y)
+                // 셔터가 닫히는 중이거나 결과 카드가 대기 중이면 무시
+                if (!viewfinder.busy && pendingOverlay == null) trySnapAt(tap.x, tap.y)
                 return
             }
             // 이정표 탭
@@ -1025,6 +1043,25 @@ class WorldScene(
                     return
                 }
             }
+        }
+    }
+
+    /** 카메라 모드 전환 — 뷰파인더 연출과 HUD 정리까지 한 번에 */
+    private fun setPhotoMode(on: Boolean) {
+        if (photoMode == on) return
+        photoMode = on
+        game.hud.photoModeHint = on
+        game.hud.showStats = !on
+        game.hud.showMinimap = !on
+        if (on) {
+            game.hud.questLabel = null
+            viewfinder.onEnter()
+            game.haptic()
+            game.toast("📷 카메라 모드 — 새를 탭해 촬영하세요")
+        } else {
+            game.hud.showStats = true
+            game.hud.showMinimap = true
+            viewfinder.release()
         }
     }
 
@@ -1074,7 +1111,10 @@ class WorldScene(
         fx.drawWeather(c, game.virtW, game.virtH)
         drawLighting(c, camXv, camYv)
         drawNpcOverlays(c)
-        if (photoMode) drawPhotoOverlay(c)
+        if (photoMode) {
+            viewfinder.draw(c, birds, player.cx, player.cy, camX, camY)
+            viewfinder.drawShutter(c)
+        }
     }
 
     /** 발밑 타일이 풀숲이면 1(키 큰 풀) / 2(갈대), 아니면 0 */
@@ -1402,66 +1442,6 @@ class WorldScene(
             uiText.color = Color.argb(a, 74, 55, 40)
             val ew = uiText.measureText(em)
             c.drawText(em, cx - ew / 2, by - 5f, uiText)
-        }
-    }
-
-    // -------------------------------------------------------------------
-    // 카메라 모드 UI
-    // -------------------------------------------------------------------
-
-    private fun drawPhotoOverlay(c: Canvas) {
-        val vw = game.virtW.toFloat()
-        val vh = game.virtH.toFloat()
-        uiFill.color = Color.argb(88, 20, 16, 28)
-        c.drawRect(0f, 0f, vw, 42f, uiFill)
-        c.drawRect(0f, vh - 48f, vw, vh, uiFill)
-        c.drawRect(0f, 0f, 34f, vh, uiFill)
-        c.drawRect(vw - 34f, 0f, vw, vh, uiFill)
-
-        // 비네트
-        uiFill.color = Color.argb(36, 16, 12, 24)
-        c.drawRect(0f, 0f, vw, 14f, uiFill)
-        c.drawRect(0f, vh - 14f, vw, vh, uiFill)
-        c.drawRect(0f, 0f, 12f, vh, uiFill)
-        c.drawRect(vw - 12f, 0f, vw, vh, uiFill)
-
-        // 뷰파인더 코너
-        uiStroke.strokeWidth = 3f
-        uiStroke.color = Color.argb(220, 255, 250, 235)
-        val m = 64f
-        val l = 26f
-        val path = Path()
-        path.moveTo(m, m + l); path.lineTo(m, m); path.lineTo(m + l, m)
-        path.moveTo(vw - m - l, m); path.lineTo(vw - m, m); path.lineTo(vw - m, m + l)
-        path.moveTo(vw - m, vh - m - l); path.lineTo(vw - m, vh - m); path.lineTo(vw - m - l, vh - m)
-        path.moveTo(m + l, vh - m); path.lineTo(m, vh - m); path.lineTo(m, vh - m - l)
-        c.drawPath(path, uiStroke)
-
-        // 촬영 반경
-        val range = CameraDefs.range(state.cameraLevel) * 16f * WORLD_SCALE
-        c.drawCircle((player.cx - camX) * WORLD_SCALE, (player.cy - camY) * WORLD_SCALE, range, dashPaint)
-
-        // 새별 거리 힌트
-        uiText.isFakeBoldText = true
-        for (b in birds) {
-            if (b.state == 2) continue
-            val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
-            val r = CameraDefs.range(state.cameraLevel)
-            if (distPx > r * 16f) continue
-            val ratio = (distPx / 16f) / r
-            val (label, col) = when {
-                ratio < 0.34f -> "가까움" to 0xFF6FBA6B.toInt()
-                ratio < 0.67f -> "좋음" to 0xFFF2B63C.toInt()
-                else -> "멀어요" to 0xFFE2574C.toInt()
-            }
-            val bx = (b.cx - camX) * WORLD_SCALE
-            val by = (b.y - camY) * WORLD_SCALE - 16f
-            uiText.textSize = 12f
-            uiText.color = 0xFFF8EFDC.toInt()
-            val tw = uiText.measureText(label)
-            uiFill.color = Color.argb(190, Color.red(col), Color.green(col), Color.blue(col))
-            c.drawRoundRect(RectF(bx - tw / 2 - 6f, by - 10f, bx + tw / 2 + 6f, by + 5f), 5f, 5f, uiFill)
-            c.drawText(label, bx - tw / 2, by + 2f, uiText)
         }
     }
 

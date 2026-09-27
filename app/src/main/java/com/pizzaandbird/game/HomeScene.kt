@@ -80,6 +80,8 @@ class HomeScene(game: Game) : Scene(game) {
     init {
         state.inHome = true
         player.set(6 * 16f + 4f, 6 * 16f)
+        state.px = player.x
+        state.py = player.y
 
         game.hud.showControls = true
         game.hud.showStats = true

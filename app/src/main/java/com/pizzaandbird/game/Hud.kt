@@ -35,6 +35,8 @@ class Hud(private val game: Game) {
     var showMinimap = false
     var regionLabel = ""
     var questLabel: String? = null
+
+    /** 카메라 모드 활성 (뷰파인더가 세계를 덮고 있다) */
     var photoModeHint = false
 
     // ----- 레이아웃(px) -----
@@ -211,7 +213,6 @@ class Hud(private val game: Game) {
             drawChip(c, questChipX(), questChipY(), "🔍 $questLabel")
         }
         if (showControls) drawControls(c)
-        if (photoModeHint) drawPhotoHint(c)
         drawBanner(c)
         drawMessages(c)
     }
@@ -317,7 +318,7 @@ class Hud(private val game: Game) {
     }
 
     private fun drawMessages(c: Canvas) {
-        var y = dp(20f)
+        var y = dp(20f) + if (photoModeHint) dp(62f) else 0f
         for (m in messages) {
             // 등장 슬라이드 + 페이드인/아웃
             val age = 2.8f - m.t
@@ -408,13 +409,6 @@ class Hud(private val game: Game) {
         c.restore()
     }
 
-    private fun drawPhotoHint(c: Canvas) {
-        drawChip(c, game.screenW / 2f, dp(24f), "카메라 모드! 새를 탭해서 촬영하세요")
-    }
-
-    // ------------------------------------------------------------------
-    // 컨트롤
-    // ------------------------------------------------------------------
 
     private fun drawControls(c: Canvas) {
         val active = game.input.activeControls()
@@ -477,6 +471,26 @@ class Hud(private val game: Game) {
         val cw = cam.width * (dp(20f) / 20f)
         val ch = cam.height * (dp(20f) / 16f)
         c.drawBitmap(cam, null, RectF(camBCx - cw / 2, camBCy - ch / 2, camBCx + cw / 2, camBCy + ch / 2), game.assets.sprPaint)
+
+        // 카메라 모드: 촬영 중임을 알리는 붉은 펄스 링 + 회전하는 점선 아크
+        if (photoModeHint) {
+            val pulse = 0.5f + 0.5f * sin(game.time * 3.4f)
+            stroke.color = Color.argb(46, 226, 87, 76)
+            stroke.strokeWidth = dp(9f)
+            c.drawCircle(camBCx, camBCy, camBR + dp(5f) + dp(4f) * pulse, stroke)
+            stroke.color = Color.argb((165 + 70 * pulse).toInt().coerceIn(0, 255), 226, 87, 76)
+            stroke.strokeWidth = dp(2.6f)
+            c.drawCircle(camBCx, camBCy, camBR + dp(3f) + dp(3f) * pulse, stroke)
+
+            val arcR = camBR + dp(8f)
+            val arcRect = RectF(camBCx - arcR, camBCy - arcR, camBCx + arcR, camBCy + arcR)
+            linePaint.color = Color.argb(225, 255, 232, 220)
+            linePaint.strokeWidth = dp(3f)
+            val baseDeg = (game.time * 96f) % 360f
+            for (i in 0 until 6) {
+                c.drawArc(arcRect, baseDeg + i * 60f, 20f, false, linePaint)
+            }
+        }
 
         // 달리기 (») — 누르고 있으면 강조
         val running = game.input.isRun
@@ -1136,4 +1150,5 @@ class Hud(private val game: Game) {
         }
         return lines
     }
+
 }
