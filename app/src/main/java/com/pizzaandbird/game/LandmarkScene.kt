@@ -282,6 +282,9 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         }
     }
 
+    private var lastExhibitT = -999f
+    private var lastRestT = -999f
+
     private fun viewExhibit() {
         if (region.id !in state.landmarksSeen) {
             state.landmarksSeen.add(region.id)
@@ -291,6 +294,12 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             game.toast("첫 관람 기념! ${won(reward)} · 행운 +8")
             game.sfx(Audio.Sfx.SPARKLE, 0.85f)
         } else {
+            // 재관람 연타로 행운을 무한정 올리지 못하게 쿨다운
+            if (game.time - lastExhibitT < 60f) {
+                game.toast("조금 전에 감상했어요~ 천천히 둘러보세요")
+                return
+            }
+            lastExhibitT = game.time
             state.luck = (state.luck + 3f).coerceAtMost(100f)
             game.toast("전망을 감상했다 · 행운 +3")
             game.sfx(Audio.Sfx.SPARKLE, 0.6f)
@@ -299,9 +308,15 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
     }
 
     private fun rest() {
-        state.hunger = (state.hunger + 45f).coerceAtMost(100f)
+        // 차 한 잔은 배를 살짝 채울 뿐 — 무한 식량 창고가 되지 않게 쿨다운
+        if (game.time - lastRestT < 30f) {
+            game.toast("조금 전에 쉬었어요~ 창밖 풍경을 눈에 담아 보세요")
+            return
+        }
+        lastRestT = game.time
+        state.hunger = (state.hunger + 8f).coerceAtMost(100f)
         state.luck = (state.luck + 2f).coerceAtMost(100f)
-        game.toast("잠시 쉬며 창밖을 봤다 · 배부름 회복 · 행운 +2")
+        game.toast("따뜻한 차 한 잔 · 배부름 조금 회복 · 행운 +2")
         game.sfx(Audio.Sfx.SPARKLE, 0.5f)
     }
 
