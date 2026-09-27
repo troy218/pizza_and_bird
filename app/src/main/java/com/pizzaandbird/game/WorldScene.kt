@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import java.util.Random
 import kotlin.math.abs
@@ -44,6 +45,7 @@ class WorldScene(
 
     private var camX = 0f
     private var camY = 0f
+    override fun cameraOffset(): PointF = PointF(camX, camY)
     private var spawnTimer = 1.5f
     private var hungerAcc = 0f
     private var luckAcc = 0f
@@ -1067,8 +1069,9 @@ class WorldScene(
             }
             // 이정표 탭
             tapSign(tap.x, tap.y)
-            // NPC 탭
-            val npc = nearestNpc(46f)
+            // 근처 NPC가 여러 명이어도 실제로 탭한 주민과 대화한다.
+            val npc = map.npcs.filter { hypot(it.cx - player.cx, it.cy - player.cy) < 46f }
+                .minByOrNull { hypot(it.cx - tap.x, it.cy - tap.y) }
             if (npc != null && hypot(npc.cx - tap.x, npc.cy - tap.y) < 18f) {
                 talkTo(npc)
                 return

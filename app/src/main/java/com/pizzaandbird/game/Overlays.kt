@@ -2286,6 +2286,10 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                     if (pts.size == 1) startPinch()
                     if (p != null && !p.moved) onTap(ev.x, ev.y)
                 }
+                Input.RawEv.CANCEL -> {
+                    pts.remove(ev.id)
+                    if (pts.size == 1) startPinch()
+                }
             }
         }
     }
