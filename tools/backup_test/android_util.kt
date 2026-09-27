@@ -1,12 +1,6 @@
-@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+@file:Suppress("unused")
 
-/**
- * tools/preview — 스텁 보완 (android.util).
- *
- * main 병합 코드가 새로 쓰기 시작한 API 중 프리뷰 스텁에 없던 것들.
- * (Assets.kt의 LruCache 조류 사진 캐시, Audio.kt의 Log)
- * 헤드리스 프리뷰/스모크 컴파일용 최소 구현이다.
- */
+/** tools/backup_test — android.util 최소 스텁 (BirdPhotography의 LruCache 등). */
 package android.util
 
 open class LruCache<K, V>(private val maxSize: Int) {
@@ -15,7 +9,7 @@ open class LruCache<K, V>(private val maxSize: Int) {
     @Synchronized fun get(key: K): V? = map[key]
     @Synchronized fun put(key: K, value: V): V? = map.put(key, value)
     @Synchronized fun remove(key: K): V? = map.remove(key)
-    @Synchronized fun evictAll() { map.clear() }
+    fun evictAll() { map.clear() }
 }
 
 object Log {

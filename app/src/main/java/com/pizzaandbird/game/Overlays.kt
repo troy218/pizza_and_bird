@@ -1366,7 +1366,15 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 SettingItem({ "box" }, { "처음부터 다시 시작" }, "저장 데이터를 모두 지우고 새로 시작해요", action = {
                     resetArmed = true
                 })
-            }
+            },
+            // [P05] 클라우드 없는 백업 — 코드 한 장으로 세이브를 다른 기기로 옮긴다.
+            // 닫히면 왔던 자리(여행 가방 메뉴)를 다시 열어 준다.
+            SettingItem({ "🗄" }, { "백업 코드 만들기" }, "진행 상황을 텍스트 코드로 복사해 다른 기기로", action = {
+                scene.openOverlay(BackupOverlay(scene, BackupOverlay.Mode.CREATE) { scene.openOverlay(MenuOverlay(scene)) })
+            }),
+            SettingItem({ "📥" }, { "코드에서 불러오기" }, "복사해 둔 백업 코드를 클립보드에서 읽어 복원", action = {
+                scene.openOverlay(BackupOverlay(scene, BackupOverlay.Mode.RESTORE) { scene.openOverlay(MenuOverlay(scene)) })
+            })
         )
 
         val gap = dp(scene, 6f)
