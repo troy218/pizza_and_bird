@@ -27,7 +27,11 @@ class Assets {
     lateinit var playerDown: Array<Bitmap>      // [0] 서있기 [1][2] 걷기
     lateinit var playerUp: Array<Bitmap>
     lateinit var playerSide: Array<Bitmap>      // 오른쪽 방향
-    lateinit var playerSideL: Array<Bitmap>     // 왼쪽 방향 (플립)
+lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
+    lateinit var femaleDown: Array<Bitmap>
+    lateinit var femaleUp: Array<Bitmap>
+    lateinit var femaleSide: Array<Bitmap>
+    lateinit var femaleSideL: Array<Bitmap>
     lateinit var bikeDown: Bitmap
     lateinit var bikeUp: Bitmap
     lateinit var bikeSide: Bitmap
@@ -289,6 +293,11 @@ class Assets {
         playerUp = Array(3) { person(1, it, pl) }
         playerSide = Array(3) { person(2, it, pl) }
         playerSideL = Array(3) { flipH(playerSide[it]) }
+        val fp = pl.copy(hair = c(0xFF6A3155), hair2 = c(0xFF4A203D), top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B), pants = c(0xFF66529B), pants2 = c(0xFF4D3C7C))
+        femaleDown = Array(3) { person(0, it, fp) }
+        femaleUp = Array(3) { person(1, it, fp) }
+        femaleSide = Array(3) { person(2, it, fp) }
+        femaleSideL = Array(3) { flipH(femaleSide[it]) }
 
         val bikeCol = c(0xFFC9503A)
         val bikeDark = c(0xFF8A3326)
