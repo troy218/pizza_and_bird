@@ -1,5 +1,5 @@
-# preview build 2026-09-27 14:55:45Z
-# commit: 84db1110c11cd0d365b051b5eed181baae731399
+# preview build 2026-09-27 15:02:23Z
+# commit: bb972f8c2e8269d5bbb22269db9207aa9a33183c
 # gradle exit code: 1
 >> kotlin 컴파일러 다운로드 중...
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
@@ -7,46 +7,20 @@
 WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
-36:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2082:36 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-37:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2082:36 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-38:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2093:66 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-39:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2093:66 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-40:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2097:57 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-41:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2097:57 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-42:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2108:97 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-43:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2108:97 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-44:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2109:96 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-45:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2109:96 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-46:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2119:59 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-47:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2119:59 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-48:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2147:61 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-49:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2147:61 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-50:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2170:59 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-51:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2170:59 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-52:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2188:72 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-53:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2188:72 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-54:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2201:65 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-55:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2201:65 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-56:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2215:96 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-57:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2254:38 Argument type mismatch: actual type is 'kotlin.Int', but 'kotlin.Float' was expected.
-58:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2291:32 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-59:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2305:32 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-60:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2314:59 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-61:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2318:61 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-62:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2329:61 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-63:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2363:101 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-64:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2395:57 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-65:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2397:59 Argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-66:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:580:25 Unresolved reference 'fastTravel'.
-67:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/WorldScene.kt:2044:29 Unresolved reference 'fastTravel'.
-72:FAILURE: Build failed with an exception.
-84:* Exception is:
-85:org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
-94:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-117:Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
-218:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-241:Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-242:	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
+36:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2258:38 Argument type mismatch: actual type is 'kotlin.Int', but 'kotlin.Float' was expected.
+37:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Assets.kt:2258:38 Argument type mismatch: actual type is 'kotlin.Int', but 'kotlin.Float' was expected.
+38:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:580:25 Unresolved reference 'fastTravel'.
+39:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:580:25 Unresolved reference 'fastTravel'.
+40:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/WorldScene.kt:2044:29 Unresolved reference 'fastTravel'.
+41:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/WorldScene.kt:2044:29 Unresolved reference 'fastTravel'.
+46:FAILURE: Build failed with an exception.
+58:* Exception is:
+59:org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
+68:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+91:Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+192:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+215:Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+216:	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 ...
 	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:50)
 	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:28)
@@ -166,70 +140,13 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	... 2 more
 
 
-BUILD FAILED in 47s
+BUILD FAILED in 50s
 26 actionable tasks: 26 executed
 
 ----- preview render log (last 200 lines) -----
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2082:36: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    p.color = fade(0xFF101416, 190)
-                                   ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2093:66: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, x, y0, 1.3f, 30f - y0, fade(0xFF14181A, 170))
-                                                                 ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2097:57: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                inRock(cv, p, k, 3f, 27f, 26f, 3f, fade(0xFF2C3234, 200))
-                                                        ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2108:97: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.35f, cy[i] + ch[i] * 0.32f, 1f, 1f, fade(0xFF0C0F10, 200))
-                                                                                                ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2109:96: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.58f, cy[i] + ch[i] * 0.5f, 1f, 1f, fade(0xFF0C0F10, 170))
-                                                                                               ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2119:59: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, dx, dy, 1f, 1f, fade(0xFF0C0F10, 170))
-                                                          ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2147:61: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                inRock(cv, p, k, 5f, 23.4f, 24f, 3.2f, fade(0xFF2B343A, 200))
-                                                            ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2170:59: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                inRock(cv, p, k, 2f, 22f, 30f, 1.4f, fade(0xFF3A4A50, 200))
-                                                          ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2188:72: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRockOval(cv, p, k, cx, cy, rad, rad * 0.9f, fade(0xFF4A5247, 200))
-                                                                       ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2201:65: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRockOval(cv, p, k, cx, cy, rad, rad, fade(0xFF515949, 180))
-                                                                ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2215:96: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.3f, cy[i] + ch[i] * 0.34f, 1f, 1f, fade(0xFF4A5247, 200))
-                                                                                               ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2254:38: error: argument type mismatch: actual type is 'kotlin.Int', but 'kotlin.Float' was expected.
+app/src/main/java/com/pizzaandbird/game/Assets.kt:2258:38: error: argument type mismatch: actual type is 'kotlin.Int', but 'kotlin.Float' was expected.
                     inRock(cv, p, k, cx[i], cy[i] + ch[i] * 0.5f, cw[i], 0.9f, fade(P_SAN_D, 110))
                                      ^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2291:32: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                p.color = fade(0xFF5F824E, 170)
-                               ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2305:32: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                p.color = fade(0xFFB4B9B4, 220)
-                               ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2314:59: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, 4f, y, 25f, 1f, fade(0xFF2E363A, 205))
-                                                          ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2318:61: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRock(cv, p, k, wx, 12f, 1f, 16f, fade(0xFF2E363A, 205))
-                                                            ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2329:61: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                inRock(cv, p, k, 6f, 12.6f, 20f, 1.4f, fade(0xFF8E959B, 190))
-                                                            ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2363:101: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                    inRockOval(cv, p, k, cx[i].toFloat(), cy[i], rad[i] * 0.5f, rad[i] * 0.4f, fade(0xFF8A6A4E, 150))
-                                                                                                    ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2395:57: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                inRock(cv, p, k, 9f, 24f, 15f, 3f, fade(0xFF2F383E, 170))
-                                                        ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2397:59: error: argument type mismatch: actual type is 'kotlin.Long', but 'kotlin.Int' was expected.
-                inRock(cv, p, k, 9f, 28.4f, 15f, 2f, fade(0xFF3E4A50, 200))
-                                                          ^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Overlays.kt:580:25: error: unresolved reference 'fastTravel'.
                         fastTravel(g, near.regionId)
                         ^^^^^^^^^^
