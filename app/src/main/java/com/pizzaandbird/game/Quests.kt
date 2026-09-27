@@ -95,10 +95,10 @@ object MainStory {
         fun objective(s: GameState): String {
             val parts = ArrayList<String>()
             if (minLevel > 1) parts += "레벨 ${s.level}/$minLevel"
-            if (minLifers > 0) parts += "라이퍼 ${s.birdCounts.size}/$minLifers종"
-            if (minVisited > 1) parts += "방문 ${s.visited.size}/$minVisited곳"
+            if (minLifers > 0) parts += "라이퍼 ${s.birdCounts.size}/${minLifers}종"
+            if (minVisited > 1) parts += "방문 ${s.visited.size}/${minVisited}곳"
             collectionDef()?.let { parts += "${it.name} ${it.progress(s)}" }
-            if (minThreeStars > 0) parts += "3성 기록 ${s.bestStars.values.count { it >= 3 }}/$minThreeStars종"
+            if (minThreeStars > 0) parts += "3성 기록 ${s.bestStars.values.count { it >= 3 }}/${minThreeStars}종"
             return if (parts.isEmpty()) "보리 박사에게 말을 걸기" else parts.joinToString(" · ")
         }
     }
