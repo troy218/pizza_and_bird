@@ -555,6 +555,8 @@ object Birds {
         val text = "$name ${entry.englishName} ${entry.scientificName} $family $order"
 
         val seasons = when {
+            // Family-wide migration defaults must not hide these Korean resident birds.
+            name in setOf("흰뺨검둥오리", "원앙", "괭이갈매기", "왜가리", "쇠백로", "논병아리", "흰목물떼새", "검은머리물떼새") -> BirdSeason.ALL
             family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과", "호사도요과", "물꿩과", "제비물떼새과") ->
                 setOf(BirdSeason.SPRING, BirdSeason.AUTUMN)
             family == "오리과" || hasAny(text, "기러기", "고니", "두루미", "Crane", "Goose", "Swan", "Duck", "Teal") ->

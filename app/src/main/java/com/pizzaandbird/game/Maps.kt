@@ -1637,6 +1637,7 @@ class Player {
 class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var state = 0                    // 0 대기, 1 깡충, 2 도망
     var idleT = 0.8f
+    private var residenceLeft = 55f + (Math.random() * 65f).toFloat()
     var hopFromX = 0f; var hopFromY = 0f
     var hopToX = 0f; var hopToY = 0f
     var hopT = 0f
@@ -1656,6 +1657,14 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     val cy: Float get() = y + sprH * 0.72f
 
     fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
+        // Birds eventually leave even when the player waits still: no permanently full pool.
+        residenceLeft -= dt
+        if (residenceLeft <= 0f && state == 0) {
+            state = 2
+            fleeVx = if (faceLeft) -65f else 65f
+            fleeVy = -45f
+            fleeT = 0f
+        }
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
             Tier.UNCOMMON -> 2.3f
@@ -1689,10 +1698,10 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     val (ddx, ddy) = dirs[(Math.random() * dirs.size).toInt()]
                     val nx = x + ddx * 16f
                     val ny = y + ddy * 16f
-                    val tx = ((nx + 7f) / 16f).toInt()
-                    val ty = ((ny + 8f) / 16f).toInt()
+                    val tx = ((nx + sprW / 2f) / 16f).toInt()
+                    val ty = ((ny + sprH) / 16f).toInt()
                     val nearPlayer = sqrt((nx - playerCx) * (nx - playerCx) + (ny - playerCy) * (ny - playerCy)) < 40f
-                    if (map.walkableTile(tx, ty) && !nearPlayer) {
+                    if (BirdEcology.suitability(def, map, tx, ty) > 0.0 && !nearPlayer) {
                         hopFromX = x; hopFromY = y
                         hopToX = nx; hopToY = ny
                         hopT = 0f
