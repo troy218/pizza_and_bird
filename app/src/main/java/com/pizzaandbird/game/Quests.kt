@@ -708,6 +708,24 @@ object MainStory {
             complete = "‘우리가 새를 바라보는 동안, 새도 살아갈 내일을 얻기를.’ 훌륭하군. 자네 할머니가 남긴 첫 문장에서 시작해, 자네가 마지막 문장을 완성했네. …그녀가 즐겨 하시던 말이 떠오르는군. ‘피자는 먹을 때가 가장 좋고, 새는 보낼 때가 가장 값진 법이다.’ 메인 이야기는 여기서 멈추지만 계절과 새의 이야기, 그리고 이 동네 사람들의 이야기는 끝나지 않아. 의뢰와 도장 깨기는 언제든 계속하게.")
     )
 
+    /** 각 장을 마친 뒤 할머니의 수첩에서 발견하는 레시피. 0장은 시작부터 사용 가능. */
+    private val pizzaRecipes = listOf(
+        listOf(6),                    // 처음엔 마르게리타 한 판
+        listOf(0, 1, 7),             // 프롤로그
+        listOf(3, 4, 12),            // 동네
+        listOf(2, 8, 13),            // 숲
+        listOf(5, 9, 14, 15),        // 물길
+        listOf(10, 16, 17),          // 계절
+        listOf(11, 18),              // 갯벌
+        listOf(19)                   // 지켜 보는 사람
+    )
+
+    fun unlockedPizzas(stage: Int): Set<Int> =
+        pizzaRecipes.take((stage + 1).coerceIn(1, pizzaRecipes.size)).flatten().toSet()
+
+    fun newlyUnlockedPizzas(stage: Int): List<PizzaDef> =
+        pizzaRecipes.getOrElse(stage) { emptyList() }.map(Pizzas::of)
+
     fun current(s: GameState): Chapter? = if (s.mainQuestFinished) null else CHAPTERS.getOrNull(s.mainQuestStage)
 }
 

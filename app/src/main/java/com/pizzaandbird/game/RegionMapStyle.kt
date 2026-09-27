@@ -18,6 +18,13 @@ data class MapRiver(
     val reedBanks: Boolean = true
 )
 
+/** A climbable high point. The builder turns this into a small deck plus a ramp. */
+data class ViewpointSpec(
+    val point: MapPoint,
+    val label: String,
+    val height: Int = 2
+)
+
 /**
  * A region's native-looking sprite mix. The indices refer to the generated tile-art
  * variants in Assets.kt; choosing a family rather than a global modulo makes the same
@@ -70,7 +77,9 @@ data class RegionMapStyle(
     /** Move the northern city blocks up to leave room for Seoul's Han River. */
     val northBuildingY: Int = 5,
     /** Native-looking rocks, trees, and ground cover for this exact region. */
-    val natureArt: NatureArtSet = NatureArtSet()
+    val natureArt: NatureArtSet = NatureArtSet(),
+    /** A regional high point: reached by a ramp, never a teleport-only landmark. */
+    val viewpoint: ViewpointSpec? = null
 )
 
 /**
@@ -240,6 +249,55 @@ object RegionMapStyles {
             "field" in region.habitats -> fieldNature
             else -> urbanParkNature
         }
+    }
+
+    /**
+     * One low-key high point per map. Coordinates are only an anchor: MapBuilder moves
+     * it to the nearest free patch when a river, building, or regional landmark occupies
+     * the exact tile. The names keep the silhouette tied to the real place.
+     */
+    private fun viewpointFor(region: RegionDef): ViewpointSpec {
+        val data = when (region.id) {
+            "seoul" -> MapPoint(29, 21) to "남산 한강 전망 데크"
+            "incheon" -> MapPoint(13, 11) to "서해 갯벌 관찰 데크"
+            "chuncheon" -> MapPoint(14, 22) to "의암호 호반 전망대"
+            "gangneung" -> MapPoint(17, 12) to "대관령 솔숲 전망대"
+            "sokcho" -> MapPoint(13, 18) to "설악 계곡 전망대"
+            "daejeon" -> MapPoint(16, 23) to "갑천 둔치 전망 데크"
+            "jeonju" -> MapPoint(27, 11) to "한옥마을 기와 전망대"
+            "daegu" -> MapPoint(27, 10) to "팔공산 자락 전망대"
+            "gwangju" -> MapPoint(27, 13) to "무등산 숲 전망대"
+            "ulsan" -> MapPoint(22, 21) to "태화강 대숲 전망 데크"
+            "busan" -> MapPoint(29, 12) to "용두산 항구 전망대"
+            "jeju" -> MapPoint(24, 9) to "오름 바람 전망대"
+            "ganghwa" -> MapPoint(15, 11) to "강화 갯벌 둑 전망대"
+            "cheorwon" -> MapPoint(29, 18) to "철원 평야 두루미 데크"
+            "eulsukdo" -> MapPoint(25, 10) to "을숙도 철새 전망대"
+            "gongneung" -> MapPoint(24, 7) to "공릉천 둑 전망대"
+            "gwangneung" -> MapPoint(13, 10) to "광릉숲 나무 전망대"
+            "songdo" -> MapPoint(13, 12) to "송도 갯벌 탐조 데크"
+            "sihwa" -> MapPoint(19, 10) to "시화호 갈대 전망대"
+            "hwaseong" -> MapPoint(25, 18) to "화성호 도요새 데크"
+            "ansan" -> MapPoint(25, 13) to "안산 갈대 전망대"
+            "maehyang" -> MapPoint(19, 18) to "매향리 해안 전망대"
+            "junam" -> MapPoint(17, 9) to "주남저수지 물새 데크"
+            "suncheon" -> MapPoint(29, 12) to "순천만 용산 전망대"
+            "geumgang" -> MapPoint(19, 8) to "금강 하구 군무 전망대"
+            "gochang" -> MapPoint(14, 10) to "고창 갯벌 둑 전망대"
+            "taean" -> MapPoint(24, 11) to "안면도 솔숲 전망대"
+            "upo" -> MapPoint(25, 12) to "우포늪 물안개 데크"
+            "hadori" -> MapPoint(26, 12) to "하도리 철새 데크"
+            "hallasan" -> MapPoint(21, 9) to "한라산 숲 전망대"
+            "imjin" -> MapPoint(25, 10) to "임진강 두루미 전망대"
+            "wangpi" -> MapPoint(26, 10) to "왕피천 계곡 전망대"
+            else -> MapPoint(28, 11) to "지역 전망 데크"
+        }
+        val height = when {
+            region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats -> 3
+            region.kind == RegionKind.WETLAND || region.kind == RegionKind.RIVER -> 1
+            else -> 2
+        }
+        return ViewpointSpec(data.first, data.second, height)
     }
 
     fun forRegion(region: RegionDef): RegionMapStyle {
@@ -515,7 +573,8 @@ object RegionMapStyles {
                 "daegu" -> 6   // 분지 — 북쪽 팔공산 기슭에 블록이 바짝 붙지 않게
                 else -> 5
             },
-            natureArt = natureArtFor(region)
+            natureArt = natureArtFor(region),
+            viewpoint = viewpointFor(region)
         )
     }
 }

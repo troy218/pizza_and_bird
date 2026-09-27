@@ -148,7 +148,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
-        game.audio.stopAmb()
+        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리, 맑으면 창밖 계절 소리
     }
 
     override fun camera(): ViewRig = rig
@@ -156,6 +156,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     override fun update(dt: Float) {
         game.hud.update(dt)
         updateQuestHud()
+        applyIndoorAmbience()   // 비가 오고 그치는 것을 창밖 소리로 (자다 일어나도 바로 반영)
         if (overlay != null) {
             game.audio.stopSteps()
             updateRig(dt, 0f, 0f, Gait.IDLE)   // 화덕 미니게임 뒤에서도 여운은 이어진다
@@ -761,32 +762,26 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         )
     }
 
-    /** 시각에 따른 하늘색 (새벽 분홍 → 낮 하늘 → 노을 → 밤) */
-    private fun skyColor(h: Float): Int {
-        val night = 0xFF1C2350.toInt()
-        val dawn = 0xFFF2A07A.toInt()
-        val day = 0xFF9FD4F0.toInt()
-        val dusk = 0xFFF08A5A.toInt()
-        return when {
-            h < 4.5f -> night
-            h < 6f -> lerpC(night, dawn, (h - 4.5f) / 1.5f)
-            h < 7.5f -> lerpC(dawn, day, (h - 6f) / 1.5f)
-            h < 17f -> day
-            h < 18.5f -> lerpC(day, dusk, (h - 17f) / 1.5f)
-            h < 20f -> lerpC(dusk, night, (h - 18.5f) / 1.5f)
-            else -> night
-        }
-    }
+    /**
+     * 시각에 따른 창밖 하늘색.
+     * DayCycle 의 연속 색 램프를 그대로 쓴다 — 여명 남색 → 보랏빛 → 살구빛 동틀 녘 →
+     * 한낮 하늘 → 노을 주홍 → 자줏빛 땅거미 → 밤. 창문 위쪽은 천정색으로 살짝 짙게.
+     */
+    private fun skyColor(h: Float): Int = DayCycle.skyColor(h)
 
     /** 창밖 풍경: 시각·날씨에 따라 하늘색이 변하고, 밤엔 별과 달, 비/눈 오는 날엔 빗줄기/눈송이 */
     private fun drawWindows(c: Canvas, camXv: Float, camYv: Float) {
         val h = state.worldTime
         val w = homeWeather
+        DayCycle.season = state.season()
         val dl = daylight(h)
         var sky = skyColor(h)
+        var skyTop = DayCycle.skyTopColor(h)
         if (w != Weather.SUNNY) {
             val grey = if (w == Weather.SNOW) 0xFFC4CCD6.toInt() else 0xFF8C98A8.toInt()
-            sky = lerpC(sky, grey, (when (w) { Weather.WIND -> 0.25f; Weather.CLOUDY -> 0.45f; else -> 0.7f }) * (0.25f + 0.75f * dl))
+            val gk = (when (w) { Weather.WIND -> 0.25f; Weather.CLOUDY -> 0.45f; else -> 0.7f }) * (0.25f + 0.75f * dl)
+            sky = lerpC(sky, grey, gk)
+            skyTop = lerpC(skyTop, grey, gk * 0.8f)
         }
         for ((i, wt) in windowTiles.withIndex()) {
             val sx = (wt.first * 16f - camX) * WORLD_SCALE
@@ -794,6 +789,9 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             val l = sx + 7.4f; val t = sy + 7.4f; val r = sx + 24.6f; val b = sy + 21.6f
             uiFill.color = sky
             c.drawRect(l, t, r, b, uiFill)
+            // 창 위쪽은 천정색 — 하늘에 깊이가 생긴다
+            uiFill.color = skyTop
+            c.drawRect(l, t, r, t + 4.6f, uiFill)
             // 하늘 아래쪽은 살짝 밝게 (지평선)
             uiFill.color = Color.argb(50, 255, 255, 255)
             c.drawRect(l, b - 4f, r, b, uiFill)
@@ -881,7 +879,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             fxPath.lineTo(sx + 24.6f + shift, floorTop + len)
             fxPath.lineTo(sx + 7.4f + shift, floorTop + len)
             fxPath.close()
-            uiFill.color = if (warm) Color.argb((52 * k).toInt(), 255, 214, 150) else Color.argb((44 * k).toInt(), 255, 244, 200)
+            // 바닥에 비치는 햇살 색도 그 시각의 직사광 색을 따라간다
+            val sun = DayCycle.sunlightColor(h)
+            uiFill.color = Color.argb(((if (warm) 52 else 44) * k).toInt(),
+                Color.red(sun), Color.green(sun), Color.blue(sun))
             c.drawPath(fxPath, uiFill)
             // 창살 그림자
             uiFill.color = Color.argb((26 * k).toInt(), 90, 70, 40)
@@ -979,6 +980,8 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         val flick = 0.9f + sin(game.time * 9.1f) * 0.05f + sin(game.time * 15.7f) * 0.05f
         val ovx = (ovenX - camX) * WORLD_SCALE
         val ovy = (ovenY - camY) * WORLD_SCALE
+        // 실내 어둠의 '색' 도 바깥 시간대를 따라간다 (새벽 남보라 → 노을 주홍기 → 밤 남색)
+        val amb = DayCycle.ambient(state.worldTime, homeWeather)
         val dark = ((1f - dl) * 100f).toInt()
         if (dark > 4) {
             val k = dark / 100f
@@ -987,7 +990,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             val lp = (WorldScene.LIGHT_W - game.virtW) / 2f
             val lpy = (WorldScene.LIGHT_H - game.virtH) / 2f
             val lm = LightMaps.get(WorldScene.LIGHT_W, WorldScene.LIGHT_H)
-            lm.begin(Color.argb(dark, 16, 18, 46))
+            lm.begin(Color.argb(dark, Color.red(amb), Color.green(amb), Color.blue(amb)))
             lm.light(ovx + lp, ovy + lpy, 120f * flick, (255 * k).toInt())
             for (i in decorTiles.indices) {
                 if (state.decorSlots[i] == 3) {

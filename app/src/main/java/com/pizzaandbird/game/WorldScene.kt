@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RadialGradient
@@ -151,6 +153,8 @@ class WorldScene(
     // 새벽/노을 빛줄기 그라디언트 — 높이가 변할 때만 다시 만든다.
     private var shaftShader: LinearGradient? = null
     private var shaftShaderH = -1f
+    private var shaftTint = 0
+    private var shaftFilter: PorterDuffColorFilter? = null
 
     init {
         state.region = region.id
@@ -206,9 +210,16 @@ class WorldScene(
         game.hud.showStats = true
         game.hud.showMinimap = true
         fx.weather = weather
+        map.season = state.season()
+        grass.setSeason(state.season())
+        fx.season = state.season()
+        DayCycle.season = state.season()      // 계절마다 해 뜨고 지는 시각이 달라진다
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
+        if (map.viewpoints.isNotEmpty()) {
+            game.toast("돌 경사로를 따라 ${map.viewpoints.first().label}에 올라가 보세요")
+        }
 
         game.audio.playBgm(regionBgm())       // 🎵 지역 분위기에 맞는 곡
         updateAmbience()
@@ -228,19 +239,44 @@ class WorldScene(
     }
 
     /**
-     * 지역 성격 + 시간대에 맞는 환경음 루프.
+     * 계절 + 지역 성격 + 시간대 + 날씨에 맞는 환경음 루프.
      *
-     *   강풍     -> 바람 소리     (amb_wind)
-     *   밤       -> 풀벌레 우는 밤 (amb_night)
-     *   바닷가   -> 파도와 갈매기 (amb_sea)
-     *   숲       -> 숲속 새소리   (amb_forest)
-     *   산       -> 낮은 허밍     (amb_hum)
-     *   그 외 낮 -> 들판 새소리   (amb_birds)
+     *   비           -> 빗소리 (여름 장마엔 세찬 비, 그 외엔 잔잔한 비)
+     *   강풍         -> 바람 소리        (amb_wind)
+     *   여름 맑은 낮 -> 매미 합창        (amb_cicada)
+     *   가을 맑은 밤 -> 귀뚜라미         (amb_cricket)
+     *   봄 밤        -> 개구리           (amb_frog)
+     *   겨울         -> 차가운 바람      (amb_wind, 낮게)
+     *   밤           -> 풀벌레 우는 밤    (amb_night)
+     *   바닷가       -> 파도와 갈매기    (amb_sea)
+     *   숲           -> 숲속 새소리      (amb_forest)
+     *   산           -> 낮은 허밍        (amb_hum)
+     *   그 외 낮     -> 들판 새소리      (amb_birds)
+     *
+     * 비는 소리 자체가 커서 밤 풀벌레보다 우선한다(빗소리에 벌레 소리가 묻히는 게 자연스럽다).
+     * 실내(집·랜드마크)는 비엔 지붕 빗소리, 맑으면 창밖 계절 소리 — Scene.applyIndoorAmbience().
      */
     private fun updateAmbience() {
+        val night = state.isNight()
+        val season = state.season()
         when {
+            weather == Weather.RAIN -> {
+                val monsoon = state.season() == Season.SUMMER      // 장마철엔 쏟아지는 비
+                game.audio.playAmb(
+                    if (monsoon) R.raw.amb_rain_heavy else R.raw.amb_rain,
+                    if (monsoon) 0.30f else 0.26f
+                )
+            }
             weather == Weather.WIND -> game.audio.playAmb(R.raw.amb_wind, 0.22f)
-            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+            season == Season.SUMMER && !night && weather != Weather.RAIN ->
+                game.audio.playAmb(R.raw.amb_cicada, 0.30f)
+            season == Season.AUTUMN && night && weather != Weather.RAIN ->
+                game.audio.playAmb(R.raw.amb_cricket, 0.30f)
+            season == Season.SPRING && night ->
+                game.audio.playAmb(R.raw.amb_frog, 0.30f)
+            season == Season.WINTER ->
+                game.audio.playAmb(R.raw.amb_wind, if (night) 0.16f else 0.13f)
+            night -> game.audio.playAmb(R.raw.amb_night, 0.24f)
             "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
             "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
             "mountain" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
@@ -248,10 +284,37 @@ class WorldScene(
         }
     }
 
-    /** 지역에 어울리는 지저귐 한 소리 — 숲·산에선 뻐꾸기가 섞인다 */
+    /**
+     * 발밑 지형에 맞는 발소리 고르기.
+     *
+     * 눈이 쌓였으면 바닥이 무엇이든 '뽀득' 소리, 물가(갈대)는 철퍽, 갯벌은 사박,
+     * 광장·실내는 또각, 풀·꽃밭은 사각사각, 나머지 흙길은 자갈이다.
+     * (Fx.WorldFx.snowCover 는 눈이 쌓인 정도 0..1 — 발자국 연출과 같은 기준을 쓴다)
+     */
+    private fun stepKindUnderFeet(): Audio.Steps {
+        val tile = map.feetTile(player.x, player.y)
+        return when {
+            fx.snowCover > 0.3f && tile != T.WATER -> Audio.Steps.SNOW
+            tile == T.WATER || tile == T.REED -> Audio.Steps.WATER
+            tile == T.SAND -> Audio.Steps.SAND
+            tile == T.PLAZA || tile == T.FLOOR -> Audio.Steps.STONE
+            tile == T.GRASS || tile == T.TALLGRASS || tile == T.FLOWER -> Audio.Steps.GRASS
+            else -> Audio.Steps.GRAVEL
+        }
+    }
+
+    /** 고양이 야옹 3종 중 하나 — 쓰다듬을 때마다 같은 소리가 반복되지 않게 */
+    private fun randomMeow(): Audio.Sfx = when (rnd.nextInt(3)) {
+        0 -> Audio.Sfx.CAT_MEOW1
+        1 -> Audio.Sfx.CAT_MEOW2
+        else -> Audio.Sfx.CAT_MEOW3
+    }
+
+    /** 지역에 어울리는 지저귐 한 소리 — 봄·여름 숲·산에선 뻐꾸기가 섞인다 */
     private fun randomChirp(): Audio.Sfx {
         val woods = "forest" in region.habitats || "mountain" in region.habitats
-        if (woods && rnd.nextFloat() < 0.4f) {
+        val season = state.season()
+        if (woods && (season == Season.SPRING || season == Season.SUMMER) && rnd.nextFloat() < 0.4f) {
             return if (rnd.nextBoolean()) Audio.Sfx.CUCKOO1 else Audio.Sfx.CUCKOO2
         }
         return if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2
@@ -286,17 +349,23 @@ class WorldScene(
         updateSeason()
         updateWeather(dt)
         fx.weather = weather
-        seasonFx.update(dt, state.season(), weather, game.virtW.toFloat(), game.virtH.toFloat())
+        // 계절 동기화 — 지도(나무·풀빛·꽃)·풀잎·적설·얼음·화면 입자가 같은 계절을 본다
+        val seasonNow = state.season()
+        map.season = seasonNow
+        grass.setSeason(seasonNow)
+        fx.season = seasonNow
+        DayCycle.season = seasonNow
+        seasonFx.update(dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(), state.isNight())
 
         updatePlayer(dt)
         finishGuidedArrival()
         updateStats(dt)
         checkTileTriggers()
 
-        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~)
+        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~). 지형이 바뀌면 소리도 바뀐다.
         val stepping = player.moving && !player.bike
         game.audio.steps(
-            if (stepping) Audio.Steps.GRAVEL else Audio.Steps.NONE,
+            if (stepping) stepKindUnderFeet() else Audio.Steps.NONE,
             run = stepping && game.input.isRun
         )
 
@@ -313,7 +382,14 @@ class WorldScene(
         } else if (birds.isNotEmpty()) {
             chirpT -= dt
             if (chirpT <= 0f) {
-                chirpT = 7f + rnd.nextFloat() * 9f
+                // 봄엔 시끄럽게, 여름 낮엔 매미 루프에 묻히지 않게 뜸하게, 겨울엔 가끔
+                val (base, span) = when (state.season()) {
+                    Season.SPRING -> 3.5f to 5f
+                    Season.SUMMER -> 9f to 9f
+                    Season.AUTUMN -> 7f to 9f
+                    Season.WINTER -> 12f to 12f
+                }
+                chirpT = base + rnd.nextFloat() * span
                 game.sfx(randomChirp(), 0.45f)
             }
         }
@@ -417,6 +493,7 @@ class WorldScene(
             nearFlowerTile() != null && Healing.pickableHerbs(state.season(), region.habitats).isNotEmpty() -> "leaf"
             map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
             nearLandmarkDoor() -> "pin"
+            nearestViewpoint() != null -> "map"
             nearestCat() != null -> "fist"
             else -> null
         }
@@ -761,18 +838,11 @@ class WorldScene(
         // 1) 벽·바위에 부딪힘 — 자전거일수록 크게 '쿵'
         if (blocked && sp > 30f && bumpCd <= 0f) {
             bumpCd = 0.42f
-            viewRig.shake(if (player.bike) 0.34f else 0.14f)
-            viewRig.kick(-lastDirX, -lastDirY, if (player.bike) 2.6f else 1.1f)
-            if (player.bike) {
-                game.sfx(Audio.Sfx.BIKE_BRAKE, 0.5f)
-                for (i in 0 until 4) {
-                    addParticle(
-                        player.cx, player.y + 15f,
-                        (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
-                        0.45f, Color.argb(120, 150, 132, 104), 3f, false
-                    )
-                }
-            }
+            addParticle(
+                player.x + 8f, player.y + 15f,
+                (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
+                0.45f, Color.argb(120, 150, 132, 104), 3f, false
+            )
         }
         // 2) 급정거 — 관성으로 몸이 앞으로 쏠린다
         if (prevSpeed > 72f && sp < 6f) {
@@ -829,6 +899,7 @@ class WorldScene(
         if (dx == 0f && dy == 0f) return true
         val nx = player.x + dx
         val ny = player.y + dy
+        if (!map.canTraverse(player.x, player.y, nx, ny)) return false
         if (!map.solidBox(nx, ny)) {
             player.x = nx
             player.y = ny
@@ -927,6 +998,23 @@ class WorldScene(
         val ddx = (map.landmarkDoorX * 16f + 16f) - player.cx
         val ddy = (map.landmarkDoorY * 16f + 8f) - player.cy
         return hypot(ddx, ddy) < 30f
+    }
+
+    /** 가까이 다가가야 보이는 지역별 전망 데크. 계단을 직접 올라온 경우에만 도착할 수 있다. */
+    private fun nearestViewpoint(rangePx: Float = 34f): ViewpointInfo? =
+        map.viewpoints.minByOrNull {
+            hypot(it.tileX * 16f + 8f - player.cx, it.tileY * 16f + 8f - player.cy)
+        }?.takeIf {
+            hypot(it.tileX * 16f + 8f - player.cx, it.tileY * 16f + 8f - player.cy) <= rangePx
+        }
+
+    private fun admireViewpoint(view: ViewpointInfo) {
+        val oldLuck = state.luck
+        state.luck = (state.luck + 2f).coerceAtMost(100f)
+        val gain = (state.luck - oldLuck).toInt()
+        game.sfx(Audio.Sfx.SPARKLE, 0.65f)
+        game.toast("${view.label} · ${view.height}단 높이에서 풍경을 내려다봤다 ☘️+$gain")
+        game.banner("${region.emoji} ${view.label}")
     }
 
     private fun enterLandmark() {
@@ -1142,7 +1230,7 @@ class WorldScene(
         }
 
         // 다종 퀘스트(서식지 탐사, 3성 촬영, 야간 탐조, 비행 포착, 신규 종 발굴 등) 판정
-        val isAction = movingShot || fastShot || b.fleeT > 0f || b.state == 2
+        val isAction = movingShot || fastShot || b.fleeT > 0f || b.state == 2 || b.state == 3
         val completedQuests = QuestManager.onPhotoTaken(
             state, b.def, stars, isNew, state.isNight(), isAction
         )
@@ -1198,10 +1286,7 @@ class WorldScene(
             )
         }
 
-        b.state = 2
-        b.fleeVx = 60f
-        b.fleeVy = -75f
-        b.fleeT = 0f
+        b.startFlee(1f, -1f)
 
         SaveManager.save(game.context, state)
 
@@ -1244,11 +1329,12 @@ class WorldScene(
         c.drawColor(0xFF8FC9DF.toInt())
         val hour = state.worldTime
         val dl = daylight(hour)
-        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        val sunT = DayCycle.sunDirX(hour)
+        val stretchP = DayCycle.shadowStretch(hour)
         map.draw(
             c, game.assets, camPhotoX, camPhotoY, w, h, game.time,
-            sunDx = sunT * 20f,
-            sunLen = 11f + kotlin.math.abs(sunT) * 13f,
+            sunDx = sunT * 20f * stretchP,
+            sunLen = (9f + kotlin.math.abs(sunT) * 11f) * stretchP,
             sunAlpha = (50f * dl * weather.shadowK).toInt()
         )
         fx.drawGround(c, camPhotoX, camPhotoY, w, h)
@@ -1349,7 +1435,7 @@ class WorldScene(
             return
         }
         // AF — 움직이는 새는 초점을 놓칠 수 있다 (연사가 빠르면 한 번 더 기회)
-        if (target.state == 1) {
+        if (target.state == 1 || target.state == 3) {
             var miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star)
             if (miss && rig.burstRetry()) {
                 miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star) * 0.5f
@@ -1359,10 +1445,7 @@ class WorldScene(
                 game.toast("초점을 놓쳤어요… 움직이는 새엔 빠른 AF가 필요해요")
                 game.sfx(Audio.Sfx.SHUTTER, 0.7f)
                 game.sfx(Audio.Sfx.FAIL, 0.5f)
-                target.state = 2
-                target.fleeVx = 60f
-                target.fleeVy = -75f
-                target.fleeT = 0f
+                target.startFlee(1f, -1f)
                 return
             }
         }
@@ -1394,12 +1477,21 @@ class WorldScene(
     //  - 월드 공간(카메라를 따라 움직임): 꽃잎·낙엽·반딧불·바람결 등 여기(spawnAmbient)의 입자
     //  - 화면 공간(캐릭터 이동과 무관): 비·눈 — WorldFx(drawWeather)가 화면 전체에 직접 그린다.
     //    비/눈을 월드 입자로 옮기면 카메라에 붙어 같이 밀리므로 절대 옮기지 않는다.
+    /**
+     * 월드 공간 주변 입자 — 계절이 먼저 정해진다.
+     * 봄 벚꽃잎 · 여름 빛가루(밤 습지엔 반딧불) · 가을 단풍잎 · 겨울 눈 반짝임.
+     */
     private fun ambientKind(): String = when {
         weather == Weather.RAIN || weather == Weather.SNOW -> "none"
         weather == Weather.WIND -> "wind"
+        state.season() == Season.SPRING -> "petal"
+        state.season() == Season.AUTUMN -> "leaf"
+        state.season() == Season.SUMMER -> {
+            val wet = "wetland" in region.habitats || "water" in region.habitats || "forest" in region.habitats
+            if (state.isNight() && wet) "firefly" else "pollen"
+        }
+        state.season() == Season.WINTER -> "glint"
         "coast" in region.habitats -> "sparkle"
-        "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
-        "forest" in region.habitats -> "leaf"
         else -> "petal"
     }
 
@@ -1421,13 +1513,33 @@ class WorldScene(
             )
             "leaf" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,
-                if (rnd.nextBoolean()) Color.argb(170, 111, 174, 87) else Color.argb(170, 200, 140, 70), 3f, true
+                (rnd.nextFloat() - 0.5f) * 10f, 12f + rnd.nextFloat() * 8f, 4f,
+                // 가을 단풍 — 빨강·주황·노랑
+                when (rnd.nextInt(3)) {
+                    0 -> Color.argb(190, 217, 79, 61)
+                    1 -> Color.argb(190, 232, 130, 60)
+                    else -> Color.argb(190, 242, 193, 78)
+                }, 3f, true
             )
             "petal" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
-                Color.argb(150, 242, 163, 179), 3f, true
+                // 봄 벚꽃잎 — 분홍·연분홍·흰색
+                when (rnd.nextInt(3)) {
+                    0 -> Color.argb(170, 242, 163, 179)
+                    1 -> Color.argb(170, 255, 194, 212)
+                    else -> Color.argb(170, 255, 242, 245)
+                }, 3f, true
+            )
+            "pollen" -> addParticle(
+                viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
+                3f + rnd.nextFloat() * 5f, -4f - rnd.nextFloat() * 4f, 3.5f,
+                Color.argb(150, 255, 246, 200), 2.2f, true
+            )
+            "glint" -> addParticle(
+                viewX + rnd.nextFloat() * viewW, viewY - 8f,
+                (rnd.nextFloat() - 0.5f) * 8f, 8f + rnd.nextFloat() * 6f, 4f,
+                if (rnd.nextBoolean()) Color.argb(190, 255, 255, 255) else Color.argb(190, 223, 240, 255), 2.2f, true
             )
             "sparkle" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
@@ -1610,7 +1722,8 @@ class WorldScene(
     private fun petCat(cat: Cat) {
         viewRig.kick(0f, 1f, 0.5f)
         state.luck = (state.luck + 1f).coerceAtMost(100f)
-        game.sfx(Audio.Sfx.SPARKLE, 0.5f, 1.15f)
+        game.sfx(randomMeow(), 0.7f)                 // 🐈 야옹~
+        game.sfx(Audio.Sfx.SPARKLE, 0.35f, 1.15f)    // 행운 +1 반짝
         repeat(3) {
             addParticle(
                 cat.cx, cat.cy - 6f,
@@ -1703,6 +1816,7 @@ class WorldScene(
         viewRig.freeze(0.08f)
         game.sfx(Audio.Sfx.WHOOSH, 0.95f, 0.82f)
         game.sfx(Audio.Sfx.TAP, 0.85f, 0.52f)
+        game.sfx(Audio.Sfx.CAT_PUNCH, 0.85f)     // 🐈👊 "냐앙—" 하고 날아간다
         repeat(8) {
             addParticle(
                 cat.cx, cat.cy - 4f,
@@ -1962,12 +2076,14 @@ class WorldScene(
         val levels = state.addExp(chapter.rewardExp)
         state.mainQuestStage++
         if (state.mainQuestStage >= MainStory.CHAPTERS.size) state.mainQuestFinished = true
+        val newRecipes = MainStory.newlyUnlockedPizzas(state.mainQuestStage)
         SaveManager.save(game.context, state)
         game.sfx(Audio.Sfx.REWARD, 0.9f)
         val reward = buildString {
             if (chapter.rewardMoney > 0) append("\n보상 ${won(chapter.rewardMoney)}")
             if (chapter.rewardExp > 0) append(" · 경험치 +${chapter.rewardExp}")
             if (levels > 0) append(" · 레벨 업!")
+            if (newRecipes.isNotEmpty()) append("\n📖 할머니의 피자 레시피 해금: ${newRecipes.joinToString(" · ") { it.name }}")
         }
         openOverlay(
             DialogOverlay(
@@ -2312,6 +2428,10 @@ class WorldScene(
                 enterLandmark()
                 return
             }
+            nearestViewpoint()?.let { view ->
+                admireViewpoint(view)
+                return
+            }
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -2352,7 +2472,8 @@ class WorldScene(
                 val onFish = Healing.catTreats(state) > 0 && hypot(fishX - tap.x, fishY - tap.y) < 10f
                 if (onFish) {
                     if (Healing.feedCat(state)) {
-                        game.sfx(Audio.Sfx.SPARKLE, 0.6f, 1.2f)
+                        game.sfx(randomMeow(), 0.8f)         // 🐈 냠냠 야옹
+                        game.sfx(Audio.Sfx.SPARKLE, 0.4f, 1.2f)
                         repeat(6) {
                             addParticle(cat.cx + (rnd.nextFloat()-0.5f)*6f, cat.cy - 4f,
                                 (rnd.nextFloat()-0.5f)*18f, -22f - rnd.nextFloat()*10f, 1.2f,
@@ -2451,7 +2572,8 @@ class WorldScene(
         // 햇빛 그림자: 아침엔 서쪽, 저녁엔 동쪽으로 길게 (흐리거나 비 오면 옅게)
         val hour = state.worldTime
         val dl = daylight(hour)
-        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        val sunT = DayCycle.sunDirX(hour)
+        val stretch = DayCycle.shadowStretch(hour)
         val sunAlpha = (54f * dl * weather.shadowK).toInt()
 
         // 지면은 흔들림·기울기로 가장자리가 비지 않게 PAD 만큼 넓게 그린다
@@ -2462,7 +2584,7 @@ class WorldScene(
         map.signViewerY = (player.y + 13f) * WORLD_SCALE
         map.draw(
             c, game.assets, camXv - padX, camYv - padY, padW, padH, game.time,
-            sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
+            sunDx = sunT * 22f * stretch, sunLen = (10f + abs(sunT) * 12f) * stretch, sunAlpha = sunAlpha
         )
         fx.drawGround(c, camXv - padX, camYv - padY, padW, padH)
 
@@ -2661,10 +2783,9 @@ class WorldScene(
                 }
             }
             is FieldBird -> {
-                val flying = e.state == 2
+                val flying = e.state == 2 || e.state == 3
                 val bmp = if (flying) {
-                    val wingFrame = ((e.fleeT * 11f).toInt() and 1)
-                    a.birdFlight(e.def.id, wingFrame, e.faceLeft)
+                    a.birdFlight(e.def.id, e.flightFrame, e.faceLeft)
                 } else {
                     a.birdPose(e.def.id, e.facing, e.renderPose)
                 }
@@ -2933,32 +3054,12 @@ class WorldScene(
     // 낮/밤
     // -------------------------------------------------------------------
 
-    private fun lerpC(c0: Int, c1: Int, t: Float): Int {
-        val tt = t.coerceIn(0f, 1f)
-        return Color.argb(
-            (Color.alpha(c0) + (Color.alpha(c1) - Color.alpha(c0)) * tt).toInt(),
-            (Color.red(c0) + (Color.red(c1) - Color.red(c0)) * tt).toInt(),
-            (Color.green(c0) + (Color.green(c1) - Color.green(c0)) * tt).toInt(),
-            (Color.blue(c0) + (Color.blue(c1) - Color.blue(c0)) * tt).toInt()
-        )
-    }
-
-    private fun ambientColor(): Int {
-        val h = state.worldTime
-        val night = Color.argb(124, 20, 24, 62)
-        val dawn = Color.argb(64, 255, 166, 92)
-        val dusk = Color.argb(80, 240, 120, 60)
-        val day = Color.argb(0, 0, 0, 0)
-        return when {
-            h < 4f -> night
-            h < 6f -> lerpC(night, dawn, (h - 4f) / 2f)
-            h < 7.5f -> lerpC(dawn, day, (h - 6f) / 1.5f)
-            h < 17f -> day
-            h < 18.5f -> lerpC(day, dusk, (h - 17f) / 1.5f)
-            h < 20f -> lerpC(dusk, night, (h - 18.5f) / 1.5f)
-            else -> night
-        }
-    }
+    /**
+     * 화면 전체에 얹는 시간대 색. [DayCycle] 의 태양 고도 곡선을 그대로 쓴다 —
+     * 여명(남색) → 보랏빛 박명 → 동틀 녘 금빛 → 한낮(무색) → 노을 → 땅거미 → 밤.
+     * 날씨(비·눈·흐림)는 같은 함수 안에서 한 톤 더 어둡고 차갑게 만든다.
+     */
+    private fun ambientColor(): Int = DayCycle.ambient(state.worldTime, weather)
 
     /**
      * 낮밤 조명. 시각에 맞는 어둠(새벽 주황 -> 낮 -> 노을 -> 밤 남색)을 조명 맵으로 깔고,
@@ -2967,8 +3068,10 @@ class WorldScene(
     private fun drawLighting(c: Canvas, camXv: Float, camYv: Float) {
         val col = ambientColor()
         val alpha = Color.alpha(col)
-        if (alpha == 0) return
-        val k = (alpha / 124f).coerceIn(0f, 1f)
+        if (alpha <= 1) return
+        // 점등 세기도 연속적으로 — 해가 기울기 시작하면 가로등이 서서히 살아난다
+        val k = DayCycle.lightK(state.worldTime, weather)
+        if (k <= 0.01f) return
         // 줌·기울기로 가장자리가 새지 않게 라이트맵도 PAD 만큼 크게 잡고 -PAD 위치에 덮는다.
         // 크기는 최대 줌아웃 기준으로 '고정'한다 — 매 프레임 크기가 변하면 비트맵을 새로 만들게 된다.
         val lm = LightMaps.get(LIGHT_W, LIGHT_H)
@@ -3041,36 +3144,40 @@ class WorldScene(
         fx.fireflies(c, null, false, camXv, camYv, game.virtW, game.virtH)
     }
 
-    /** 새벽/노을: 하늘에서 내려오는 따뜻한 빛줄기 */
+    /**
+     * 동틀 녘·노을에 하늘에서 내려오는 빛줄기.
+     * 세기는 태양 고도(=황금시간 곡선), 색은 그 순간의 직사광 색을 실시간으로 따라간다.
+     * 그라디언트는 흰빛 한 벌만 만들어 두고 컬러필터로 물들여 매 프레임 재생성하지 않는다.
+     */
     private fun drawWarmShafts(c: Canvas) {
         val vw = game.virtW.toFloat()
         val vh = game.virtH.toFloat()
         val h = state.worldTime
-        val warm = when {
-            h >= 5.5f && h < 7.5f -> (1f - abs(h - 6.5f))          // 새벽
-            h >= 17f && h < 19f -> (1f - abs(h - 18f))              // 노을
-            else -> 0f
+        val warm = DayCycle.golden(h) * weather.shadowK
+        if (warm <= 0.02f) return
+        val a = (58f * warm).toInt().coerceIn(0, 255)
+        var sh = shaftShader
+        if (sh == null || shaftShaderH != vh) {
+            sh = LinearGradient(
+                0f, 0f, 0f, vh * 0.72f,
+                Color.argb(255, 255, 255, 255), Color.argb(0, 255, 255, 255),
+                Shader.TileMode.CLAMP
+            )
+            shaftShader = sh
+            shaftShaderH = vh
         }
-        if (warm > 0.02f) {
-            val a = (52f * warm).toInt().coerceIn(0, 255)
-            // 그라디언트는 한 번만 만들고, 밝기는 페인트 알파로 조절한다 —
-            // 새벽/노을 동안 매 프레임 LinearGradient를 새로 만들지 않는다.
-            var sh = shaftShader
-            if (sh == null || shaftShaderH != vh) {
-                sh = LinearGradient(
-                    0f, 0f, 0f, vh * 0.72f,
-                    Color.argb(255, 255, 178, 96), Color.argb(0, 255, 178, 96),
-                    Shader.TileMode.CLAMP
-                )
-                shaftShader = sh
-                shaftShaderH = vh
-            }
-            glowFill.shader = sh
-            glowFill.alpha = a
-            c.drawRect(0f, 0f, vw, vh, glowFill)
-            glowFill.alpha = 255
-            glowFill.shader = null
+        val tint = DayCycle.sunlightColor(h)
+        if (tint != shaftTint) {
+            shaftTint = tint
+            shaftFilter = PorterDuffColorFilter(tint, PorterDuff.Mode.MULTIPLY)
         }
+        glowFill.shader = sh
+        glowFill.colorFilter = shaftFilter
+        glowFill.alpha = a
+        c.drawRect(0f, 0f, vw, vh, glowFill)
+        glowFill.alpha = 255
+        glowFill.colorFilter = null
+        glowFill.shader = null
     }
 
     /** 비네트 — 화면 가장자리를 은은하게 어둡게 */

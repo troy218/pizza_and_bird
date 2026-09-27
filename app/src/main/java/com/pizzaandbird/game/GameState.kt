@@ -113,6 +113,8 @@ class GameState {
 
     // ------------------------------------------------------------------
 
+    fun isPizzaUnlocked(id: Int): Boolean = id in MainStory.unlockedPizzas(mainQuestStage)
+
     val pizzaCount: Int get() = pizzas.sum()
 
     private fun pizzaIdx(pizzaId: Int, quality: Int): Int =
@@ -253,18 +255,10 @@ class GameState {
     /**
      * 지금 얼마나 어두운가 (0 = 한낮, 1 = 한밤중).
      * 저조도 노이즈·셔터 속도 판정과 뷰파인더 EXIF 표시에 함께 쓰인다.
+     * 시간 성분은 태양 고도에서 연속적으로 뽑고(계절별 일출·일몰 반영), 날씨가 얹힌다.
      */
     fun darkness(): Float {
-        val h = worldTime
-        var d = when {
-            h >= 7f && h < 16.5f -> 0f
-            h >= 6f && h < 7f -> 0.35f
-            h >= 16.5f && h < 18f -> 0.35f
-            h >= 18f && h < 19.5f -> 0.65f
-            h >= 4.5f && h < 6f -> 0.6f
-            else -> 1f
-        }
-        d += when (weather()) {
+        val d = DayCycle.darkness(worldTime, season()) + when (weather()) {
             Weather.RAIN -> 0.32f
             Weather.SNOW -> 0.26f
             Weather.CLOUDY -> 0.18f
@@ -372,8 +366,8 @@ class GameState {
         QuestManager.ensureDailyQuests(this)
     }
 
-    /** 밤(올빼미 등 밤새 출현) 여부 */
-    fun isNight(): Boolean = worldTime >= 19.5f || worldTime < 4.5f
+    /** 밤(올빼미 등 밤새 출현) 여부 — 해가 지평선 아래로 충분히 내려간 때. 계절 따라 이동한다. */
+    fun isNight(): Boolean = DayCycle.sunAltitude(worldTime, season()) < -0.12f
 
     fun timeLabel(): String {
         val h = worldTime.toInt().coerceIn(0, 23)
@@ -381,11 +375,11 @@ class GameState {
         return String.format("%02d:%02d", h, m)
     }
 
-    fun timeEmoji(): String = when {
-        worldTime >= 7f && worldTime < 17f -> "☀"
-        worldTime >= 17f && worldTime < 19.5f -> "🌆"
-        else -> if (worldTime >= 4.5f) "🌅" else "🌙"
-    }
+    /** HUD용 시간대 아이콘 — 계절별 일출·일몰에 맞춰 바뀐다 */
+    fun timeEmoji(): String = DayCycle.phaseEmoji(worldTime, season())
+
+    /** '동틀 녘', '노을' 같은 시간대 이름 */
+    fun timePhase(): String = DayCycle.phaseLabel(worldTime, season())
 
     // ------------------ 장식 ------------------
 

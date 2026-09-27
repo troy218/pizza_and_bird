@@ -122,18 +122,33 @@ object Healing {
         while (critterAccum > 0.35f && critters.size < 28) {
             critterAccum -= 0.35f
             val roll = rnd.nextFloat()
-            val k = when {
-                isNight && "wetland" in habitats && s == Season.SUMMER && roll < 0.6 -> CritterType.FIREFLY
-                isNight && roll < 0.18 -> CritterType.MOTH
-                !isNight && s in listOf(Season.SPRING, Season.SUMMER) && "field" in habitats && roll < 0.35 -> CritterType.BUTTERFLY
-                !isNight && s == Season.SUMMER && ("wetland" in habitats || "water" in habitats) && roll < 0.55 -> CritterType.DRAGONFLY
-                !isNight && "coast" in habitats && roll < 0.12 -> CritterType.FAR_GULL
-                s == Season.WINTER && "mountain" in habitats && roll < 0.06 -> CritterType.SNOW_HARE
-                roll < 0.04 -> CritterType.FLOCK
+            // 계절별 작은 생물 편성표 — 밤/낮을 먼저 가르고 계절 밴드로 고른다.
+            // 봄=나비·북상 철새 / 여름=파란 잠자리·반딧불 / 가을=고추잠자리·남하 기러기 / 겨울=눈토끼·월동 기러기
+            val k = if (isNight) when {
+                s == Season.SUMMER && "wetland" in habitats && roll < 0.60 -> CritterType.FIREFLY
+                s == Season.SUMMER && roll < 0.28 -> CritterType.FIREFLY
+                s == Season.SPRING && "wetland" in habitats && roll < 0.30 -> CritterType.FIREFLY
+                s == Season.AUTUMN && roll < 0.30 -> CritterType.MOTH
+                s == Season.SPRING && roll < 0.18 -> CritterType.MOTH
+                roll < 0.10 -> CritterType.MOTH
+                else -> null
+            } else when {
+                "coast" in habitats && roll < 0.10 -> CritterType.FAR_GULL
+                s == Season.SPRING && roll < 0.55 -> CritterType.BUTTERFLY
+                s == Season.SPRING && roll < 0.65 -> CritterType.FLOCK
+                s == Season.SUMMER && ("wetland" in habitats || "water" in habitats) && roll < 0.48 -> CritterType.DRAGONFLY
+                s == Season.SUMMER && roll < 0.60 -> CritterType.BUTTERFLY
+                s == Season.AUTUMN && roll < 0.50 -> CritterType.DRAGONFLY
+                s == Season.AUTUMN && roll < 0.66 -> CritterType.FLOCK
+                s == Season.AUTUMN && roll < 0.72 -> CritterType.BUTTERFLY
+                s == Season.WINTER && "mountain" in habitats && roll < 0.30 -> CritterType.SNOW_HARE
+                s == Season.WINTER && roll < 0.38 -> CritterType.SNOW_HARE
+                s == Season.WINTER && roll < 0.48 -> CritterType.FLOCK
+                roll < 0.03 -> CritterType.FLOCK
                 else -> null
             }
             if (k != null) {
-                critters.add(spawnCritter(k, rnd, viewW, viewH, spawnX, spawnY))
+                critters.add(spawnCritter(k, rnd, viewW, viewH, spawnX, spawnY, s))
                 val momentId = when (k) {
                     CritterType.FIREFLY -> "first_firefly"
                     CritterType.BUTTERFLY -> "first_butterfly"
@@ -178,14 +193,16 @@ object Healing {
         }
     }
 
-    private fun spawnCritter(k: CritterType, rnd: Random, vw: Float, vh: Float, sx: Float, sy: Float): Critter {
+    private fun spawnCritter(k: CritterType, rnd: Random, vw: Float, vh: Float, sx: Float, sy: Float, season: Season): Critter {
         val x = sx + rnd.nextFloat() * vw
         val y = sy + rnd.nextFloat() * vh
         return when (k) {
             CritterType.BUTTERFLY -> Critter(x, y, (rnd.nextFloat()-0.5f)*10f, -5f, 0f, k,
                 6f + rnd.nextFloat()*4f, 10f + rnd.nextFloat()*3f,
                 if (rnd.nextBoolean()) 0xFFF2A3B3.toInt() else 0xFFE9D07B.toInt(), 3.5f)
-            CritterType.DRAGONFLY -> Critter(x, y, 0f, 0f, 0f, k, 7f, 7f, 0xFF86C2D8.toInt(), 4f)
+            // 여름엔 파란 잠자리, 가을엔 빨간 고추잠자리
+            CritterType.DRAGONFLY -> Critter(x, y, 0f, 0f, 0f, k, 7f, 7f,
+                if (season == Season.AUTUMN) 0xFFD8553C.toInt() else 0xFF86C2D8.toInt(), 4f)
             CritterType.FIREFLY -> Critter(x, y, 0f, 0f, 0f, k, 14f, 14f, 0xFFF7DE60.toInt(), 2.6f)
             CritterType.MOTH -> Critter(x, y, 0f, 0f, 0f, k, 10f, 10f, 0xFFC8B89A.toInt(), 3f)
             CritterType.FAR_GULL -> Critter(sx - 40f, sy + rnd.nextFloat()*vh*0.4f, 22f, 0f, 0f, k,

@@ -564,7 +564,20 @@ object QuestPathfinder {
                 val nx = cx + dx
                 val ny = cy + dy
                 if (!allowed(nx, ny)) continue
-                if (dx != 0 && dy != 0 && (!allowed(cx + dx, cy) || !allowed(cx, cy + dy))) continue
+                if (dx != 0 && dy != 0) {
+                    val sideX = cx + dx
+                    val sideY = cy + dy
+                    if (!allowed(sideX, cy) || !allowed(cx, sideY)) continue
+                    // Movement applies horizontal and vertical deltas separately. Make sure
+                    // either order stays on legal adjacent elevation steps, as moveBy() does.
+                    if (!elevationStep(map, cx, cy, sideX, cy) ||
+                        !elevationStep(map, sideX, cy, nx, ny) ||
+                        !elevationStep(map, cx, cy, cx, sideY) ||
+                        !elevationStep(map, cx, sideY, nx, ny)
+                    ) continue
+                } else if (!elevationStep(map, cx, cy, nx, ny)) {
+                    continue
+                }
                 val ni = ny * map.w + nx
                 if (closed[ni]) continue
                 val step = if (dx == 0 || dy == 0) 1f else 1.4142135f
@@ -593,6 +606,9 @@ object QuestPathfinder {
         }
         return result
     }
+
+    private fun elevationStep(map: GameMap, fromX: Int, fromY: Int, toX: Int, toY: Int): Boolean =
+        abs(map.elevationAt(fromX, fromY) - map.elevationAt(toX, toY)) <= 1
 
     private fun heuristic(x: Int, y: Int, tx: Int, ty: Int): Float {
         val dx = abs(tx - x).toFloat()
