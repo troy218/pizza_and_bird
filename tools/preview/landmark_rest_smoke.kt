@@ -23,7 +23,7 @@ import kotlin.math.hypot
  *
  * 검증:
  *   A) "잠시 쉬기" 선택 후 좌석 위치로 걸어가 앉는다 (순간이동 X — 도보로 수렴)
- *   B) 앉으면 쉬는 효과 (배부름 +45, 행운 +2)
+ *   B) 앉으면 쉬는 효과 (배부름 +8, 행운 +2 — 업스트림 밸런스)
  *   C) 3.2초 뒤 벤치 앞에 일어선다
  *   D) 앉아 있는 동안 A 재입력 무시 / B 로 일어나기
  *   E) 걸어가는 도중 이동 입력 → 연출 취소
@@ -77,8 +77,8 @@ object LandmarkRestSmoke {
             }
             render(g, outDir, "rest_01_sitting.png")
 
-            if (g.state.luck >= luck0 + 1.9f && g.state.hunger >= hunger0 + 44f) {
-                println("OK   앉으며 쉬는 효과 (배부름 +45 · 행운 +2)")
+            if (g.state.luck >= luck0 + 1.9f && g.state.hunger >= hunger0 + 7f) {
+                println("OK   앉으며 쉬는 효과 (배부름 +8 · 행운 +2)")
             } else {
                 println("FAIL 쉬는 효과가 없다 (luck ${luck0}->${g.state.luck}, hunger ${hunger0}->${g.state.hunger})")
                 failed = true

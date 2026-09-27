@@ -19,6 +19,30 @@ SIZE = 32
 SIT_TOPPAD = 9
 
 # ---------------------------------------------------------------------------
+# 사람 겉모습 — CharacterArt.kt 와 같은 번호 (색이 아니라 실루엣으로 구분)
+# ---------------------------------------------------------------------------
+
+BODY_STANDARD, BODY_TALL, BODY_STOCKY, BODY_SLIM, BODY_ROUND, BODY_HUNCH = range(6)
+
+(HAIR_SHORT, HAIR_BUZZ, HAIR_BOB, HAIR_LONG, HAIR_PONY, HAIR_BUN,
+ HAIR_PIGTAIL, HAIR_BALD, HAIR_UPDO, HAIR_PERM, HAIR_SWEEP, HAIR_BRAID) = range(12)
+
+BEARD_NONE, BEARD_MUSTACHE, BEARD_FULL, BEARD_GOATEE = range(4)
+
+(HAT_NONE, HAT_CAP, HAT_BUCKET, HAT_STRAW, HAT_BEANIE, HAT_BANDANA,
+ HAT_HEADSCARF, HAT_FISHER, HAT_VISOR) = range(9)
+
+BOTTOM_PANTS, BOTTOM_SKIRT, BOTTOM_OVERALLS = range(3)
+
+(PROP_NONE, PROP_BINOCS, PROP_CAMERA, PROP_ROD, PROP_BASKET, PROP_BOOK,
+ PROP_BRUSH, PROP_PADDLE, PROP_CUP, PROP_NET) = range(10)
+
+SKIN_FAIR, SKIN_NORMAL, SKIN_TAN, SKIN_DEEP = range(4)
+
+(FLAVOR_NONE, FLAVOR_BOUNCE, FLAVOR_PAINT, FLAVOR_SIP, FLAVOR_SCAN,
+ FLAVOR_READ, FLAVOR_NOD, FLAVOR_SWAY) = range(8)
+
+# ---------------------------------------------------------------------------
 # 색/배색
 # ---------------------------------------------------------------------------
 
@@ -58,10 +82,24 @@ class Gear:
 
 class Look:
     def __init__(self, pal, gear=None, glasses=False, apron=False, cane=False,
-                 small=False, longHair=False, pack=True):
+                 small=False, longHair=False, pack=True,
+                 body=BODY_STANDARD, hairStyle=HAIR_SHORT, beard=BEARD_NONE,
+                 hat=HAT_NONE, hatColor=0, bottom=BOTTOM_PANTS,
+                 prop=PROP_NONE, propColor=0, wrinkles=False, freckles=False):
         self.pal, self.gear = pal, gear
         self.glasses, self.apron, self.cane = glasses, apron, cane
         self.small, self.longHair, self.pack = small, longHair, pack
+        self.body, self.hairStyle, self.beard = body, hairStyle, beard
+        self.hat, self.hatColor = hat, hatColor
+        self.bottom, self.prop, self.propColor = bottom, prop, propColor
+        self.wrinkles, self.freckles = wrinkles, freckles
+
+    @property
+    def hair(self):
+        """실제 그릴 헤어스타일 — 옛 longHair 플래그를 새 번호로 매핑."""
+        if self.hairStyle == HAIR_SHORT and self.longHair:
+            return HAIR_LONG
+        return self.hairStyle
 
 
 HOLD_NONE = 0
@@ -329,35 +367,50 @@ def render(direction, pose, look, top_pad=0):
     pal = look.pal
     sc = 0.86 if look.small else 1.0
 
+    # 체형 — 키·어깨·머리·팔다리 굵기가 사람마다 다르다
+    if look.body == BODY_TALL:
+        legMul, torsoHMul, torsoWMul, headMul, lw, hunch = 1.12, 1.08, 0.94, 0.94, 0.95, 0.0
+    elif look.body == BODY_STOCKY:
+        legMul, torsoHMul, torsoWMul, headMul, lw, hunch = 0.94, 0.96, 1.26, 1.07, 1.22, 0.0
+    elif look.body == BODY_SLIM:
+        legMul, torsoHMul, torsoWMul, headMul, lw, hunch = 1.04, 1.02, 0.80, 0.94, 0.84, 0.0
+    elif look.body == BODY_ROUND:
+        legMul, torsoHMul, torsoWMul, headMul, lw, hunch = 0.86, 0.90, 1.36, 1.12, 1.05, 0.0
+    elif look.body == BODY_HUNCH:
+        legMul, torsoHMul, torsoWMul, headMul, lw, hunch = 0.92, 0.94, 1.08, 1.0, 1.0, 1.0
+    else:
+        legMul, torsoHMul, torsoWMul, headMul, lw, hunch = 1.0, 1.0, 1.0, 1.0, 1.0, 0.0
+
     ground = 31.4
     footH = 1.7 * sc
-    legLen = 8.3 * sc
-    thigh, shin = 4.2 * sc, 3.9 * sc
-    torsoH = 6.1 * sc
-    headR = 6.5 * sc
-    headGap = 6.3 * sc
+    legLen = 8.3 * sc * legMul
+    thigh, shin = 4.2 * sc * legMul, 3.9 * sc * legMul
+    torsoH = 6.1 * sc * torsoHMul
+    headR = 6.5 * sc * headMul
+    headGap = headR * 0.97
 
     hipY = ground - footH - legLen + pose.bodyY + pose.crouch * 2.4 * sc
     if look.small:
         hipY += 0.6
     hipX = 16.0 + pose.bodyX
     leanPx = pose.lean * 0.085 * (1.0 if direction == SIDE else 0.0)
-    shoulderY = hipY - torsoH + pose.crouch * 0.6
+    shoulderY = hipY - torsoH + pose.crouch * 0.6 + hunch * 0.8
     shoulderX = hipX + leanPx
     headCx = shoulderX + pose.headX + leanPx * 0.8 + pose.tilt * 0.12
-    headCy = shoulderY - headGap + pose.headY - pose.breath * 0.25
+    headCy = shoulderY - headGap + pose.headY - pose.breath * 0.25 + hunch * 1.3
 
     depth = 1.0 if direction == SIDE else 0.32
     face = 1.0 if direction != BACK else -1.0     # 뒤돌아보면 앞/뒤가 뒤집힌다
 
     # ---- 몸통 (방향별 폭) ---------------------------------------------
     if direction == SIDE:
-        tL, tR = shoulderX - 5.0 * sc, shoulderX + 5.0 * sc
+        hw = 5.0 * sc * (0.75 + 0.25 * torsoWMul)
+        tL, tR = shoulderX - hw, shoulderX + hw
     else:
-        tL, tR = shoulderX - 6.2 * sc, shoulderX + 6.2 * sc
+        tL, tR = shoulderX - 6.2 * sc * torsoWMul, shoulderX + 6.2 * sc * torsoWMul
 
-    hipHalf = 2.45 * sc
-    shHalf = (5.0 if direction == SIDE else 7.0) * sc
+    hipHalf = 2.45 * sc * (0.7 + 0.3 * torsoWMul)
+    shHalf = (5.0 if direction == SIDE else 7.0) * sc * (0.6 + 0.4 * torsoWMul)
 
     def leg_root(side):
         return hipX + side * hipHalf * (0.5 if direction == SIDE else 1.0)
@@ -375,10 +428,18 @@ def render(direction, pose, look, top_pad=0):
         ax, ay = fk(kx, ky, shinAng, shin, d)
         pants = pal.pants2 if back else pal.pants
         shoe = shade(pal.shoe, 0.8) if back else pal.shoe
-        g.seg(x0, hipY, kx, ky, 2.15 * sc, 1.8 * sc, pal.line)
-        g.seg(kx, ky, ax, ay, 1.75 * sc, 1.45 * sc, pal.line)
-        g.seg(x0, hipY - 0.3, kx, ky, 1.7 * sc, 1.4 * sc, pants)
-        g.seg(kx, ky, ax, ay, 1.35 * sc, 1.1 * sc, pants)
+        # 치마 차림은 정면에서 맨다리 (종아리만 피부색)
+        bare = look.bottom == BOTTOM_SKIRT and direction == FRONT
+        shin_col = (pal.skin2 if back else pal.skin) if bare else pants
+        # 보이는 허벅지는 몸통 밑단에서 시작 (CharacterArt.kt 와 동일)
+        legTop = hipY + 1.7 * sc
+        t = min(0.85, max(0.0, (legTop - hipY) / (ky - hipY))) if ky - hipY > 0.001 else 0.0
+        sx = x0 + (kx - x0) * t
+        sy = hipY + (ky - hipY) * t
+        g.seg(sx, sy, kx, ky, 2.15 * sc * lw, 1.8 * sc * lw, pal.line)
+        g.seg(kx, ky, ax, ay, 1.75 * sc * lw, 1.45 * sc * lw, pal.line)
+        g.seg(sx, sy - 0.3, kx, ky, 1.7 * sc * lw, 1.4 * sc * lw, pants)
+        g.seg(kx, ky, ax, ay, 1.35 * sc * lw, 1.1 * sc * lw, shin_col)
         # 발
         if direction == SIDE:
             pitch = math.radians(foot)
@@ -405,12 +466,12 @@ def render(direction, pose, look, top_pad=0):
         hx, hy = fk(ex, ey, foreAng, fore, d)
         sleeve = shade(pal.top2, 0.88) if back else pal.top2
         skin = pal.skin2 if back else pal.skin
-        g.seg(x0, y0, ex, ey, 1.85 * sc, 1.5 * sc, pal.line)
-        g.seg(ex, ey, hx, hy, 1.45 * sc, 1.2 * sc, pal.line)
-        g.seg(x0, y0, ex, ey, 1.4 * sc, 1.1 * sc, sleeve)
-        g.seg(ex, ey, hx, hy, 1.0 * sc, 0.85 * sc, skin)
-        g.circ(hx, hy, 1.25 * sc, pal.line)
-        g.circ(hx, hy, 0.95 * sc, skin)
+        g.seg(x0, y0, ex, ey, 1.85 * sc * lw, 1.5 * sc * lw, pal.line)
+        g.seg(ex, ey, hx, hy, 1.45 * sc * lw, 1.2 * sc * lw, pal.line)
+        g.seg(x0, y0, ex, ey, 1.4 * sc * lw, 1.1 * sc * lw, sleeve)
+        g.seg(ex, ey, hx, hy, 1.0 * sc * lw, 0.85 * sc * lw, skin)
+        g.circ(hx, hy, 1.25 * sc * lw, pal.line)
+        g.circ(hx, hy, 0.95 * sc * lw, skin)
         return hx, hy
 
     # ---- 몸통 본체 -------------------------------------------------------
@@ -429,6 +490,16 @@ def render(direction, pose, look, top_pad=0):
             g.rrect(tL + 1.6, top + 2.4, tR - 1.6, bot - 0.6, 2.4, 0xFFFDF6E8)
             g.rect(tL + 3.0, top + 2.4, tR - 3.0, top + 3.7, 0xFFE8DFC8)
             g.rect(tL + 4.0, top + 7.6, tR - 4.0, top + 8.9, 0xFFE8DFC8)
+        if look.bottom == BOTTOM_OVERALLS and direction != BACK:
+            # 멜빵바지 — 가슴판 + 어깨끈 + 놋쇠 단추
+            mid = (tL + tR) / 2.0
+            bibL, bibR = mid - 3.2, mid + 3.2
+            g.rect(bibL + 1.0, top - 0.6, bibL + 2.4, top + 1.8, pal.pants)
+            g.rect(bibR - 2.4, top - 0.6, bibR - 1.0, top + 1.8, pal.pants)
+            g.rrect(bibL, top + 1.2, bibR, top + 6.6, 1.0, pal.line)
+            g.rrect(bibL + 0.4, top + 1.6, bibR - 0.4, top + 6.2, 0.8, pal.pants)
+            g.circ(bibL + 1.2, top + 2.7, 0.55, 0xFFF2D06B)
+            g.circ(bibR - 1.2, top + 2.7, 0.55, 0xFFF2D06B)
 
     def draw_pack():
         by = pose.packBob
@@ -440,39 +511,9 @@ def render(direction, pose, look, top_pad=0):
         g.rect(hipX - 2.4, shoulderY + 3.2 + by, hipX + 2.4, hipY - 1.0 + by, pal.pack2)
         g.rect(hipX - 3.2, shoulderY + 2.3 + by, hipX + 3.2, shoulderY + 3.0 + by, pal.pack2)
 
-    # ---- 머리 ------------------------------------------------------------
-    def draw_head():
-        cx, cy = headCx, headCy
-        tilt = pose.tilt
-        turn = pose.turn * face
-        g.circ(cx, cy, headR + 0.85, pal.line)
-        if direction == BACK:
-            g.circ(cx, cy, headR, pal.hair)
-            g.rect(cx - headR * 0.85, cy + 1.9, cx + headR * 0.85, cy + 3.7, pal.hair2)
-            g.rect(cx - headR * 0.6 + pose.hairSway, cy - headR - 0.4,
-                   cx + headR * 0.6 + pose.hairSway, cy - headR + 1.1, pal.hair2)
-            if look.longHair:
-                g.rrect(cx - 4.2, cy + 2.0, cx + 4.2, cy + 8.4, 2.4, pal.hair2)
-            return
-
-        g.circ(cx, cy, headR, pal.skin)
-        # 머리카락 — 윗머리 + 옆머리 + 흔들리는 앞머리
-        sway = pose.hairSway
-        capBot = cy - 0.5
-        g.oval(cx - headR - 0.15 + sway * 0.18, cy - headR - 0.35,
-               cx + headR + 0.15 + sway * 0.18, capBot, pal.hair)
-        if direction == SIDE:
-            # 뒤통수 머리 (왼쪽) + 이마 앞머리
-            g.rrect(cx - headR - 0.2, cy - 2.6, cx - headR + 2.7, cy + 5.0, 1.2, pal.hair)
-            g.rect(cx - headR + 1.2, cy + 1.4, cx - headR + 2.7, cy + 5.0 + sway * 0.35, pal.hair2)
-            g.poly(pal.hair,
-                   cx + 0.4, capBot - 2.2,
-                   cx + headR + 0.9 + sway, capBot - 0.4,
-                   cx + headR - 1.8, capBot + 1.3,
-                   cx + 0.6, capBot + 0.4)
-        else:
-            g.rrect(cx - headR * 0.98, cy - 2.6, cx - headR * 0.44, cy + 4.4, 0.9, pal.hair)
-            g.rrect(cx + headR * 0.44, cy - 2.6, cx + headR * 0.98, cy + 4.4, 0.9, pal.hair)
+    # ---- 앞모습 헤어스타일 — 사람마다 실루엣이 다르다 ---------------------------
+    def draw_front_hair(cx, cy, sway, capBot, hs):
+        def bangs():
             g.poly(pal.hair,
                    cx - 4.2 + sway, capBot - 1.4,
                    cx - 1.6 + sway * 1.4, capBot + 1.5,
@@ -481,9 +522,158 @@ def render(direction, pose, look, top_pad=0):
                    cx + 0.8 + sway, capBot - 1.2,
                    cx + 2.6 + sway * 1.4, capBot + 1.4,
                    cx + 4.3 + sway, capBot - 1.4)
-            if look.longHair:
-                g.rrect(cx - headR - 0.7, cy - 1.2, cx - headR + 1.5, cy + 7.4 + sway * 0.3, 1.1, pal.hair2)
-                g.rrect(cx + headR - 1.5, cy - 1.2, cx + headR + 0.7, cy + 7.4 - sway * 0.3, 1.1, pal.hair2)
+
+        def side_locks(ln=4.4):
+            g.rrect(cx - headR * 0.98, cy - 2.6, cx - headR * 0.44, cy + ln, 0.9, pal.hair)
+            g.rrect(cx + headR * 0.44, cy - 2.6, cx + headR * 0.98, cy + ln, 0.9, pal.hair)
+
+        def top_cap(bot=None):
+            bot = capBot if bot is None else bot
+            g.oval(cx - headR - 0.15 + sway * 0.18, cy - headR - 0.35,
+                   cx + headR + 0.15 + sway * 0.18, bot, pal.hair)
+
+        def long_strands():
+            g.rrect(cx - headR - 0.7, cy - 1.2, cx - headR + 1.5, cy + 7.4 + sway * 0.3, 1.1, pal.hair2)
+            g.rrect(cx + headR - 1.5, cy - 1.2, cx + headR + 0.7, cy + 7.4 - sway * 0.3, 1.1, pal.hair2)
+
+        if hs == HAIR_BUZZ:
+            g.oval(cx - headR * 0.80, cy - headR - 0.3, cx + headR * 0.80, capBot - 2.2, pal.hair)
+        elif hs == HAIR_BOB:
+            top_cap()
+            g.rrect(cx - headR - 0.7, cy - 2.2, cx - headR + 2.3, cy + 5.8, 2.0, pal.hair)
+            g.rrect(cx + headR - 2.3, cy - 2.2, cx + headR + 0.7, cy + 5.8, 2.0, pal.hair)
+            g.rect(cx - 4.4 + sway * 0.5, capBot - 1.8, cx + 4.4 + sway * 0.5, capBot + 0.7, pal.hair)
+        elif hs == HAIR_LONG:
+            top_cap()
+            side_locks()
+            bangs()
+            long_strands()
+        elif hs == HAIR_PONY:
+            top_cap()
+            side_locks()
+            g.poly(pal.hair,
+                   cx - 4.2 + sway, capBot - 1.4,
+                   cx + 4.3 + sway, capBot - 1.4,
+                   cx + 0.8 + sway, capBot + 0.9,
+                   cx - 0.6 + sway, capBot + 0.9)
+            px = cx + headR - 0.4 + sway * 0.9
+            g.seg(cx + headR - 1.6, cy - 2.0, px + 0.6, cy + 6.4 + sway * 0.5, 1.7, 1.0, pal.hair2)
+            g.circ(cx + headR - 1.6, cy - 2.0, 1.0, pal.blush)
+        elif hs == HAIR_BUN:
+            top_cap(capBot - 0.6)
+            side_locks()
+            bangs()
+            g.circ(cx + sway * 0.3, cy - headR - 1.6, 2.6, pal.line)
+            g.circ(cx + sway * 0.3, cy - headR - 1.6, 1.9, pal.hair)
+            g.circ(cx - 0.5 + sway * 0.3, cy - headR - 2.2, 0.7, pal.hair2)
+        elif hs == HAIR_PIGTAIL:
+            top_cap()
+            bangs()
+            lift = 0.4 * sway
+            g.circ(cx - headR - 1.2, cy - 0.6 + lift, 2.2, pal.line)
+            g.circ(cx - headR - 1.2, cy - 0.6 + lift, 1.6, pal.hair)
+            g.circ(cx + headR + 1.2, cy - 0.6 - lift, 2.2, pal.line)
+            g.circ(cx + headR + 1.2, cy - 0.6 - lift, 1.6, pal.hair)
+            g.circ(cx - headR + 0.4, cy - 1.4, 0.9, pal.blush)
+            g.circ(cx + headR - 0.4, cy - 1.4, 0.9, pal.blush)
+        elif hs == HAIR_BALD:
+            g.rrect(cx - headR * 0.98, cy + 0.4, cx - headR * 0.44, cy + 4.4, 0.9, pal.hair)
+            g.rrect(cx + headR * 0.44, cy + 0.4, cx + headR * 0.98, cy + 4.4, 0.9, pal.hair)
+        elif hs == HAIR_UPDO:
+            g.oval(cx - headR - 0.1, cy - headR - 0.3, cx + headR + 0.1, capBot - 1.8, pal.hair)
+            g.circ(cx, cy - headR - 1.2, 3.0, pal.line)
+            g.circ(cx, cy - headR - 1.2, 2.3, pal.hair2)
+            g.rect(cx - 1.2, cy - headR - 2.2, cx + 1.2, cy - headR - 1.6, pal.hair)
+            g.rrect(cx - headR * 0.95, cy - 1.6, cx - headR * 0.5, cy + 3.4, 0.9, pal.hair)
+            g.rrect(cx + headR * 0.5, cy - 1.6, cx + headR * 0.95, cy + 3.4, 0.9, pal.hair)
+        elif hs == HAIR_PERM:
+            puffs = ((-0.72, -0.72), (-0.30, -0.92), (0.18, -0.90), (0.62, -0.68),
+                     (-0.88, -0.28), (0.88, -0.28), (-0.80, 0.22), (0.80, 0.22))
+            for ox, oy in puffs:
+                g.circ(cx + headR * ox + sway * 0.2, cy + headR * oy, 2.3, pal.line)
+                g.circ(cx + headR * ox + sway * 0.2, cy + headR * oy, 1.7, pal.hair)
+            g.oval(cx - headR * 0.9, cy - headR * 0.9, cx + headR * 0.9, capBot - 0.6, pal.hair)
+        elif hs == HAIR_SWEEP:
+            top_cap(capBot - 0.4)
+            side_locks()
+            g.poly(pal.hair,
+                   cx - headR * 0.7 + sway * 0.4, capBot - 2.6,
+                   cx + headR * 0.75 + sway * 0.6, capBot - 0.6,
+                   cx + headR * 0.5 + sway * 0.6, capBot + 1.2,
+                   cx - headR * 0.55 + sway * 0.4, capBot - 0.8)
+        elif hs == HAIR_BRAID:
+            top_cap()
+            side_locks()
+            bangs()
+            g.rrect(cx - headR - 0.7, cy - 1.2, cx - headR + 1.5, cy + 7.4 + sway * 0.3, 1.1, pal.hair2)
+            by = cy + 2.4
+            bx = cx + headR - 0.8 + sway * 0.4
+            for i in range(3):
+                g.rrect(bx - 1.6, by, bx + 1.6, by + 2.5, 1.0, pal.hair if i % 2 == 0 else pal.hair2)
+                by += 2.3
+            g.circ(bx, by + 0.5, 1.0, pal.blush)
+        else:
+            # SHORT — 예전과 동일한 기본형
+            top_cap()
+            side_locks()
+            bangs()
+
+    # ---- 옆모습 헤어 — 앞모습 특징만 살짝 얹는다 ----
+    def draw_side_hair(cx, cy, sway, capBot, hs):
+        if hs == HAIR_BALD:
+            g.rrect(cx - headR - 0.2, cy + 1.4, cx - headR + 2.7, cy + 5.0, 1.2, pal.hair)
+            return
+        if hs == HAIR_BUZZ:
+            g.oval(cx - headR * 0.8, cy - headR - 0.3, cx + headR * 0.8, capBot - 2.0, pal.hair)
+            return
+        g.oval(cx - headR - 0.15 + sway * 0.18, cy - headR - 0.35,
+               cx + headR + 0.15 + sway * 0.18, capBot, pal.hair)
+        backLen = 7.4 if hs in (HAIR_LONG, HAIR_BRAID) else 5.0
+        g.rrect(cx - headR - 0.2, cy - 2.6, cx - headR + 2.7, cy + backLen, 1.2, pal.hair)
+        g.rect(cx - headR + 1.2, cy + 1.4, cx - headR + 2.7, cy + backLen + sway * 0.35, pal.hair2)
+        g.poly(pal.hair,
+               cx + 0.4, capBot - 2.2,
+               cx + headR + 0.9 + sway, capBot - 0.4,
+               cx + headR - 1.8, capBot + 1.3,
+               cx + 0.6, capBot + 0.4)
+        if hs in (HAIR_BUN, HAIR_UPDO):
+            g.circ(cx - 1.0, cy - headR - 1.4, 2.2, pal.line)
+            g.circ(cx - 1.0, cy - headR - 1.4, 1.6, pal.hair2 if hs == HAIR_UPDO else pal.hair)
+        if hs == HAIR_PONY:
+            g.seg(cx - headR + 0.4, cy - 2.0, cx - headR - 1.6 + sway * 0.8, cy + 5.6, 1.6, 0.9, pal.hair2)
+
+    # ---- 머리 ------------------------------------------------------------
+    def draw_head():
+        cx, cy = headCx, headCy
+        tilt = pose.tilt
+        turn = pose.turn * face
+        g.circ(cx, cy, headR + 0.85, pal.line)
+        if direction == BACK:
+            hs = look.hair
+            g.circ(cx, cy, headR, pal.skin if hs == HAIR_BALD else pal.hair)
+            if hs != HAIR_BALD:
+                g.rect(cx - headR * 0.85, cy + 1.9, cx + headR * 0.85, cy + 3.7, pal.hair2)
+                g.rect(cx - headR * 0.6 + pose.hairSway, cy - headR - 0.4,
+                       cx + headR * 0.6 + pose.hairSway, cy - headR + 1.1, pal.hair2)
+            if hs in (HAIR_LONG, HAIR_BRAID) or look.longHair:
+                g.rrect(cx - 4.2, cy + 2.0, cx + 4.2, cy + 8.4, 2.4, pal.hair2)
+            if hs in (HAIR_BUN, HAIR_UPDO):
+                g.circ(cx, cy - headR - 1.0, 2.6, pal.line)
+                g.circ(cx, cy - headR - 1.0, 1.9, pal.hair2 if hs == HAIR_UPDO else pal.hair)
+            if hs == HAIR_PONY:
+                g.seg(cx + 1.0, cy - headR + 1.0, cx + 2.6 + pose.hairSway, cy + 5.6, 1.7, 1.0, pal.hair2)
+            return
+
+        g.circ(cx, cy, headR, pal.skin)
+        # 머리카락 — 윗머리 + 옆머리 + 흔들리는 앞머리
+        sway = pose.hairSway
+        capBot = cy - 0.5
+        # 수건 두건은 머리카락을 통째로 감싸므로 헤어를 그리지 않는다
+        if look.hat != HAT_HEADSCARF:
+            if direction == SIDE:
+                draw_side_hair(cx, cy, sway, capBot, look.hair)
+            else:
+                draw_front_hair(cx, cy, sway, capBot, look.hair)
 
         # 얼굴 (눈/눈썹/입/볼) — tilt/turn 에 따라 이동
         ex = cx + turn * 1.7 + tilt * 0.1
@@ -512,6 +702,41 @@ def render(direction, pose, look, top_pad=0):
             if pose.mouth > 0.2:
                 mw = 0.7 + pose.mouth * 0.7
                 g.rrect(ex - mw, ey + 2.2, ex + mw, ey + 2.2 + 0.8 + pose.mouth * 1.1, 0.5, 0xFF7A4A3A)
+
+        # 수염 — 입 위에 얹는다 (입은 수염 뒤로 숨는다)
+        if direction != BACK:
+            if look.beard == BEARD_MUSTACHE:
+                if direction == SIDE:
+                    g.rect(ex + 3.4, ey + 1.1, ex + 6.0, ey + 2.1, pal.hair2)
+                else:
+                    g.rrect(ex - 2.6, ey + 1.8, ex - 0.2, ey + 2.9, 0.5, pal.hair2)
+                    g.rrect(ex + 0.2, ey + 1.8, ex + 2.6, ey + 2.9, 0.5, pal.hair2)
+            elif look.beard == BEARD_FULL:
+                if direction == SIDE:
+                    g.rrect(ex + 0.4, ey + 1.6, ex + 6.2, ey + 6.4, 1.6, pal.hair)
+                    g.rect(ex + 3.4, ey + 1.1, ex + 6.0, ey + 2.1, pal.hair2)
+                else:
+                    g.rrect(ex - headR * 0.72, ey + 1.9, ex + headR * 0.72, ey + 6.6, 2.6, pal.hair)
+                    g.rrect(ex - headR * 0.5, ey + 2.6, ex + headR * 0.5, ey + 5.6, 2.0, pal.hair2)
+                    g.rrect(ex - 2.6, ey + 1.8, ex + 2.6, ey + 2.9, 0.5, pal.hair2)
+            elif look.beard == BEARD_GOATEE:
+                if direction == SIDE:
+                    g.rect(ex + 3.8, ey + 2.6, ex + 5.6, ey + 4.6, pal.hair2)
+                else:
+                    g.rrect(ex - 1.6, ey + 3.2, ex + 1.6, ey + 5.4, 0.8, pal.hair2)
+        if direction == FRONT:
+            if look.wrinkles:
+                # 나이테 — 이마 주름 2줄 + 눈가 주름
+                g.rect(ex - 3.4, ey - 3.6, ex + 3.6, ey - 3.2, pal.skin2)
+                g.rect(ex - 2.8, ey - 4.6, ex + 3.0, ey - 4.2, pal.skin2)
+                g.rect(ex - 4.4, ey - 0.4, ex - 3.4, ey, pal.skin2)
+                g.rect(ex + 3.6, ey - 0.4, ex + 4.6, ey, pal.skin2)
+            if look.freckles:
+                fk = 0xFFC98A5E
+                g.rect(ex - 4.1, ey + 0.6, ex - 3.5, ey + 1.2, fk)
+                g.rect(ex - 3.2, ey + 1.1, ex - 2.6, ey + 1.7, fk)
+                g.rect(ex + 2.8, ey + 1.1, ex + 3.4, ey + 1.7, fk)
+                g.rect(ex + 3.7, ey + 0.6, ex + 4.3, ey + 1.2, fk)
 
         if look.glasses:
             gx = ex + (2.6 if direction == SIDE else 0.0)
@@ -612,6 +837,225 @@ def render(direction, pose, look, top_pad=0):
         g.rect(hx, shoulderY + 0.5, hx + 1.4, ground - 0.4, 0xFF8A5A33)
         g.rect(hx - 1.2, shoulderY - 0.6, hx + 2.2, shoulderY + 1.0, 0xFF6B431F)
 
+    # ---- 치마 — 허리에서 무릎까지 (정면만, 옆모습은 바지) ----------------------
+    def draw_skirt():
+        if look.bottom != BOTTOM_SKIRT or direction != FRONT:
+            return
+        waistY = hipY - 1.2
+        hemY = hipY + 5.6 + pose.clothSway * 0.3
+        cx = (tL + tR) / 2.0
+        hwTop = (tR - tL) * 0.32
+        hwBot = (tR - tL) * 0.52 + 1.2
+        g.poly(pal.line,
+               cx - hwTop - 0.7, waistY - 0.5, cx + hwTop + 0.7, waistY - 0.5,
+               cx + hwBot + 0.7, hemY + 0.5, cx - hwBot - 0.7, hemY + 0.5)
+        g.poly(pal.pants,
+               cx - hwTop, waistY, cx + hwTop, waistY,
+               cx + hwBot, hemY, cx - hwBot, hemY)
+        g.poly(pal.pants2,
+               cx + hwTop * 0.4, waistY + 0.6, cx + hwTop, waistY + 0.6,
+               cx + hwBot, hemY - 0.4, cx + hwBot * 0.55, hemY - 0.4)
+
+    # 손 위치 — 소품을 손에 쥐여 주려고 팔 FK 를 그대로 다시 계산한다
+    def hand_pos(side):
+        x0, y0 = arm_root(side)
+        d = depth * face
+        upper, fore = 3.6 * sc, 3.4 * sc
+        ang = pose.armR if side > 0 else pose.armL
+        elbow = pose.elbowR if side > 0 else pose.elbowL
+        ex, ey = fk(x0, y0, ang, upper, d)
+        return fk(ex, ey, ang + elbow, fore, d)
+
+    # ---- 몸에 걸치는 소품 — 쌍안경·카메라·노·뜰채 (팔보다 먼저) ---------------
+    def draw_worn_props():
+        if direction != FRONT:
+            return
+        pc = look.propColor if look.propColor else pal.pack
+        if look.prop in (PROP_BINOCS, PROP_CAMERA):
+            ny = shoulderY + 0.6
+            by = shoulderY + 4.6 + pose.packBob * 0.4
+            strap = shade(pc, 0.6)
+            g.seg(hipX - 3.4, ny, hipX - 1.6, by - 1.0, 0.5, 0.5, strap)
+            g.seg(hipX + 3.4, ny, hipX + 1.6, by - 1.0, 0.5, 0.5, strap)
+            if look.prop == PROP_BINOCS:
+                g.rrect(hipX - 2.8, by - 1.4, hipX - 0.2, by + 1.2, 0.7, pal.line)
+                g.rrect(hipX + 0.2, by - 1.4, hipX + 2.8, by + 1.2, 0.7, pal.line)
+                g.rrect(hipX - 2.4, by - 1.0, hipX - 0.6, by + 0.8, 0.6, 0xFF3A3F49)
+                g.rrect(hipX + 0.6, by - 1.0, hipX + 2.4, by + 0.8, 0.6, 0xFF3A3F49)
+                g.circ(hipX - 1.5, by - 0.1, 0.55, 0xFFBFE6FF)
+                g.circ(hipX + 1.5, by - 0.1, 0.55, 0xFFBFE6FF)
+            else:
+                g.rrect(hipX - 2.9, by - 1.5, hipX + 2.9, by + 1.3, 0.8, pal.line)
+                g.rrect(hipX - 2.5, by - 1.1, hipX + 2.5, by + 0.9, 0.6, 0xFF3A3F49)
+                g.circ(hipX + 0.6, by - 0.1, 1.5, pal.line)
+                g.circ(hipX + 0.6, by - 0.1, 1.05, 0xFF2B3038)
+                g.circ(hipX + 0.9, by - 0.4, 0.45, 0xFFBFE6FF)
+        elif look.prop == PROP_PADDLE:
+            bx, by = shoulderX + 4.6, shoulderY + 1.0
+            tx, ty = bx + 5.5 + pose.clothSway * 0.7, by - 13.5
+            g.seg(bx - 1.0, by + 3.0, tx, ty + 3.0, 0.8, 0.7, 0xFF8A5A33)
+            g.rrect(tx - 1.7, ty - 1.2, tx + 1.7, ty + 3.4, 1.2, pal.line)
+            g.rrect(tx - 1.2, ty - 0.7, tx + 1.2, ty + 2.9, 1.0, pc)
+        elif look.prop == PROP_NET:
+            nx, ny = shoulderX - 7.6, shoulderY + 2.4
+            g.seg(shoulderX - 3.0, shoulderY, nx + 1.6, ny - 1.6, 0.8, 0.7, 0xFF8A5A33)
+            g.circ(nx, ny, 3.4, pal.line)
+            g.circ(nx, ny, 2.8, 0xFFDCE6EC)
+            g.rect(nx - 2.6, ny - 0.3, nx + 2.6, ny + 0.3, 0xFF9AA3AD)
+            g.rect(nx - 0.3, ny - 2.6, nx + 0.3, ny + 2.6, 0xFF9AA3AD)
+            g.circ(nx, ny, 1.2, 0xFFDCE6EC)
+
+    # ---- 손에 든 소품 — 낚싯대·바구니·책·붓·찻잔 (팔보다 나중에) ---------------
+    def draw_held_props():
+        if direction != FRONT:
+            return
+        pc = look.propColor if look.propColor else pal.pack
+        if look.prop == PROP_ROD:
+            hx, hy = hand_pos(1)
+            tipX, tipY = hx + 6.5 + pose.clothSway * 0.8, hy - 15.0
+            g.seg(hx, hy + 1.5, tipX, tipY, 0.7, 0.35, 0xFF8A5A33)
+            g.seg(tipX, tipY, tipX + 1.2, tipY + 4.5, 0.25, 0.2, 0xFFDCE6EC)
+            g.circ(hx + 0.9, hy - 1.2, 0.9, 0xFF9AA0AD)
+        elif look.prop == PROP_BASKET:
+            hx, hy = hand_pos(-1)
+            bw = 3.4
+            top = hy + 0.6
+            g.poly(0xFF8A5A33,
+                   hx - bw - 0.4, top, hx + bw + 0.4, top,
+                   hx + bw - 0.6, top + 4.6, hx - bw + 0.6, top + 4.6)
+            g.poly(pc,
+                   hx - bw, top + 0.4, hx + bw, top + 0.4,
+                   hx + bw - 0.8, top + 4.2, hx - bw + 0.8, top + 4.2)
+            g.rect(hx - bw + 0.4, top + 1.8, hx + bw - 0.4, top + 2.4, 0xFFB08840)
+            g.seg(hx - bw, top + 0.4, hx, top - 2.2, 0.5, 0.5, 0xFF8A5A33)
+            g.seg(hx + bw, top + 0.4, hx, top - 2.2, 0.5, 0.5, 0xFF8A5A33)
+        elif look.prop == PROP_BOOK:
+            lx, ly = hand_pos(-1)
+            rx, ry = hand_pos(1)
+            bx, by = (lx + rx) / 2.0, (ly + ry) / 2.0 - 0.6
+            g.rrect(bx - 3.4, by - 1.8, bx + 3.4, by + 1.8, 0.7, pal.line)
+            g.rrect(bx - 3.0, by - 1.4, bx - 0.2, by + 1.4, 0.5, 0xFFFDF6E8)
+            g.rrect(bx + 0.2, by - 1.4, bx + 3.0, by + 1.4, 0.5, 0xFFFDF6E8)
+            g.rect(bx - 2.4, by - 0.6, bx - 0.8, by, pc)
+            g.rect(bx + 0.8, by - 0.6, bx + 2.4, by, pc)
+        elif look.prop == PROP_BRUSH:
+            lx, ly = hand_pos(-1)
+            rx, ry = hand_pos(1)
+            g.circ(lx, ly, 2.4, pal.line)
+            g.circ(lx, ly, 1.9, 0xFFF3EDE2)
+            g.circ(lx - 0.7, ly - 0.5, 0.55, 0xFFE2574C)
+            g.circ(lx + 0.7, ly - 0.4, 0.55, 0xFF3F6FA0)
+            g.circ(lx, ly + 0.7, 0.55, 0xFFF2B63C)
+            g.seg(rx, ry, rx + 1.8, ry - 4.2, 0.55, 0.4, 0xFFC9A05C)
+            g.circ(rx + 1.9, ry - 4.5, 0.8, 0xFFE2574C)
+        elif look.prop == PROP_CUP:
+            hx, hy = hand_pos(1)
+            g.rrect(hx - 1.4, hy - 1.6, hx + 1.4, hy + 0.8, 0.5, pal.line)
+            g.rrect(hx - 1.0, hy - 1.2, hx + 1.0, hy + 0.4, 0.4, 0xFFFDF6E8)
+            g.rect(hx - 1.0, hy - 1.2, hx + 1.0, hy - 0.6, 0xFF8A5A33)
+            sw = pose.breath * 0.5
+            g.seg(hx - 0.3 + sw, hy - 1.8, hx + 0.2 - sw, hy - 3.4, 0.3, 0.2, 0xAAFFFFFF)
+
+    # ---- NPC 모자 — 탐조가 장비 모자와 별개 실루엣 8종 --------------------------
+    def draw_hat():
+        if look.hat == HAT_NONE or direction == BACK:
+            return
+        cx, cy = headCx, headCy
+        hc = look.hatColor if look.hatColor else pal.top2
+        hd2 = shade(hc, 0.72)
+        tilt = pose.tilt
+        cw = headR + 0.6
+        if look.hat == HAT_CAP:
+            top = cy - headR - 2.0
+            bot = cy - headR * 0.18
+            g.rrect(cx - cw - 0.5 + tilt * 0.12, top - 0.5, cx + cw + 0.5 + tilt * 0.12, bot + 0.4, 3.4, pal.line)
+            g.rrect(cx - cw + tilt * 0.12, top, cx + cw + tilt * 0.12, bot, 3.0, hc)
+            g.rect(cx - cw + 0.7 + tilt * 0.12, top + 0.5, cx + cw - 0.7 + tilt * 0.12, top + 2.4, hd2)
+            if direction == SIDE:
+                g.rect(cx + 2.2, bot - 1.5, cx + cw + 2.6, bot - 0.1, pal.line)
+                g.rect(cx + 2.2, bot - 1.4, cx + cw + 2.3, bot - 0.4, hd2)
+            else:
+                g.rect(cx - cw + 0.5, bot - 1.1, cx + cw - 0.5, bot + 0.6, pal.line)
+                g.rect(cx - cw + 0.9, bot - 1.0, cx + cw - 0.9, bot + 0.3, hd2)
+        elif look.hat == HAT_BUCKET:
+            top = cy - headR - 2.6
+            bot = cy - headR * 0.30
+            g.rrect(cx - cw + 0.6, top, cx + cw - 0.6, bot, 2.6, pal.line)
+            g.rrect(cx - cw + 1.2, top + 0.6, cx + cw - 1.2, bot, 2.2, hc)
+            g.rect(cx - cw + 1.2, bot - 2.6, cx + cw - 1.2, bot - 1.6, hd2)
+            if direction == SIDE:
+                g.rrect(cx - cw - 1.2, bot - 1.2, cx + cw + 1.6, bot + 0.7, 0.9, pal.line)
+                g.rrect(cx - cw - 0.8, bot - 1.1, cx + cw + 1.2, bot + 0.4, 0.8, hc)
+            else:
+                g.rrect(cx - cw - 2.2, bot - 1.2, cx + cw + 2.2, bot + 0.7, 1.0, pal.line)
+                g.rrect(cx - cw - 1.8, bot - 1.1, cx + cw + 1.8, bot + 0.4, 0.9, hc)
+        elif look.hat == HAT_STRAW:
+            bot = cy - headR * 0.35
+            g.rrect(cx - cw + 1.4, bot - 4.4, cx + cw - 1.4, bot - 0.6, 2.0, pal.line)
+            g.rrect(cx - cw + 2.0, bot - 3.8, cx + cw - 2.0, bot - 0.6, 1.8, hc)
+            g.rect(cx - cw + 2.0, bot - 2.0, cx + cw - 2.0, bot - 1.2, pal.blush)
+            if direction == SIDE:
+                g.rrect(cx - cw - 2.6, bot - 1.0, cx + cw + 2.8, bot + 0.8, 0.8, pal.line)
+                g.rrect(cx - cw - 2.2, bot - 0.9, cx + cw + 2.4, bot + 0.5, 0.7, hc)
+            else:
+                g.rrect(cx - cw - 3.4, bot - 1.0, cx + cw + 3.4, bot + 0.8, 0.9, pal.line)
+                g.rrect(cx - cw - 3.0, bot - 0.9, cx + cw + 3.0, bot + 0.5, 0.8, hc)
+        elif look.hat == HAT_BEANIE:
+            bot = cy - headR * 0.25
+            g.rrect(cx - cw + 0.2, bot - 6.4, cx + cw - 0.2, bot - 0.4, 3.0, pal.line)
+            g.rrect(cx - cw + 0.8, bot - 5.8, cx + cw - 0.8, bot - 0.4, 2.6, hc)
+            g.rect(cx - cw + 0.8, bot - 2.6, cx + cw - 0.8, bot - 0.4, hd2)
+            g.circ(cx + pose.hairSway * 0.4, bot - 7.0, 1.6, pal.line)
+            g.circ(cx + pose.hairSway * 0.4, bot - 7.0, 1.1, 0xFFFDF6E8)
+            if direction == FRONT:
+                g.rect(cx - 2.0, bot - 5.2, cx - 1.2, bot - 2.8, hd2)
+                g.rect(cx + 1.2, bot - 5.2, cx + 2.0, bot - 2.8, hd2)
+        elif look.hat == HAT_BANDANA:
+            g.poly(hc,
+                   cx - cw + 0.4, cy - headR * 0.2,
+                   cx, cy - headR - 3.4,
+                   cx + cw - 0.4, cy - headR * 0.2,
+                   cx, cy - headR * 0.5)
+            g.rrect(cx - cw + 0.2, cy - headR * 0.45, cx + cw - 0.2, cy - headR * 0.2 + 1.2, 0.8, hd2)
+            g.circ(cx + cw - 0.2, cy - headR * 0.3 + 0.6, 1.2, hd2)
+            g.seg(cx + cw - 0.2, cy - headR * 0.3 + 1.2,
+                  cx + cw + 1.2 + pose.hairSway * 0.5, cy - headR * 0.3 + 3.0, 0.8, 0.5, hd2)
+            if direction == FRONT:
+                g.circ(cx - 1.6, cy - headR - 0.6, 0.7, 0xFFFDF6E8)
+                g.circ(cx + 1.4, cy - headR - 1.4, 0.7, 0xFFFDF6E8)
+        elif look.hat == HAT_HEADSCARF:
+            g.oval(cx - headR - 0.9, cy - headR - 1.1, cx + headR + 0.9, cy - 0.6, pal.line)
+            g.oval(cx - headR - 0.3, cy - headR - 0.5, cx + headR + 0.3, cy - 1.1, hc)
+            if direction == SIDE:
+                g.rrect(cx - headR - 1.2, cy - 1.0, cx - headR + 1.8, cy + 6.4, 1.4, hc)
+                g.rrect(cx - headR - 1.2, cy - 1.0, cx - headR + 0.2, cy + 6.4, 1.2, hd2)
+            else:
+                g.rrect(cx - headR - 1.1, cy - 1.0, cx - headR + 1.6, cy + 6.2, 1.3, hc)
+                g.rrect(cx + headR - 1.6, cy - 1.0, cx + headR + 1.1, cy + 6.2, 1.3, hc)
+                g.circ(cx, cy + headR + 0.2, 1.5, hd2)
+        elif look.hat == HAT_FISHER:
+            bot = cy - headR * 0.30
+            g.rrect(cx - cw + 0.8, bot - 5.0, cx + cw - 0.8, bot, 2.4, pal.line)
+            g.rrect(cx - cw + 1.4, bot - 4.4, cx + cw - 1.4, bot, 2.0, hc)
+            if direction == SIDE:
+                g.rrect(cx - cw - 2.4, bot - 1.2, cx + cw + 1.8, bot + 0.8, 1.0, pal.line)
+                g.rrect(cx - cw - 2.0, bot - 1.1, cx + cw + 1.4, bot + 0.5, 0.9, hc)
+                g.rect(cx - cw - 2.0, bot + 0.5, cx - cw + 0.6, bot + 3.4, hc)
+            else:
+                g.rrect(cx - cw - 2.4, bot - 1.2, cx + cw + 2.4, bot + 0.8, 1.0, pal.line)
+                g.rrect(cx - cw - 2.0, bot - 1.1, cx + cw + 2.0, bot + 0.5, 0.9, hc)
+                g.rect(cx - cw - 2.0, bot - 0.1, cx + cw + 2.0, bot + 0.5, hd2)
+        elif look.hat == HAT_VISOR:
+            bot = cy - headR * 0.35
+            g.rrect(cx - cw + 0.2, bot - 1.8, cx + cw - 0.2, bot + 0.2, 0.9, pal.line)
+            g.rrect(cx - cw + 0.6, bot - 1.4, cx + cw - 0.6, bot - 0.2, 0.7, hc)
+            if direction == SIDE:
+                g.rect(cx + 1.6, bot - 1.0, cx + cw + 2.8, bot + 0.6, pal.line)
+                g.rect(cx + 1.6, bot - 0.9, cx + cw + 2.5, bot + 0.2, hc)
+            else:
+                g.rrect(cx - cw - 0.6, bot - 0.4, cx + cw + 0.6, bot + 1.6, 0.8, pal.line)
+                g.rrect(cx - cw - 0.2, bot - 0.3, cx + cw + 0.2, bot + 1.3, 0.7, hc)
+
     # ---- 그리기 순서 -------------------------------------------------------
     backIsRight = pose.hipR < pose.hipL if direction != BACK else pose.hipR > pose.hipL
     if direction == SIDE:
@@ -642,11 +1086,15 @@ def render(direction, pose, look, top_pad=0):
             draw_leg(-1, pose.hipL, pose.kneeL, pose.footL, False)
         else:
             draw_leg(1, pose.hipR, pose.kneeR, pose.footR, False)
+        draw_skirt()
+        draw_worn_props()
         draw_arm(-1, pose.armL, pose.elbowL, backIsRight is False)
         draw_arm(1, pose.armR, pose.elbowR, backIsRight is True)
+        draw_held_props()
         draw_scarf()
         draw_head()
         draw_cap()
+        draw_hat()
 
     if pose.hold == HOLD_CAMERA:
         draw_camera()
@@ -1060,19 +1508,33 @@ def render_bike(direction, phase, look, style=None, pal_override=None):
 NPC_PROFESSOR, NPC_SHOP, NPC_VILLAGER, NPC_KID, NPC_ELDER = 0, 1, 2, 3, 4
 
 
-def npc_pose(kind, phase):
+def _frac(x):
+    return x - math.floor(x)
+
+
+def npc_pose(kind, phase, flavor=FLAVOR_NONE, seed=0.0):
+    """NPC 대기 동작 — flavor(소동작) + seed(사람마다 어긋난 박자)."""
     tau = math.tau
-    p = phase % 1.0
+    sd = seed % 1.0
+    p = (phase + sd * 0.61) % 1.0
+    energy = 0.82 + 0.36 * _frac(sd * 7.31)
     ps = idle_pose(p)
+    # 사람마다 눈 깜빡임 타이밍이 다르다
+    blink_at = 0.80 + 0.12 * _frac(sd * 13.7)
+    if blink_at <= p < blink_at + 0.04:
+        ps.blink = 1.0
+    elif blink_at + 0.04 <= p < blink_at + 0.06:
+        ps.blink = 0.5
     if kind == NPC_PROFESSOR:
         # 고개를 끄덕이고, 가끔 안경을 고쳐 쓴다
         push = _bump(p, 0.55, 0.85)
-        ps.headY += 0.55 * math.sin(2 * tau * p)
-        ps.tilt += 1.4 * math.sin(tau * p)
+        ps.headY += 0.55 * math.sin(2 * tau * p) * energy
+        ps.tilt += 1.4 * math.sin(tau * p) * energy
         ps.armR = -150.0 * push + 3.0
         ps.elbowR = 8.0 + 112.0 * push
         ps.brow = 0.5 * push
-        ps.blink = 1.0 if 0.60 <= p < 0.64 else ps.blink
+        if 0.60 <= p < 0.64:
+            ps.blink = 1.0
     elif kind == NPC_SHOP:
         # 손 흔들기
         wave = _bump(p, 0.10, 0.62)
@@ -1083,14 +1545,14 @@ def npc_pose(kind, phase):
         ps.tilt += -1.2 * wave
     elif kind == NPC_VILLAGER:
         look = math.sin(tau * p)
-        ps.turn = 0.9 * look
-        ps.headX = 0.9 * look
-        ps.tilt = -1.8 * look
+        ps.turn = 0.9 * look * energy
+        ps.headX = 0.9 * look * energy
+        ps.tilt = -1.8 * look * energy
         ps.bodyX = 0.5 * look
     elif kind == NPC_KID:
         # 제자리에서 통통
         hop = max(0.0, math.sin(tau * 2.0 * p)) ** 0.8
-        ps.bodyY = -3.2 * hop
+        ps.bodyY = -3.2 * hop * energy
         ps.kneeL = 16.0 + 26.0 * (1.0 - hop)
         ps.kneeR = 16.0 + 26.0 * (1.0 - hop)
         ps.hipL = -9.0 * hop
@@ -1105,13 +1567,74 @@ def npc_pose(kind, phase):
         ps.headY = -0.5 * hop
     elif kind == NPC_ELDER:
         tap = _bump(p, 0.44, 0.60)
-        ps.bodyY += 0.5 + 0.25 * math.sin(tau * p)
+        ps.bodyY += 0.5 + 0.25 * math.sin(tau * p) * energy
         ps.lean = 8.0
         ps.crouch = 0.35
         ps.armR = 16.0 + 10.0 * tap
         ps.elbowR = 14.0
         ps.tilt += 1.0
         ps.headY += 0.6
+    if flavor == FLAVOR_NONE:
+        return ps
+    if flavor == FLAVOR_BOUNCE:
+        hop = max(0.0, math.sin(tau * 2.0 * p)) ** 0.7
+        ps.bodyY -= 2.4 * hop * energy
+        ps.kneeL += 14.0 * (1.0 - hop)
+        ps.kneeR += 14.0 * (1.0 - hop)
+        ps.armL -= 34.0 * hop
+        ps.armR += 34.0 * hop
+        ps.mouth = max(ps.mouth, 0.7 * hop)
+        ps.hairSway -= 1.2 * hop
+    elif flavor == FLAVOR_PAINT:
+        stroke = math.sin(tau * 2.0 * p)
+        ps.armR = -64.0 + 26.0 * stroke
+        ps.elbowR = 34.0
+        ps.armL -= 18.0
+        ps.elbowL = 52.0
+        ps.tilt += 2.2 * math.sin(tau * p)
+        ps.brow = max(ps.brow, 0.4)
+        ps.mouth = max(ps.mouth, 0.25)
+    elif flavor == FLAVOR_SIP:
+        sip = _bump(p, 0.42, 0.72)
+        ps.armR = ps.armR * (1.0 - sip) + -118.0 * sip
+        ps.elbowR = ps.elbowR * (1.0 - sip) + 96.0 * sip
+        ps.headY -= 0.5 * sip
+        ps.tilt -= 1.6 * sip
+        ps.mouth = max(ps.mouth, 0.55 * sip)
+        ps.blink = max(ps.blink, 0.5 * sip)
+    elif flavor == FLAVOR_SCAN:
+        scan = math.sin(tau * p * 0.75 + sd)
+        ps.turn = 1.1 * scan
+        ps.headX += 1.2 * scan
+        ps.tilt += -0.8 + 0.5 * math.sin(tau * 2.0 * p)
+        ps.headY -= 0.6
+        ps.armL -= 24.0
+        ps.elbowL = 46.0
+        ps.armR += 24.0
+        ps.elbowR = 46.0
+        ps.brow = max(ps.brow, 0.5)
+    elif flavor == FLAVOR_READ:
+        page = _bump(p, 0.60, 0.78)
+        ps.headY += 1.1
+        ps.tilt += 0.8
+        ps.armL = -52.0 - 8.0 * page
+        ps.elbowL = 74.0
+        ps.armR = 52.0 + 8.0 * page
+        ps.elbowR = 74.0
+        ps.brow = max(ps.brow, 0.35)
+    elif flavor == FLAVOR_NOD:
+        nod = 0.5 - 0.5 * math.cos(tau * p)
+        ps.headY += 0.9 * nod
+        ps.tilt += 2.4 * nod
+        ps.bodyY += 0.4 * nod
+        ps.mouth = max(ps.mouth, 0.3 * nod)
+    elif flavor == FLAVOR_SWAY:
+        sway = math.sin(tau * p * 0.9 + sd * 2.0)
+        ps.bodyX += 0.9 * sway
+        ps.tilt -= 2.6 * sway
+        ps.headX += 0.8 * sway
+        ps.clothSway += 1.2 * sway
+        ps.hairSway += 1.0 * sway
     return ps
 
 

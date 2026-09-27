@@ -773,21 +773,30 @@ class Assets(private val context: Context) {
     //   누구인지(이름·옷·사는 지역)는 NpcRoster.kt, 자리는 MapBuilder.placeCast 가 정한다.
     // -----------------------------------------------------------------------
 
-    /** 사람 옷차림([NpcLook]) -> 렌더용 Look. 바디가 요구하는 체형은 자동으로 따라붙는다. */
+    /** 사람 겉모습([NpcLook]) -> 렌더용 Look. 체형·헤어·모자·수염·소품까지 그대로 간다. */
     private fun npcLook(kind: NpcKind, look: NpcLook): CharacterArt.Look {
+        val (skin, skin2) = when (look.skin) {
+            CharacterArt.SKIN_FAIR -> c(0xFFFFE3C4) to c(0xFFF0C39E)
+            CharacterArt.SKIN_TAN -> c(0xFFF5B885) to c(0xFFE09A6E)
+            CharacterArt.SKIN_DEEP -> c(0xFFD99A6B) to c(0xFFB87A52)
+            else -> c(0xFFFFD9B0) to c(0xFFE8B88C)
+        }
         val pal = CharacterArt.Pal(
             hair = c(look.hair.toLong()), hair2 = shade(c(look.hair.toLong()), 0.75f),
-            skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
+            skin = skin, skin2 = skin2,
             top = c(look.top.toLong()), top2 = c(look.top2.toLong()),
             pants = c(look.pants.toLong()), pants2 = shade(c(look.pants.toLong()), 0.75f),
             shoe = c(0xFF3A3A44), line = c(0xFF33241C),
             pack = c(look.pack.toLong()), pack2 = shade(c(look.pack.toLong()), 0.75f),
             eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        // 모자·조끼·목도리 — 탐조가와 같은 파츠를 써서 사람마다 실루엣이 달라진다
-        val gear = if (look.cap == null && look.vest == null && look.scarf == null) null
+        // 새 모자 파츠를 쓰면 탐조가 장비 모자는 비운다 (둘 다 그리면 겹친다).
+        // 모자 색은 명시색 → 옛 cap 색 → 옷색 순으로 정해진다.
+        val useHat = look.hat != CharacterArt.HAT_NONE
+        val gear = if (!useHat && look.cap == null && look.vest == null && look.scarf == null) null
         else CharacterArt.Gear(
-            cap = look.cap, capDark = shade(look.cap ?: 0, 0.72f),
+            cap = if (useHat) null else look.cap,
+            capDark = shade(look.cap ?: 0, 0.72f),
             vest = look.vest, vestDark = shade(look.vest ?: 0, 0.75f),
             scarf = look.scarf,
             brim = look.cap != null
@@ -797,9 +806,19 @@ class Assets(private val context: Context) {
             gear = gear,
             glasses = look.glasses,
             apron = look.apron,
-            cane = look.cane || kind == NpcKind.ELDER,
+            cane = look.cane,
             small = look.small || kind == NpcKind.KID,
             longHair = look.longHair,
+            body = look.body,
+            hairStyle = look.hairStyle,
+            beard = look.beard,
+            hat = look.hat,
+            hatColor = look.hatColor ?: look.cap ?: 0,
+            bottom = look.bottom,
+            prop = look.prop,
+            propColor = look.propColor ?: 0,
+            wrinkles = look.wrinkles || kind == NpcKind.ELDER,
+            freckles = look.freckles,
             keepsake = when (kind) {
                 NpcKind.PROFESSOR -> "feather"
                 NpcKind.SHOP -> "clover"
@@ -833,6 +852,24 @@ class Assets(private val context: Context) {
     private val npcHdCache = SpriteLru<String, Array<Bitmap>>(8)
 
     /**
+     * 소품·바디에서 소동작을 정한다 — 같은 VILLAGER 라도 쌍안경 든 관찰원은
+     * 두리번거리고, 붓 든 화가는 붓질하고, 찻잔 든 주인은 홀짝인다.
+     */
+    private fun flavorFor(person: NpcPerson): Int = when (person.look.prop) {
+        CharacterArt.PROP_BRUSH -> CharacterArt.FLAVOR_PAINT
+        CharacterArt.PROP_CUP -> CharacterArt.FLAVOR_SIP
+        CharacterArt.PROP_BINOCS -> CharacterArt.FLAVOR_SCAN
+        CharacterArt.PROP_BOOK -> CharacterArt.FLAVOR_READ
+        CharacterArt.PROP_ROD, CharacterArt.PROP_NET, CharacterArt.PROP_PADDLE ->
+            CharacterArt.FLAVOR_SWAY
+        else -> when (person.kind) {
+            NpcKind.KID -> CharacterArt.FLAVOR_BOUNCE
+            NpcKind.ELDER -> CharacterArt.FLAVOR_NOD
+            else -> CharacterArt.FLAVOR_NONE
+        }
+    }
+
+    /**
      * 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프).
      * @param hd 플레이어와 같은 화질([CHARACTER_PX])로 그릴지 — 월드가 2배 이상 슈퍼샘플일 때 true.
      */
@@ -842,9 +879,15 @@ class Assets(private val context: Context) {
         }
         val lk = npcLook(person.kind, person.look)
         val art = npcArtKind(person.kind)
+        val flavor = flavorFor(person)
+        // 사람마다 박자가 어긋나게 — 옆에 서 있어도 숨결·깜빡임이 겹치지 않는다
+        val seed = ((person.id.hashCode() and 0x7FFFFFFF) % 1000) / 1000f
         val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
         val frames = Array(NPC_FRAMES) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk, px)
+            CharacterArt.render(
+                CharacterArt.FRONT,
+                CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat(), flavor, seed), lk, px
+            )
         }
         if (hd) synchronized(npcHdCache) { npcHdCache[person.id] = frames }
         else npcCache.put(person.id, frames)
@@ -868,6 +911,10 @@ class Assets(private val context: Context) {
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
+
+    /** 랜드마크 안내인 — 테마마다 다른 얼굴 ([NpcRoster.docentFor]) */
+    fun docentBitmap(theme: LandmarkTheme, time: Float, hd: Boolean = false): Bitmap =
+        npcBitmap(NpcRoster.docentFor(theme), time, 1.3f, hd)
 
     val npcProfessor: Bitmap get() = npcFrames(NpcRoster.professor)[0]
     val npcShop: Bitmap get() = npcFrames(NpcRoster.shopkeeper)[0]
@@ -2092,7 +2139,7 @@ class Assets(private val context: Context) {
                     inRock(cv, p, k, x + w * 0.62f, top + 3f, 1f, 25f, fade(P_BAS_D, 150))
                 }
                 for (x in floatArrayOf(9.6f, 17.2f, 23.4f)) {
-                    p.color = fade(0xFF101416, 190)
+                    p.color = fade(0xFF101416.toInt(), 190)
                     cv.drawRect(x, 8f, x + 1.4f, 30f, p)
                 }
             }
@@ -2103,11 +2150,11 @@ class Assets(private val context: Context) {
                 for (i in 0..4) {
                     val x = floatArrayOf(6f, 11f, 17f, 23f, 27f)[i]
                     val y0 = floatArrayOf(8f, 11f, 5f, 10f, 15f)[i]
-                    inRock(cv, p, k, x, y0, 1.3f, 30f - y0, fade(0xFF14181A, 170))
+                    inRock(cv, p, k, x, y0, 1.3f, 30f - y0, fade(0xFF14181A.toInt(), 170))
                     inRock(cv, p, k, x + 1.4f, y0 + 1f, 1.1f, 29f - y0, fade(P_BAS_L, 120))
                     inRock(cv, p, k, x + 2.6f, y0 + 2f, 0.8f, 28f - y0, fade(P_BAS_H, 70))
                 }
-                inRock(cv, p, k, 3f, 27f, 26f, 3f, fade(0xFF2C3234, 200))
+                inRock(cv, p, k, 3f, 27f, 26f, 3f, fade(0xFF2C3234.toInt(), 200))
             }
             6 -> { // 현무암 자갈 — 기공이 구멍난 검은 부순 돌
                 rockShadow(cv, p, 16f, 28.5f, 9f, 2.2f)
@@ -2118,8 +2165,8 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.45f),
                         BASALT, bands = 2, speck = 1, rim = false, topBand = 0.36f)
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.35f, cy[i] + ch[i] * 0.32f, 1f, 1f, fade(0xFF0C0F10, 200))
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.58f, cy[i] + ch[i] * 0.5f, 1f, 1f, fade(0xFF0C0F10, 170))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.35f, cy[i] + ch[i] * 0.32f, 1f, 1f, fade(0xFF0C0F10.toInt(), 200))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.58f, cy[i] + ch[i] * 0.5f, 1f, 1f, fade(0xFF0C0F10.toInt(), 170))
                 }
             }
             7 -> { // 현무암 방패바위 — 물에 닳은 매끈한 검은 바위
@@ -2129,7 +2176,7 @@ class Assets(private val context: Context) {
                 for (i in 0..3) {
                     val dx = floatArrayOf(19f, 22f, 13f, 17f)[i]
                     val dy = floatArrayOf(17f, 21f, 25f, 23f)[i]
-                    inRock(cv, p, k, dx, dy, 1f, 1f, fade(0xFF0C0F10, 170))
+                    inRock(cv, p, k, dx, dy, 1f, 1f, fade(0xFF0C0F10.toInt(), 170))
                 }
             }
             // ═══ 해식 퇴적암 — 동해안 ═══════════════════════════════════
@@ -2157,7 +2204,7 @@ class Assets(private val context: Context) {
                     inRock(cv, p, k, 6f, y, 22f, 1.2f, fade(P_SED_D, 95))
                     inRock(cv, p, k, 6f, y + 1.2f, 22f, 0.9f, fade(P_SED_H, 80))
                 }
-                inRock(cv, p, k, 5f, 23.4f, 24f, 3.2f, fade(0xFF2B343A, 200))
+                inRock(cv, p, k, 5f, 23.4f, 24f, 3.2f, fade(0xFF2B343A.toInt(), 200))
                 inRock(cv, p, k, 5f, 22.6f, 24f, 1f, fade(P_SED_H, 140))
                 inRock(cv, p, k, 5f, 26.6f, 24f, 3.4f, fade(P_SED_D, 90))
                 weedFringe(cv, p, k, 7f, 26.4f, 19f, 2.2f, fade(P_SED_A, 150))
@@ -2180,7 +2227,7 @@ class Assets(private val context: Context) {
                     2f, 24f, 5f, 19f, 13f, 18f, 22f, 19f, 30f, 23f, 30f, 26f, 16f, 28f, 3f, 26f
                 )
                 val k = rockBody(cv, p, r, body, SEDIMENT, bands = 4, speck = 5)
-                inRock(cv, p, k, 2f, 22f, 30f, 1.4f, fade(0xFF3A4A50, 200))
+                inRock(cv, p, k, 2f, 22f, 30f, 1.4f, fade(0xFF3A4A50.toInt(), 200))
                 weedFringe(cv, p, k, 4f, 24.4f, 24f, 2.4f, fade(P_SED_A, 190))
                 for (i in 0..3) {
                     val dx = floatArrayOf(9f, 18f, 24f, 14f)[i]
@@ -2198,7 +2245,7 @@ class Assets(private val context: Context) {
                     val cx = floatArrayOf(11f, 20f, 23f)[i]
                     val cy = floatArrayOf(20f, 18f, 24f)[i]
                     val rad = floatArrayOf(1.9f, 1.5f, 1.7f)[i]
-                    inRockOval(cv, p, k, cx, cy, rad, rad * 0.9f, fade(0xFF4A5247, 200))
+                    inRockOval(cv, p, k, cx, cy, rad, rad * 0.9f, fade(0xFF4A5247.toInt(), 200))
                     inRockOval(cv, p, k, cx - 0.5f, cy - 0.6f, rad * 0.45f, rad * 0.4f, fade(P_LIM_H, 190))
                 }
                 inRock(cv, p, k, 6f, 26f, 22f, 1.6f, fade(P_LIM_D, 120))
@@ -2211,7 +2258,7 @@ class Assets(private val context: Context) {
                     val cx = floatArrayOf(13f, 21f, 16f, 23f)[i]
                     val cy = floatArrayOf(14f, 19f, 24f, 9f)[i]
                     val rad = floatArrayOf(2.2f, 1.8f, 1.6f, 1.4f)[i]
-                    inRockOval(cv, p, k, cx, cy, rad, rad, fade(0xFF515949, 180))
+                    inRockOval(cv, p, k, cx, cy, rad, rad, fade(0xFF515949.toInt(), 180))
                     inRockOval(cv, p, k, cx - 0.6f, cy - 0.7f, rad * 0.4f, rad * 0.4f, fade(P_LIM_H, 170))
                 }
                 inRock(cv, p, k, 8f, 27f, 19f, 2f, fade(P_LIM_D, 110))
@@ -2225,7 +2272,7 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.4f),
                         LIMESTONE, bands = 2, speck = 1, rim = false, topBand = 0.36f)
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.3f, cy[i] + ch[i] * 0.34f, 1f, 1f, fade(0xFF4A5247, 200))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.3f, cy[i] + ch[i] * 0.34f, 1f, 1f, fade(0xFF4A5247.toInt(), 200))
                 }
             }
             // ═══ 사암 — 철원 평야·대구 분지 ═════════════════════════════
@@ -2301,7 +2348,7 @@ class Assets(private val context: Context) {
                         inRock(cv, p, k, x + 0.5f, y + 0.8f, bw - 2f, 0.9f, fade(P_CON_H, 130))
                     }
                 }
-                p.color = fade(0xFF5F824E, 170)
+                p.color = fade(0xFF5F824E.toInt(), 170)
                 for (i in 0..4) cv.drawRect(5f + i * 4.4f, 20f, 7.4f + i * 4.4f, 21.6f, p)
             }
             20 -> { // 조경 화단석 — 다듬어 네모난 화단 돌
@@ -2315,7 +2362,7 @@ class Assets(private val context: Context) {
                     val body = floatArrayOf(x, y + h, x + 0.5f, y + 0.6f, x + w - 0.8f, y, x + w, y + h - 0.5f)
                     rockBody(cv, p, r, body, CONCRETE, bands = 2)
                 }
-                p.color = fade(0xFFB4B9B4, 220)
+                p.color = fade(0xFFB4B9B4.toInt(), 220)
                 cv.drawRect(4f, 28f, 28f, 29.6f, p)
             }
             21 -> { // 호안석 가비온 — 철망에 꿰매 돌을 채운 제방
@@ -2324,11 +2371,11 @@ class Assets(private val context: Context) {
                 val k = rockBody(cv, p, r, body, GABION, bands = 4, speck = 10, speckCol = c(0xFF525A5F))
                 for (i in 0..3) {
                     val y = floatArrayOf(15.6f, 19.6f, 23.6f, 27.4f)[i]
-                    inRock(cv, p, k, 4f, y, 25f, 1f, fade(0xFF2E363A, 205))
+                    inRock(cv, p, k, 4f, y, 25f, 1f, fade(0xFF2E363A.toInt(), 205))
                 }
                 var wx = 4f
                 while (wx < 29f) {
-                    inRock(cv, p, k, wx, 12f, 1f, 16f, fade(0xFF2E363A, 205))
+                    inRock(cv, p, k, wx, 12f, 1f, 16f, fade(0xFF2E363A.toInt(), 205))
                     wx += 3f
                 }
                 val gx = intArrayOf(7, 14, 21, 9, 17, 24)
@@ -2339,7 +2386,7 @@ class Assets(private val context: Context) {
                     rockBody(cv, p, r, lump(r, gx[i] + gw[i] / 2f, gy[i] + gh[i] / 2f, gw[i], gh[i], 7, 0.35f),
                         STONES_IN_CAGE, bands = 2, speck = 1, rim = false, topBand = 0.34f)
                 }
-                inRock(cv, p, k, 6f, 12.6f, 20f, 1.4f, fade(0xFF8E959B, 190))
+                inRock(cv, p, k, 6f, 12.6f, 20f, 1.4f, fade(0xFF8E959B.toInt(), 190))
             }
             // ═══ 자연 쇳돌 — 강가·갯벌·숲·해안 ═════════════════════════════
             22 -> { // 강 자갈 더미 — 물에 둥글게 닳은 자갈
@@ -2373,7 +2420,7 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i].toFloat(), cy[i], rad[i], rad[i] * 0.86f, 9, 0.3f),
                         SANDSTONE, bands = 3, speck = 2, rim = false)
-                    inRockOval(cv, p, k, cx[i].toFloat(), cy[i], rad[i] * 0.5f, rad[i] * 0.4f, fade(0xFF8A6A4E, 150))
+                    inRockOval(cv, p, k, cx[i].toFloat(), cy[i], rad[i] * 0.5f, rad[i] * 0.4f, fade(0xFF8A6A4E.toInt(), 150))
                 }
             }
             25 -> { // 조개 자갈 — 조개껍데기가 부서진 하얀 자갈밭
@@ -2405,9 +2452,9 @@ class Assets(private val context: Context) {
                     val y = 8f + i * 5f
                     inRock(cv, p, k, 10f, y, 13f, 1.4f, fade(P_SED_D, 140))
                 }
-                inRock(cv, p, k, 9f, 24f, 15f, 3f, fade(0xFF2F383E, 170))
+                inRock(cv, p, k, 9f, 24f, 15f, 3f, fade(0xFF2F383E.toInt(), 170))
                 weedFringe(cv, p, k, 10f, 27f, 11f, 2f, fade(P_SED_A, 170))
-                inRock(cv, p, k, 9f, 28.4f, 15f, 2f, fade(0xFF3E4A50, 200))
+                inRock(cv, p, k, 9f, 28.4f, 15f, 2f, fade(0xFF3E4A50.toInt(), 200))
             }
             else -> { // 갈대 곁 도라돌 — 물가 갈대 사이에 놓인 도라돌
                 rockShadow(cv, p, 16f, 28f, 8f, 2.2f)
