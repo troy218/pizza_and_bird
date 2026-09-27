@@ -24,6 +24,12 @@ private const val PUNCH_RANGE = 46f
 /** 펀치 동작 길이(초). 이 동안은 다시 치지 않는다. */
 private const val PUNCH_DUR = 0.34f
 
+/** 벤치에 앉아 쉬는 시간(초) — 지나면 자동으로 일어난다 */
+private const val BENCH_SIT_HOLD = 3.2f
+
+/** 앉으며 좌석으로 떠올라 내려앉는 연출 시간(초) */
+private const val BENCH_SIT_LIFT = 0.28f
+
 /**
  * 지역 월드 씬: 걷기/자전거/달리기, 터널 이동, 새 스폰/촬영, 낮밤, 파티클, NPC/고양이.
  * 고양이는 새를 노리고, 펀치를 맞으면 날아간다.
@@ -52,6 +58,25 @@ class WorldScene(
     private var impactT = 0f
     private var impactX = 0f
     private var impactY = 0f
+
+    /** 벤치 앉기 연출 — 자전거에서 내려 걸어가 앉고, 잠시 쉰 뒤 일어난다 */
+    private var benchSit: BenchSit? = null
+
+    /**
+     * 벤치 앉기 연출 상태.
+     * 1) walking: 벤치 앞(stand)까지 실제로 걸어간다
+     * 2) 앉음: 좌석(seat) 위에서 [BENCH_SIT_HOLD]초 쉬다가 일어난다 (움직이면 바로 일어남)
+     */
+    private class BenchSit(val seatX: Float, val seatY: Float, val standX: Float, val standY: Float) {
+        var walking = true
+        var sitT = 0f
+        /** 앉아지는 연출: 1 = 서 있던 자리, 0 = 좌석 위 (위로 떠서 내려앉는 느낌) */
+        var lift = 1f
+        /** 걸어가는 도중 막혀 움직이지 못한 시간(초) — 오래 막히면 연출을 포기한다 */
+        var stuckT = 0f
+        /** 직전 프레임의 목표까지 거리 (전진했는지 판단) */
+        var lastDist = Float.MAX_VALUE
+    }
     // 재사용 정렬 버퍼: 매 프레임 엔티티 목록을 새로 만들지 않아 GC 부하를 줄인다.
     private val drawEntities = ArrayList<Any>(map.npcs.size + 16)
     private val drawEntityOrder = Comparator<Any> { a, b -> sortY(a).compareTo(sortY(b)) }
@@ -817,8 +842,75 @@ class WorldScene(
             state.onBike = true
             guidedTravelDirection()
         } else null
-        val dx = guide?.first ?: input.dirX
-        val dy = guide?.second ?: input.dirY
+
+        // ---- 벤치 앉기 연출: 앉아 있는 중이면 (일어날 때까지) 입력을 받지 않는다 ----
+        val seq0 = benchSit
+        if (seq0 != null && !seq0.walking) {
+            seq0.sitT += dt
+            if (seq0.lift > 0f) {
+                seq0.lift = (seq0.lift - dt / BENCH_SIT_LIFT).coerceAtLeast(0f)
+            }
+            if (seq0.sitT >= BENCH_SIT_HOLD ||
+                abs(input.dirX) > 0.01f || abs(input.dirY) > 0.01f
+            ) {
+                // 일어나서 벤치 앞에 선다
+                player.set(seq0.standX, seq0.standY)
+                player.facing = Dir.S
+                player.moving = false
+                benchSit = null
+            } else {
+                player.moving = false
+                lastSpeed = 0f
+                velX = 0f
+                velY = 0f
+                updatePlayerAnim(dt)
+                return
+            }
+        }
+
+        var dx = guide?.first ?: input.dirX
+        var dy = guide?.second ?: input.dirY
+
+        // ---- 벤치 앞까지 자동으로 걸어간다 (조작하거나 길안내가 켜지면 연출 취소) ----
+        val seq1 = benchSit
+        if (seq1 != null && seq1.walking) {
+            if (abs(input.dirX) > 0.01f || abs(input.dirY) > 0.01f || photoMode || punchT > 0f || guide != null) {
+                benchSit = null
+            } else {
+                val tx = seq1.standX - player.x
+                val ty = seq1.standY - player.y
+                val dist = hypot(tx, ty)
+                if (dist <= 2.4f) {
+                    // 도착 — 좌석으로 앉으며 쉬어 간다
+                    player.set(seq1.seatX, seq1.seatY)
+                    player.facing = Dir.S
+                    seq1.walking = false
+                    seq1.sitT = 0f
+                    seq1.lift = 1f
+                    player.moving = false
+                    lastSpeed = 0f
+                    velX = 0f
+                    velY = 0f
+                    restAtBench()
+                    updatePlayerAnim(dt)
+                    return
+                }
+                // 막혀서 한 발짝도 못 가면 연출을 포기한다 (벽 너머 벤치 등)
+                seq1.stuckT = if (dist < seq1.lastDist - 0.05f) 0f else seq1.stuckT + dt
+                seq1.lastDist = dist
+                if (seq1.stuckT > 1.5f) {
+                    benchSit = null
+                } else {
+                    val len = dist.coerceAtLeast(0.001f)
+                    dx = tx / len
+                    dy = ty / len
+                }
+            }
+        }
+
+        // (위 분기에서 연출이 취소됐으면 이미 null — 걸어가는 중에만 true)
+        val autoWalk = benchSit != null
+
         val moving = abs(dx) > 0.01f || abs(dy) > 0.01f
         player.moving = moving
         if (bumpCd > 0f) bumpCd -= dt
@@ -840,7 +932,7 @@ class WorldScene(
             if (photoMode) speed *= 0.5f        // 카메라 모드에선 살금살금
             speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
-            speed *= (if (guide != null) 1f else input.moveScale) // 자동 길안내는 항상 최고 속도
+            if (!autoWalk) speed *= (if (guide != null) 1f else input.moveScale) // 자동 길안내·자동 걷기는 항상 최고 속도
             val moveStartX = player.x
             val moveStartY = player.y
             if (!moveBy(vx * speed * dt, 0f)) blocked = true
@@ -907,6 +999,12 @@ class WorldScene(
         }
         val moving = player.moving
         val sprint = game.input.isRun && !player.bike && moving
+        // 벤치에 앉아 있는 중 — 앉은 자세(숨쉬며 두리번)를 그대로 유지한다
+        val sitSeq = benchSit
+        if (sitSeq != null && !sitSeq.walking) {
+            player.play(Anim.SIT, dt, 1f)
+            return
+        }
         if (player.bike) {
             player.pedalBy(dt, if (moving) lastSpeed else 0f)
             player.play(if (moving) Anim.WALK else Anim.IDLE, dt, if (moving) 1f else 0.6f)
@@ -1849,6 +1947,33 @@ class WorldScene(
     }
 
     private var lastBenchRest = -999f
+
+    /**
+     * 벤치 앉기 시작 — 자전거를 탄 채라면 먼저 내린 뒤,
+     * 벤치 앞까지 실제로 걸어가 앉는 연출을 시작한다. 앉으면 [restAtBench] 보상.
+     */
+    private fun startBenchSit(bx: Int, by: Int) {
+        // 자전거 길안내 중이면 먼저 끊는다 (자동 주행이 앉기 연출과 충돌하지 않게)
+        if (state.questTravelPlan != null) {
+            QuestNavigation.cancel(game, "벤치에서 쉬어 가는 중이에요")
+            questPathKey = ""
+        }
+        if (player.bike) {
+            player.bike = false
+            state.onBike = false
+            // 올라타고 내릴 때의 체중 이동 (B 버튼과 같은 연출)
+            viewRig.kick(0f, 1f, 1.2f)
+            viewRig.punchZoom(0.02f)
+            game.sfx(Audio.Sfx.BIKE_BRAKE, 0.8f)
+            game.toast("${state.bike().name}에서 내렸어요")
+        }
+        // 좌석(벤치 타일 위)과 벤치 앞 타일(내려 앉기 전에 서는 자리)
+        benchSit = BenchSit(
+            seatX = bx * 16f, seatY = by * 16f,
+            standX = bx * 16f, standY = (by + 1) * 16f
+        )
+    }
+
     private fun restAtBench() {
         // 같은 벤치에서 연타해도 행운이 무한정 오르지 않게 쉼 보상 쿨다운
         if (game.time - lastBenchRest < 25f) {
@@ -2336,10 +2461,22 @@ class WorldScene(
             return
         }
         if (input.justPunch) {
+            if (benchSit != null) return   // 앉기 연출 중에는 주먹질 금지
             tryPunch()
             return
         }
         if (input.justB) {
+            val seq = benchSit
+            if (seq != null) {
+                // 앉기 연출 취소 — 앉아 있었다면 벤치 앞에 일어선다
+                benchSit = null
+                if (!seq.walking) {
+                    player.set(seq.standX, seq.standY)
+                    player.facing = Dir.S
+                    player.moving = false
+                }
+                return
+            }
             if (photoMode) {
                 // 촬영 중에는 자전거에 오를 수 없다 — 카메라를 먼저 낮춰야 한다
                 game.toast("촬영 중에는 자전거를 탈 수 없어요")
@@ -2358,6 +2495,7 @@ class WorldScene(
             return
         }
         if (input.justA) {
+            if (benchSit != null) return   // 앉기 연출 중에는 A 무시 (앉기 연출이 먼저)
             // 촬영 모드에선 A 버튼도 쉰다 (탭=셔터만) — 뷰파인더 위 대화창 방지
             if (photoMode) return
             if (pickGroundCharm()) return
@@ -2373,8 +2511,9 @@ class WorldScene(
                     return
                 }
             }
-            if (nearTile(T.BENCH) != null) {
-                restAtBench()
+            // 🪑 벤치: 자전거에서 내려 걸어가서 실제로 앉아 쉰다
+            nearTile(T.BENCH)?.let { (bx, by) ->
+                startBenchSit(bx, by)
                 return
             }
             // 🌸 허브 줍기: FLOWER 타일 밟은 채로 A를 누르면 계절 허브 하나를 주운다
@@ -2832,13 +2971,14 @@ class WorldScene(
                 val punching = punchT > 0f && !player.bike
                 val hd = game.hdSprites
                 val set = a.playerSet(state.gender, state.gearTier(), hd)
+                val animClip = if (!player.bike && !punching) set.clip(player.anim) else null
                 val bmp: android.graphics.Bitmap = if (player.bike) {
                     a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal, state.bikeStyle(), hd)
                 } else if (punching) {
                     val frame = ((punchT / PUNCH_DUR) * set.punch.count).toInt().coerceIn(0, set.punch.count - 1)
                     set.punch.frame(punchDir, frame)
                 } else {
-                    set.clip(player.anim).frame(player.facing, player.frame)
+                    animClip!!.frame(player.facing, player.frame)
                 }
                 var sx = (player.x - camX) * WORLD_SCALE
                 var sy = (player.y - camY) * WORLD_SCALE
@@ -2860,14 +3000,18 @@ class WorldScene(
                 scratchRect.set(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k)
                 c.drawOval(scratchRect, a.shadowPaint)
                 drawGhosts(c, bmp)
-                a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+                // 앉은 자세는 머리가 프레임 위로 넘쳐 상단 여백(topPad)을 둔다 — 그만큼 위로 그린다.
+                // 앉아지는 연출 동안에는 lift 만큼 아래에서 좌석으로 떠오른다 (걷는 중엔 적용 안 함).
+                val sitLift = benchSit?.takeIf { !it.walking }?.lift ?: 0f
+                val bodyY = sy - (animClip?.topPad ?: 0) + sitLift * 32f
+                a.drawPlayer(c, bmp, sx, bodyY, game.worldScale.toFloat())
                 Charms.equipped(state)?.let { item ->
                     val left = player.facing == Dir.W
                     val x = sx + if (left) 8f else 24f
-                    val y = sy + if (item.id == "rain") 12f else 22f
+                    val y = bodyY + if (item.id == "rain") 12f else 22f
                     Charms.draw(c, item, x, y, 8f, game.time)
                 }
-                if (punchT > 0f) drawPunchFist(c, sx, sy)
+                if (punchT > 0f) drawPunchFist(c, sx, bodyY)
 
                 // 장착한 카메라를 몸에 겹쳐 그린다 (촬영 모드면 눈높이로 들어올린다)
                 // 펀치 중에는 주먹이 가려지지 않게 카메라를 잠시 내린다 (자전거는 그대로)
@@ -2889,7 +3033,7 @@ class WorldScene(
                     }
                     val lift = if (raised) -1f else 0f
                     val ride = if (player.bike) 1.5f else 0f
-                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, sy + bob + lift + ride, game.worldScale.toFloat())
+                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, bodyY + bob + lift + ride, game.worldScale.toFloat())
 
                     // 촬영 모드: 렌즈 앞알이 반짝인다
                     if (raised && camDir != 1) {
@@ -2900,7 +3044,7 @@ class WorldScene(
                             3 -> 7f
                             else -> 16f
                         }
-                        c.drawCircle(ex, sy + 11.4f, 3.0f + t * 1.2f, uiFill)
+                        c.drawCircle(ex, bodyY + 11.4f, 3.0f + t * 1.2f, uiFill)
                     }
                 }
             }
