@@ -76,6 +76,7 @@ class Game(val context: Context) {
             return
         }
         val ov = scene.overlay
+        if (ov == null && input.rawMode) input.rawMode = false
         if (ov != null) {
             ov.handleInput(input)
             ov.update(dt)
