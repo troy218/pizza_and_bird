@@ -56,23 +56,6 @@ class Hud(private val game: Game) {
         strokeCap = Paint.Cap.ROUND
     }
 
-    // 한국 실루엣 (정규화 -1..1, y 아래가 +)
-    private val koreaPath = Path()
-    private val jeju = PointF(-0.12f, 0.48f)
-
-    init {
-        val pts = listOf(
-            -0.42f to -0.42f, -0.30f to -0.62f, -0.10f to -0.74f, 0.12f to -0.80f,
-            0.34f to -0.70f, 0.46f to -0.74f, 0.58f to -0.60f, 0.62f to -0.40f,
-            0.70f to -0.22f, 0.74f to -0.02f, 0.70f to 0.14f, 0.52f to 0.18f,
-            0.34f to 0.28f, 0.18f to 0.38f, 0.02f to 0.32f, -0.10f to 0.18f,
-            -0.22f to 0.02f, -0.30f to -0.12f, -0.44f to -0.24f, -0.36f to -0.32f
-        )
-        koreaPath.moveTo(pts[0].first, pts[0].second)
-        for (i in 1 until pts.size) koreaPath.lineTo(pts[i].first, pts[i].second)
-        koreaPath.close()
-    }
-
     // ------------------------------------------------------------------
 
     fun layout(w: Int, h: Int) {
@@ -432,33 +415,36 @@ class Hud(private val game: Game) {
 
     fun drawMinimap(c: Canvas, cx: Float, cy: Float, r: Float, showNames: Boolean) {
         val s = game.state
-        val scale = r * 0.94f
+        // 남한 전체가 원 안에 들어오도록 맞춤
+        val b = KoreaMap.southBounds
+        val fitScale = r * 1.86f / maxOf(b.width(), b.height())
+        val ox = cx - b.centerX() * fitScale
+        val oy = cy - b.centerY() * fitScale
 
-        fun px(mm: Float): Float = cx + mm * scale
-        fun py(mm: Float): Float = cy + mm * scale
+        fun px(mm: Float): Float = ox + mm * fitScale
+        fun py(mm: Float): Float = oy + mm * fitScale
 
         // 바다
         fill.color = 0xFFA8D8E8.toInt()
         c.drawCircle(cx, cy, r, fill)
 
         c.save()
-        c.translate(cx, cy)
-        c.scale(scale, scale)
-        // 육지
-        fill.color = 0xFFB8DCA0.toInt()
-        c.drawPath(koreaPath, fill)
-        // 제주도
-        c.drawCircle(jeju.x, jeju.y, 0.09f, fill)
+        val clip = Path()
+        clip.addCircle(cx, cy, r, Path.Direction.CW)
+        c.clipPath(clip)
+        c.translate(ox, oy)
+        c.scale(fitScale, fitScale)
+        KoreaMap.drawLand(c, fitScale, 1, s.isNight())
         c.restore()
 
         // 연결선 (방문한 지역끼리)
         linePaint.color = Color.argb(110, 255, 255, 255)
-        linePaint.strokeWidth = dp(1.6f)
+        linePaint.strokeWidth = dp(1.4f)
         for (reg in Regions.ALL) {
             for ((_, targetId) in Regions.exits(reg.id)) {
                 val target = Regions.byId[targetId] ?: continue
                 if (reg.id in s.visited && targetId in s.visited) {
-                    linePaint.alpha = 140
+                    linePaint.alpha = 150
                     c.drawLine(px(reg.mmX), py(reg.mmY), px(target.mmX), py(target.mmY), linePaint)
                 }
             }
@@ -469,36 +455,39 @@ class Hud(private val game: Game) {
             val visited = reg.id in s.visited
             val isHome = reg.id == s.homeRegion
             val isCurrent = reg.id == s.region
-            val dotR = if (isCurrent) r * 0.085f else r * 0.06f
+            val dotR = if (isCurrent) r * 0.075f else r * 0.042f
 
             if (visited) {
-                fill.color = if (isCurrent) 0xFFE2574C.toInt() else 0xFFF7CE5B.toInt()
+                fill.color = if (isCurrent) 0xFFE2574C.toInt() else reg.kind.color
                 c.drawCircle(px(reg.mmX), py(reg.mmY), dotR, fill)
+                stroke.color = Color.argb(200, 255, 255, 255)
+                stroke.strokeWidth = dp(0.9f)
+                c.drawCircle(px(reg.mmX), py(reg.mmY), dotR, stroke)
                 if (isCurrent) {
                     stroke.color = Color.argb(160, 226, 87, 76)
                     stroke.strokeWidth = dp(2f)
-                    val pulse = r * (0.13f + 0.03f * kotlin.math.sin(game.time * 4f))
+                    val pulse = r * (0.12f + 0.03f * kotlin.math.sin(game.time * 4f))
                     c.drawCircle(px(reg.mmX), py(reg.mmY), pulse, stroke)
                 }
             } else {
-                fill.color = Color.argb(120, 90, 80, 70)
-                c.drawCircle(px(reg.mmX), py(reg.mmY), dotR * 0.8f, fill)
+                fill.color = Color.argb(110, 90, 80, 70)
+                c.drawCircle(px(reg.mmX), py(reg.mmY), dotR * 0.75f, fill)
             }
 
-            if (showNames) {
-                text.textSize = dp(11f)
+            if (showNames && (isCurrent || isHome)) {
+                text.textSize = dp(10f)
                 text.color = if (isCurrent) 0xFFE2574C.toInt() else 0xFF4A3728.toInt()
                 val nm = reg.name
                 val tw = text.measureText(nm)
-                c.drawText(nm, px(reg.mmX) - tw / 2, py(reg.mmY) + r * 0.15f, text)
+                c.drawText(nm, px(reg.mmX) - tw / 2, py(reg.mmY) + r * 0.14f, text)
             }
 
-            if (isHome && showNames) {
+            if (isHome) {
                 val hi = game.assets.houseIcon
-                val hw = r * 0.11f
+                val hw = r * 0.10f
                 c.drawBitmap(
                     hi, null,
-                    RectF(px(reg.mmX) - hw / 2, py(reg.mmY) - r * 0.16f - hw, px(reg.mmX) + hw / 2, py(reg.mmY) - r * 0.16f),
+                    RectF(px(reg.mmX) - hw / 2, py(reg.mmY) - r * 0.13f - hw, px(reg.mmX) + hw / 2, py(reg.mmY) - r * 0.13f),
                     game.assets.sprPaint
                 )
             }
