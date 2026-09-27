@@ -1546,6 +1546,9 @@ class WorldScene(
         // 지면은 흔들림·기울기로 가장자리가 비지 않게 PAD 만큼 넓게 그린다
         c.save()
         c.translate(-padX, -padY)
+        // 이정표는 가까이 갔을 때만 보인다 — 발 위치 기준(지도 렌더 좌표 = 월드 × WORLD_SCALE)
+        map.signViewerX = player.cx * WORLD_SCALE
+        map.signViewerY = (player.y + 13f) * WORLD_SCALE
         map.draw(
             c, game.assets, camXv - padX, camYv - padY, padW, padH, game.time,
             sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
@@ -2075,56 +2078,9 @@ class WorldScene(
         }
     }
 
-    /** 현재 위치에서 각 터널로 가는 방향을 번호와 함께 표시 */
+    /** 광장 근처에서만 전체 출구 안내판 표시 (캐릭터 옆 터널 방향 힌트는 띄우지 않는다) */
     private fun drawExitHints(c: Canvas) {
         if (map.tunnels.isEmpty()) return
-        val pSx = (player.cx - camX) * WORLD_SCALE
-        val pSy = (player.cy - camY) * WORLD_SCALE
-        val screenR = 52f
-
-        for (tunnel in map.tunnels) {
-            val dx = tunnel.cx - player.cx
-            val dy = tunnel.cy - player.cy
-            val dist = hypot(dx, dy)
-            if (dist < 1f) continue
-            // 터널 바로 앞에서는 힌트 생략 — 터널 뱃지가 이미 보임
-            if (dist < 90f) continue
-            val nx = dx / dist
-            val ny = dy / dist
-
-            val ix = pSx + nx * screenR + 16f
-            val iy = pSy + ny * screenR
-
-            val target = Regions.byId[tunnel.targetId]
-            val targetName = target?.name ?: tunnel.targetId
-
-            // 번호 원
-            bubbleFill.color = Color.argb(190, 253, 250, 240)
-            c.drawCircle(ix, iy, 10f, bubbleFill)
-            bubbleStroke.color = 0xFFF2B63C.toInt()
-            bubbleStroke.strokeWidth = 1.6f
-            c.drawCircle(ix, iy, 10f, bubbleStroke)
-
-            val np = Type.paintPx(10f, true, 0.02f, 0xFF4A2E12.toInt())
-            val numTxt = tunnel.number.toString()
-            val tw = np.measureText(numTxt)
-            c.drawText(numTxt, ix - tw / 2, iy + 3.5f, np)
-
-            // 방향 화살표
-            val arrow = Regions.dirArrow(tunnel.dir)
-            val ap = Type.paintPx(11f, true, 0f, 0xFFF2B63C.toInt())
-            c.drawText(arrow, ix + 12f, iy + 4f, ap)
-
-            if (dist < 240f) {
-                val lp = Type.paintPx(9f, false, 0f, Color.argb(210, 58, 52, 74))
-                val label = "${tunnel.number}. $targetName"
-                val lw = lp.measureText(label)
-                uiFill.color = Color.argb(175, 255, 252, 240)
-                c.drawRoundRect(RectF(ix + 18f, iy - 8f, ix + 18f + lw + 8f, iy + 6f), 5f, 5f, uiFill)
-                c.drawText(label, ix + 22f, iy + 3f, lp)
-            }
-        }
-
         // 광장 근처에서는 전체 출구 안내판 (지하철 출입구 종합 안내처럼)
         val plazaCx = 21f * 16f + 8f
         val plazaCy = 15f * 16f + 8f

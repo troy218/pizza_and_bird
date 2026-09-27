@@ -115,6 +115,19 @@ class GameMap(
     }
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
+    /** 이정표 표시 기준점(지도 렌더 좌표, 32px 타일). NaN이면 항상 보인다. */
+    var signViewerX = Float.NaN
+    var signViewerY = Float.NaN
+
+    /** 이정표 불투명도 0..1 — 가까이 가야만 나타나고, 멀어지면 서서히 사라진다. */
+    fun signAlpha(x: Int, y: Int): Float {
+        if (signViewerX.isNaN() || signViewerY.isNaN()) return 1f
+        val dx = x * 32f + 16f - signViewerX
+        val dy = y * 32f + 24f - signViewerY
+        val d = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        return ((SIGN_FADE_FAR - d) / (SIGN_FADE_FAR - SIGN_FADE_NEAR)).coerceIn(0f, 1f)
+    }
+
     fun t(x: Int, y: Int): T {
         if (x < 0 || y < 0 || x >= w || y >= h) return T.MOUNTAIN
         return T.ALL[tiles[y][x]]
@@ -276,6 +289,9 @@ class GameMap(
                 for (x in (x0 - 1).coerceAtLeast(0)..(x1 + 1).coerceAtMost(w - 1)) {
                     val tile = T.ALL[tiles[y][x]]
                     if (tile != T.TREE && tile != T.LAMP && tile != T.SIGN && tile != T.ROCK) continue
+                    val shadowK = if (tile == T.SIGN) signAlpha(x, y) else 1f
+                    if (shadowK <= 0f) continue
+                    sunPaint.alpha = (sunAlpha * shadowK).toInt()
                     val bx = x * 32f - camX + 16f
                     val by = y * 32f - camY + 29f
                     c.save()
@@ -321,6 +337,14 @@ class GameMap(
                 if (!tile.ground && tile != T.OVEN) {
                     val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
                     else a.tiles[tv][a.tileVariant(tv, x, y)]
+                    if (tile == T.SIGN) {
+                        val k = signAlpha(x, y)
+                        if (k <= 0f) continue
+                        signPaint.alpha = (255 * k).toInt()
+                        c.drawBitmap(bmp, fx, fy, signPaint)
+                        signDirectionAt(x, y)?.let { drawSignArrow(c, fx, fy, it, k) }
+                        continue
+                    }
                     when (tile) {
                         T.TUNNEL -> {
                             val edge = tunnelDirectionAt(x, y)
@@ -329,7 +353,6 @@ class GameMap(
                         }
                         else -> c.drawBitmap(bmp, fx, fy, terrainPaint(tile, a.sprPaint))
                     }
-                    if (tile == T.SIGN) signDirectionAt(x, y)?.let { drawSignArrow(c, fx, fy, it) }
                 }
             }
         }
@@ -365,7 +388,10 @@ class GameMap(
     }
 
     /** 이정표는 세워 둔 채, 판자의 화살표만 연결 터널 방향으로 돌린다. */
-    private fun drawSignArrow(c: Canvas, x: Float, y: Float, direction: Dir) {
+    private fun drawSignArrow(c: Canvas, x: Float, y: Float, direction: Dir, alpha: Float = 1f) {
+        val ai = (255 * alpha).toInt()
+        signArrowPaint.alpha = ai
+        signArrowLinePaint.alpha = ai
         val (dx, dy) = when (direction) {
             Dir.N -> 0f to -1f
             Dir.E -> 1f to 0f
@@ -458,6 +484,11 @@ class GameMap(
         private val sparkle by lazy { Paint() }
         private val sunPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG) }
         private val sunRect by lazy { RectF() }
+        private val signPaint by lazy { Paint() }
+        /** 이 거리(지도 렌더 px) 안에서는 이정표가 완전히 보인다 — 약 2.5칸 */
+        private const val SIGN_FADE_NEAR = 80f
+        /** 이 거리 밖에서는 이정표가 보이지 않는다 — 약 4칸 */
+        private const val SIGN_FADE_FAR = 128f
         private val signArrowPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF4A3728.toInt()
             style = Paint.Style.FILL
