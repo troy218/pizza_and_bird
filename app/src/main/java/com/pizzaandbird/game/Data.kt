@@ -459,11 +459,33 @@ object Birds {
         return ALL.filter { def ->
             def.habitats.intersect(region.habitats).isNotEmpty() &&
                     (def.onlyRegions == null || region.id in def.onlyRegions) &&
-                    (def.active == "any" || (if (night) def.active == "night" else def.active == "day")) &&
+                    activeOk(def, night, window) &&
                     (season == null || season in def.seasons) &&
                     (window == null || window in def.timeWindows)
         }
     }
+
+    /**
+     * 밤낮 출현 조건. 밤 전용(Active = night) 새는 밤에만 나오되,
+     * 새벽·해질녘 시간대에는 아직 밤이 아니어도 활동 시간으로 쳐 준다 —
+     * 올빼미류의 timeWindows에 DUSK·DAWN이 있는 이유가 원래 황혼·새벽 활동이기 때문이다.
+     */
+    private fun activeOk(def: BirdDef, night: Boolean, window: BirdTimeWindow?): Boolean =
+        when {
+            def.active == "any" -> true
+            night -> def.active == "night"
+            def.active == "day" -> true
+            else -> def.active == "night" &&
+                    (window == BirdTimeWindow.DAWN || window == BirdTimeWindow.DUSK)
+        }
+
+    /**
+     * 밤 전용(Active night) 종은 어떤 서식지·스폰 프로필을 받아도 [BirdTimeWindow.NIGHT]를 보장한다.
+     * 빠뜨리면 낮엔 active에 막히고 밤엔 시간창에 막혀 **아무 때도 풀에 안 들어가는** 종이 생긴다
+     * (검은댕기해오라기가 그랬다).
+     */
+    private fun windowsEnsuringNight(windows: Set<BirdTimeWindow>, active: String): Set<BirdTimeWindow> =
+        if (active == "night") windows + BirdTimeWindow.NIGHT else windows
 
     /** 기본 가중치에 계절/시간/지역 희귀도 보정을 적용한 실제 스폰 가중치. */
     fun spawnWeight(def: BirdDef, region: RegionDef, day: Int, hour: Float): Double {
@@ -506,7 +528,9 @@ object Birds {
             subspecies = entry.subspecies,
             birdNum = num,
             seasons = if (usesDefaultProfile) profile.seasons else def.seasons,
-            timeWindows = if (usesDefaultProfile) profile.timeWindows else def.timeWindows,
+            timeWindows = windowsEnsuringNight(
+                if (usesDefaultProfile) profile.timeWindows else def.timeWindows, def.active
+            ),
             regionBias = if (usesDefaultProfile) profile.regionBias else def.regionBias,
             migrationLabel = if (usesDefaultProfile) profile.migrationLabel else def.migrationLabel
         )
@@ -535,7 +559,7 @@ object Birds {
             subspecies = entry.subspecies,
             birdNum = num,
             seasons = profile.seasons,
-            timeWindows = profile.timeWindows,
+            timeWindows = windowsEnsuringNight(profile.timeWindows, activeFor(entry)),
             regionBias = profile.regionBias,
             migrationLabel = profile.migrationLabel
         )
@@ -579,8 +603,14 @@ object Birds {
         val timeWindows = when {
             order == "올빼미목" || order == "쏙독새목" -> setOf(BirdTimeWindow.DUSK, BirdTimeWindow.NIGHT, BirdTimeWindow.DAWN)
             order == "수리목" || order == "매목" -> setOf(BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
-            family in setOf("오리과", "두루미과") || hasAny(text, "기러기", "고니") -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
-            family in setOf("도요과", "물떼새과", "갈매기과", "바다오리과") -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
+            // 야간 이동 무리 — 두루미·기러기·고니는 해질녘부터 밤하늘로 옮겨앉고,
+            // 오리떼(기러기목)도 밤에 하강·이동한다. 철원·한강의 겨울 밤 풀이 이 줄로 채워진다.
+            family in setOf("오리과", "기러기과", "백조과", "두루미과") || hasAny(text, "기러기", "고니") ->
+                setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK, BirdTimeWindow.NIGHT)
+            // 나그네새(도요·물떼새류)도 밤에 갯벌을 떠나 지나가는 통과 철새 — 밤 풀의 상비군
+            family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과") ->
+                setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK, BirdTimeWindow.NIGHT)
+            family in setOf("갈매기과", "바다오리과") -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
             else -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
         }
 

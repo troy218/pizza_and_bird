@@ -1057,7 +1057,7 @@ class WorldScene(
         val currentSeason = state.season()
         val weights = pool.map {
             Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
-                    weatherBirdMultiplier(it, currentWeather) *
+                    weatherBirdMultiplier(it, currentWeather, currentSeason, state.isNight()) * // 기후 × 계절 × 밤낮
                     seasonBirdMultiplier(it, currentSeason, currentWeather) *
                     SpawnTables.weight(it, map.region.id, map.region.habitats, currentSeason, state.isNight()) // [P02] 계절×지역×시간대
         }
