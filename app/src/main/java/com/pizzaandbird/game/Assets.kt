@@ -2861,56 +2861,63 @@ begin(T.LAMP)
         pizzaIconBig = Bitmap.createScaledBitmap(
             pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
         )
+        // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
+        //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
+        //  C 치즈(baseColor) / L·S 치즈 밝기·그늘(파생) / R·r·G 토핑1 면·테·윤 / A·b 토핑2 면·테
         val pizza = listOf(
-            "......................",
-            ".....cccccccccc.....",
-            "...ccCCCCCCCCCCcc...",
-            "..cCCCRCCRCCRCCRCc..",
-            "..cCCCCCCCCCCCCCd...",
-            ".cCCRCCCCRCCCCCCCd..",
-            ".cCCCCRCCCRCCRCCd...",
-            ".cCCCCCCCCCCCCCCd...",
-            ".cCCRCCCCRCCCCRAd...",
-            ".cCCCCCCCCCCCCCd....",
-            ".cCCRCCCCRCCCCCd....",
-            ".dCCCCCCCCCCCAAd....",
-            "..ddddddddddd......",
-            "...dddddddddd......",
+            "..........hh..........",
+            ".....chhhhhhhhhhc.....",
+            "....hhTTCCCCCCRThh....",
+            "..ckkCRLLLACCGRRCkkc..",
+            "..hcCGRRLLLLCCrCCCch..",
+            ".ccTCCrLLLRCCCACGCTcc.",
+            ".ccSCGCCCGGRCCCRRRSkc.",
+            ".ccTRRRCCCrCGGCCrCTcc.",
+            "..ccSrCCbCCCRRrCCScc..",
+            "..dcccSCCCCCCCCScccd..",
+            "...dcccCcSSSSCCcccd...",
+            ".....dcLcccccCCcd.....",
+            ".......dddddddd.......",
             "......................"
         )
-        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
-        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다 (음영은 각 색에서 파생).
+        //  일반 피자: 통통한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 러스틱 크러스트 + 큼직한 토핑
         val pizzaOven = listOf(
             "......................",
-            ".....cckccccckc.....",
-            "...ckCCCCCCCCCCkc...",
-            "..cCCRRCCCCCRRCCCc..",
-            "..kCCRRCCACCRRCCd...",
-            ".cCCCCCCCCCCCCCCCd..",
-            ".cCRRCCCACCCRRCCk...",
-            ".kCRRCCCCCCCRRCCd...",
-            ".cCCCCCRRCCACCCCd...",
-            ".cCCACCRRCCCCCCd....",
-            ".cCCCCCCCCCRRCCk....",
-            ".dCCCCCCCCCRRCCd....",
-            "..dkddddddkdd......",
-            "...ddddkddddd......",
+            "........cckccc........",
+            "......cCCCCCCCkc......",
+            "....cCCLLLCCACCCkc....",
+            "...hCCLLLLCCCRRRrkc...",
+            "..cCCCCCACCCCRRRrCkc..",
+            "..cCCRRCCCCACCRRRrkc..",
+            "..ckCRRrCCACCCrCCCCc..",
+            "...cCCCCCRRrCCCCCSd...",
+            "...dCCCCCrrCCCCSSSd...",
+            "....dCCCCCCSSSSSCd....",
+            ".....dCCddkddddkd.....",
+            ".......ddddkddd.......",
             "......................"
         )
         pizzaArts = Array(Pizzas.ALL.size) { i ->
             val def = Pizzas.ALL[i]
+            val base = mapOf(
+                'T' to c(0xFFD8453A),
+                'C' to def.baseColor, 'L' to tone(def.baseColor, 1.18f), 'S' to tone(def.baseColor, 0.82f),
+                'R' to def.topColorA, 'r' to tone(def.topColorA, 0.72f), 'G' to tone(def.topColorA, 1.3f),
+                'A' to def.topColorB, 'b' to tone(def.topColorB, 0.72f)
+            )
             if (def.kind == PizzaKind.OVEN) {
                 sprite(
-                    pizzaOven, mapOf(
-                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
-                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    pizzaOven, base + mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45),
+                        'h' to c(0xFFEDC293), 'k' to c(0xFF5A3A2A)
                     )
                 )
             } else {
                 sprite(
-                    pizza, mapOf(
+                    pizza, base + mapOf(
                         'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
-                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                        'h' to c(0xFFF2C078), 'k' to c(0xFFBF7640)
                     )
                 )
             }
