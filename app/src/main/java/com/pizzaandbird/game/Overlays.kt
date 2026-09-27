@@ -254,13 +254,14 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val decorLuck = s.decorLuck()
 
         val lines = listOf(
-            "지갑: ₩ ${fmtMoney(s.money)}",
+            "지갑: ${won(s.money)}",
             "배고픔: ${s.hunger.toInt()}/100   행운: ${s.luck.toInt()}/100" + (if (decorLuck > 0) " (+${decorLuck} 장식)" else ""),
             "카메라: ${cam.name} (촬영 반경 ${cam.rangeTiles}칸)" +
-                    (if (nextCam != null) "\n     다음 업그레이드: ${nextCam.name} ₩${fmtMoney(nextCam.cost)}" else "\n     최고 등급 달성!"),
+                    (if (nextCam != null) "\n     다음 업그레이드: ${nextCam.name} ${won(nextCam.cost)}" else "\n     최고 등급 달성!"),
             "시각: ${s.timeLabel()} ${s.timeEmoji()}   찍은 사진: ${s.photos}장",
-            "우리 집: ${Regions.byId[s.homeRegion]?.name ?: "?"}",
+            "우리 집: ${Regions.byId[s.homeRegion]?.name ?: "?"} · ${s.houseStyle().name}",
             "지금: ${Regions.byId[s.region]?.name ?: "?"}   방문 지역: ${s.visited.size}/${Regions.ALL.size}",
+            "보유 주택: ${s.ownedHomes.size}채 · 인테리어: ${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}",
             "도감: ${s.birdCounts.size}/${Birds.ALL.size}종",
             "박사 의뢰: ${s.questBird?.let { Birds.byId[it]?.name } ?: "없음"}",
             "플레이 시간: $timeStr",
@@ -480,7 +481,7 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             return
         }
         if (s.money < d.cost) {
-            g.toast("돈이 부족해요… (₩${fmtMoney(d.cost)})")
+            g.toast("돈이 부족해요… (${won(d.cost)})")
             return
         }
         s.money -= d.cost
@@ -511,7 +512,7 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         c.drawText("🧺 장식 코너", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF8A7360.toInt()
-        c.drawText("집에 놓으면 행운이 오르는 소책들이에요 · 보유 ₩${fmtMoney(s.money)}",
+        c.drawText("집에 놓으면 행운이 오르는 소품들이에요 · 보유 ${won(s.money)}",
             panelR.left + dp(scene, 16f), panelR.top + dp(scene, 46f), textP)
 
         buyRects = ArrayList()
@@ -539,7 +540,7 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             if (owned) {
                 drawButton(c, scene, br, "보유중", Color.argb(90, 200, 190, 175), Color.argb(140, 74, 55, 40), 11.5f)
             } else {
-                drawButton(c, scene, br, "₩${fmtMoney(d.cost)}", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 11.5f)
+                drawButton(c, scene, br, won(d.cost), 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 11.5f)
                 buyRects.add(br to d.id)
             }
             ty += dp(scene, 60f)
@@ -624,6 +625,103 @@ class DecorPickOverlay(
             row(did, d.emoji, d.name, "행운 +${d.luck}" + (if (placed) " · 이미 다른 칸에" else ""))
         }
         row(-1, "🫙", "빈 칸으로 두기", "장식을 치웁니다")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 집 인테리어 카탈로그 — 스타일 구매/적용
+// ---------------------------------------------------------------------------
+
+class HouseStyleOverlay(
+    scene: Scene,
+    private val onApply: (String) -> Unit
+) : Overlay(scene) {
+
+    private val styleRects = ArrayList<Pair<RectF, String>>()
+    private var closeRect = RectF()
+    private var panelR = RectF()
+
+    override fun handleInput(input: Input) {
+        val g = scene.game
+        val tap = input.consumeTapScreen()
+        if (input.justB || input.justBack) { finished = true; return }
+        if (tap == null) return
+        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        for ((r, id) in styleRects) {
+            if (!r.contains(tap.x, tap.y)) continue
+            val style = HouseStyles.of(id)
+            if (id !in g.state.ownedHouseStyles) {
+                if (g.state.money < style.price) {
+                    g.toast("돈이 부족해요… 인테리어 비용 ${won(style.price)}")
+                    return
+                }
+                g.state.money -= style.price
+                g.state.ownedHouseStyles.add(id)
+                SaveManager.save(g.context, g.state)
+                g.toast("${style.emoji} ${style.name} 구매 완료!")
+            }
+            onApply(id)
+            finished = true
+            return
+        }
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 155)
+
+        val pw = minOf(w * 0.86f, dp(scene, 450f))
+        val ph = minOf(h * 0.9f, dp(scene, 350f))
+        panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
+        panel(c, panelR, scene)
+        closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 8f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 34f))
+
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("🏠 우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
+        textP.textSize = dp(scene, 10.5f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("스타일을 구매하면 이사 후에도 계속 사용할 수 있어요 · 보유 ${won(s.money)}",
+            panelR.left + dp(scene, 16f), panelR.top + dp(scene, 47f), textP)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2,
+            closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+
+        styleRects.clear()
+        var y = panelR.top + dp(scene, 58f)
+        for (style in HouseStyles.ALL) {
+            val r = RectF(panelR.left + dp(scene, 12f), y, panelR.right - dp(scene, 12f), y + dp(scene, 58f))
+            val owned = style.id in s.ownedHouseStyles
+            fillP.color = if (style.id == s.houseStyleId) 0xFFFDF3D8.toInt() else 0xFFFDF6E8.toInt()
+            c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), fillP)
+            strokeP.color = if (style.id == s.houseStyleId) style.accentTint else 0xFFC9A87B.toInt()
+            strokeP.strokeWidth = dp(scene, if (style.id == s.houseStyleId) 2.5f else 1.5f)
+            c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
+
+            textP.textSize = dp(scene, 20f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(style.emoji, r.left + dp(scene, 10f), r.centerY() + dp(scene, 7f), textP)
+            textP.textSize = dp(scene, 12.5f)
+            c.drawText(style.name, r.left + dp(scene, 44f), r.top + dp(scene, 19f), textP)
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(style.desc, r.left + dp(scene, 44f), r.top + dp(scene, 36f), textP)
+
+            val br = RectF(r.right - dp(scene, 94f), r.centerY() - dp(scene, 15f), r.right - dp(scene, 9f), r.centerY() + dp(scene, 15f))
+            if (style.id == s.houseStyleId) {
+                drawButton(c, scene, br, "적용중", 0xFFD7E3C3.toInt(), 0xFF4A3728.toInt(), 10.5f)
+            } else if (owned) {
+                drawButton(c, scene, br, "적용", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 11.5f)
+            } else {
+                drawButton(c, scene, br, won(style.price), 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
+            }
+            styleRects.add(r to style.id)
+            y += dp(scene, 64f)
+        }
     }
 }
 

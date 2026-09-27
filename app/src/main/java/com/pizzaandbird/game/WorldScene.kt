@@ -369,7 +369,7 @@ class WorldScene(
             val bonus = if (stars >= 3) (state.questReward * 0.3f).toInt() else 0
             val total = state.questReward + bonus
             state.money += total
-            questLine = "의뢰 완료! +₩${fmtMoney(total)}" + if (bonus > 0) " (3성 보너스)" else ""
+            questLine = "의뢰 완료! +${won(total)}" + if (bonus > 0) " (3성 보너스)" else ""
             state.questBird = null
             state.questReward = 0
         }
@@ -616,7 +616,7 @@ class WorldScene(
             openOverlay(
                 DialogOverlay(
                     this, "보리 박사",
-                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ₩${fmtMoney(def.reward)}.\"",
+                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ${won(def.reward)}.\"",
                     listOf(
                         DialogOverlay.Choice("맡겨주세요!") {
                             state.questBird = def.id
@@ -656,13 +656,13 @@ class WorldScene(
                     "\"이미 최고의 장비를 갖췄구먼! 부럽다니까.\""
                 else {
                     val next = CameraDefs.LEVELS[lvl]
-                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ₩${fmtMoney(next.cost)}야.\""
+                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ${won(next.cost)}야.\""
                 },
                 buildList {
                     if (lvl < CameraDefs.LEVELS.size) {
                         val next = CameraDefs.LEVELS[lvl]
                         add(
-                            DialogOverlay.Choice("업그레이드 (₩${fmtMoney(next.cost)})") {
+                            DialogOverlay.Choice("업그레이드 (${won(next.cost)})") {
                                 if (game.state.money >= next.cost) {
                                     game.state.money -= next.cost
                                     game.state.cameraLevel = lvl + 1
