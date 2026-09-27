@@ -35,6 +35,8 @@ import com.pizzaandbird.game.Game
 import com.pizzaandbird.game.HomeScene
 import com.pizzaandbird.game.MapOverlay
 import com.pizzaandbird.game.MenuOverlay
+import com.pizzaandbird.game.NpcKind
+import com.pizzaandbird.game.NpcRoster
 import com.pizzaandbird.game.PhotoResultOverlay
 import com.pizzaandbird.game.PizzaKind
 import com.pizzaandbird.game.Pizzas
@@ -228,13 +230,24 @@ object PreviewMain {
         var t = 0f
         while (t < seconds) {
             game.update(dt)
+            // 등장 연출(Overlay.bornAt · UiKit.enter)도 게임 시간으로 — 같은 소스를 돌리면
+            // 화면이 매번 똑같이 나오도록(프리뷰 SystemClock 는 시뮬레이션 시간만 흐른다)
+            android.os.SystemClock.advance(dt)
             t += dt
         }
     }
 
-    private fun renderScreen(game: Game, name: String) {
+    /**
+     * @param settlePhotos 사진(도감)이 있는 화면이면 true. 백그라운드 로더 스레드가
+     *   채운 사진을 기다렸다가 다시 그려야 실제 화면(사진이 다 올라온 상태)이 찍힌다.
+     */
+    private fun renderScreen(game: Game, name: String, settlePhotos: Boolean = false) {
         val bmp = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
+        if (settlePhotos) {
+            game.render(c)                 // 첫 그림이 로더에 요청을 넣어준다
+            game.assets.awaitImages()      // 로더 스레드가 다 채우기를 기다린다
+        }
         game.render(c)
         ImageIO.write(bmp.image, "png", File(outDir, "$name.png"))
         println("  + $name.png")
@@ -373,7 +386,7 @@ object PreviewMain {
         val tabs = tabCls.enumConstants
         for ((i, tab) in tabs.withIndex()) {
             setField(menu, "tab", tab)
-            renderScreen(game, "17_menu_tab${i + 1}")
+            renderScreen(game, "17_menu_tab${i + 1}", settlePhotos = true)
         }
 
         // [P06] 업적의 상세 통계·해금 팝업·실제 tick 경유 토스트 캡처.
@@ -414,7 +427,7 @@ object PreviewMain {
         val photo = PhotoResultOverlay(scene, Birds.byId["crane"]!!, 3, true, 2, "의뢰 완료! +₩7,800 (3성 보너스)")
         scene.openOverlay(photo)
         simulate(game, 0.9f)
-        renderScreen(game, "24_photo_result")
+        renderScreen(game, "24_photo_result", settlePhotos = true)
 
         // 큰 지도
         scene.closeOverlay()
@@ -558,9 +571,19 @@ object PreviewMain {
             c.drawBitmap(a.bikeSide, px + 72f, py + 14f, a.sprPaint)
             c.drawBitmap(a.bikeSideL, px + 108f, py + 14f, a.sprPaint)
         }
+        // 「한 사람은 한 장소에만」 — 같은 5명이 아니라, 자리가 서로 다른 실제 캐스팅을 뽑아 그린다
         row("npcs") { px, py ->
-            val list = listOf(a.npcProfessor, a.npcShop, a.npcVillager, a.npcKid, a.npcElder)
-            for ((i, b) in list.withIndex()) c.drawBitmap(b, px + i * 36f, py + 14f, a.sprPaint)
+            val cast = listOf(
+                NpcRoster.professor,                        // 광릉숲 숲속 쉼터 · 보리 박사
+                NpcRoster.shopkeeper,                       // 서울 골목 · 사진용품점 남기택
+                NpcRoster.forRegion("chuncheon").first(),   // 의암호 전망 데크 · 노을
+                NpcRoster.forRegion("incheon").first(),     // 소래포구 갯벌 둑길 · 해순
+                NpcRoster.representative(NpcKind.KID),      // 송도/안산 이웃 꼬마
+                NpcRoster.forRegion("hallasan").last()      // 한라산 그루브 · 순옥
+            )
+            for ((i, p) in cast.withIndex()) {
+                c.drawBitmap(a.npcBitmap(p, 0f, i * 0.7f), px + i * 36f, py + 14f, a.sprPaint)
+            }
         }
         row("cat") { px, py ->
             for (i in 0..2) {

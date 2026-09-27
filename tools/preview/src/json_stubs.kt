@@ -184,6 +184,11 @@ class JSONArray {
 
     constructor()
 
+    // 실제 android.org.json.JSONArray(Collection) 대응
+    constructor(copyFrom: Collection<Any?>) {
+        for (v in copyFrom) list.add(v ?: JSONObject.NULL)
+    }
+
     constructor(json: String) {
         val v = JsonParser.parse(json.trim())
         if (v !is JSONArray) throw JSONException("JSONArray expected")

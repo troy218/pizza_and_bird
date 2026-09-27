@@ -79,7 +79,7 @@ class GameMap:
         self.deco = [[0] * w for _ in range(h)]
         self.reserved = [[False] * w for _ in range(h)]
         self.structure = [[False] * w for _ in range(h)]
-        self.npcs = []
+        # (사람 배치는 Kotlin `placeCast` 담당 — 프로토타입에서는 만들지 않는다)
         self.has_house = False
         self.door = (-1, -1)
 
@@ -419,17 +419,12 @@ def build(rid: str, home: str) -> GameMap:
                 m.reserved[ay][ax] = True
 
     # 11. 광장 시설 (벤치/가로등) ----------------------------------------------
-    m.npcs = [('PROFESSOR', 17, 13), ('SHOP', 23, 13), ('VILLAGER', 20, 18),
-              ('KID', 18, 17), ('ELDER', 25, 15)]
-    npc_tiles = set()
-    for (_, nx, ny) in m.npcs:
-        npc_tiles.add((nx, ny))
-        npc_tiles.add((nx, ny + 1))
-        m.reserved[ny][nx] = True
-        m.reserved[ny + 1][nx] = True
-
+    #     사람은 여기에 고정하지 않는다. Kotlin 쪽(Maps.kt)은 14번 `placeCast` 에서
+    #     NpcRoster(지역별 고유 인물)의 자리(NpcSpot)를 지형이 다 자란 뒤에 검증·배치한다.
+    #     한 사람은 한 장소에만 살고, 광장 한복판이 아니라 데크·갈대밭·갯벌·해변·숲에 선다.
+    #     이 프로토타입은 길·광장 설계용이라 사람 배치는 모델링하지 않는다.
     def put_prop(x, y, t):
-        if not m.inb(x, y) or m.structure[y][x] or (x, y) in npc_tiles:
+        if not m.inb(x, y) or m.structure[y][x]:
             return False
         if m.tile[y][x] in (TUNNEL, SIGN, HOUSE_DOOR) or m.base[y][x] == WATER:
             return False

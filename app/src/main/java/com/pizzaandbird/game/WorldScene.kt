@@ -125,6 +125,9 @@ class WorldScene(
         textSize = 13f
     }
     private val bubbleFill = Paint()
+    // [P84 이후] 고양이 간식(생선) 아이콘용 페인트 — HomeScene 의 aaFill 과 같은 역할.
+    // (main 쪽에서 HomeScene private 필드를 그대로 참조해 컴파일이 깨졌던 것을 WorldScene 에 정의)
+    private val aaFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bubbleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         color = 0xFF6B4F35.toInt()
@@ -147,10 +150,13 @@ class WorldScene(
         state.region = region.id
         state.inHome = false
 
+        // 빠른 이동 도착 지점 — 보리 박사가 있는 지역이면 박사 옆(인사 자리), 아니면 중앙 광장.
+        val professorHere = map.npcs.firstOrNull { it.kind == NpcKind.PROFESSOR }
         val (sx, sy) = when (spawnKind) {
             SpawnKind.SAVED -> state.px to state.py
             SpawnKind.HOME -> 376f to 12.2f * 16f
-            SpawnKind.FAST -> 18f * 16f to 14f * 16f   // 중앙 광장 — 보리 박사 바로 옆
+            SpawnKind.FAST -> professorHere?.let { it.greetX * 16f to it.greetY * 16f }
+                ?: (18f * 16f to 14f * 16f)   // 중앙 광장
             SpawnKind.LANDMARK ->                      // 랜드마크에서 나오면 정문 바로 앞
                 if (map.landmarkDoorX >= 0) map.landmarkDoorX * 16f to (map.landmarkDoorY + 1) * 16f
                 else 18f * 16f to 14f * 16f
@@ -164,9 +170,15 @@ class WorldScene(
         player.set(sx, sy)
         state.px = sx
         state.py = sy
-        player.facing = when (spawnKind) {
-            SpawnKind.TUNNEL -> Regions.opposite(spawnDir)
-            SpawnKind.FAST -> Dir.N      // 광장 한가운데(박사 방향)을 바라본다
+        player.facing = when {
+            spawnKind == SpawnKind.TUNNEL -> Regions.opposite(spawnDir)
+            spawnKind == SpawnKind.FAST && professorHere != null -> {
+                // 박사 바로 옆에 내려놓으니, 도착하자마자 얼굴을 마주 보게 한다
+                val dx = professorHere.cx - player.cx
+                val dy = professorHere.cy - player.cy
+                if (abs(dx) > abs(dy)) (if (dx > 0) Dir.E else Dir.W) else (if (dy > 0) Dir.S else Dir.N)
+            }
+            spawnKind == SpawnKind.FAST -> Dir.N      // 광장 한가운데를 바라본다
             else -> Dir.S
         }
         // 저장 위치 복귀·터널 이동 시에는 자전거 탑승 상태 유지 (터널을 지나도 내리지 않는다)
@@ -392,7 +404,7 @@ class WorldScene(
             state.questBird != null -> "서브: ${Birds.byId[state.questBird!!]?.name ?: "?"} 사진"
             state.mainQuestFinished -> null
             state.mainQuestStarted -> MainStory.current(state)?.let { "메인: ${it.title}" }
-            else -> "메인: 보리 박사를 만나기"
+            else -> "메인: ${NpcRoster.professorRegionName} 보리 박사 만나기"
         }
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
@@ -1703,32 +1715,57 @@ class WorldScene(
 
     private fun talkTo(npc: Npc) {
         if (SideStories.intercept(this, npc)) return   // [P08] 사이드 스토리 진행 중이면 우선
-        val dlg = Dialogues.Ctx(map.region.id, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)   // [P08]
-        when (npc.kind) {
-            NpcKind.PROFESSOR -> talkProfessor()
-            NpcKind.SHOP -> talkShop()
-            NpcKind.VILLAGER -> {
-                openOverlay(DialogOverlay(this, npc.name,
-                    Dialogues.villager(dlg),
-                    listOf(DialogOverlay.Choice("기억할게요"))))
-            }
-            NpcKind.KID -> {
-                openOverlay(
-                    DialogOverlay(
-                        this, npc.name, Dialogues.kid(dlg),
-                        listOf(DialogOverlay.Choice("ㅎㅎ 귀엽다"))
-                    )
-                )
-            }
-            NpcKind.ELDER -> {
-                openOverlay(
-                    DialogOverlay(
-                        this, npc.name, Dialogues.elder(dlg),
-                        listOf(DialogOverlay.Choice("다녀오겠습니다"))
-                    )
+        when {
+            npc.person.isQuestGiver -> talkProfessor()
+            npc.person.isShop -> talkShop()
+            else -> talkNeighbor(npc)
+        }
+    }
+
+    /**
+     * 동네 사람 잡담 — 이 지역, 이 자리에서만 하는 말이다.
+     *
+     *  - 이웃 주민(`resident`)은 [P08] 조건부 대사(지역 소개 + 장별 관찰 예절 + 계절/날씨/밤)
+     *    에 그 사람 자신의 한마디를 잇는다.
+     *  - 고유 캐릭터는 자기 자리(호숫가 데크·갈대밭·시장 골목…)에 어울리는 이야기를 한다.
+     *  - 보고할 메인 기록이 있는데 보리 박사가 다른 지역에 있으면 🚲 이동 택지를 붙여 준다
+     *    (박사는 광릉숲에만 산다 — `NpcRoster`).
+     */
+    private fun talkNeighbor(npc: Npc) {
+        val person = npc.person
+        val own = person.lines[rnd.nextInt(person.lines.size)]
+        val text = if (person.resident) {
+            "${Dialogues.villager(SideStories.ctx(this))}\n\n\"$own\""
+        } else {
+            "\"$own\""
+        }
+        val choices = buildList {
+            add(DialogOverlay.Choice(if (person.resident) "기억할게요" else "고마워요"))
+            if (professorTripNeeded()) {
+                add(
+                    DialogOverlay.Choice("🚲 ${NpcRoster.professorRegionName} 박사에게") {
+                        game.toast("🚲 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}로 출발!")
+                        fastTravel(game, NpcRoster.PROFESSOR_REGION)
+                    }
                 )
             }
         }
+        openOverlay(
+            DialogOverlay(
+                this,
+                if (person.title.isEmpty()) npc.name else "${npc.name} · ${person.title}",
+                text,
+                choices
+            )
+        )
+    }
+
+    /** 메인 이야기를 보고(또는 시작)해야 하는데 보리 박사가 다른 지역에 있는가 */
+    private fun professorTripNeeded(): Boolean {
+        if (state.mainQuestFinished) return false
+        if (NpcRoster.hasProfessor(state.region)) return false
+        if (!state.mainQuestStarted) return true
+        return MainStory.current(state)?.isComplete(state) == true
     }
 
     private fun talkProfessor() {
@@ -1746,15 +1783,21 @@ class WorldScene(
         )
         openOverlay(
             DialogOverlay(
-                this, "보리 박사",
+                this, "보리 박사 · ${NpcRoster.professor.title}",
                 when {
                     state.mainQuestFinished -> "\"우리의 지도는 완성됐지만 새들의 계절은 계속되지. 사진 의뢰도, 도장 깨기도 언제든 찾아오게.\""
                     !state.mainQuestStarted -> "\"마침 잘 왔네. 자네 가족이 남긴 낡은 탐조 수첩에 관한 이야기가 있어. 물론 급한 일은 아니니 사진 의뢰부터 해도 좋고.\""
                     else -> "\"메인 기록과 사진 의뢰는 서로 별개일세. 마음 가는 순서대로 천천히 하게.\"" + flavor
-                },
+                } + "\n\n(나는 늘 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}에 있네. 보고할 일이 있으면 여기까지 와 주게.)",
                 buildList {
                     add(DialogOverlay.Choice(mainLabel) { showMainStory() })
                     add(DialogOverlay.Choice(sideLabel) { showSideQuest() })
+                    if (!NpcRoster.hasShop(state.region)) {
+                        add(DialogOverlay.Choice("🏬 ${NpcRoster.shopRegionName} 상점") {
+                            game.toast("🚲 ${NpcRoster.shopTravelHint}")
+                            fastTravel(game, NpcRoster.SHOP_REGION)
+                        })
+                    }
                     add(DialogOverlay.Choice("다음에 올게요"))
                 }
             )
@@ -1879,8 +1922,8 @@ class WorldScene(
         )
         openOverlay(
             DialogOverlay(
-                this, "사진용품점",
-                lines[rnd.nextInt(lines.size)],
+                this, "사진용품점 · ${NpcRoster.shopkeeper.title}",
+                lines[rnd.nextInt(lines.size)] + "\n\n(이 가게는 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}에 하나뿐이야. 장비는 여기서만 살 수 있어.)",
                 listOf(
                     DialogOverlay.Choice("카메라 진열대") {
                         it.scene.openOverlay(CameraShopOverlay(it.scene))
@@ -2243,8 +2286,8 @@ class WorldScene(
         val a = game.assets
         when (e) {
             is Npc -> {
-                // NPC마다 위상을 달리해 같은 동작이 겹치지 않게 한다
-                val bmp = a.npcBitmap(e.kind, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
+                // 사람마다 옷차림이 다르고, 대기 동작 위상도 어긋나게 한다
+                val bmp = a.npcBitmap(e.person, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE
                 scratchRect.set(sx + 8f, sy + 26f, sx + 24f, sy + 32f)
@@ -2264,7 +2307,7 @@ class WorldScene(
                         val tw = tinyPaint.measureText("!")
                         c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
                     }
-                } else if (SideStories.hasMarker(game.context, map.region.id, e.kind)) {
+                } else if (SideStories.hasMarker(game.context, map.region.id, e.person)) {
                     // [P08] 사이드 스토리 대기/진행 중인 NPC 머리 위 💬 마커 (에피소드 완료 시 사라짐)
                     val bx = sx + 16f
                     val by = sy - 12f
@@ -2758,7 +2801,8 @@ class WorldScene(
             n.emoteCd = 7f + rnd.nextFloat() * 8f
             if (n.kind == NpcKind.PROFESSOR && state.questBird == null) continue   // "!" 말풍선이 우선
             val rainy = weather == Weather.RAIN
-            val opts = when (n.kind) {
+            // 사람마다 자기 이모트를 갖고 있으면 그것을 쓴다 (라이더 · 화가 · 낚시꾼 …)
+            val opts = n.person.emotes ?: when (n.kind) {
                 NpcKind.VILLAGER -> if (rainy) listOf("rain", "sparkle", "…") else listOf("music", "sparkle", "bird")
                 NpcKind.KID -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "sparkle") else listOf("music", "!", "sparkle", "bird")
                 NpcKind.ELDER -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "coffee") else listOf("…", "coffee", "sun")
@@ -2778,15 +2822,27 @@ class WorldScene(
             var top = if (n.kind == NpcKind.PROFESSOR && state.questBird == null) sy - 26f else sy - 4f
             val near = hypot(n.cx - player.cx, n.cy - player.cy) < 46f
             if (near) {
-                // 이름표 (월드 캔버스라 px 단위)
+                // 이름표 (월드 캔버스라 px 단위) — 이름 아래에 별명(직함)을 한 줄 더 단다.
+                // 이제 사람은 지역마다 한 명뿐이라 "누구인지"를 알려 주는 게 중요해졌다.
                 val np = Type.paintPx(11f, true, 0.02f, 0xFFF8EFDC.toInt())
-                val tw = np.measureText(n.name)
+                val tp = Type.paintPx(8.5f, false, 0.02f, 0xFFDCD2C0.toInt())
+                val nameW = np.measureText(n.name)
+                val titleW = if (n.title.isEmpty()) 0f else tp.measureText(n.title)
+                val plateW = maxOf(nameW, titleW)
+                val plateH = if (titleW > 0f) 25f else 15f
                 val cx = sx + 16f
                 uiFill.color = Color.argb(200, 58, 52, 74)
-                scratchRect.set(cx - tw / 2 - 6f, top - 15f, cx + tw / 2 + 6f, top)
-                c.drawRoundRect(scratchRect, 7f, 7f, uiFill)
-                c.drawText(n.name, cx - tw / 2, top - 4f, np)
-                top -= 18f
+                c.drawRoundRect(
+                    RectF(cx - plateW / 2 - 6f, top - plateH, cx + plateW / 2 + 6f, top),
+                    7f, 7f, uiFill
+                )
+                if (titleW > 0f) {
+                    c.drawText(n.name, cx - nameW / 2, top - 14f, np)
+                    c.drawText(n.title, cx - titleW / 2, top - 3.5f, tp)
+                } else {
+                    c.drawText(n.name, cx - nameW / 2, top - 4f, np)
+                }
+                top -= plateH + 3f
             }
             val em = n.emote ?: continue
             val appear = ((2.6f - n.emoteT) / 0.2f).coerceIn(0f, 1f)
@@ -2803,9 +2859,13 @@ class WorldScene(
             uiStroke.strokeWidth = 1.4f
             uiStroke.color = Color.argb(a, 107, 79, 53)
             c.drawRoundRect(scratchRect, 7f, 7f, uiStroke)
-            val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
-            val ew = ep.measureText(em)
-            c.drawText(em, cx - ew / 2, by - 5f, ep)
+            if (UiKit.iconName(em) != null) {
+                UiKit.iconCenter(c, game, em, cx, by - 10f, 15f)
+            } else {
+                val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
+                val ew = ep.measureText(em)
+                c.drawText(em, cx - ew / 2, by - 5f, ep)
+            }
         }
     }
 

@@ -475,6 +475,9 @@ object PhotoArchive {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
+    /** 이미 미리 읽는 중인 파일 — 같은 사진을 두 번 디코드하지 않게 한다. */
+    private val pending = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     private fun dir(context: Context): File = File(context.filesDir, DIR).apply { if (!exists()) mkdirs() }
 
     fun save(context: Context, id: String, bitmap: Bitmap): String {
@@ -498,6 +501,26 @@ object PhotoArchive {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * 미리 읽어두기 — 게임 스레드에서 JPEG 를 푸는 순간 그 프레임이 흔들린다.
+     * 넘김 버튼을 누르기 전에 옆 사진을 전용 스레드에서 캐시에 넣어둔다.
+     * 이미 캐시에 있으면 아무 일도 하지 않는다.
+     */
+    fun prefetch(context: Context, fileName: String) {
+        if (fileName.isBlank() || cache.get(fileName) != null) return
+        if (pending.contains(fileName)) return
+        pending.add(fileName)
+        Thread({
+            try {
+                val bmp = load(context, fileName)
+                if (bmp != null) cache.put(fileName, bmp)
+            } catch (_: Exception) {
+            } finally {
+                pending.remove(fileName)
+            }
+        }, "PizzaAndBirdAlbum").apply { isDaemon = true; start() }
     }
 
     fun delete(context: Context, fileName: String) {

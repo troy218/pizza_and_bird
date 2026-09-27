@@ -27,10 +27,22 @@ class PhotoAlbumViewerOverlay(
     private fun dp(v: Float): Float = v * scene.game.density
     private fun records(): List<BirdPhotoRecord> = scene.game.state.photoAlbum
 
+    /** 넘길 다음/이전 사진은 미리 디코드해 둔다 — 버튼을 누른 프레임을 지켜야 한다. */
+    private fun prefetchNeighbours() {
+        val all = records()
+        if (all.isEmpty()) return
+        for (i in (index - 1)..(index + 1)) {
+            if (i in all.indices) PhotoArchive.prefetch(scene.game.context, all[i].fileName)
+        }
+    }
+
+    init { prefetchNeighbours() }
+
     private fun prev() {
         if (index > 0) {
             index--
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
+            prefetchNeighbours()
         }
     }
 
@@ -38,6 +50,7 @@ class PhotoAlbumViewerOverlay(
         if (index < records().lastIndex) {
             index++
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
+            prefetchNeighbours()
         }
     }
 

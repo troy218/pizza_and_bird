@@ -1102,28 +1102,35 @@ object MapBuilder {
             val chosen = anchor
             if (chosen != null) {
                 val (bx, by) = chosen
+                // 간선도로 남쪽에 자리 잡으면 문을 북쪽(길 쪽)으로 낸다 —
+                // 남향 그대로 두면 정문 앞이 등지고 선 벽이라 샛길이 이을 수 없다.
+                val south = by > AVE_Y
+                val roofRows = if (south) listOf(by + 2, by + 3) else listOf(by, by + 1)
+                val winY = if (south) by + 1 else by + 2
+                val doorY = if (south) by else by + 3
                 // 지붕 2줄
-                for (yy in by..by + 1) for (x in bx..bx + 4) {
+                for (yy in roofRows) for (x in bx..bx + 4) {
                     t[yy][x] = T.LM_ROOF.ordinal; structure[yy][x] = true; reserved[yy][x] = true
                 }
                 // 벽 + 아치 창 (가운데 3칸이 창)
                 for (x in bx..bx + 4) {
-                    t[by + 2][x] = (if (x in bx + 1..bx + 3) T.LM_WIN else T.LM_WALL).ordinal
-                    structure[by + 2][x] = true; reserved[by + 2][x] = true
+                    t[winY][x] = (if (x in bx + 1..bx + 3) T.LM_WIN else T.LM_WALL).ordinal
+                    structure[winY][x] = true; reserved[winY][x] = true
                 }
                 // 문 줄: 벽 · 벽 · 문 · 벽 · 벽
                 for (x in bx..bx + 4) {
                     val isDoor = x == bx + 2
-                    t[by + 3][x] = (if (isDoor) T.LANDMARK_DOOR else T.LM_WALL).ordinal
-                    structure[by + 3][x] = !isDoor
-                    reserved[by + 3][x] = true
+                    t[doorY][x] = (if (isDoor) T.LANDMARK_DOOR else T.LM_WALL).ordinal
+                    structure[doorY][x] = !isDoor
+                    reserved[doorY][x] = true
                 }
                 landmarkDoorX = bx + 2
-                landmarkDoorY = by + 3
+                landmarkDoorY = doorY
                 // 문턱 포장
-                pave[by + 3][bx + 2] = Pave.STONE
-                if (inb(bx + 2, by + 4)) pave[by + 4][bx + 2] = Pave.STONE
-                landmarkFronts.add(bx + 2 to by + 4)
+                pave[doorY][bx + 2] = Pave.STONE
+                val frontY = if (south) doorY - 1 else doorY + 1
+                if (inb(bx + 2, frontY)) pave[frontY][bx + 2] = Pave.STONE
+                landmarkFronts.add(bx + 2 to frontY)
             }
         }
 
@@ -1319,10 +1326,13 @@ object MapBuilder {
             for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
         }
         // 랜드마크 정문 앞 샛길 (간선도로까지 이어 준다)
+        //     문턱 포장 2칸은 이미 깔려 있으므로 그 **바깥**에서부터 길을 잇는다 —
+        //     포장된 칸이 줄에 섞이면 pathClear 가 포기해서 정문이 고아 길이 된다.
         for ((fx, fy) in landmarkFronts) {
             val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
-            val seq = pathClear(listOf(fx to fy, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty())
-                ?: pathClear(listOf(fx to fy, fx to AVE_Y + 1), allowRiverBridge = true)
+            val startY = if (fy < AVE_Y) fy + 1 else fy - 1
+            val seq = pathClear(listOf(fx to startY, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty())
+                ?: pathClear(listOf(fx to startY, fx to AVE_Y + 1), allowRiverBridge = true)
             if (seq != null) for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
         }
 
@@ -1374,6 +1384,18 @@ object MapBuilder {
             for ((ax, ay) in listOf(sx + 1 to sy, sx - 1 to sy, sx to sy + 1, sx to sy - 1)) {
                 if (inb(ax, ay)) reserved[ay][ax] = true
             }
+            // 이정표 앞에 플레이어가 설 칸 보장 — 지형(현무암·산·숲)이 에워싸면 읽을 수 없게 된다
+            val (ix, iy) = when (d) {
+                Dir.N -> sx to sy + 1
+                Dir.S -> sx to sy - 1
+                Dir.W -> sx + 1 to sy
+                Dir.E -> sx - 1 to sy
+            }
+            if (inb(ix, iy) && T.ALL[t[iy][ix]].solid) {
+                base[iy][ix] = T.GRASS.ordinal
+                t[iy][ix] = T.GRASS.ordinal
+                reserved[iy][ix] = true
+            }
         }
 
         // 10.5 논·갈대 들판 — 논둑처럼 평행한 풀결을 지역 일부에만 얹는다. --------
@@ -1390,24 +1412,10 @@ object MapBuilder {
             }
         }
 
-        // 11. 광장 시설 (NPC 자리 확보 -> 벤치 -> 모서리 가로등/그늘나무) --------------
-        val npcs = listOf(
-            Npc(NpcKind.PROFESSOR, 17, 13),
-            Npc(NpcKind.SHOP, 23, 13),
-            Npc(NpcKind.VILLAGER, 20, 18),
-            Npc(NpcKind.KID, 18, 17),
-            Npc(NpcKind.ELDER, 25, 15)
-        )
-        val npcTiles = HashSet<Int>()
-        for (n in npcs) {
-            npcTiles.add(n.tileY * 100 + n.tileX)
-            npcTiles.add((n.tileY + 1) * 100 + n.tileX)
-            reserved[n.tileY][n.tileX] = true
-            if (n.tileY + 1 < h) reserved[n.tileY + 1][n.tileX] = true
-        }
-
+        // 11. 광장 시설 (벤치 -> 모서리 가로등/그늘나무) ------------------------------
+        //     사람은 자연물까지 다 자란 뒤(14번)에 세운다 — 자리가 나무에 묻히지 않게.
         fun putProp(x: Int, y: Int, tile: T): Boolean {
-            if (!inb(x, y) || structure[y][x] || npcTiles.contains(y * 100 + x)) return false
+            if (!inb(x, y) || structure[y][x]) return false
             val cur = T.ALL[t[y][x]]
             if (cur == T.TUNNEL || cur == T.SIGN || cur == T.HOUSE_DOOR) return false
             if (base[y][x] == T.WATER.ordinal) return false
@@ -1624,11 +1632,334 @@ object MapBuilder {
             }
         }
 
+        // 14. 지역 사람 배치 — 「한 사람은 한 장소에만」 (`NpcRoster`) ------------------
+        //     자연물까지 다 자란 마지막에 세운다. 그래야 나무·바위에 자리가 묻히지 않고,
+        //     "여기까지 걸어갈 수 있는가"를 완성된 지도로 검사할 수 있다.
+        val npcs = placeCast(
+            region = region, cast = NpcRoster.forRegion(region.id),
+            w = w, h = h, t = t, base = base, pave = pave, structure = structure,
+            lakeShoreX = lakeShoreX, lakeShoreY = lakeShoreY,
+            restX = restX, restY = restY,
+            buildingFronts = buildingFronts,
+            lake = mapStyle.lake,
+            fieldRows = mapStyle.fieldRows,
+            houseDoorX = houseDoorX, houseDoorY = houseDoorY,
+            tunnels = tunnelList
+        )
+
+        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, mapStyle, tunnelList)
+
         return GameMap(
             region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY,
             mapStyle, tunnelList,
             hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY
         )
+    }
+
+    /**
+     * 지역 사람(`NpcPerson`)을 **그 지역의 실제 랜드마크**에 세운다.
+     *
+     * 자리는 좌표가 아니라 [NpcSpot](호숫가 데크·갈대밭·갯벌·시장 골목·산길 들머리…)로만 정해 두고,
+     * 방금 완성된 지도에서 그 조건에 맞는 타일을 찾아 검증한 뒤 세운다.
+     *
+     * 검증 조건
+     *  1. 발밑과 앞칸이 고체가 아니고 물도 아니다 (이름표·몸이 안 걸린다)
+     *  2. 도착 지점(광장 스폰·현관 앞·터널 진입로)을 막지 않는다
+     *  3. 이미 선 사람과 3칸 이상 떨어진다 (한 자리에 몰리지 않는다)
+     *  4. 광장 중심에서 **걸어서** 갈 수 있다 (물 건너·섬 배치 금지)
+     *
+     * 조건을 만족하는 자리가 없으면 ① 길 옆 → ② 광장 → ③ 광장 주변 순으로 옮긴다.
+     */
+    private fun placeCast(
+        region: RegionDef,
+        cast: List<NpcPerson>,
+        w: Int,
+        h: Int,
+        t: Array<IntArray>,
+        base: Array<IntArray>,
+        pave: Array<IntArray>,
+        structure: Array<BooleanArray>,
+        lakeShoreX: Int,
+        lakeShoreY: Int,
+        restX: Int,
+        restY: Int,
+        buildingFronts: List<Pair<Int, Int>>,
+        lake: MapLake?,
+        fieldRows: Boolean,
+        houseDoorX: Int,
+        houseDoorY: Int,
+        tunnels: List<TunnelInfo>
+    ): List<Npc> {
+        if (cast.isEmpty()) return emptyList()
+        val rnd = Random(region.id.hashCode().toLong() xor 0x4E504943L)   // 사람 자리도 지역마다 결정적
+
+        fun inb(x: Int, y: Int): Boolean = x in 0 until w && y in 0 until h
+        fun tileAt(x: Int, y: Int): T = if (inb(x, y)) T.ALL[t[y][x]] else T.MOUNTAIN
+        fun waterAt(x: Int, y: Int): Boolean = inb(x, y) && base[y][x] == T.WATER.ordinal
+        fun pavedAt(x: Int, y: Int): Boolean = inb(x, y) && pave[y][x] != Pave.NONE
+        fun inPlaza(x: Int, y: Int): Boolean =
+            x in PLAZA_X0..PLAZA_X1 && y in PLAZA_Y0..PLAZA_Y1
+
+        fun countNear(x: Int, y: Int, d: Int, pred: (Int, Int) -> Boolean): Int {
+            var n = 0
+            for (yy in y - d..y + d) for (xx in x - d..x + d) {
+                if (xx == x && yy == y) continue
+                if (inb(xx, yy) && pred(xx, yy)) n++
+            }
+            return n
+        }
+
+        /** 호수 둘레 띠(물 바로 바깥 ~ 갈대밭 끝)에 있는가 — `RegionMapStyle.lake` 기준 */
+        fun lakeBand(x: Int, y: Int): Boolean {
+            val lk = lake ?: return false
+            val dx = (x - lk.center.x) / (lk.radiusX + 1.5f)
+            val dy = (y - lk.center.y) / (lk.radiusY + 1.5f)
+            val d2 = dx * dx + dy * dy
+            return d2 > 0.55f && d2 < 2.2f && !waterAt(x, y)
+        }
+
+        /** 근처에 물이 있는가. `inland` 이면 지도 가장자리(바다 띠)의 물은 세지 않는다. */
+        fun waterNear(x: Int, y: Int, d: Int, inland: Boolean = false): Boolean =
+            countNear(x, y, d) { a, b ->
+                waterAt(a, b) && (!inland || (a in 4 until w - 4 && b in 4 until h - 4))
+            } > 0
+
+        // ---- 사람이 서면 안 되는 자리: 도착 지점·현관 앞·터널 진입로 ----------------
+        val keepClear = HashSet<Int>()
+        fun keep(cx: Int, cy: Int, r: Int) {
+            for (y in cy - r..cy + r) for (x in cx - r..cx + r) keepClear.add(y * 100 + x)
+        }
+        keep(18, 14, 1)                                  // 빠른 이동(광장) 도착 자리
+        for (info in tunnels) keep(info.tileX, info.tileY, 2)
+        if (houseDoorX >= 0) {
+            keep(houseDoorX, houseDoorY + 1, 2)          // 현관 앞
+            for (y in 8..13) for (x in 19..27) keepClear.add(y * 100 + x)   // 집 마당
+        }
+
+        fun standable(x: Int, y: Int): Boolean {
+            if (!inb(x, y) || !inb(x, y + 1)) return false
+            if (structure[y][x] || structure[y + 1][x]) return false
+            if (keepClear.contains(y * 100 + x)) return false
+            val here = tileAt(x, y)
+            val front = tileAt(x, y + 1)
+            if (here.solid || front.solid) return false
+            if (here == T.TUNNEL || here == T.SIGN || here == T.HOUSE_DOOR) return false
+            if (front == T.TUNNEL || front == T.HOUSE_DOOR) return false
+            if (waterAt(x, y) || waterAt(x, y + 1)) return false
+            return true
+        }
+
+        /**
+         * 플레이어가 대화하려고 설 수 있는 자리인가 (인사 자리·빠른 이동 도착 지점용).
+         *
+         * 발판 박스(`GameMap.solidBox`)는 서 있는 칸 **아래 칸**까지 검사하므로
+         * 아래 칸이 고체면 그 자리에 설 수 없다.
+         */
+        fun playerCanStand(x: Int, y: Int): Boolean {
+            if (!inb(x, y) || !inb(x, y + 1)) return false
+            if (structure[y][x] || structure[y + 1][x]) return false
+            val tile = tileAt(x, y)
+            if (tile.solid || tile == T.TUNNEL || tile == T.SIGN) return false
+            if (tileAt(x, y + 1).solid) return false
+            return !waterAt(x, y)
+        }
+
+        /** 광장 중심에서 걸어갈 수 있는가 — 완성된 지도로 BFS */
+        fun reachable(x: Int, y: Int): Boolean {
+            val seen = HashSet<Int>()
+            val q = ArrayDeque<Int>()
+            fun blocked(a: Int, b: Int): Boolean {
+                if (!inb(a, b)) return true
+                val tile = tileAt(a, b)
+                return tile.solid || tile == T.TUNNEL || waterAt(a, b)
+            }
+            val sx = (PLAZA_X0 + PLAZA_X1) / 2
+            val sy = (PLAZA_Y0 + PLAZA_Y1) / 2
+            if (blocked(sx, sy) || blocked(x, y)) return false
+            q.add(sy * 100 + sx); seen.add(sy * 100 + sx)
+            while (q.isNotEmpty()) {
+                val key = q.removeFirst()
+                val cy = key / 100
+                val cx = key - cy * 100
+                if (cx == x && cy == y) return true
+                for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                    val nx = cx + dx; val ny = cy + dy
+                    if (!inb(nx, ny)) continue
+                    val nk = ny * 100 + nx
+                    if (nk in seen || blocked(nx, ny)) continue
+                    seen.add(nk); q.add(nk)
+                }
+            }
+            return false
+        }
+
+        // ---- 후보 자리 만들기 -------------------------------------------------------
+        fun around(cx: Int, cy: Int, r: Int): List<Pair<Int, Int>> {
+            if (cx < 0 || cy < 0) return emptyList()
+            val out = ArrayList<Pair<Int, Int>>()
+            for (d in 1..r) {
+                for (y in cy - d..cy + d) for (x in cx - d..cx + d) {
+                    if (maxOf(kotlin.math.abs(x - cx), kotlin.math.abs(y - cy)) != d) continue
+                    out.add(x to y)
+                }
+            }
+            return out
+        }
+
+        fun scan(pred: (Int, Int) -> Boolean): List<Pair<Int, Int>> {
+            val out = ArrayList<Pair<Int, Int>>()
+            for (y in 2 until h - 2) for (x in 2 until w - 2) if (pred(x, y)) out.add(x to y)
+            return out
+        }
+
+        /**
+         * 후보 자리 정렬.
+         *
+         * 같은 종류 안에서는 광장에서 가까운 순서로 고르되, 지역 시드로 섞어 지역마다 다른 자리를 쓴다.
+         * `wild` = 자연 자리(갈대밭·숲·갯벌)는 **길이 깔리지 않은 야생 칸**을 우선한다 —
+         * 갯벌 지킴이가 아스팔트 위에 서 있으면 그 자리의 맛이 사라지니까.
+         */
+        fun ordered(list: List<Pair<Int, Int>>, wild: Boolean = false): List<Pair<Int, Int>> {
+            val shuffled = ArrayList(list)
+            java.util.Collections.shuffle(shuffled, rnd)
+            val cx = (PLAZA_X0 + PLAZA_X1) / 2f
+            val cy = (PLAZA_Y0 + PLAZA_Y1) / 2f
+            return shuffled.sortedWith(
+                compareBy<Pair<Int, Int>> { if (wild) (if (pavedAt(it.first, it.second)) 1 else 0) else 0 }
+                    .thenBy {
+                        val dx = it.first - cx
+                        val dy = it.second - cy
+                        kotlin.math.sqrt(dx * dx + dy * dy).toDouble()
+                    }
+            )
+        }
+
+        val fieldBlocks = listOf(Triple(5, 15, 5), Triple(25, 35, 23))
+
+        fun candidatesFor(spot: NpcSpot): List<Pair<Int, Int>> = when (spot) {
+            // 광장 — 나침반 문양을 밟지 않으면서 문양 옆에 선다
+            NpcSpot.PLAZA_COMPASS -> listOf(
+                19 to 15, 23 to 15, 21 to 13, 21 to 17, 19 to 13, 23 to 17, 20 to 12, 22 to 18
+            )
+            NpcSpot.PLAZA_NORTH -> (18..24).map { it to 12 } + (18..24).map { it to 13 }
+            NpcSpot.PLAZA_SOUTH -> (18..24).map { it to 18 } + (18..24).map { it to 17 }
+            NpcSpot.PLAZA_WEST -> (13..17).map { 17 to it } + (13..17).map { 18 to it }
+            NpcSpot.PLAZA_EAST -> (13..17).map { 25 to it } + (13..17).map { 24 to it }
+
+            // 물가 — 데크·갈대·여울 (광장 안은 "물가"가 아니므로 뺀다)
+            NpcSpot.LAKE_DECK -> around(lakeShoreX, lakeShoreY, 3)
+            NpcSpot.LAKE_SHORE -> {
+                // 호수가 있으면 그 둘레(갈대 띠 바깥)에서, 없으면 내륙 물가 갈대에서 찾는다
+                val lakeRing = if (lake != null) scan { x, y ->
+                    !inPlaza(x, y) && lakeBand(x, y)
+                } else emptyList()
+                if (lakeRing.isNotEmpty()) ordered(lakeRing, wild = true)
+                else ordered(scan { x, y ->
+                    !inPlaza(x, y) && waterNear(x, y, 2, inland = true) &&
+                        (tileAt(x, y) == T.REED || base[y][x] == T.REED.ordinal)
+                }, wild = true)
+            }
+            NpcSpot.RIVER_BANK -> ordered(
+                scan { x, y -> !inPlaza(x, y) && waterNear(x, y, 2, inland = true) }, wild = true)
+            NpcSpot.REED_HIDE -> ordered(scan { x, y ->
+                !inPlaza(x, y) && base[y][x] == T.REED.ordinal && waterNear(x, y, 3)
+            }, wild = true)
+
+            // 바다 — 갯벌 둑길·해변
+            NpcSpot.TIDAL_FLAT -> ordered(scan { x, y ->
+                !inPlaza(x, y) && base[y][x] == T.SAND.ordinal &&
+                    (waterNear(x, y, 4) || countNear(x, y, 2) { a, b ->
+                        base[b][a] == T.REED.ordinal
+                    } > 0)
+            })
+            NpcSpot.BEACH -> ordered(scan { x, y ->
+                !inPlaza(x, y) && base[y][x] == T.SAND.ordinal && waterNear(x, y, 5)
+            })
+
+            // 숲·산 — 쉼터, 나무 그늘, 들머리
+            NpcSpot.FOREST_REST -> around(restX, restY, 3)
+            NpcSpot.GROVE -> ordered(scan { x, y ->
+                !inPlaza(x, y) && tileAt(x, y) == T.GRASS &&
+                    countNear(x, y, 1) { a, b -> tileAt(a, b) == T.TREE } >= 2
+            }, wild = true)
+            NpcSpot.TRAILHEAD -> {
+                val rocky = scan { x, y ->
+                    !inPlaza(x, y) && countNear(x, y, 1) { a, b -> tileAt(a, b) == T.MOUNTAIN } >= 1
+                }
+                if (rocky.isNotEmpty()) ordered(rocky, wild = true)
+                else ordered(scan { x, y ->
+                    !inPlaza(x, y) && (x < 8 || y < 8 || x >= w - 8 || y >= h - 8) &&
+                        countNear(x, y, 1) { a, b -> tileAt(a, b) == T.TREE } >= 2
+                }, wild = true)
+            }
+
+            // 사람 사는 자리 — 논둑, 건물 앞 골목, 가로수 아래
+            NpcSpot.FIELD_EDGE -> {
+                val out = ArrayList<Pair<Int, Int>>()
+                if (fieldRows) {
+                    for ((x0, x1, y0) in fieldBlocks) {
+                        for (row in y0..y0 + 2) for (x in x0..x1) if (!inPlaza(x, row)) out.add(x to row)
+                    }
+                }
+                out += scan { x, y ->
+                    !inPlaza(x, y) && countNear(x, y, 1) { a, b ->
+                        tileAt(a, b) == T.TALLGRASS || tileAt(a, b) == T.FLOWER
+                    } >= 3
+                }
+                ordered(out, wild = true)
+            }
+            NpcSpot.MARKET -> ordered(buildingFronts.flatMap { around(it.first, it.second, 2) })
+            NpcSpot.AVENUE -> ordered(scan { x, y ->
+                !inPlaza(x, y) && countNear(x, y, 1) { a, b -> pavedAt(a, b) } > 0
+            })
+        }
+
+        /** 자리를 찾지 못했을 때 — ① 길 옆 ② 광장 ③ 광장 주변 */
+        val fallbackPools = listOf(
+            ordered(scan { x, y -> !inPlaza(x, y) && countNear(x, y, 1) { a, b -> pavedAt(a, b) } > 0 }),
+            ordered(scan { x, y -> inPlaza(x, y) }),
+            around((PLAZA_X0 + PLAZA_X1) / 2, (PLAZA_Y0 + PLAZA_Y1) / 2, 7)
+        )
+
+        val out = ArrayList<Npc>()
+        fun apart(x: Int, y: Int): Boolean =
+            out.none { kotlin.math.abs(it.tileX - x) + kotlin.math.abs(it.tileY - y) < 3 }
+
+        // 대화는 32px(=2칸) 안에서만 된다 — 대각선 한 칸(≈22px)까지는 괜찮지만 두 칸은 안 된다.
+        // 그래서 "바로 옆에 플레이어가 설 수 있는 자리"가 아닌 곳에는 아예 사람을 세우지 않는다.
+        val ring8 = listOf(0 to 1, 1 to 1, -1 to 1, 1 to 0, -1 to 0, 0 to -1, 1 to -1, -1 to -1)
+        fun greetSpot(x: Int, y: Int): Pair<Int, Int>? {
+            for ((dx, dy) in ring8) {
+                val nx = x + dx; val ny = y + dy
+                if (playerCanStand(nx, ny) && !keepClear.contains(ny * 100 + nx)) return nx to ny
+            }
+            return null
+        }
+
+        fun accept(x: Int, y: Int): Boolean =
+            standable(x, y) && apart(x, y) && greetSpot(x, y) != null && reachable(x, y)
+
+        for (person in cast) {
+            var tile: Pair<Int, Int>? = null
+            for ((x, y) in candidatesFor(person.spot)) {
+                if (accept(x, y)) { tile = x to y; break }
+            }
+            if (tile == null) {
+                for (pool in fallbackPools) {
+                    for ((x, y) in pool) if (accept(x, y)) { tile = x to y; break }
+                    if (tile != null) break
+                }
+            }
+            val (px, py) = tile ?: continue
+            val npc = Npc(person, px, py)
+            // 인사 자리 — 남쪽(정면 대화)을 선호하는, 플레이어가 설 수 있는 바로 옆칸.
+            // accept() 에서 옆칸이 있는 자리만 골랐으므로 항상 찾아진다.
+            val (gx, gy) = greetSpot(px, py) ?: (px to (py + 1))
+            npc.greetX = gx
+            npc.greetY = gy
+            out.add(npc)
+        }
+        return out
     }
 
     /** 집 내부 맵 (13x9) */
@@ -1707,27 +2038,39 @@ object MapBuilder {
 // 엔티티
 // ---------------------------------------------------------------------------
 
+/**
+ * NPC 몸(바디) — 대기 동작과 대화 행동이 여기서 갈린다.
+ * 이름·별명·옷차림·대사·사는 지역은 [NpcPerson](NpcRoster.kt)이 갖는다.
+ */
 enum class NpcKind { PROFESSOR, SHOP, VILLAGER, KID, ELDER }
 
-class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
+/**
+ * 지도에 서 있는 사람 한 명.
+ *
+ * 「한 사람은 한 장소에만」 — 정체성은 [NpcPerson] 이 들고 있고(어느 지역에 사는 누구인지),
+ * 이 클래스는 그 사람이 **이 지도의 어느 타일에** 서 있는지만 나타낸다.
+ */
+class Npc(val person: NpcPerson, val tileX: Int, val tileY: Int) {
+    val kind: NpcKind get() = person.kind
+    val name: String get() = person.name
+    /** 이름표에 작게 함께 뜨는 한 줄 (직함·동네 별명) */
+    val title: String get() = person.title
+
     val x: Float get() = tileX * 16f
     val y: Float get() = tileY * 16f
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
+    /** 인사 자리 — 말을 걸 때 플레이어가 서 있어야 할 타일 (빠른 이동 도착 지점으로도 쓴다) */
+    var greetX: Int = tileX
+    var greetY: Int = tileY + 1
+    val greetCx: Float get() = greetX * 16f + 8f
+    val greetCy: Float get() = greetY * 16f + 13f
+
     // 머리 위 말풍선 이모트 (♪, …, 💤 등) — WorldScene이 갱신
     var emote: String? = null
     var emoteT = 0f
-    var emoteCd = 3f + ((tileX * 37 + tileY * 11) % 7)
-
-    val name: String
-        get() = when (kind) {
-            NpcKind.PROFESSOR -> "보리 박사"
-            NpcKind.SHOP -> "사진용품점"
-            NpcKind.VILLAGER -> "동네 주민"
-            NpcKind.KID -> "꼬마"
-            NpcKind.ELDER -> "할머니"
-        }
+    var emoteCd = 3f + ((person.id.hashCode() and 0x7FFFFFFF) % 7)
 }
 
 /**

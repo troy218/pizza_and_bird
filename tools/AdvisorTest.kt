@@ -75,7 +75,8 @@ fun main() {
     }
 
     // ---------------------------------------------------------------
-    // 3. 프롤로그 — 목표 무조건 달성 상태 → 현재 지역 유지
+    // 3. 프롤로그 — 목표 무조건 달성 상태 → 보고하러 보리 박사 동네(광릉숲)로
+    //    (박사는 한 곳에 산다: NpcRoster.PROFESSOR_REGION)
     // ---------------------------------------------------------------
     val s = GameState()
     s.started = true
@@ -83,8 +84,19 @@ fun main() {
     s.visited.addAll(listOf("seoul"))
     s.birdCounts["sparrow"] = 3
     val adv0 = MainQuestAdvisor.advise(s)
-    check(adv0 != null && adv0.alreadyThere && adv0.regionId == "seoul",
-        "프롤로그: 현재 지역이어야 함 (got ${adv0?.regionId}, alreadyThere=${adv0?.alreadyThere})")
+    check(adv0 != null && !adv0.alreadyThere && adv0.regionId == NpcRoster.PROFESSOR_REGION,
+        "프롤로그: 박사 동네여야 함 (got ${adv0?.regionId}, alreadyThere=${adv0?.alreadyThere})")
+    check(adv0 != null && adv0.reason.contains("보고"), "프롤로그: 이유가 '보고' 안내여야 함 (${adv0?.reason})")
+
+    // 3.1 이미 박사 동네에 있으면 — 그 자리가 정답 (alreadyThere)
+    val sHere = GameState()
+    sHere.started = true
+    sHere.region = NpcRoster.PROFESSOR_REGION
+    sHere.visited.addAll(listOf("seoul", NpcRoster.PROFESSOR_REGION))
+    sHere.birdCounts["sparrow"] = 3
+    val advHere = MainQuestAdvisor.advise(sHere)
+    check(advHere != null && advHere.alreadyThere && advHere.regionId == NpcRoster.PROFESSOR_REGION,
+        "박사 동네 도착: alreadyThere 여야 함 (got ${advHere?.regionId}, ${advHere?.alreadyThere})")
 
     // ---------------------------------------------------------------
     // 4. 2장(딱다구리) — 남은 새가 가장 많이 나는 지역을 권해야 한다
@@ -161,7 +173,7 @@ fun main() {
         "4장: 추천 지역(${adv6.regionId}) fresh ${freshCount(s6, Regions.byId[adv6.regionId]!!)} != 최대 $bestFresh")
 
     // ---------------------------------------------------------------
-    // 7. 완료 장 — 어디에 있든 현재 지역이 정답
+    // 7. 완료 장 — 어디에 있든 "보리 박사가 사는 곳"이 정답 (카드로 바로 이동한다)
     // ---------------------------------------------------------------
     val s7 = GameState()
     s7.started = true
@@ -171,8 +183,8 @@ fun main() {
     s7.mainQuestStarted = true
     s7.mainQuestStage = 0   // 프롤로그 — 항상 완료 가능
     val adv7 = MainQuestAdvisor.advise(s7)
-    check(adv7 != null && adv7.alreadyThere && adv7.regionId == "busan",
-        "완료 장: 현재 지역(busan)이어야 함 (got ${adv7?.regionId})")
+    check(adv7 != null && !adv7.alreadyThere && adv7.regionId == NpcRoster.PROFESSOR_REGION,
+        "완료 장: 박사 동네(${NpcRoster.PROFESSOR_REGION})여야 함 (got ${adv7?.regionId})")
 
     // ---------------------------------------------------------------
     // 8. 완결 상태 — 어드바이저 null
@@ -183,25 +195,49 @@ fun main() {
     check(MainQuestAdvisor.advise(s8) == null, "완결 상태: null 이어야 한다")
 
     // ---------------------------------------------------------------
-    // 9. 자동 이동 스폰 포인트 (18,14)가 모든 지역 맵에서 안전한지
+    // 9. 자동 이동 스폰 — (18,14) 광장 도착점이 안전한가 + 사람은 한 동네에만 사는가
+    //    보리 박사는 광릉숲에만 산다: 그 지역에서는 빠른 이동이 "인사 자리"에 내려 놓고
+    //    박사와 상호작용 범위(32px) 안에 있어야 한다. 다른 지역에는 아예 없어야 한다.
+    //    사진용품점도 서울 한 곳에만 있다.
     //    (GameMap companion 이 android Paint 를 만들기 때문에 android.jar 스텁
     //     환경(JDK only)에서는 실행 불가 — 진짜 SDK로 돌릴 때만 검증)
     // ---------------------------------------------------------------
     try {
         MapBuilder.build(Regions.ALL.first(), "seoul")   // 스텁 환경이면 여기서 예외
+        var profMaps = 0
+        var shopMaps = 0
         for (r in Regions.ALL) {
             for (hr in Regions.ALL) {
                 val map = MapBuilder.build(r, hr.id)
                 val px = 18f * 16f; val py = 14f * 16f
                 check(!map.solidBox(px, py), "${r.id}(home=${hr.id}): 스폰 박스 ${px},${py}가 고체와 겹친다")
                 check(map.walkableTile(18, 14), "${r.id}(home=${hr.id}): 타일(18,14)이 걸을 수 없다")
-                // 스폰 직후 보리 박사가 상호작용 범위(32px) 안에 있어야 한다
-                val prof = map.npcs.first { it.kind == NpcKind.PROFESSOR }
-                val d = Math.hypot((prof.cx - (px + 8f)).toDouble(), (prof.cy - (py + 13f)).toDouble())
-                check(d < 32f, "${r.id}(home=${hr.id}): 스폰-박사 거리 ${d}가 32px를 초과")
+
+                val prof = map.npcs.firstOrNull { it.kind == NpcKind.PROFESSOR }
+                val shop = map.npcs.firstOrNull { it.kind == NpcKind.SHOP }
+                if (r.id == NpcRoster.PROFESSOR_REGION) {
+                    profMaps++
+                    check(prof != null, "${r.id}(home=${hr.id}): 보리 박사가 없다")
+                    if (prof != null) {
+                        // 빠른 이동은 박사 "인사 자리"에 내려 놓는다 — 안전하고 대화 거리여야 한다
+                        val gx = prof.greetX * 16f; val gy = prof.greetY * 16f
+                        check(map.walkableTile(prof.greetX, prof.greetY),
+                            "${r.id}(home=${hr.id}): 박사 인사 자리(${prof.greetX},${prof.greetY})가 막힘")
+                        check(!map.solidBox(gx, gy), "${r.id}(home=${hr.id}): 박사 인사 자리 박스가 고체와 겹친다")
+                        val d = Math.hypot((prof.cx - (gx + 8f)).toDouble(), (prof.cy - (gy + 13f)).toDouble())
+                        check(d < 32f, "${r.id}(home=${hr.id}): 인사 자리-박사 거리 ${d}가 32px를 초과")
+                    }
+                } else {
+                    check(prof == null, "${r.id}(home=${hr.id}): 보리 박사가 다른 지역에도 있다")
+                }
+                if (r.id == NpcRoster.SHOP_REGION) shopMaps++
+                else check(shop == null, "${r.id}(home=${hr.id}): 사진용품점이 다른 지역에도 있다")
             }
         }
-        println("PASS: 스폰 포인트 (18,14) 전체 ${Regions.ALL.size * Regions.ALL.size} 맵 검증")
+        val expect = Regions.ALL.size
+        check(profMaps == expect, "보리 박사를 만난 맵 수 ${profMaps} (기대 ${expect})")
+        check(shopMaps == expect, "사진용품점을 만난 맵 수 ${shopMaps} (기대 ${expect})")
+        println("PASS: 스폰 포인트 + 사람 배치 전체 ${Regions.ALL.size * Regions.ALL.size} 맵 검증")
     } catch (e: Throwable) {   // android.jar 스텁은 Error(ExceptionInInitializerError)를 던진다
         println("SKIP: 스폰 포인트 맵 검증 — android 런타임이 없어서 (${e.javaClass.simpleName})")
     }

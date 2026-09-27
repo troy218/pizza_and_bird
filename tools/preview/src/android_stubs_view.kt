@@ -53,15 +53,15 @@ class KeyEvent {
     }
 }
 
-/** [P05] BootView compilation stub; the headless preview has no Android view tree. */
-open class View(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+/** tools/preview — android.view.View stub for BootView; not rendered in the headless preview. */
+open class View(val context: android.content.Context) {
     open var width: Int = 0
     open var height: Int = 0
     open val isAttachedToWindow: Boolean = false
-    open fun onDraw(canvas: android.graphics.Canvas) {}
-    open fun invalidate() {}
-    open fun postInvalidate() {}
+    open fun onDraw(c: android.graphics.Canvas) {}
     open fun postInvalidateDelayed(delayMillis: Long) {}
+    open fun postInvalidate() {}
+    open fun invalidate() {}
     open fun requestLayout() {}
     open fun setBackgroundColor(color: Int) {}
 }

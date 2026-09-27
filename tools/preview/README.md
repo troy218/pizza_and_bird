@@ -109,6 +109,42 @@ java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.AchievementUiSmoke
 ```
 
+### 성능 프로브 (버튼 입력 병목)
+
+`perf_smoke.kt` 는 실제 게임 코드를 그대로 돌리면서 **버튼을 눌렀을 때의 프레임 비용**을
+재고, 한 프레임에 새로 만들어 나는 네이티브 객체(`android.graphics` 스텁의 `GfxStats`)와
+드로우 콜을 센다. 보려는 지점은 "누르면 멈칫한다"는 지점 — 가방(메뉴) 6탭, 가방 ✕ 버튼,
+도감 페이지 넘김(사진 디코드), 상세 도감 넘김, HUD 버튼 연타 등.
+
+주의: 이 파이프라인은 Java2D 스텁이라 절대 시간은 기기와 다르다. **프레임당 몇 ms**보다
+**프레임당 몇 번의 네이티브 객체 생성과 드로우 콜**이 기기 성능에 그대로 옮겨가는 지표다.
+디코드는 `GfxStats.decodes` 중 게임 스레드에서 일어난 것(`decodesMain`)만 따로 세므로,
+사진을 게임 스레드에서 디코드하고 있는지 바로 볼 수 있다.
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/perf_smoke.kt \
+  tools/preview/world_resume_smoke.kt $SRCS \
+  -d tools/preview/out/classes-perf -jvm-target 17
+java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.WorldResumeSmoke
+java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.PerfSmoke
+```
+
+`world_resume_smoke` 는 `Game.render()` 의 "가리는 오버레이(가방·지도·상점…)가 떠 있는 동안
+월드를 20Hz 로만 갱신한다" 최적화가 세 가지를 지키는지 검사한다 — 가방이 떠 있는 동안 월드가
+매 프레임 그려지지 않는지, 닫은 **다음 프레임**에 월드가 다시 그려지는지(오래된 화면을 붙여
+보여주지 않는지), 그 뒤에도 계속 갱신되는지. 판정은 `GfxStats.drawBitmap` 횟수(월드를 그리면
+약 2000회, 건너뛰면 HUD 정도만)로 한다.
+
+### 스크린샷 결정성
+
+프리뷰의 `android.os.SystemClock` 는 벽시계가 아니라 **게임 시간(dt)만 흐르는 시계**다
+(`PreviewMain.simulate()` 가 `SystemClock.advance(dt)` 로 전진시킨다). 오버레이 등장 연출
+(`Overlay.bornAt`, `UiKit.enter`)이 실제 실행 속도에 따라 달라져 같은 소스를 돌려도
+스크린샷이 매번 조금씩 달라지는 것을 막기 위해서다.
 ### 출력물
 
 | 파일 | 내용 |
@@ -131,6 +167,32 @@ java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 
 > 게임 동작의 기준은 어디까지나 Kotlin 쪽 코드다. 이 파이프라인은 실제 코드를
 > 실행하므로 화면은 실기기와 동일한 알고리즘으로 그려진다.
+
+### 대화상자 배치 감사 (dialog audit)
+
+"글자 양에 비해 상자가 무식하게 큰 놈"을 눈이 아니라 **수치**로 찾는 도구.
+`android_stubs_graphics.kt` 의 Canvas 스텁에 기본 꺼진(non-null일 때만 동작)
+기록 훅을 달아 두고, 대화상자·장비 선택·가방·인테리어 창 등을 실제 상태
+(장비 0~5개, 글자 배율 1.3×, 800×400 화면 …)로 띄워 모든 상자/글자 draw를
+TSV로 남긴다. 분석 스크립트가 프레임별로 **패널 크기(dp) · 세로 밴드 사용률 ·
+내부 최대 빈 띠(dp) · 글자 면적 비율**을 계산해 낮은 순으로 랭킹한다.
+
+```bash
+# 1) 컴파일 + 감사 렌더 (PNG + events.tsv → tools/preview/out/audit)
+kotlinc tools/preview/src/*.kt $SRCS -d tools/preview/out/classes-audit -jvm-target 17
+java -cp "tools/preview/out/classes-audit:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.DialogAuditMain tools/preview/out/audit
+
+# 2) 수치 랭킹
+python3 tools/preview/dialog_audit_analyze.py tools/preview/out/audit/events.tsv
+
+# 3) (선택) 개선 전/후 디렉터리를 넣어 한 장 비교 시트 만들기
+python3 tools/preview/dialog_audit_compare.py \
+  tools/preview/out/audit_before tools/preview/out/audit docs/img/ui-fit-before-after.png
+```
+
+기준치: 세로 사용률 60% 미만이거나 내부 빈 띠 40dp 이상이면 "상자가 글자보다
+크다"는 신호. `preview/16_dialog.png` 같은 스크린샷과 함께 보면 배치 확인이 빠르다.
 
 ---
 
