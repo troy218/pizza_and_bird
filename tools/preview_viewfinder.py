@@ -147,6 +147,103 @@ def draw_player(d, cx, cy):
     d.rectangle([cx - 10, cy - 12, cx + 10, cy - 10], fill=(0x6B, 0x4A, 0x33))
 
 
+
+# ---------------------------------------------------------------------------
+# HUD 컨트롤 (Hud.kt 와 같은 dp 좌표) — 카메라 모드에선 스탯/미니맵은 숨겨진다
+# ---------------------------------------------------------------------------
+
+def draw_hud_controls(d, W, H, density, photo_mode=True, clock=2.6, toast=None, active=()):
+    dp = lambda v: v * density
+
+    # D패드
+    r = dp(54)
+    cx, cy = dp(26) + r, H - dp(24) - r
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(40, 36, 54, 88))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(248, 239, 220, 150), width=max(1, int(dp(2))))
+    tri = dp(10)
+    inn = r * 0.62
+    for (dx, dy) in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+        px, py = -dy, dx
+        pts = [(cx + dx * inn + dx * tri, cy + dy * inn + dy * tri),
+               (cx + dx * inn - dx * tri * 0.5 + px * tri * 0.8, cy + dy * inn - dy * tri * 0.5 + py * tri * 0.8),
+               (cx + dx * inn - dx * tri * 0.5 - px * tri * 0.8, cy + dy * inn - dy * tri * 0.5 - py * tri * 0.8)]
+        d.polygon(pts, fill=(248, 239, 220, 205))
+
+    a_r = dp(27)
+    a_cx, a_cy = W - dp(26) - a_r, H - dp(26) - a_r
+    b_r = dp(21)
+    b_cx, b_cy = a_cx - a_r - dp(8) - b_r, H - dp(22) - b_r
+    cam_r = dp(21)
+    cam_cx, cam_cy = a_cx, a_cy - a_r - dp(12) - cam_r
+    run_r = dp(19)
+    run_cx, run_cy = cam_cx - cam_r - dp(8) - run_r, cam_cy + dp(2)
+    eat_r = dp(19)
+    eat_cx, eat_cy = run_cx - run_r - dp(8) - eat_r, cam_cy + dp(2)
+    menu_r = dp(16)
+    menu_cx, menu_cy = b_cx - b_r - dp(10) - menu_r, b_cy + dp(6)
+
+    def circle_button(cx, cy, rr, col, outline_a=190):
+        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=col)
+        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=(248, 239, 220, outline_a), width=max(1, int(dp(2))))
+
+    # 카메라 (촬영 모드에선 붉게 + 펄스 링)
+    if photo_mode:
+        pulse = 0.5 + 0.5 * math.sin(clock * 3.4)
+        pr = cam_r + dp(5) + dp(4) * pulse
+        d.ellipse([cam_cx - pr, cam_cy - pr, cam_cx + pr, cam_cy + pr], outline=(226, 87, 76, 46), width=max(1, int(dp(9))))
+        p2 = cam_r + dp(3) + dp(3) * pulse
+        d.ellipse([cam_cx - p2, cam_cy - p2, cam_cx + p2, cam_cy + p2], outline=(226, 87, 76, 210), width=max(1, int(dp(2.6))))
+        arc_r = cam_r + dp(8)
+        for i in range(6):
+            base = (clock * 96) % 360 + i * 60
+            d.arc([cam_cx - arc_r, cam_cy - arc_r, cam_cx + arc_r, cam_cy + arc_r], base, base + 20,
+                  fill=(255, 232, 220, 225), width=max(1, int(dp(3))))
+        circle_button(cam_cx, cam_cy, cam_r, (226, 87, 76), 200)
+    else:
+        circle_button(cam_cx, cam_cy, cam_r, (74, 74, 88, 220))
+
+    icon_camera(d, cam_cx - dp(10), cam_cy - dp(8.5), dp(20) / 16, (248, 239, 220, 240))
+    circle_button(a_cx, a_cy, a_r, (242, 182, 60) if "A" not in active else (217, 155, 38))
+    circle_button(b_cx, b_cy, b_r, (195, 163, 232) if "B" not in active else (159, 127, 200))
+    circle_button(run_cx, run_cy, run_r, (74, 74, 88, 220))
+    circle_button(eat_cx, eat_cy, eat_r, (242, 182, 60, 235) if "EAT" not in active else (217, 155, 38, 235))
+    circle_button(menu_cx, menu_cy, menu_r, (74, 74, 88, 220))
+
+    f = font(dp(18))
+    tw = measure("A", f, d)
+    d.text((a_cx - tw / 2, a_cy - dp(12)), "A", font=f, fill=(255, 252, 244))
+    f = font(dp(14))
+    tw = measure("B", f, d)
+    d.text((b_cx - tw / 2, b_cy - dp(9)), "B", font=f, fill=(255, 252, 244))
+    f = font(dp(17))
+    tw = measure("»", f, d)
+    d.text((run_cx - tw / 2, run_cy - dp(12)), "»", font=f, fill=(248, 239, 220, 230))
+
+    # 피자 아이콘 (간식 버튼)
+    ps = dp(20)
+    d.polygon([(eat_cx, eat_cy - ps / 2), (eat_cx - ps / 2, eat_cy + ps / 2), (eat_cx + ps / 2, eat_cy + ps / 2)],
+              fill=(247, 206, 91))
+    d.polygon([(eat_cx, eat_cy - ps / 2), (eat_cx - ps / 2, eat_cy + ps / 2), (eat_cx + ps / 2, eat_cy + ps / 2)],
+              outline=(203, 150, 60), width=1)
+    d.ellipse([eat_cx - ps * 0.11, eat_cy + ps * 0.02, eat_cx + ps * 0.11, eat_cy + ps * 0.24], fill=(196, 92, 74))
+    d.ellipse([eat_cx - ps * 0.26, eat_cy + ps * 0.16, eat_cx - ps * 0.08, eat_cy + ps * 0.34], fill=(196, 92, 74))
+    # 메뉴 (≡)
+    for i in (-1, 0, 1):
+        y = menu_cy + i * dp(4)
+        d.line([menu_cx - dp(6), y, menu_cx + dp(6), y], fill=(248, 239, 220, 220), width=max(1, int(dp(2.2))))
+
+    # 토스트 (카메라 모드에선 상단 뷰파인더 바를 피해 내려서)
+    if toast:
+        f = font(dp(12.5))
+        tw = measure(toast, f, d)
+        cxm = W / 2
+        ty = dp(20) + dp(62)
+        pad = dp(9)
+        d.rounded_rectangle([cxm - tw / 2 - pad, ty - dp(12), cxm + tw / 2 + pad, ty + dp(13)],
+                            radius=dp(12), fill=(248, 239, 220, 210), outline=(107, 79, 53, 230), width=max(1, int(dp(1.5))))
+        d.text((cxm - tw / 2, ty - dp(9)), toast, font=f, fill=(74, 55, 40))
+
+
 # ---------------------------------------------------------------------------
 # 뷰파인더 (Viewfinder.kt 와 같은 좌표)
 # ---------------------------------------------------------------------------
@@ -707,18 +804,26 @@ def main():
     draw_viewfinder(d, birds, player, cam, range_tiles, 3, "07:42", 34, False, 2.6,
                     "미러리스", 0, focus_dist)
     p1 = vf.resize((int(VW * SCALE), int(VH * SCALE)), Image.LANCZOS)
-    caption(p1, "① 카메라 모드 — 뷰파인더", "AF 박스 · 사거리 링 · 별점 예상 · 촬영 정보")
+    # HUD(실제 화면 좌표) 는 가상 캔버스 위에 그려지므로 확대 후 같은 비율로 얹는다
+    d1 = ImageDraw.Draw(p1, "RGBA")
+    draw_hud_controls(d1, p1.size[0], p1.size[1], density=2.25, photo_mode=True, clock=2.6,
+                      toast="카메라 모드 — 새를 탭해 촬영하세요")
+    caption(p1, "① 카메라 모드 — 뷰파인더", "AF 박스 · 사거리 링 · 별점 예상 · 촬영 정보 (스탯/미니맵은 숨김)")
 
     # ---- 2) 셔터 순간 ----
     p2 = vf.copy()
     d2 = ImageDraw.Draw(p2, "RGBA")
     draw_shutter(d2, 0.66, 0.95)
     p2 = p2.resize((int(VW * SCALE), int(VH * SCALE)), Image.LANCZOS)
+    d2 = ImageDraw.Draw(p2, "RGBA")
+    draw_hud_controls(d2, p2.size[0], p2.size[1], density=2.25, photo_mode=True, clock=2.6)
     caption(p2, "② 촬영 순간", "셔터 블레이드가 닫히며 '찰칵!'")
 
     # ---- 3) 촬영 결과 ----
     W, H = int(VW * SCALE), int(VH * SCALE)
     p3 = vf.resize((W, H), Image.LANCZOS)
+    d3 = ImageDraw.Draw(p3, "RGBA")
+    draw_hud_controls(d3, W, H, density=2.25, photo_mode=True, clock=6.0)
     draw_result(p3, W, H, density=2.25, quest=None)
     caption(p3, "③ 촬영 결과", "폴라로이드 인화 · 별점 · 첫 발견 스티커")
 
@@ -727,6 +832,8 @@ def main():
     draw_world(dn)
     dn.rectangle([0, 0, VW, VH], fill=(24, 28, 66, 96))   # 실제 게임 밤 틴트와 동일
     p4 = vfn.resize((W, H), Image.LANCZOS)
+    d4 = ImageDraw.Draw(p4, "RGBA")
+    draw_hud_controls(d4, W, H, density=2.25, photo_mode=True, clock=6.0)
     draw_result(p4, W, H, density=2.25, def_name="수리부엉이", english="Eurasian Eagle-Owl",
                 tier="희귀", active="밤새", stars=2, is_new=False, count=5, dist=6.2,
                 time_txt="21:18", camera_txt="DSLR", night=True, habitat="mountain",
