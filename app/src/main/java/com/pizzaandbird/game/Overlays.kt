@@ -2597,6 +2597,10 @@ class BakeOverlay(
         lostPizza = !g.state.addPizza(pizzaId, resultQ)
         // [P07] 도우 보너스는 굽자마자 바로 (피자에 붙어 다니지 않는다)
         doughBonusTxt = Ingredients.applyDoughBonus(g.state, dough)
+        if (!lostPizza) {
+            Healing.bumpToday(g.state, "pizzasBakedToday")
+            if (resultQ == 2) Healing.unlock(g.state, "pizza_master")
+        }
         // 화덕의 충격을 몸으로 — 걸작일수록 크게 울린다
         when (resultQ) {
             2 -> { g.shake(0.3f); g.punchZoom(0.05f) }

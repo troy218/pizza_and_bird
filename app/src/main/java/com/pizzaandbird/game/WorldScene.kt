@@ -344,6 +344,12 @@ class WorldScene(
         // 풀은 32px 렌더 좌표, 캐릭터는 16px 논리 좌표를 사용한다.
         grass.update(dt, game.time, (player.x + 8f) * WORLD_SCALE, (player.y + 13f) * WORLD_SCALE, player.bike)
         spawnAmbient(dt)
+        // 🌸 힐링 파티클 — 작은 생물(나비/잠자리/반딧불/먼 갈매기/철새 떼) + 계절 향
+        Healing.updateCritters(dt, state, region, rnd, viewRig.viewW, viewRig.viewH, viewRig.x, viewRig.y) { m ->
+            game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+            game.sfx(Audio.Sfx.NOTIFY, 0.45f, 1.3f)
+        }
+        Healing.updateScents(dt, state.season(), player.cx, player.cy, rnd)
         if (player.bike && player.moving) {
             dustT -= dt
             if (dustT <= 0f) {
@@ -393,6 +399,7 @@ class WorldScene(
             nearestNpc() != null -> "note"
             nearTile(T.SIGN) != null -> "map"
             nearTile(T.BENCH) != null -> "coffee"
+            nearFlowerTile() != null && Healing.pickableHerbs(state.season(), region.habitats).isNotEmpty() -> "leaf"
             map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
             nearLandmarkDoor() -> "pin"
             nearestCat() != null -> "fist"
@@ -574,7 +581,17 @@ class WorldScene(
         if (chosen != old) {
             game.hud.banner("${chosen.icon} 날씨 변화: ${chosen.label}")
             game.hud.toast("${chosen.description} · ${chosen.label}")
+            // 🌸 작은 기념
+            if (chosen == Weather.SNOW) Healing.unlock(state, "first_snow")?.let { m ->
+                game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+            }
         }
+        if ("coast" in region.habitats) Healing.unlock(state, "sea_breeze")
+        if (state.worldTime < 5.5f) Healing.unlock(state, "quiet_morning")
+        if (state.visited.size >= Regions.ALL.size) Healing.unlock(state, "all_regions")
+        if (state.luck >= 99.9f) Healing.unlock(state, "lucky_100")
+        if (state.decorSlots.any { it >= 0 }) Healing.unlock(state, "home_decorated")
+        if (state.onBike && state.visited.size >= 3) Healing.unlock(state, "bicycle_ride")
     }
 
     private fun updatePlayer(dt: Float) {
@@ -977,7 +994,22 @@ class WorldScene(
         val prevBest = state.bestStars[b.def.id] ?: 0
         if (stars > prevBest) state.bestStars[b.def.id] = stars
         state.photos += 1
-        if (isNew) state.luck = (state.luck + 4f).coerceAtMost(100f)
+        // 🌸 탐조 일기 카운터
+        Healing.bumpToday(state, "photosToday")
+        if (isNew) {
+            Healing.bumpToday(state, "newBirdsToday")
+            state.luck = (state.luck + 4f).coerceAtMost(100f)
+        }
+        if (state.isNight() && b.def.habitats.contains("forest")) {
+            Healing.unlock(state, "night_owl")?.let { m ->
+                game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+            }
+        }
+        if (state.season() == Season.WINTER && b.def.name.contains("두루미")) {
+            Healing.unlock(state, "winter_crane")?.let { m ->
+                game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+            }
+        }
 
         // ----- 경험치 -----
         var expGain = Progression.photoExp(b.def.tier, stars)
@@ -1457,7 +1489,14 @@ class WorldScene(
                 Color.argb(220, 242, 130, 160), 3.4f, true
             )
         }
-        game.toast("쓰다듬었다~ 야옹 🐈 행운+1")
+        Healing.bumpToday(state, "catsPetToday")
+        if (Healing.catLove(state) >= 40) Healing.unlock(state, "cat_love_40")?.let { m ->
+            game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+        } else {
+            val treats = Healing.catTreats(state)
+            val treatMsg = if (treats > 0) " | 간식 주려면 고양이 몸통을 꾹~" else ""
+            game.toast("쓰다듬었다~ 야옹 🐈 행운+1$treatMsg")
+        }
     }
 
     private fun facingUnit(dir: Dir): Pair<Float, Float> = when (dir) {
@@ -1601,8 +1640,46 @@ class WorldScene(
 
     private fun restAtBench() {
         state.luck = (state.luck + 2f).coerceAtMost(100f)
-        game.toast("벤치에 앉아 쉬었다~ 구름 구경 +2")
+        Healing.unlock(state, "bench_sunset")?.let { m ->
+            game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward + 2}")
+        } ?: game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
         game.sfx(Audio.Sfx.SPARKLE, 0.55f)
+        // 주변 풍경 파티클 추가로 띄워주기
+        repeat(6) {
+            addParticle(viewRig.x + rnd.nextFloat()*viewRig.viewW, viewRig.y - 6f,
+                (rnd.nextFloat()-0.5f)*12f, 8f + rnd.nextFloat()*6f, 5f,
+                Color.argb(160, 255, 236, 180), 3f, true)
+        }
+        if (state.isNight()) Healing.unlock(state, "full_moon")
+        if (state.season() == Season.SPRING) Healing.unlock(state, "spring_picnic")
+        if (state.season() == Season.AUTUMN) Healing.unlock(state, "autumn_maple")
+        if (state.weather() == Weather.RAIN) Healing.unlock(state, "rain_walk")
+        // 벤치 옆에 고양이가 있으면 벤치 위 고양이 기념
+        if (nearestCat() != null) Healing.unlock(state, "bench_cat")
+    }
+
+    /** 플레이어 발밑 FLOWER 타일 — 허브를 주울 수 있는지 */
+    private fun nearFlowerTile(): Pair<Int, Int>? {
+        val ptx = (player.cx / 16f).toInt()
+        val pty = ((player.y + 13f) / 16f).toInt()
+        for (dy in -1..1) for (dx in -1..1) {
+            val x = ptx + dx; val y = pty + dy
+            if (map.groundAt(x, y) == T.FLOWER) return x to y
+        }
+        return null
+    }
+
+    /** 지금 주울 수 있는 허브 중 무작위 하나 (지역·계절 맞춤). 3초에 한 번만 주워지게 확률로 제한. */
+    private var lastHerbPick = -999f
+    private fun pickNearHerb(): Healing.Herb? {
+        if (game.time - lastHerbPick < 1.2f) return null
+        val here = nearFlowerTile() ?: return null
+        val options = Healing.pickableHerbs(state.season(), region.habitats)
+        if (options.isEmpty()) return null
+        // 55% 확률로 성공 (매번 주울 수 있으면 허브가 남아나지 않아)
+        if (rnd.nextFloat() > 0.55f) return null
+        lastHerbPick = game.time
+        return options[rnd.nextInt(options.size)]
     }
 
     // -------------------------------------------------------------------
@@ -1881,6 +1958,22 @@ class WorldScene(
                 restAtBench()
                 return
             }
+            // 🌸 허브 줍기: FLOWER 타일 밟은 채로 A를 누르면 계절 허브 하나를 주운다
+            pickNearHerb()?.let { herb ->
+                Healing.addHerb(state, herb.id)
+                Healing.bumpToday(state, "herbsPickedToday")
+                game.sfx(Audio.Sfx.SPARKLE, 0.4f, 1.4f)
+                game.toast("${herb.emoji} ${herb.name}을(를) 주웠다 — ${herb.note}")
+                Healing.unlock(state, "ten_herbs")?.let { m ->
+                    game.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+                }
+                repeat(5) {
+                    addParticle(player.cx + (rnd.nextFloat()-0.5f)*8f, player.cy - 8f,
+                        (rnd.nextFloat()-0.5f)*14f, -20f - rnd.nextFloat()*10f, 1.6f,
+                        herb.color, 3f, true)
+                }
+                return
+            }
             if (map.hasHouse) {
                 val ddx = (map.houseDoorX * 16f + 16f) - player.cx
                 val ddy = (map.houseDoorY * 16f + 8f) - player.cy
@@ -1893,12 +1986,6 @@ class WorldScene(
                 enterLandmark()
                 return
             }
-            nearestCat()?.let {
-                tryPunch(it)
-                return
-            }
-            // 근처에 아무것도 없으면 주먹 버튼은 헛펀치 (촬영 중에는 흔들지 않는다)
-            if (!photoMode) tryPunch()
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -1918,17 +2005,36 @@ class WorldScene(
                 talkTo(npc)
                 return
             }
-            // 고양이 탭 — 몸/주먹은 펀치, 하트는 쓰다듬기
+            // 고양이 탭 — 하트는 쓰다듬기, 몸/주먹은 펀치, 간식이 있으면 길게 탭으로 주기
             for (cat in cats) {
                 if (cat.launched) continue
                 val near = hypot(cat.cx - player.cx, cat.cy - player.cy) <= PUNCH_RANGE + 6f
-                // 표식 위치는 drawCatOverlays 와 같다 (논리 px)
                 val heartX = cat.x - 1f
                 val heartY = cat.y - 3f - cat.lift
                 val fistX = cat.x + 8f
                 val fistY = cat.y - 7f - cat.lift
                 if (near && !cat.stalking && hypot(heartX - tap.x, heartY - tap.y) < 8f) {
                     petCat(cat)
+                    return
+                }
+                val fishX = cat.x - 8f
+                val fishY = cat.y - 7f - cat.lift
+                val onFish = Healing.catTreats(state) > 0 && hypot(fishX - tap.x, fishY - tap.y) < 10f
+                if (onFish) {
+                    if (Healing.feedCat(state)) {
+                        game.sfx(Audio.Sfx.SPARKLE, 0.6f, 1.2f)
+                        repeat(6) {
+                            addParticle(cat.cx + (rnd.nextFloat()-0.5f)*6f, cat.cy - 4f,
+                                (rnd.nextFloat()-0.5f)*18f, -22f - rnd.nextFloat()*10f, 1.2f,
+                                Color.argb(230, 255, 180, 120), 3f, true)
+                        }
+                        val follow = when (Healing.catFollowLevel(state)) {
+                            2 -> "이제 내 뒤를 졸졸 따라올 것만 같다."
+                            1 -> "꼬리가 하늘로 올라갔다."
+                            else -> "간식을 받아먹고 야옹~"
+                        }
+                        game.toast("🐈 생선 간식 냠! $follow")
+                    }
                     return
                 }
                 val onBody = hypot(cat.cx - tap.x, cat.cy - tap.y) < 16f
@@ -2412,6 +2518,27 @@ class WorldScene(
                 c.drawCircle(hx - 2.4f, hy - 1.2f, 3.1f, bubbleStroke)
                 c.drawCircle(hx + 2.4f, hy - 1.2f, 3.1f, bubbleStroke)
             }
+            // 간식 버튼 — 생선 간식이 있을 때만 고양이 왼쪽 위에 표시 (작은 물고기 그림)
+            if (Healing.catTreats(state) > 0 && !cat.stalking) {
+                val fx = sx - 16f
+                val fy = sy - 14f + sin(game.time * 4f + 1.3f) * 1.2f
+                bubbleFill.color = 0xFF6BAE75.toInt()
+                c.drawCircle(fx, fy, 8f, bubbleFill)
+                c.drawCircle(fx, fy, 8f, bubbleStroke)
+                aaFill.color = 0xFFFEF8E6.toInt()
+                aaFill.style = Paint.Style.FILL
+                // 물고기 몸 + 꼬리
+                c.drawOval(fx - 5f, fy - 2.5f, fx + 4f, fy + 2.5f, aaFill)
+                val tail = Path()
+                tail.moveTo(fx + 3f, fy)
+                tail.lineTo(fx + 7f, fy - 4f)
+                tail.lineTo(fx + 7f, fy + 4f)
+                tail.close()
+                c.drawPath(tail, aaFill)
+                aaFill.color = 0xFF3A3530.toInt()
+                c.drawCircle(fx - 3f, fy - 0.8f, 0.9f, aaFill)
+                aaFill.style = Paint.Style.FILL
+            }
             tinyPaint.color = 0xFF4A3728.toInt()
         }
     }
@@ -2449,6 +2576,13 @@ class WorldScene(
             val sy = p.y * WORLD_SCALE - camYv
             c.drawRect(sx, sy, sx + p.size, sy + p.size, uiFill)
         }
+        // 🌸 힐링 파티클 — 계절 향 + 작은 생물 (모두 월드좌표 → 렌더좌표 스케일)
+        c.save()
+        c.translate(-camXv, -camYv)
+        c.scale(WORLD_SCALE, WORLD_SCALE)
+        Healing.drawScents(c, aaFill)
+        Healing.drawCritters(c, aaFill)
+        c.restore()
     }
 
     // -------------------------------------------------------------------
