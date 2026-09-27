@@ -13,7 +13,7 @@ import android.util.Log
  *
  * - 효과음: res/raw/sfx_* (짧은 소리, 동시 재생 가능)
  * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 밤 바람 / 화덕 불)
- * - BGM   : res/raw/bgm_* (한 채널 루프 — 타이틀 / 월드 / 집)
+ * - BGM   : res/raw/bgm_* (한 채널 루프 — 타이틀 / 월드 / 산 / 바다 / 집)
  *
  * 곡 배치를 바꾸고 싶으면 씬에서 부르는 R.raw.bgm_* 만 바꾸면 된다.
  */
