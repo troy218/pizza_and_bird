@@ -71,7 +71,13 @@ class BirdDef(
     val desc: String,
     val onlyRegions: Set<String>? = null,    // 특정 지역에서만 출현 (null이면 서식지 기준)
     val art: BirdArt,
-    val active: String = "any"               // day / night / any (밤낮 출현 조건)
+    val active: String = "any",              // day / night / any (밤낮 출현 조건)
+    val scientificName: String = "",
+    val englishName: String = "",
+    val orderName: String = "",
+    val familyName: String = "",
+    val category: String = "",
+    val subspecies: List<String> = emptyList()
 ) {
     val activeLabel: String
         get() = when (active) {
@@ -84,7 +90,7 @@ class BirdDef(
 object Birds {
     private fun c(v: Long) = v.toInt()
 
-    val ALL = listOf(
+    private val CURATED = listOf(
         // ---------------- 흔함 ----------------
         BirdDef(
             "sparrow", "참새", Tier.COMMON, setOf("city", "field"), 30.0, 3000,
@@ -154,13 +160,13 @@ object Birds {
             BirdArt(2, c(0xFFFDFDF8), c(0xFFFFFFFF), c(0xFFE8E4D8), c(0xFFE8B14E), c(0xFFFDFDF8), c(0xFF4A3728), 1.15f)
         ),
         BirdDef(
-            "woodpecker", "까막딱따구리", Tier.UNCOMMON, setOf("forest", "mountain"), 10.0, 8000,
+            "woodpecker", "까막딱다구리", Tier.UNCOMMON, setOf("forest", "mountain"), 10.0, 8000,
             "울창한 숲의 목수. 나무를 두드리는 소리가 숲에 울려 퍼진다.",
             null,
             BirdArt(0, c(0xFF2B2B30), c(0xFF3A3A40), c(0xFF1E1E24), c(0xFFD9D3C8), c(0xFFD9403A), c(0xFF6B7280), 1.1f)
         ),
         BirdDef(
-            "greenwood", "청딱따구리", Tier.UNCOMMON, setOf("forest"), 9.0, 8500,
+            "greenwood", "청딱다구리", Tier.UNCOMMON, setOf("forest"), 9.0, 8500,
             "등이 청록색으로 빛나는 우리 숲의 딱따구리. 수컷의 정수리는 빨갛다.",
             null,
             BirdArt(0, c(0xFF5D9E5F), c(0xFFF2E8D0), c(0xFF3F6F44), c(0xFF23252B), c(0xFFD9403A), c(0xFF6B7280))
@@ -250,6 +256,12 @@ object Birds {
         )
     )
 
+    private val curatedByName: Map<String, BirdDef> = CURATED.associateBy { it.name }
+
+    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.map { entry ->
+        curatedByName[entry.koreanName]?.let { enrich(it, entry) } ?: generated(entry)
+    }
+
     val byId: Map<String, BirdDef> = ALL.associateBy { it.id }
 
     /** 지역 서식지 + 밤낮에 맞는 새 풀 */
@@ -258,6 +270,229 @@ object Birds {
                 (def.onlyRegions == null || region.id in def.onlyRegions) &&
                 (def.active == "any" || (if (night) def.active == "night" else def.active == "day"))
     }
+
+    private fun enrich(def: BirdDef, entry: BirdChecklistEntry): BirdDef = BirdDef(
+        id = def.id,
+        name = def.name,
+        tier = def.tier,
+        habitats = def.habitats,
+        weight = def.weight,
+        reward = def.reward,
+        desc = def.desc,
+        onlyRegions = def.onlyRegions,
+        art = def.art,
+        active = def.active,
+        scientificName = entry.scientificName,
+        englishName = entry.englishName,
+        orderName = entry.orderName,
+        familyName = entry.familyName,
+        category = entry.category,
+        subspecies = entry.subspecies
+    )
+
+    private fun generated(entry: BirdChecklistEntry): BirdDef {
+        val tier = tierFor(entry)
+        val habitats = habitatsFor(entry)
+        return BirdDef(
+            id = generatedId(entry),
+            name = entry.koreanName,
+            tier = tier,
+            habitats = habitats,
+            weight = weightFor(tier),
+            reward = rewardFor(tier),
+            desc = officialDesc(entry),
+            onlyRegions = null,
+            art = artFor(entry, habitats),
+            active = activeFor(entry),
+            scientificName = entry.scientificName,
+            englishName = entry.englishName,
+            orderName = entry.orderName,
+            familyName = entry.familyName,
+            category = entry.category,
+            subspecies = entry.subspecies
+        )
+    }
+
+    private fun generatedId(entry: BirdChecklistEntry): String {
+        val sb = StringBuilder("bird_")
+        var lastUnderscore = false
+        for (ch in entry.scientificName.lowercase()) {
+            val ok = (ch in 'a'..'z') || (ch in '0'..'9')
+            if (ok) {
+                sb.append(ch)
+                lastUnderscore = false
+            } else if (!lastUnderscore) {
+                sb.append('_')
+                lastUnderscore = true
+            }
+        }
+        while (sb.length > 5 && sb[sb.length - 1] == '_') sb.setLength(sb.length - 1)
+        return sb.toString()
+    }
+
+    private val COMMON_NAMES = setOf(
+        "참새", "까치", "박새", "쇠박새", "곤줄박이", "직박구리", "멧비둘기", "흰뺨검둥오리",
+        "청둥오리", "쇠오리", "괭이갈매기", "재갈매기", "왜가리", "중대백로", "쇠백로",
+        "물닭", "제비", "붉은머리오목눈이", "동박새", "딱새", "검은등할미새", "알락할미새",
+        "노랑턱멧새", "방울새", "오목눈이", "어치", "큰부리까마귀", "물까치", "찌르레기"
+    )
+
+    private fun tierFor(entry: BirdChecklistEntry): Tier {
+        val name = entry.koreanName
+        val family = entry.familyName
+        val text = "$name ${entry.englishName} ${entry.scientificName}"
+        if (entry.category == "가-2") return Tier.LEGEND
+        if (name in COMMON_NAMES) return Tier.COMMON
+        if (hasAny(text, "원앙사촌", "알바트로스", "군함조", "큰홍학", "뿔제비갈매기", "크낙새", "초원멧새")) {
+            return Tier.LEGEND
+        }
+        if (hasAny(text, "아메리카", "미국", "북미", "자바", "히말라야", "흰매", "검독수리", "수리", "황새", "저어새", "두루미", "팔색조", "물수리", "홍학", "뜸부기", "바다오리", "바위")) {
+            return Tier.RARE
+        }
+        if (family in setOf("오리과", "백로과", "갈매기과", "박새과", "까마귀과", "직박구리과", "제비과", "할미새과", "멧새과", "되새과", "지빠귀과", "솔새과", "뜸부기과", "딱다구리과", "비둘기과")) {
+            return Tier.UNCOMMON
+        }
+        return Tier.RARE
+    }
+
+    private fun habitatsFor(entry: BirdChecklistEntry): Set<String> {
+        val name = entry.koreanName
+        val family = entry.familyName
+        val order = entry.orderName
+        val text = "$name $family $order ${entry.englishName}"
+        if (family == "오리과" || order == "논병아리목" || order == "아비목") return setOf("water", "wetland", "coast")
+        if (family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과", "호사도요과", "물꿩과", "제비물떼새과")) return setOf("coast", "wetland", "water")
+        if (family in setOf("갈매기과", "도둑갈매기과", "바다오리과", "알바트로스과", "바다제비과", "슴새과", "군함조과", "얼가니새과", "가마우지과")) return setOf("coast", "water")
+        if (family in setOf("황새과", "저어새과", "백로과", "사다새과", "홍학과", "뜸부기과", "두루미과")) return setOf("wetland", "water", "field")
+        if (order == "수리목" || order == "매목") return setOf("field", "mountain", "coast")
+        if (order == "올빼미목" || order == "쏙독새목") return setOf("forest", "mountain")
+        if (order == "닭목" || order == "사막꿩목" || order == "느시목") return setOf("field", "mountain")
+        if (order == "비둘기목") return setOf("city", "forest", "field")
+        if (order == "두견이목") return setOf("forest", "field")
+        if (order == "파랑새목") return if (name.contains("물총새")) setOf("water", "forest") else setOf("forest", "field")
+        if (order == "딱다구리목" || order == "코뿔새목") return setOf("forest", "mountain")
+        if (order == "칼새목") return setOf("city", "coast", "field")
+        if (order == "참새목") {
+            if (hasAny(text, "까마귀", "까치", "직박구리", "참새", "제비", "찌르레기")) return setOf("city", "field", "forest")
+            if (hasAny(text, "종다리", "멧새", "할미새", "때까치", "되새", "방울새", "양진이")) return setOf("field", "city")
+            if (hasAny(text, "물까마귀", "물딱새", "개개비", "덤불")) return setOf("water", "wetland", "forest")
+            return setOf("forest", "field")
+        }
+        return setOf("field", "forest")
+    }
+
+    private fun activeFor(entry: BirdChecklistEntry): String = when (entry.orderName) {
+        "올빼미목", "쏙독새목" -> "night"
+        else -> "any"
+    }
+
+    private fun officialDesc(entry: BirdChecklistEntry): String {
+        val subs = if (entry.subspecies.isEmpty()) {
+            "기록 아종 없음"
+        } else {
+            "기록 아종 ${entry.subspecies.size}개: " + entry.subspecies.take(2).joinToString(", ") +
+                    if (entry.subspecies.size > 2) " 외" else ""
+        }
+        return "${entry.orderName} ${entry.familyName}의 공식 기록종(${entry.category}). " +
+                "학명 ${entry.scientificName}, 영명 ${entry.englishName}. $subs."
+    }
+
+    private fun weightFor(tier: Tier): Double = when (tier) {
+        Tier.COMMON -> 18.0
+        Tier.UNCOMMON -> 8.0
+        Tier.RARE -> 2.4
+        Tier.LEGEND -> 0.65
+    }
+
+    private fun rewardFor(tier: Tier): Int = when (tier) {
+        Tier.COMMON -> 350
+        Tier.UNCOMMON -> 900
+        Tier.RARE -> 2400
+        Tier.LEGEND -> 6500
+    }
+
+    private fun artFor(entry: BirdChecklistEntry, habitats: Set<String>): BirdArt {
+        val family = entry.familyName
+        val text = "${entry.koreanName} ${entry.englishName} $family"
+        val template = when {
+            entry.orderName == "올빼미목" -> 4
+            entry.orderName == "수리목" || entry.orderName == "매목" -> 3
+            family in setOf("황새과", "저어새과", "백로과", "사다새과", "홍학과", "두루미과") -> 2
+            family == "오리과" || hasAny(text, "오리", "기러기", "고니", "논병아리", "아비", "물닭", "뜸부기") -> 1
+            else -> 0
+        }
+        var body = hashedColor(entry, 0)
+        var belly = lighten(body)
+        var wing = darken(body)
+        var beak = c(0xFF6B4A33)
+        var crest = wing
+        var leg = c(0xFFB98A4A)
+
+        if (hasAny(text, "흰", "백", "White", "Swan", "Egret")) {
+            body = c(0xFFF2F2EE); belly = c(0xFFFFFFFF); wing = c(0xFFD6D6CE); crest = body
+        }
+        if (hasAny(text, "검은", "Black")) {
+            body = c(0xFF2B2B30); belly = c(0xFF4A4A52); wing = c(0xFF1E1E24); crest = wing
+        }
+        if (hasAny(text, "노랑", "Yellow")) {
+            body = c(0xFFD8B84E); belly = c(0xFFF2E38A); wing = c(0xFF7A6A38); crest = body
+        }
+        if (hasAny(text, "붉", "홍", "Red", "Rufous")) {
+            body = c(0xFFB45A3C); belly = c(0xFFE8C0A0); wing = c(0xFF7A3F30); crest = body
+        }
+        if (hasAny(text, "파랑", "청", "Blue", "Kingfisher")) {
+            body = c(0xFF3F7FB0); belly = c(0xFFE8D8A8); wing = c(0xFF2F5F90); crest = body
+        }
+        if (hasAny(text, "녹색", "Green")) {
+            body = c(0xFF4F8F5E); belly = c(0xFFE2E8C8); wing = c(0xFF356F45); crest = body
+        }
+        if (family == "갈매기과") {
+            body = c(0xFFF2F2EE); belly = c(0xFFFFFFFF); wing = c(0xFFC9C9C2); beak = c(0xFFF2A33C); leg = beak
+        }
+        if (template == 3) {
+            body = c(0xFF8A5A3C); belly = c(0xFFE8D5B0); wing = c(0xFF5F3B2B); beak = c(0xFFD9A03C); leg = c(0xFFF2D06B)
+        }
+        if (template == 4) {
+            body = c(0xFF8A6F4F); belly = c(0xFFE8D9B8); wing = c(0xFF6B5438); beak = c(0xFFD9A03C); crest = wing; leg = c(0xFFD9A03C)
+        }
+        if (habitats.contains("water") || habitats.contains("wetland")) {
+            beak = if (hasAny(text, "오리", "기러기", "고니")) c(0xFFE8B14E) else beak
+            leg = c(0xFFE8863C)
+        }
+        val scale = when (template) {
+            2 -> 1.12f
+            3 -> 1.08f
+            4 -> 1.12f
+            else -> 1f
+        }
+        return BirdArt(template, body, belly, wing, beak, crest, leg, scale)
+    }
+
+    private fun hashedColor(entry: BirdChecklistEntry, salt: Int): Int {
+        val palette = intArrayOf(
+            c(0xFF9C7A54), c(0xFF7A6A52), c(0xFF6D635A), c(0xFF8A7D6D),
+            c(0xFFB06A3C), c(0xFF5F6B78), c(0xFF4F6F52), c(0xFFD9825C)
+        )
+        val h = entry.scientificName.hashCode() xor (salt * 1103515245)
+        return palette[(h and 0x7fffffff) % palette.size]
+    }
+
+    private fun lighten(color: Int): Int {
+        val r = ((color shr 16) and 0xFF)
+        val g = ((color shr 8) and 0xFF)
+        val b = (color and 0xFF)
+        return c(0xFF000000) or (((r + 80).coerceAtMost(255)) shl 16) or (((g + 80).coerceAtMost(255)) shl 8) or (b + 80).coerceAtMost(255)
+    }
+
+    private fun darken(color: Int): Int {
+        val r = ((color shr 16) and 0xFF)
+        val g = ((color shr 8) and 0xFF)
+        val b = (color and 0xFF)
+        return c(0xFF000000) or ((r * 65 / 100) shl 16) or ((g * 65 / 100) shl 8) or (b * 65 / 100)
+    }
+
+    private fun hasAny(text: String, vararg words: String): Boolean = words.any { text.contains(it) }
+
 }
 
 // ---------------------------------------------------------------------------

@@ -103,7 +103,7 @@ class DialogOverlay(
         // 본문 줄 수에 맞춰 패널 높이 결정
         textP.textSize = dp(scene, 13f)
         val maxW = w - margin * 2f - dp(scene, 28f)
-        val lines = g.hud.wrapText(body, textP, maxW)
+        val lines = g.hud.wrapText(body, textP, maxW).take(8)
         val panelH = dp(scene, 108f) + dp(scene, 17f) * (lines.size - 3).coerceAtLeast(0)
         val r = RectF(margin, h - margin - panelH, w - margin, h - margin)
         panel(c, r, scene)
@@ -123,7 +123,7 @@ class DialogOverlay(
         textP.textSize = dp(scene, 13f)
         textP.color = 0xFF4A3728.toInt()
         var ty = r.top + dp(scene, 24f)
-        for (ln in lines.take(6)) {
+        for (ln in lines) {
             c.drawText(ln, r.left + dp(scene, 14f), ty, textP)
             ty += dp(scene, 17f)
         }
@@ -189,12 +189,26 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     private fun showBirdInfo(def: BirdDef) {
         val s = scene.game.state
         val n = s.birdCounts[def.id] ?: 0
-        val body = if (n > 0) {
-            "${def.desc}\n촬영한 횟수: ${n}회 · 최고 " + "★".repeat(s.bestStars[def.id] ?: 1) +
-                    "\n출현: ${def.activeLabel} · 서식: ${def.habitats.joinToString("·") { HabitatLabels[it] ?: it }}"
-        } else {
-            "아직 만나지 못한 새예요.\n${def.tier.label} · ${def.tier.starText()}\n출현: ${def.activeLabel} · 서식: ${def.habitats.joinToString("·") { HabitatLabels[it] ?: it }}"
+        val subs = when {
+            def.subspecies.isEmpty() -> "아종: —"
+            def.subspecies.size <= 3 -> "아종: ${def.subspecies.joinToString(", ")}"
+            else -> "아종: ${def.subspecies.take(3).joinToString(", ")} 외 ${def.subspecies.size - 3}개"
         }
+        val seenLine = if (n > 0) {
+            "촬영: ${n}회 · 최고 ${"★".repeat(s.bestStars[def.id] ?: 1)}"
+        } else {
+            "미촬영 · ${def.tier.label} ${def.tier.starText()}"
+        }
+        val meta = listOfNotNull(
+            seenLine,
+            if (def.scientificName.isNotBlank()) "학명: ${def.scientificName}" else null,
+            if (def.englishName.isNotBlank()) "영명: ${def.englishName}" else null,
+            if (def.orderName.isNotBlank() || def.familyName.isNotBlank()) "분류: ${def.orderName} · ${def.familyName}" else null,
+            if (def.category.isNotBlank()) "범주: ${def.category}" else null,
+            subs,
+            "출현: ${def.activeLabel} · 서식: ${def.habitats.joinToString("·") { HabitatLabels[it] ?: it }}"
+        ).joinToString("\n")
+        val body = if (n > 0) "${def.desc}\n\n$meta" else meta
         scene.openOverlay(DialogOverlay(scene, "${def.name} ${def.tier.starText()}", body))
     }
 
@@ -327,6 +341,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     }
 
     private var bookRects: Map<String, RectF> = emptyMap()
+    private var bookPage = 0
 
     private fun bookCell(def: BirdDef): RectF? = bookRects[def.id]
 
@@ -335,22 +350,31 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val s = g.state
         val a = g.assets
         val cols = 3
+        val rowsPerPage = 4
+        val pageSize = cols * rowsPerPage
+        val totalPages = ((Birds.ALL.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+        bookPage = bookPage.coerceIn(0, totalPages - 1)
+
         val areaLeft = panelR.left + dp(scene, 14f)
-        val areaTop = contentTop()
+        val areaTop = contentTop() + dp(scene, 8f)
         val areaW = panelR.width() - dp(scene, 28f)
-        val areaH = contentBottom() - areaTop
+        val pagerH = dp(scene, 30f)
+        val areaH = contentBottom() - areaTop - pagerH
         val gap = dp(scene, 6f)
         val cw = (areaW - gap * (cols - 1)) / cols
-        val rows = (Birds.ALL.size + cols - 1) / cols
-        val chh = (areaH - gap * (rows - 1)) / rows
+        val chh = (areaH - gap * (rowsPerPage - 1)) / rowsPerPage
 
-        textP.textSize = dp(scene, 11.5f)
+        textP.textSize = dp(scene, 11.2f)
         textP.color = 0xFF6B4F35.toInt()
-        c.drawText("도감 ${s.birdCounts.size}/${Birds.ALL.size}종 — 새를 누르면 정보가 나와요",
-            areaLeft, areaTop - dp(scene, 6f), textP)
+        c.drawText(
+            "도감 ${s.birdCounts.size}/${Birds.ALL.size}종 — ${OfficialBirdChecklist.SOURCE_TITLE}",
+            areaLeft, contentTop() - dp(scene, 2f), textP
+        )
 
         val rects = LinkedHashMap<String, RectF>()
-        for ((i, def) in Birds.ALL.withIndex()) {
+        val startIndex = bookPage * pageSize
+        val pageItems = Birds.ALL.drop(startIndex).take(pageSize)
+        for ((i, def) in pageItems.withIndex()) {
             val col = i % cols
             val row = i / cols
             val r = RectF(
@@ -370,39 +394,61 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = if (seen) dp(scene, 2f) else dp(scene, 1f)
             c.drawRoundRect(r, dp(scene, 7f), dp(scene, 7f), strokeP)
 
-            // 새 스프라이트 (칸 높이에 맞춤)
             val bmp = a.bird(def.id)
-            val maxH = chh - dp(scene, 6f)
-            val k = (maxH / bmp.height).coerceAtMost(dp(scene, 1.1f))
+            val maxH = chh - dp(scene, 8f)
+            val k = (maxH / bmp.height).coerceAtMost(dp(scene, 0.95f))
             val bx = r.left + dp(scene, 4f)
             val by = r.centerY() - bmp.height * k / 2f
             if (seen) {
                 c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
             } else {
-                fillP.color = Color.argb(150, 150, 140, 130)
-                c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 8f), fillP)
-                textP.textSize = dp(scene, 10f)
+                fillP.color = Color.argb(95, 150, 140, 130)
+                c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 7f), fillP)
+                textP.textSize = dp(scene, 9.5f)
                 textP.color = 0xFFF8EFDC.toInt()
                 c.drawText("?", bx + bmp.width * k / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             }
 
-            // 이름/횟수
             val tx = bx + bmp.width * k + dp(scene, 5f)
-            textP.textSize = dp(scene, 11.5f)
-            textP.color = if (seen) 0xFF4A3728.toInt() else Color.argb(140, 74, 55, 40)
-            c.drawText(if (seen) def.name else "???", tx, r.top + dp(scene, 14f), textP)
-            textP.textSize = dp(scene, 9f)
+            textP.textSize = dp(scene, 10.4f)
+            textP.color = if (seen) 0xFF4A3728.toInt() else Color.argb(175, 74, 55, 40)
+            c.drawText(def.name, tx, r.top + dp(scene, 12f), textP)
+            textP.textSize = dp(scene, 8.4f)
             textP.color = 0xFF8A7360.toInt()
-            if (seen) {
+            val baseLine2 = if (seen) {
                 val best = s.bestStars[def.id] ?: 1
-                val nightMark = if (def.active == "night") "🌙" else ""
-                c.drawText("📸${s.birdCounts[def.id]} 최고★$best$nightMark", tx, r.top + dp(scene, 26f), textP)
+                "📸${s.birdCounts[def.id]} 최고★$best"
             } else {
-                c.drawText(def.tier.label + (if (def.active == "night") " 🌙" else ""), tx, r.top + dp(scene, 26f), textP)
+                "미촬영 · ${def.tier.label}"
             }
+            val line2 = baseLine2 + if (def.active == "night") " 🌙" else ""
+            c.drawText(line2, tx, r.top + dp(scene, 24f), textP)
+            textP.textSize = dp(scene, 7.8f)
+            textP.color = Color.argb(170, 94, 76, 58)
+            val familyLabel = if (def.familyName.isBlank()) "공식 목록" else def.familyName
+            c.drawText(familyLabel, tx, r.top + dp(scene, 35f), textP)
             rects[def.id] = r
         }
         bookRects = rects
+
+        fun pagerButton(rect: RectF, label: String, enabled: Boolean, action: () -> Unit) {
+            if (enabled) {
+                drawButton(c, scene, rect, label, 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 11.5f)
+                btnRects.add(Triple(rect, label, action))
+            } else {
+                drawButton(c, scene, rect, label, Color.argb(90, 200, 190, 175), Color.argb(140, 74, 55, 40), 11.5f)
+            }
+        }
+
+        val py = contentBottom() - dp(scene, 24f)
+        val prev = RectF(areaLeft, py, areaLeft + dp(scene, 76f), py + dp(scene, 24f))
+        val next = RectF(areaLeft + areaW - dp(scene, 76f), py, areaLeft + areaW, py + dp(scene, 24f))
+        pagerButton(prev, "이전", bookPage > 0) { bookPage-- }
+        pagerButton(next, "다음", bookPage < totalPages - 1) { bookPage++ }
+        val pageText = "${bookPage + 1}/$totalPages"
+        textP.textSize = dp(scene, 11.5f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText(pageText, panelR.centerX() - textP.measureText(pageText) / 2f, py + dp(scene, 16f), textP)
     }
 
     private fun drawSettings(c: Canvas) {
