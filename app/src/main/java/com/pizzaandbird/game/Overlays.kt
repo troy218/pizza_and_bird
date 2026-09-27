@@ -574,10 +574,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     "가장 가까운 가게 — $nearName ${near.shopName} · ${near.spot.label} (터널 ${hops}칸)\n" +
                     "\"${near.greeting}\"",
                 listOf(
-                    DialogOverlay.Choice("🚲 ${nearName}으로 이동") {
-                        g.toast("🚲 $nearName ${near.spot.label}로 출발!")
+                    DialogOverlay.Choice("🚲 $nearName ${near.spot.label}로 이동") {
                         finished = true
-                        fastTravel(g, near.regionId)
+                        QuestNavigation.startRegionTrip(g, scene, near.regionId, "카메라샵")
                     },
                     DialogOverlay.Choice("🧭 걸어서 $nearName 가게까지") {
                         val keeper = NpcRoster.shopkeeperFor(near.regionId)

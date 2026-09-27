@@ -2040,8 +2040,8 @@ class WorldScene(
                     if (shopNear.regionId != state.region) {
                         val shopName = Regions.byId[shopNear.regionId]?.name ?: "도시"
                         add(DialogOverlay.Choice("🏬 $shopName 카메라샵") {
-                            game.toast("🚲 ${CameraShops.travelHint(state.region)}")
-                            fastTravel(game, shopNear.regionId)
+                            game.toast(CameraShops.travelHint(state.region))
+                            QuestNavigation.startRegionTrip(game, this@WorldScene, shopNear.regionId, "카메라샵")
                         })
                     }
                     add(DialogOverlay.Choice("다음에 올게요"))

@@ -2248,7 +2248,7 @@ class Assets(private val context: Context) {
             }
             17 -> { // 사암 조각돌 — 논둑에 흩어진 따뜻한 자갈
                 rockShadow(cv, p, 16f, 28.5f, 7.5f, 2f)
-                val cx = intArrayOf(4, 8, 12, 17, 22, 26, 7, 12, 17, 22, 14, 19)
+                val cx = floatArrayOf(4f, 8f, 12f, 17f, 22f, 26f, 7f, 12f, 17f, 22f, 14f, 19f)
                 val cy = floatArrayOf(26f, 25f, 27f, 26f, 26f, 27f, 22f, 22f, 22f, 22f, 19f, 19f)
                 val cw = floatArrayOf(3f, 3.2f, 2.8f, 3f, 2.8f, 2.2f, 3.2f, 3.4f, 3f, 3.2f, 2.6f, 2.4f)
                 val ch = floatArrayOf(2.4f, 2.6f, 2.2f, 2.4f, 2.2f, 1.8f, 2.6f, 2.8f, 2.4f, 2.6f, 2.2f, 2f)
