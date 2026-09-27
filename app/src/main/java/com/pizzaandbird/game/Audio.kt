@@ -9,7 +9,7 @@ import android.media.SoundPool
  * 게임 오디오: 효과음(SoundPool) + BGM/환경음(MediaPlayer 루프).
  *
  * - 효과음: res/raw/sfx_* (짧은 소리, 동시 재생 가능)
- * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 밤 바람 / 화덕 불)
+ * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 숲 / 바닷가 / 밤 / 화덕 불)
  * - BGM   : res/raw/bgm_* (한 채널 루프 — 타이틀 / 월드 / 집)
  *
  * 곡 배치를 바꾸고 싶으면 씬에서 부르는 R.raw.bgm_* 만 바꾸면 된다.
@@ -33,7 +33,12 @@ class Audio(private val context: Context) {
         FAIL(R.raw.sfx_fail),                  // 실패/돈 부족/피자 탐
         WHOOSH(R.raw.sfx_whoosh),              // 터널 이동
         NOTIFY(R.raw.sfx_notify),              // 알림 (의뢰 접수, 희귀새 등장)
-        OWL(R.raw.sfx_owl)                     // 밤 부엉이 울음
+        OWL(R.raw.sfx_owl),                    // 밤 부엉이 울음
+        CROW(R.raw.sfx_crow),                  // 밤/흐린 날 까마귀 (으스스한 한 소리)
+        CUCKOO1(R.raw.sfx_cuckoo1),            // 뻐꾸기 1 (숲·산 지역 지저귐)
+        CUCKOO2(R.raw.sfx_cuckoo2),            // 뻐꾸기 2 (짧은 한 마디)
+        BOOK_OPEN(R.raw.sfx_book_open),        // 📚 도감 펼치기
+        BAG_OPEN(R.raw.sfx_bag_open)           // 🎒 가방/장비 가방 열기
     }
 
     /** 발소리 종류 */
