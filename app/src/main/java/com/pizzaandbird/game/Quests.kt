@@ -11,6 +11,33 @@ object BirdingRanks {
     data class Rank(val name: String, val min: Int, val max: Int?, val note: String)
 
     val ALL = listOf(
+        Rank("입문", 0, 29, "동네 새를 눈에 익히고 쌍안경과 카메라를 다루는 단계"),
+        Rank("초보", 30, 99, "공원·하천의 텃새와 물새를 스스로 찾아내는 단계"),
+        Rank("중수", 100, 199, "철새·도요물떼새를 계절, 소리, 실루엣으로 가르는 단계"),
+        Rank("고수", 200, 299, "섬과 갯벌 원정에서 닮은 종의 세부 특징까지 읽는 단계"),
+        Rank("초고수", 300, 399, "희귀 나그네새의 시기와 날씨를 예측해 기록하는 단계"),
+        Rank("종새꾼", 400, null, "기록 검토와 서식지 보호까지 생각하는 베테랑 기록자")
+    )
+
+    fun of(lifers: Int): Rank = ALL.last { lifers >= it.min }
+    fun next(lifers: Int): Rank? = ALL.firstOrNull { it.min > lifers }
+}
+
+/** 한국 탐조식 "도장 깨기" 컬렉션. */
+object BirdingCollections {
+    data class Collection(
+        val name: String,
+        val icon: String,
+        val species: List<String>,
+        val note: String
+    ) {
+        fun caught(state: GameState): Int = species.count { state.hasBirdName(it) }
+        fun complete(state: GameState): Boolean = caught(state) == species.size
+        fun progress(state: GameState): String = "${caught(state)}/${species.size}"
+    }
+
+    /** 실제 목록에 없는 별칭은 표준 종명으로 바로잡았다. */
+    val ALL = listOf(
         Collection("동네 첫 만남", "🏘", listOf("참새", "까치", "직박구리", "박새", "멧비둘기"),
             "가까운 공원에서 시작하는 가장 좋은 다섯 종"),
         Collection("딱다구리 기본 3종", "🌳", listOf("쇠딱다구리", "오색딱다구리", "청딱다구리"),

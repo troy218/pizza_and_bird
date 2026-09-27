@@ -36,7 +36,9 @@ class WorldScene(
 
     private val state = game.state
     val region: RegionDef = Regions.byId[regionId] ?: Regions.ALL.first()
-    val map: GameMap = MapBuilder.build(region, state.homeRegion)
+    // 매입한 지역마다 현관을 남긴다. homeRegion은 현재 정착지일 뿐,
+    // ownedHomes에 있는 이전 집도 여행 중 다시 들어갈 수 있어야 한다.
+    val map: GameMap = MapBuilder.build(region, state.homeRegion, state.ownedHomes)
     private val grass = GrassField(map)
     private val player = Player()
     private val birds = ArrayList<FieldBird>()
@@ -819,13 +821,15 @@ class WorldScene(
         }
     }
 
+    /** 이 지역의 매입한 집으로 들어간다. 나올 때도 같은 지역 현관 앞으로 돌아온다. */
     private fun enterHome() {
         state.px = player.x
         state.py = player.y
+        state.region = region.id
         SaveManager.save(game.context, state)
         game.audio.stopSteps()
         game.fadeTo {
-            game.scene = HomeScene(game)
+            game.scene = HomeScene(game, region.id)
         }
     }
 

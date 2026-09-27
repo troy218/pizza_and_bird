@@ -4257,7 +4257,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
             val visited = reg.id in s.visited
             val isCurrent = reg.id == s.region
-            val isHome = reg.id == s.homeRegion
+            val hasOwnedHome = s.ownsHome(reg.id)
             val r = dp(scene, if (isCurrent) 8f else 6f)
 
             if (isCurrent) {
@@ -4275,7 +4275,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = dp(scene, if (selected?.id == reg.id) 2.6f else 1.4f)
             c.drawCircle(x, y, r, strokeP)
 
-            if (isHome) {
+            if (hasOwnedHome) {
                 textP.textSize = textDp(scene, 11f)
                 textP.color = 0xFF4A3728.toInt()
                 UiKit.iconCenter(c, g, "house", x, y - r - dp(scene, 10f), dp(scene, 16f))
@@ -4294,7 +4294,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
             // 출구 번호 뱃지는 링크(터널) 위에만 표시 — 현재 지역 점 주변(마을 중앙)에는 그리지 않는다
 
-            if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
+            if (showAllNames || isCurrent || hasOwnedHome || reg.kind == RegionKind.TOWN) {
                 val nm = if (visited) reg.name else "? ${reg.name}"
                 textP.textSize = textDp(scene, if (isCurrent) 11.5f else 10.5f)
                 val tw = textP.measureText(nm)
@@ -4387,6 +4387,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val badgeTxt = when {
             reg.id == s.region -> "현재 위치"
             reg.id == s.homeRegion -> "우리 집"
+            s.ownsHome(reg.id) -> "보유한 집"
             reg.id in s.visited -> "방문함"
             else -> "미방문"
         }
@@ -4394,7 +4395,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val badgeW = textP.measureText(badgeTxt) + dp(scene, 12f)
         val badgeBg = when {
             reg.id == s.region -> 0xFFE2574C.toInt()
-            reg.id == s.homeRegion -> 0xFF6FBA6B.toInt()
+            reg.id == s.homeRegion || s.ownsHome(reg.id) -> 0xFF6FBA6B.toInt()
             reg.id in s.visited -> 0xFF3F6FB0.toInt()
             else -> 0xFF9AA0A8.toInt()
         }
