@@ -1135,133 +1135,216 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val g = scene.game
         val left = panelR.left + dp(scene, 12f)
         val right = panelR.right - dp(scene, 12f)
-        // 가로가 넉넉하면 2열 배치 (세로 공간 절약)
-        val wide = panelR.width() > dp(scene, 560f)
-        val colW = if (wide) (right - left - dp(scene, 12f)) / 2f else right - left
-        val yCol = floatArrayOf(contentTop() + dp(scene, 4f), contentTop() + dp(scene, 4f))
+        val top = contentTop() + dp(scene, 4f)
+        val bottom = contentBottom()
 
-        fun rowAt(
-            col: Int, icon: String, label: String, sub: String,
-            danger: Boolean, switch: Boolean?, action: () -> Unit
-        ) {
-            val rx = if (col == 0) left else left + colW + dp(scene, 12f)
-            val yy = yCol[col]
-            val rh = dp(scene, 46f)
-            val r = RectF(rx, yy, rx + colW, yy + rh)
-            cuteCard(c, r, if (danger) 0xFFFFE6E1.toInt() else UiKit.CARD_HI,
-                if (danger) 0xFFE2574C.toInt() else UiKit.BROWN_LINE, if (danger) 2f else 1.6f)
-            UiKit.iconCircle(c, g, rx + dp(scene, 24f), r.centerY(), dp(scene, 14f), icon, 15f,
-                if (danger) 0xFFF28B82.toInt() else if (switch == true) UiKit.PASTEL_MINT else UiKit.PASTEL_PEACH)
-            textP.textSize = textDp(scene, 13f)
-            textP.color = if (danger) 0xFFB03A30.toInt() else 0xFF4A3728.toInt()
-            c.drawText(label, rx + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
-            textP.textSize = textDp(scene, 9.5f)
-            textP.color = 0xFF8A7360.toInt()
-            c.drawText(sub, rx + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
-            if (switch != null) {
-                // 픽셀 토글 스위치
-                UiKit.cuteToggle(c, g, r.right - dp(scene, 14f), r.centerY(), switch)
-            } else {
-                // 작은 화살표 단추
-                val ar = RectF(r.right - dp(scene, 34f), r.centerY() - dp(scene, 11f), r.right - dp(scene, 10f), r.centerY() + dp(scene, 9f))
-                UiKit.cuteButton(c, g, ar, "›", if (danger) 0xFFF28B82.toInt() else UiKit.PASTEL_PEACH,
-                    if (danger) 0xFF7A1E14.toInt() else UiKit.INK, 14f, depthDp = 2f)
-            }
-            btnRects.add(Triple(r, label, action))
-            yCol[col] = yy + rh + dp(scene, 8f)
-        }
+        // 설정이 늘어나도 패널 밖으로 밀려나지 않도록 먼저 항목을 모은 뒤,
+        // 현재 화면의 가로·세로 여유에 맞춰 한 화면짜리 그리드로 배치한다.
+        data class SettingItem(
+            val icon: () -> String,
+            val label: () -> String,
+            val sub: String,
+            val danger: Boolean = false,
+            val switch: (() -> Boolean)? = null,
+            val action: () -> Unit
+        )
 
-        // 1열: 사운드 + 조이스틱 설정
-        rowAt(0, if (g.state.musicOn) "🎵" else "🔇", "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐", "배경 음악을 켜고 꺼요", false, null) {
-            g.state.musicOn = !g.state.musicOn
-            g.audio.setMusic(g.state.musicOn)
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(0, if (g.state.sfxOn) "🔊" else "🔈", "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐", "새 소리와 버튼음을 켜고 꺼요", false, null) {
-            g.state.sfxOn = !g.state.sfxOn
-            g.audio.setSfx(g.state.sfxOn)
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(0, "🔠", "글자 크기: ${TypeScale.label()}", "대화와 메뉴 글자를 더 크게 표시해요", false, null) {
-            val level = TypeScale.cycle(g.context)
-            g.toast("글자 크기: ${listOf("보통", "크게", "아주 크게")[level]}")
-        }
-        rowAt(0, "🕹️", "움직이는 조이스틱: " + if (g.state.floatStick) "켜짐" else "꺼짐",
-            "왼쪽 아래를 끌면 그 자리에 스틱이 생겨요", false, g.state.floatStick) {
-            g.state.floatStick = !g.state.floatStick
-            g.hud.releaseStick()
-            SaveManager.save(g.context, g.state)
-            g.toast(if (g.state.floatStick) "움직이는 스틱 켬 🕹️" else "고정 스틱만 쓸게요")
-        }
-        rowAt(0, "🎚️", "민 만큼 속도: " + if (g.state.analogStick) "켜짐" else "꺼짐",
-            "스틱을 살짝 밀면 살금살금, 끝까지 밀면 쌩쌩", false, g.state.analogStick) {
-            g.state.analogStick = !g.state.analogStick
-            SaveManager.save(g.context, g.state)
-            g.toast(if (g.state.analogStick) "아날로그 이동 켬 — 틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
-        }
-
-        rowAt(0, "🎥", "화면 연출 (몰입감)",
-            "흔들림·헤드밥·잔상·심도 — 멀미가 있다면 여기서 꺼요", false, null) {
-            scene.openOverlay(CameraFxOverlay(scene))
-        }
-
-        // 2열(화면이 좁으면 1열 이어서): 화질/보간/저장/타이틀/초기화
-        val c2 = if (wide) 1 else 0
-        rowAt(c2, "🖥", "화질: " + when (g.state.renderScale) {
-            "1" -> "1배 (성능 우선)"
-            "2" -> "2배 (고화질)"
-            "3" -> "3배 (최고 화질)"
-            else -> "자동 (2K 기준)"
-        }, "월드 렌더 해상도 — 높을수록 또렷해요", false, null) {
-            g.state.renderScale = when (g.state.renderScale) {
-                "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
-            }
-            g.applyRenderQuality()
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(c2, "🎨", "화면 보간: " + if (g.state.smoothScreen) "부드럽게" else "끔 (픽셀 선명)",
-            "픽셀 아트를 부드럽게 확대해 보여요", false, null) {
-            g.state.smoothScreen = !g.state.smoothScreen
-            g.applyRenderQuality()
-            SaveManager.save(g.context, g.state)
-        }
-        rowAt(c2, "💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false, null) {
-            SaveManager.save(g.context, g.state)
-            g.toast("저장 완료! ✨")
-        }
-        rowAt(c2, "🏠", "타이틀로 가기", "저장 후 타이틀 화면으로 돌아가요", false, null) {
-            SaveManager.save(g.context, g.state)
-            finished = true
-            g.fadeTo { g.scene = TitleScene(g) }
-        }
-        if (resetArmed) {
-            rowAt(c2, "⚠️", "정말 처음부터 시작할까요?", "되돌릴 수 없어요! 다시 누르면 초기화돼요", true, null) {
-                SaveManager.clear(g.context)
-                g.state.reset("seoul")
-                g.state.started = false
+        val items = arrayListOf(
+            SettingItem(
+                { if (g.state.musicOn) "🎵" else "🔇" },
+                { "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐" },
+                "배경 음악을 켜고 꺼요",
+                action = {
+                    g.state.musicOn = !g.state.musicOn
+                    g.audio.setMusic(g.state.musicOn)
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem(
+                { if (g.state.sfxOn) "🔊" else "🔈" },
+                { "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐" },
+                "새 소리와 버튼음을 켜고 꺼요",
+                action = {
+                    g.state.sfxOn = !g.state.sfxOn
+                    g.audio.setSfx(g.state.sfxOn)
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem({ "🔠" }, { "글자 크기: ${TypeScale.label()}" }, "대화와 메뉴 글자를 더 크게 표시해요", action = {
+                val level = TypeScale.cycle(g.context)
+                g.toast("글자 크기: ${listOf("보통", "크게", "아주 크게")[level]}")
+            }),
+            SettingItem(
+                { "🕹️" },
+                { "움직이는 조이스틱: " + if (g.state.floatStick) "켜짐" else "꺼짐" },
+                "왼쪽 아래를 끌면 그 자리에 스틱이 생겨요",
+                switch = { g.state.floatStick },
+                action = {
+                    g.state.floatStick = !g.state.floatStick
+                    g.hud.releaseStick()
+                    SaveManager.save(g.context, g.state)
+                    g.toast(if (g.state.floatStick) "움직이는 스틱 켬 🕹️" else "고정 스틱만 쓸게요")
+                }
+            ),
+            SettingItem(
+                { "🎚️" },
+                { "민 만큼 속도: " + if (g.state.analogStick) "켜짐" else "꺼짐" },
+                "스틱을 살짝 밀면 살금살금, 끝까지 밀면 쌩쌩",
+                switch = { g.state.analogStick },
+                action = {
+                    g.state.analogStick = !g.state.analogStick
+                    SaveManager.save(g.context, g.state)
+                    g.toast(if (g.state.analogStick) "아날로그 이동 켬 — 스틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
+                }
+            ),
+            SettingItem({ "🎥" }, { "화면 연출 (몰입감)" }, "흔들림·헤드밥·잔상·심도 설정", action = {
+                scene.openOverlay(CameraFxOverlay(scene))
+            }),
+            SettingItem(
+                { "🖥" },
+                { "화질: " + when (g.state.renderScale) {
+                    "1" -> "1배 (성능 우선)"
+                    "2" -> "2배 (고화질)"
+                    "3" -> "3배 (최고 화질)"
+                    else -> "자동 (2K 기준)"
+                } },
+                "월드 렌더 해상도 — 높을수록 또렷해요",
+                action = {
+                    g.state.renderScale = when (g.state.renderScale) {
+                        "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
+                    }
+                    g.applyRenderQuality()
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem(
+                { "🎨" },
+                { "화면 보간: " + if (g.state.smoothScreen) "부드럽게" else "끔 (픽셀 선명)" },
+                "픽셀 아트를 부드럽게 확대해 보여요",
+                action = {
+                    g.state.smoothScreen = !g.state.smoothScreen
+                    g.applyRenderQuality()
+                    SaveManager.save(g.context, g.state)
+                }
+            ),
+            SettingItem({ "💾" }, { "저장하기" }, "지금까지의 여행을 안전하게 보관해요", action = {
+                SaveManager.save(g.context, g.state)
+                g.toast("저장 완료! ✨")
+            }),
+            SettingItem({ "🏠" }, { "타이틀로 가기" }, "저장 후 타이틀 화면으로 돌아가요", action = {
+                SaveManager.save(g.context, g.state)
                 finished = true
                 g.fadeTo { g.scene = TitleScene(g) }
+            }),
+            if (resetArmed) {
+                SettingItem({ "⚠️" }, { "정말 처음부터 시작할까요?" }, "되돌릴 수 없어요! 다시 누르면 초기화돼요", danger = true, action = {
+                    SaveManager.clear(g.context)
+                    g.state.reset("seoul")
+                    g.state.started = false
+                    finished = true
+                    g.fadeTo { g.scene = TitleScene(g) }
+                })
+            } else {
+                SettingItem({ "🗑" }, { "처음부터 다시 시작" }, "저장 데이터를 모두 지우고 새로 시작해요", action = {
+                    resetArmed = true
+                })
             }
-        } else {
-            rowAt(c2, "🗑", "처음부터 다시 시작", "저장 데이터를 모두 지우고 새로 시작해요", false, null) {
-                resetArmed = true
+        )
+
+        val gap = dp(scene, 6f)
+        val contentW = right - left
+        val contentH = (bottom - top).coerceAtLeast(dp(scene, 1f))
+        // 카드가 지나치게 좁아지지 않는 범위에서 열 수를 늘린다. 일반 휴대폰은
+        // 3열×4행, 4:3/분할 화면은 2열×6행, 넓은 태블릿은 4열×3행이다.
+        val maxColumnsByWidth = ((contentW + gap) / (dp(scene, 170f) + gap)).toInt().coerceIn(2, 4)
+        val columns = minOf(items.size, maxColumnsByWidth)
+        val rows = (items.size + columns - 1) / columns
+        val preferredRowGap = if (rows >= 6) dp(scene, 4f) else gap
+        // 아주 낮은 분할 화면에서도 간격 때문에 높이가 음수가 되지 않게 한다.
+        val rowGap = minOf(preferredRowGap, contentH / rows / 4f)
+        val colW = (contentW - gap * (columns - 1)) / columns
+        val rowH = ((contentH - rowGap * (rows - 1)) / rows).coerceAtMost(dp(scene, 46f))
+        val gridH = rowH * rows + rowGap * (rows - 1)
+
+        fun fittedText(raw: String, maxW: Float, preferred: Float, minimum: Float): String {
+            var size = preferred
+            textP.textSize = textDp(scene, size)
+            while (textP.measureText(raw) > maxW && size > minimum) {
+                size -= 0.5f
+                textP.textSize = textDp(scene, size)
             }
+            if (textP.measureText(raw) <= maxW) return raw
+            var out = raw
+            while (out.length > 1 && textP.measureText("$out…") > maxW) out = out.dropLast(1)
+            return "$out…"
         }
 
-        // 푸터 정보 카드
-        val ty = maxOf(yCol[0], yCol[1])
-        val footR = RectF(left, ty, right, contentBottom())
-        if (footR.height() > dp(scene, 40f)) {
-            cuteCard(c, footR, UiKit.PASTEL_SAND)
-            textP.textSize = textDp(scene, 10.5f)
-            textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.4.2-beta01 · 2K", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
-            // 내장 글꼴 출처 표기 (SIL Open Font License 1.1 — assets/font/OFL.txt)
-            if (footR.height() > dp(scene, 76f)) {
-                textP.textSize = dp(scene, 9f)
+        items.forEachIndexed { index, item ->
+            val col = index % columns
+            val row = index / columns
+            val rx = left + col * (colW + gap)
+            val yy = top + row * (rowH + rowGap)
+            val r = RectF(rx, yy, rx + colW, yy + rowH)
+            val isOn = item.switch?.invoke()
+            cuteCard(
+                c, r,
+                if (item.danger) 0xFFFFE6E1.toInt() else UiKit.CARD_HI,
+                if (item.danger) 0xFFE2574C.toInt() else UiKit.BROWN_LINE,
+                if (item.danger) 2f else 1.6f,
+                stitched = rowH >= dp(scene, 34f)
+            )
+
+            val iconR = minOf(dp(scene, 12f), rowH * 0.31f)
+            val iconX = rx + dp(scene, 7f) + iconR
+            UiKit.iconCircle(
+                c, g, iconX, r.centerY(), iconR, item.icon(),
+                if (rowH < dp(scene, 34f)) 11f else 13f,
+                if (item.danger) 0xFFF28B82.toInt() else if (isOn == true) UiKit.PASTEL_MINT else UiKit.PASTEL_PEACH
+            )
+
+            val endReserve = if (item.switch != null) dp(scene, 45f) else dp(scene, 25f)
+            val tx = iconX + iconR + dp(scene, 6f)
+            val maxTextW = (r.right - endReserve - tx).coerceAtLeast(dp(scene, 18f))
+            val spacious = rowH >= dp(scene, 42f) && colW >= dp(scene, 235f)
+            textP.color = if (item.danger) 0xFFB03A30.toInt() else 0xFF4A3728.toInt()
+            val label = fittedText(item.label(), maxTextW, if (spacious) 12.5f else 11.5f, 7.5f)
+            val labelY = if (spacious) r.centerY() - dp(scene, 1f) else r.centerY() - (textP.descent() + textP.ascent()) / 2f
+            c.drawText(label, tx, labelY, textP)
+            if (spacious) {
                 textP.color = 0xFF8A7360.toInt()
-                c.drawText("글꼴: 주아(Jua) · 고운돋움(Gowun Dodum) — SIL Open Font License 1.1",
-                    left + dp(scene, 12f), ty + dp(scene, 61f), textP)
+                val sub = fittedText(item.sub, maxTextW, 8.8f, 7f)
+                c.drawText(sub, tx, r.centerY() + dp(scene, 12f), textP)
+            }
+
+            if (item.switch != null && rowH >= dp(scene, 28f)) {
+                UiKit.cuteToggle(c, g, r.right - dp(scene, 7f), r.centerY(), isOn == true)
+            } else {
+                val arrowW = minOf(dp(scene, 20f), rowH * 0.55f)
+                val ar = RectF(r.right - arrowW - dp(scene, 5f), r.centerY() - arrowW / 2f,
+                    r.right - dp(scene, 5f), r.centerY() + arrowW / 2f)
+                UiKit.cuteButton(
+                    c, g, ar, "›",
+                    if (item.danger) 0xFFF28B82.toInt() else UiKit.PASTEL_PEACH,
+                    if (item.danger) 0xFF7A1E14.toInt() else UiKit.INK,
+                    if (rowH < dp(scene, 34f)) 10f else 12f, depthDp = 1.5f
+                )
+            }
+            btnRects.add(Triple(r, item.label(), item.action))
+        }
+
+        // 큰 태블릿처럼 그리드 아래 여백이 충분할 때만 부가 정보를 보여 준다.
+        // 작은 화면에서는 설정 버튼의 터치 영역을 우선해 푸터가 절대 겹치지 않는다.
+        val footerTop = top + gridH + dp(scene, 7f)
+        if (bottom - footerTop >= dp(scene, 34f)) {
+            val footR = RectF(left, footerTop, right, bottom)
+            cuteCard(c, footR, UiKit.PASTEL_SAND)
+            textP.textSize = textDp(scene, 9.5f)
+            textP.color = 0xFF6B4F35.toInt()
+            c.drawText("🍕 Pizza and Bird v0.4.2-beta01 · 2K", left + dp(scene, 12f), footerTop + dp(scene, 16f), textP)
+            if (footR.height() >= dp(scene, 54f)) {
+                textP.textSize = dp(scene, 8f)
+                textP.color = 0xFF8A7360.toInt()
+                c.drawText("글꼴: 주아 · 고운돋움 — SIL Open Font License 1.1", left + dp(scene, 12f), footerTop + dp(scene, 38f), textP)
             }
         }
     }
