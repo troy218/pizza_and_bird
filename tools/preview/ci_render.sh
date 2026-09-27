@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # tools/preview/ci_render.sh — 그래픽 프리뷰 파이프라인 (CI 전용 스크립트)
 #
+# settings.gradle.kts의 훅이 빌드 종료 후(성공/실패 무관) 실행한다.
 # 1) kotlinc 다운로드(캐시) → 2) 폰트 다운로드 → 3) 게임 렌더링 코드를
-# 스텁과 함께 컴파일 → 4) 헤드리스 실행으로 모든 화면 스크린샷 생성 →
-# 5) preview/ 폴더에 커밋&푸시 (PNG + build.log)
+#    스텁과 함께 컴파일 → 4) 헤드리스 실행으로 모든 화면 스크린샷 생성 →
+#    5) preview/ 폴더에 커밋&푸시 (PNG + build.log)
 #
-# 실패해도 최대한 계속 진행해서 원인을 preview/build.log 로 남긴다.
+# 어떤 단계가 실패해도 최대한 계속 진행해서 원인을 preview/build.log 로 남긴다.
 set -u
 cd "$(dirname "$0")/../.."
 ROOT="$PWD"
@@ -41,7 +42,7 @@ for f in NotoSansKR-Regular.ttf NotoSansKR-Bold.ttf; do
   fi
 done
 
-# ---------------------------------------------------------------- compile
+# ---------------------------------------------------------------- compile & render
 STATUS="ok"
 if [ -x "$KC/bin/kotlinc" ]; then
   SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
@@ -50,9 +51,10 @@ if [ -x "$KC/bin/kotlinc" ]; then
   if "$KC/bin/kotlinc" tools/preview/src/*.kt $SRCS \
       -d "$OUT/classes-preview" -jvm-target 17 > "$OUT/render.log" 2>&1; then
     echo ">> 프리뷰 렌더링..." >> preview/build.log
-    java -cp "$OUT/classes-preview:$KC/lib/kotlin-stdlib.jar" \
-      com.pizzaandbird.preview.PreviewMain "$OUT" >> "$OUT/render.log" 2>&1
-    if [ $? -ne 0 ]; then
+    if java -cp "$OUT/classes-preview:$KC/lib/kotlin-stdlib.jar" \
+      com.pizzaandbird.preview.PreviewMain "$OUT" >> "$OUT/render.log" 2>&1; then
+      :
+    else
       STATUS="render-failed"
     fi
   else
@@ -69,10 +71,10 @@ rm -f preview/*.png
 cp "$OUT"/*.png preview/ 2>/dev/null
 {
   echo
-  echo "----- gradle failures -----"
-  cat "$OUT/gradle_failures.log" 2>/dev/null
+  echo "----- gradle result -----"
+  cat "$OUT/gradle_result.log" 2>/dev/null
   echo
-  echo "----- render log -----"
+  echo "----- render log (last 200 lines) -----"
   tail -n 200 "$OUT/render.log" 2>/dev/null
 } >> preview/build.log
 
@@ -82,7 +84,7 @@ git add preview
 if git diff --cached --quiet; then
   echo "preview: 변경사항 없음"
 else
-  git commit -m "preview: update rendered screenshots [skip ci]" >> preview/commit.log 2>&1
-  git push >> preview/commit.log 2>&1 || echo "WARN: push 실패 (다음 push에서 재시도)" >> preview/build.log
+  git commit -m "preview: update rendered screenshots [skip ci]" >> "$OUT/commit.log" 2>&1
+  git push >> "$OUT/commit.log" 2>&1 || echo "WARN: push 실패 (다음 push에서 재시도)" >> preview/build.log
 fi
 exit 0
