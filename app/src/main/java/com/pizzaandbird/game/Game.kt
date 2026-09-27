@@ -75,6 +75,7 @@ class Game(val context: Context) {
 
     fun update(dt: Float) {
         time += dt
+        audio.update(dt)   // BGM/환경음 페이드 진행
         input.process()
         val tr = transition
         if (tr != null) {
