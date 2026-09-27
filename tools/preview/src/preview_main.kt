@@ -78,8 +78,8 @@ private fun <T> getField(obj: Any, name: String): T {
 // ---------------------------------------------------------------------------
 
 private class FakeResources(d: Float) : Resources() {
-    override val displayMetrics: android.graphics.DisplayMetrics =
-        android.graphics.DisplayMetrics().apply { density = d }
+    override val displayMetrics: android.content.DisplayMetrics =
+        android.content.DisplayMetrics().apply { density = d }
 }
 
 private class FakeContext(density: Float) : Context() {
@@ -247,7 +247,7 @@ object PreviewMain {
         for ((i, id) in showcase.withIndex()) {
             val def = Birds.byId[id] ?: continue
             val bx = player.x + (-110f + i * 62f)
-            val by = player.y + (-46f + (if (i % 2 == 0) 0 else 34f))
+            val by = player.y + (-46f + (if (i % 2 == 0) 0f else 34f))
             birds.add(FieldBird(def, bx, by))
         }
         simulate(game, 0.25f)

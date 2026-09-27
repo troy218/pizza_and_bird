@@ -97,6 +97,25 @@ class RectF {
     }
 }
 
+class Rect {
+    var left: Int = 0
+    var top: Int = 0
+    var right: Int = 0
+    var bottom: Int = 0
+
+    constructor()
+
+    constructor(left: Int, top: Int, right: Int, bottom: Int) {
+        this.left = left; this.top = top; this.right = right; this.bottom = bottom
+    }
+
+    fun width(): Int = right - left
+    fun height(): Int = bottom - top
+    fun centerX(): Int = (left + right) / 2
+    fun centerY(): Int = (top + bottom) / 2
+    fun contains(x: Int, y: Int): Boolean = x >= left && x < right && y >= top && y < bottom
+}
+
 class Matrix {
     internal val tx = AffineTransform()
 
@@ -378,17 +397,21 @@ class Canvas {
     private val stack = ArrayList<Graphics2D>()
     private val owner: Bitmap?
 
-    val width: Int get() = g.deviceConfiguration.bounds.width.toInt().let { if (it > 0) it else 0 }
-    val height: Int get() = 0
+    val width: Int
+    val height: Int
 
     constructor(bmp: Bitmap) {
         owner = bmp
+        width = bmp.width
+        height = bmp.height
         g = bmp.image.createGraphics()
         configureDefaults()
     }
 
     constructor(image: BufferedImage) {
         owner = null
+        width = image.width
+        height = image.height
         g = image.createGraphics()
         configureDefaults()
     }
@@ -452,6 +475,8 @@ class Canvas {
             Paint.Style.FILL_AND_STROKE -> { strokeOf(paint); g.fill(shape); g.draw(shape) }
         }
     }
+
+    fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
 
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
         colorize(paint)

@@ -6,7 +6,6 @@
  */
 package android.content
 
-import android.os.Vibrator
 import java.util.concurrent.ConcurrentHashMap
 
 open class DisplayMetrics {
@@ -20,20 +19,18 @@ open class Resources {
 }
 
 interface SharedPreferences {
-    fun edit(): SharedPreferences.Editor
+    interface Editor {
+        fun putString(key: String, value: String): Editor
+        fun putInt(key: String, value: Int): Editor
+        fun putBoolean(key: String, value: Boolean): Editor
+        fun remove(key: String): Editor
+        fun clear(): Editor
+        fun apply()
+    }
+
+    fun edit(): Editor
     fun getString(key: String, def: String?): String?
     fun contains(key: String): Boolean
-}
-
-interface SharedPreferencesEditorMarker
-
-interface SharedPreferences.Editor {
-    fun putString(key: String, value: String): SharedPreferences.Editor
-    fun putInt(key: String, value: Int): SharedPreferences.Editor
-    fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor
-    fun remove(key: String): SharedPreferences.Editor
-    fun clear(): SharedPreferences.Editor
-    fun apply()
 }
 
 /** 메모리 저장 프리퍼런스 (프리뷰용) */
@@ -79,9 +76,4 @@ open class Context {
     open fun getSystemService(name: String): Any? = null
 
     open val resources: Resources = Resources()
-
-    @Suppress("UNCHECKED_CAST")
-    open fun getSystemService(cls: Class<*>): Any? = null
-
-    fun vibrateServiceOrNull(): Vibrator? = null
 }

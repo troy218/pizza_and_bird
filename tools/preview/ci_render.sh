@@ -50,8 +50,8 @@ mkdir -p tools/preview/fonts
 if [ ! -s "tools/preview/fonts/NotoSansKR-Regular.ttf" ] || [ ! -s "tools/preview/fonts/NotoSansKR-Bold.ttf" ]; then
   curl -fsSL --retry 3 -o /tmp/font.tgz \
     "https://registry.npmjs.org/@expo-google-fonts/noto-sans-kr/-/noto-sans-kr-0.4.3.tgz" \
-    && tar xzf /tmp/font.tgz -C tools/preview/fonts --strip-components=1 \
-        package/NotoSansKR_400Regular.ttf package/NotoSansKR_700Bold.ttf \
+    && tar xzf /tmp/font.tgz -C tools/preview/fonts --strip-components=2 \
+        package/400Regular/NotoSansKR_400Regular.ttf package/700Bold/NotoSansKR_700Bold.ttf \
     && mv -f tools/preview/fonts/NotoSansKR_400Regular.ttf tools/preview/fonts/NotoSansKR-Regular.ttf \
     && mv -f tools/preview/fonts/NotoSansKR_700Bold.ttf tools/preview/fonts/NotoSansKR-Bold.ttf \
     && rm -f /tmp/font.tgz \

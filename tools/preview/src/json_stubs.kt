@@ -21,7 +21,7 @@ class JSONObject {
     }
 
     constructor(m: Map<*, *>) {
-        for ((k, v) in m) put(k.toString(), normalize(v))
+        for ((k, v) in m) map[k.toString()] = normalize(v)
     }
 
     private fun normalize(v: Any?): Any = when (v) {
