@@ -23,7 +23,7 @@ import kotlin.math.sin
 //  - Glow / LightMap      : 부드러운 방사형 조명 (밤에 가로등·창문·반딧불이 어둠을 밝힌다)
 //  - WorldFx              : 필드의 살아있는 디테일 — 물 깊이/반짝임, 발자국, 물웅덩이,
 //                           나비·잠자리·나방, 물고기 파문, 머리 위 철새 그림자, 굴뚝 연기,
-//                           비/눈/강풍 화면 효과, 풀숲이 발을 덮는 효과
+//                           비/눈/강풍 화면 효과
 //
 // 모든 좌표 규칙은 기존 코드와 같다: 월드 논리 px(타일 16) × WORLD_SCALE = 가상 화면 px.
 // ===========================================================================
@@ -882,32 +882,6 @@ class WorldFx(private val map: GameMap, seed: Long) {
                     val wing = if (((time * 24f + i).toInt() and 1) == 0) 1.6f else 0.8f
                     c.drawRect(mx - wing, my - 0.8f, mx + wing, my + 0.8f, fill)
                 }
-            }
-        }
-    }
-
-    /** 풀숲(키 큰 풀/갈대)에 서 있으면 발목을 풀이 덮는다 — 화면 좌표로 호출 */
-    fun drawGrassOver(c: Canvas, left: Float, bottom: Float, width: Float, reed: Boolean, moving: Boolean) {
-        val n = (width / 4.2f).toInt().coerceAtLeast(3)
-        val sway = if (moving) 2.2f else 0.7f
-        for (i in 0 until n) {
-            val bx = left + 2f + i * (width - 4f) / (n - 1).coerceAtLeast(1)
-            val hgt = 7f + ((i * 37) % 5) + (if (reed) 3f else 0f)
-            val off = sin(time * 6f + i * 1.3f) * sway
-            fill.color = if (i % 2 == 0) {
-                if (reed) 0xFF7D9C4F.toInt() else 0xFF5D8A4A.toInt()
-            } else {
-                if (reed) 0xFF96B45E.toInt() else 0xFF6FAE57.toInt()
-            }
-            path.reset()
-            path.moveTo(bx - 1.6f, bottom)
-            path.lineTo(bx + off, bottom - hgt)
-            path.lineTo(bx + 1.6f, bottom)
-            path.close()
-            c.drawPath(path, fill)
-            if (i % 2 == 1) {
-                fill.color = if (reed) 0xFFB0793F.toInt() else 0xFFB7E08C.toInt()
-                c.drawRect(bx + off - 0.8f, bottom - hgt, bx + off + 0.8f, bottom - hgt + 2f, fill)
             }
         }
     }

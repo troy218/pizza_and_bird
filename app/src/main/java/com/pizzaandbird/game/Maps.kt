@@ -66,6 +66,16 @@ enum class T(
 // 지도
 // ---------------------------------------------------------------------------
 
+data class TunnelInfo(
+    val dir: Dir,
+    val targetId: String,
+    val tileX: Int,
+    val tileY: Int,
+    val cx: Float,
+    val cy: Float,
+    val number: Int
+)
+
 class GameMap(
     val region: RegionDef,
     val w: Int,
@@ -77,7 +87,8 @@ class GameMap(
     val npcs: List<Npc>,
     val hasHouse: Boolean,
     val houseDoorX: Int,
-    val houseDoorY: Int
+    val houseDoorY: Int,
+    val tunnels: List<TunnelInfo> = emptyList()
 ) {
     fun t(x: Int, y: Int): T {
         if (x < 0 || y < 0 || x >= w || y >= h) return T.MOUNTAIN
@@ -625,6 +636,25 @@ object MapBuilder {
             }
         }
 
+        // 8.5 터널 번호 부여 — 북·동·남·서 시계방향, 맵별로 다르게 -------------------
+        val tunnelList = ArrayList<TunnelInfo>()
+        var tunnelNo = 1
+        for (d in listOf(Dir.N, Dir.E, Dir.S, Dir.W)) {
+            val targetId = exits[d] ?: continue
+            val tx: Int
+            val ty: Int
+            val cx: Float
+            val cy: Float
+            when (d) {
+                Dir.N -> { tx = 19; ty = 0; cx = 320f; cy = 8f }
+                Dir.S -> { tx = 19; ty = h - 1; cx = 320f; cy = (h - 1) * 16f + 8f }
+                Dir.W -> { tx = 0; ty = 15; cx = 8f; cy = 256f }
+                Dir.E -> { tx = w - 1; ty = 15; cx = (w - 1) * 16f + 8f; cy = 256f }
+            }
+            tunnelList.add(TunnelInfo(d, targetId, tx, ty, cx, cy, tunnelNo))
+            tunnelNo++
+        }
+
         // 9. 샛길 -------------------------------------------------------------------
         for ((fx, fy) in buildingFronts) {
             val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
@@ -822,33 +852,36 @@ object MapBuilder {
             }
         }
 
-        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY)
+        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, tunnelList)
     }
 
     /** 집 내부 맵 (13x9) */
     fun buildHome(): GameMap {
-        val w = 13
-        val h = 9
+        // 2K 화질 업그레이드: 집 내부를 13x9 -> 16x12로 넓혀 넓은 화면비(20:9)에서도 가득 차 보이게.
+        val w = 16
+        val h = 12
         val t = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         // 벽
         for (x in 0 until w) { t[0][x] = T.WALL_IN.ordinal; t[1][x] = T.WALL_IN.ordinal }
         for (y in 0 until h) { t[y][0] = T.WALL_IN.ordinal; t[y][w - 1] = T.WALL_IN.ordinal }
-        for (y in 2 until h) t[y][w - 1] = T.WALL_IN.ordinal
         // 현관문 (아래쪽 중앙)
         for (x in 0 until w) t[h - 1][x] = T.WALL_IN.ordinal
-        t[h - 1][6] = T.HOUSE_DOOR.ordinal
+        t[h - 1][7] = T.HOUSE_DOOR.ordinal
+        t[h - 1][8] = T.HOUSE_DOOR.ordinal
         // 창문
         t[1][2] = T.WALL_WIN.ordinal
-        t[1][5] = T.WALL_WIN.ordinal
-        t[1][8] = T.WALL_WIN.ordinal
-        // 화덕 (기본 제공!) — 화덕피자
-        t[2][9] = T.OVEN.ordinal; t[2][10] = T.OVEN.ordinal
-        t[3][9] = T.OVEN.ordinal; t[3][10] = T.OVEN.ordinal
+        t[1][6] = T.WALL_WIN.ordinal
+        t[1][10] = T.WALL_WIN.ordinal
+        t[1][13] = T.WALL_WIN.ordinal
+        // 화덕 (기본 제공!) — 오른쪽 상단 (화덕피자)
+        t[2][12] = T.OVEN.ordinal; t[2][13] = T.OVEN.ordinal
+        t[3][12] = T.OVEN.ordinal; t[3][13] = T.OVEN.ordinal
         // 가정용 오븐 (화덕 옆 주방 코너) — 일반 피자
         t[2][11] = T.RANGE_TOP.ordinal
         t[3][11] = T.RANGE.ordinal
-        // 침대
+        // 침대 — 왼쪽 상단
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
+        t[3][2] = T.BED.ordinal
         // 이사 박스
         t[6][2] = T.BOX.ordinal
         // 장식 슬롯 (DECOR 0~7 순서로 HomeScene과 매칭). 예전 세 칸은 앞에 유지한다.
@@ -864,7 +897,7 @@ object MapBuilder {
         val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
-        return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 6, h - 1)
+        return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 7, h - 1)
     }
 }
 

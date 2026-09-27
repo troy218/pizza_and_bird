@@ -38,6 +38,8 @@ class HomeScene(game: Game) : Scene(game) {
         textSize = 14f
     }
     private val uiFill = Paint()
+    private val promptPaint = Paint().apply { color = 0xFFF2D06B.toInt() }
+    private val ovenIllustrationBounds = RectF()
     private val aaFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val aaStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -60,20 +62,20 @@ class HomeScene(game: Game) : Scene(game) {
         get() = state.weather()
 
     /** 창문 타일 (x, y) — MapBuilder.buildHome 의 WALL_WIN 과 1:1 */
-    private val windowTiles = listOf(2 to 1, 5 to 1, 8 to 1)
+    private val windowTiles = listOf(2 to 1, 6 to 1, 10 to 1, 13 to 1)
 
     // 상호작용 대상 위치 (월드 px)
-    private val ovenX = 10f * 16f          // 화덕 (2x2) — 화덕피자
-    private val ovenY = 4f * 16f
-    private val rangeX = 11.5f * 16f       // 가정용 오븐 (1x2, 화덕 오른쪽) — 일반 피자
-    private val rangeY = 4f * 16f
-    private val bedX = 3f * 16f
+    private val ovenX = 12.5f * 16f       // buildHome 화덕 타일 (12..13, 2..3) 중심 — 16x12 확장 레이아웃
+    private val ovenY = 3.5f * 16f
+    private val rangeX = 11.5f * 16f      // 가정용 오븐 (1x2, 화덕 왼쪽) — 일반 피자
+    private val rangeY = 3.5f * 16f
+    private val bedX = 3f * 16f           // 침대 타일 (2..3, 2..3) 중심
     private val bedY = 3f * 16f
     private val boxX = 2.5f * 16f
-    private val boxY = 6.5f * 16f
+    private val boxY = 8.5f * 16f
     // 거실의 인테리어 카탈로그. A를 누르면 여러 디자인을 보고 구매한다.
-    private val interiorX = 4.5f * 16f
-    private val interiorY = 6.5f * 16f
+    private val interiorX = 5f * 16f
+    private val interiorY = 8.5f * 16f
 
     /**
      * 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1.
@@ -120,7 +122,7 @@ class HomeScene(game: Game) : Scene(game) {
             game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE
         )
         syncCamera()
-        player.set(6 * 16f + 4f, 6 * 16f)
+        player.set(7.5f * 16f, 8.5f * 16f)   // 16x12 확장 룸 중앙
         state.px = player.x
         state.py = player.y
 
@@ -459,15 +461,13 @@ class HomeScene(game: Game) : Scene(game) {
         val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
         uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
         c.drawCircle(ovenScreenX, ovenScreenY - 11f, 47f + heat * 4f, uiFill)
-        game.illustrations.draw(
-            c, "wood_fired_oven.svg",
-            RectF(
-                (9f * 16f - camX) * WORLD_SCALE - 32f,
-                (1f * 16f - camY) * WORLD_SCALE - 8f,
-                (9f * 16f - camX) * WORLD_SCALE + 64f,
-                (1f * 16f - camY) * WORLD_SCALE + 100f
-            )
+        ovenIllustrationBounds.set(
+            (12f * 16f - camX) * WORLD_SCALE - 16f,
+            (1f * 16f - camY) * WORLD_SCALE - 8f,
+            (12f * 16f - camX) * WORLD_SCALE + 80f,
+            (1f * 16f - camY) * WORLD_SCALE + 100f
         )
+        game.illustrations.draw(c, "wood_fired_oven.svg", ovenIllustrationBounds)
 
         val a = game.assets
 
@@ -522,9 +522,7 @@ class HomeScene(game: Game) : Scene(game) {
             val bob = sin(game.time * 3f) * 2.5f
             val bx = (pos.first - camX) * WORLD_SCALE
             val by = (pos.second - camY) * WORLD_SCALE - 30f + bob
-            val p = Paint()
-            p.color = 0xFFF2D06B.toInt()
-            c.drawCircle(bx, by, 9f, p)
+            c.drawCircle(bx, by, 9f, promptPaint)
             tinyPaint.textSize = 14f
             val tw = tinyPaint.measureText("!")
             c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
@@ -554,19 +552,20 @@ class HomeScene(game: Game) : Scene(game) {
                 }
             }
         }
-        // 스타일별 포인트 라인/패턴
-        // (집 내부는 화면 중앙에 오므로 카메라 오프셋을 더해야 제자리에 그려진다)
+        // 스타일별 포인트 라인/패턴 — 룸(16x12 타일) 좌표계를 그대로 따른다.
+        // (이전 구현은 누락된 좌표 변환 때문에 방 밖까지 그려지는 버그가 있었다)
         p.color = Color.argb(150, Color.red(style.accentTint), Color.green(style.accentTint), Color.blue(style.accentTint))
-        val ox = -camX * WORLD_SCALE
-        val oy = -camY * WORLD_SCALE
+        fun rx(px: Float): Float = (px - camX) * WORLD_SCALE
+        fun ry(py: Float): Float = (py - camY) * WORLD_SCALE
+        val roomPx = map.w * 16f     // 방 폭 (월드 px)
         when (style.id) {
-            "hanok" -> c.drawRect(ox + 32f, oy + 64f, ox + 384f, oy + 69f, p)
-            "modern" -> c.drawRect(ox + 32f, oy + 190f, ox + 384f, oy + 195f, p)
+            "hanok" -> c.drawRect(rx(32f), ry(64f), rx(roomPx - 32f), ry(69f), p)
+            "modern" -> c.drawRect(rx(32f), ry(190f), rx(roomPx - 32f), ry(195f), p)
             "garden" -> {
-                c.drawCircle(ox + 130f, oy + 190f, 14f, p)
-                c.drawCircle(ox + 165f, oy + 190f, 10f, p)
+                c.drawCircle(rx(130f), ry(190f), 14f, p)
+                c.drawCircle(rx(165f), ry(190f), 10f, p)
             }
-            else -> c.drawRect(ox + 32f, oy + 202f, ox + 384f, oy + 206f, p)
+            else -> c.drawRect(rx(32f), ry(202f), rx(roomPx - 32f), ry(206f), p)
         }
         // 인테리어 카탈로그 보드
         val bx = (interiorX - 10f - camX) * WORLD_SCALE
@@ -808,8 +807,8 @@ class HomeScene(game: Game) : Scene(game) {
     private fun drawHomeLighting(c: Canvas, camXv: Float, camYv: Float) {
         val dl = daylight(state.worldTime)
         val flick = 0.9f + sin(game.time * 9.1f) * 0.05f + sin(game.time * 15.7f) * 0.05f
-        val ovx = (10f * 16f - camX) * WORLD_SCALE
-        val ovy = (3f * 16f + 4f - camY) * WORLD_SCALE
+        val ovx = (ovenX - camX) * WORLD_SCALE
+        val ovy = (ovenY - camY) * WORLD_SCALE
         val dark = ((1f - dl) * 100f).toInt()
         if (dark > 4) {
             val k = dark / 100f
@@ -832,8 +831,9 @@ class HomeScene(game: Game) : Scene(game) {
             lm.end(c)
             c.restore()
         }
-        // 화덕 불빛은 낮에도 은은하게
+        // 화덕·가정용 오븐 불빛은 낮에도 은은하게
         Glow.draw(c, Glow.warm, ovx, ovy, 46f * flick, 38f * flick, (60 + 90 * (1f - dl)).toInt())
+        Glow.draw(c, Glow.warm, (rangeX - camX) * WORLD_SCALE, (rangeY - camY) * WORLD_SCALE, 34f * flick, 28f * flick, (45 + 70 * (1f - dl)).toInt())
         for (i in decorTiles.indices) {
             if (state.decorSlots[i] == 3) {
                 val (tx, ty) = decorTiles[i]

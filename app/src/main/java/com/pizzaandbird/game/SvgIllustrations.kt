@@ -1,12 +1,14 @@
 package com.pizzaandbird.game
 
 import android.content.res.AssetManager
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.util.Xml
+import kotlin.math.ceil
 import org.xmlpull.v1.XmlPullParser
 
 /**
@@ -108,7 +110,7 @@ class SvgIllustrations(private val assets: AssetManager) {
     private class SvgDocument(
         private val viewWidth: Float,
         private val viewHeight: Float,
-        private val shapes: List<SvgShape>
+        shapes: List<SvgShape>
     ) {
         private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -116,14 +118,21 @@ class SvgIllustrations(private val assets: AssetManager) {
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
+        private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val bitmap: Bitmap
+
+        init {
+            // SVG 도형은 정적 일러스트이므로 매 프레임 Path/RectF를 만들지 않게 한 번만 래스터화한다.
+            val width = ceil(viewWidth).toInt().coerceIn(1, 1024)
+            val height = ceil(viewHeight).toInt().coerceIn(1, 1024)
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val raster = Canvas(bitmap)
+            raster.scale(width / viewWidth, height / viewHeight)
+            for (shape in shapes) drawShape(raster, shape)
+        }
 
         fun draw(canvas: Canvas, bounds: RectF) {
-            val save = canvas.save()
-            canvas.clipRect(bounds)
-            canvas.translate(bounds.left, bounds.top)
-            canvas.scale(bounds.width() / viewWidth, bounds.height() / viewHeight)
-            for (shape in shapes) drawShape(canvas, shape)
-            canvas.restoreToCount(save)
+            canvas.drawBitmap(bitmap, null, bounds, bitmapPaint)
         }
 
         private fun drawShape(canvas: Canvas, shape: SvgShape) {

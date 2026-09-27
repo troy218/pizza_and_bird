@@ -8,9 +8,6 @@ open class Vibrator {
 }
 
 object SystemClock {
-    @JvmStatic
-    fun elapsedRealtime(): Long = System.currentTimeMillis()
-
-    @JvmStatic
-    fun uptimeMillis(): Long = System.currentTimeMillis()
+    fun uptimeMillis(): Long = System.nanoTime() / 1_000_000L
+    fun elapsedRealtime(): Long = System.nanoTime() / 1_000_000L
 }
