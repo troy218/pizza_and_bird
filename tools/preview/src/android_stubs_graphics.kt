@@ -775,11 +775,45 @@ class Canvas {
         g.drawImage(bitmap.image, matrix.tx, null)
     }
 
+    /** xfermode → AWT 합성 규칙 (LightMap DST_OUT 등) */
+    private fun compOf(paint: Paint?, alpha: Float): java.awt.Composite {
+        val xf = paint?.xfermode as? PorterDuffXfermode
+        val rule = when (xf?.mode) {
+            PorterDuff.Mode.SRC -> java.awt.AlphaComposite.SRC
+            PorterDuff.Mode.SRC_IN -> java.awt.AlphaComposite.SRC_IN
+            PorterDuff.Mode.DST_IN -> java.awt.AlphaComposite.DST_IN
+            PorterDuff.Mode.DST_OUT -> java.awt.AlphaComposite.DST_OUT
+            PorterDuff.Mode.DST_OVER -> java.awt.AlphaComposite.DST_OVER
+            PorterDuff.Mode.CLEAR -> java.awt.AlphaComposite.CLEAR
+            PorterDuff.Mode.MULTIPLY -> java.awt.AlphaComposite.SRC_OVER
+            else -> java.awt.AlphaComposite.SRC_OVER
+        }
+        return java.awt.AlphaComposite.getInstance(rule, alpha.coerceIn(0f, 1f))
+    }
+
+    /** PorterDuffColorFilter(SRC_IN) 틴트 시현 — 흰 소스 비트맵을 지정 색으로 물들인다 (픽셀 폰트 채색) */
+    private fun tinted(bitmap: Bitmap, paint: Paint?): java.awt.image.BufferedImage {
+        val cf = paint?.colorFilter as? PorterDuffColorFilter ?: return bitmap.image
+        val img = bitmap.image
+        val w = img.width; val h = img.height
+        val out = java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        val srcPx = img.getRGB(0, 0, w, h, null, 0, w)
+        val dstPx = IntArray(srcPx.size)
+        for (i in srcPx.indices) {
+            val a = (srcPx[i] ushr 24) and 0xFF
+            if (a == 0) { dstPx[i] = 0; continue }
+            dstPx[i] = (a shl 24) or (cf.color and 0x00FFFFFF)
+        }
+        out.setRGB(0, 0, w, h, dstPx, 0, w)
+        return out
+    }
+
     fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
-        if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
-        g.drawImage(bitmap.image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
+        g.composite = compOf(paint, alpha)
+        val img = if (paint?.colorFilter != null) tinted(bitmap, paint) else bitmap.image
+        g.drawImage(img, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
 
@@ -790,11 +824,12 @@ class Canvas {
     fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
-        if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
+        g.composite = compOf(paint, alpha)
+        val base = if (paint?.colorFilter != null) tinted(bitmap, paint) else bitmap.image
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
         at.scale((dst.width() / bitmap.width).toDouble(), (dst.height() / bitmap.height).toDouble())
         if (src != null) {
-            val sub = bitmap.image.getSubimage(src.left, src.top, src.width(), src.height())
+            val sub = base.getSubimage(src.left, src.top, src.width(), src.height())
             val sx = dst.width() / sub.width
             val sy = dst.height() / sub.height
             at.setToIdentity()
@@ -802,7 +837,7 @@ class Canvas {
             at.scale(sx.toDouble(), sy.toDouble())
             g.drawImage(sub, at, null)
         } else {
-            g.drawImage(bitmap.image, at, null)
+            g.drawImage(base, at, null)
         }
         g.composite = oldComp
     }

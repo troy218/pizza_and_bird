@@ -272,7 +272,8 @@ class WorldScene(
         updateParticles(dt)
 
         // 살아있는 풀 (바람 필드 + 풀잎 상태 머신 + 밟힘 반응)
-        grass.update(dt, game.time, player.x + 8f, player.y + 13f, player.bike)
+        // 풀은 32px 렌더 좌표, 캐릭터는 16px 논리 좌표를 사용한다.
+        grass.update(dt, game.time, (player.x + 8f) * WORLD_SCALE, (player.y + 13f) * WORLD_SCALE, player.bike)
         spawnAmbient(dt)
         if (player.bike && player.moving) {
             dustT -= dt
@@ -1477,7 +1478,7 @@ class WorldScene(
         fx.drawGround(c, camXv - padX, camYv - padY, padW, padH)
 
         // 살아있는 풀 — 뒤쪽 레이어(캐릭터보다 위). 밑동이 발보다 위인 풀잎들.
-        val feetY = player.y + 13f
+        val feetY = (player.y + 13f) * WORLD_SCALE
         grass.draw(c, game.assets, camXv - padX, camYv - padY, padW.toFloat(), padH.toFloat(), feetY, GrassField.LAYER_BACK)
         c.restore()
         drawCloudShadows(c, camXv, camYv)
@@ -1491,7 +1492,7 @@ class WorldScene(
         drawEntities.sortWith(drawEntityOrder)
         for (e in drawEntities) drawEntity(c, e)
 
-        // 살아있는 풀 — 앞쪽 레이어. 캐릭터가 풀밭을 헤치며 걷는 깊이감
+        // 살아있는 풀 — 지면에 고정된 전경으로 발목을 가린다. 엔티티에 풀을 붙여 그리지 않는다.
         c.save()
         c.translate(-padX, -padY)
         grass.draw(c, game.assets, camXv - padX, camYv - padY, padW.toFloat(), padH.toFloat(), feetY, GrassField.LAYER_FRONT)
@@ -1567,13 +1568,6 @@ class WorldScene(
         a.sprPaint.alpha = 255
     }
 
-    /** 발밑 타일이 풀숲이면 1(키 큰 풀) / 2(갈대), 아니면 0 */
-    private fun grassKindAt(lx: Float, ly: Float): Int = when (map.t((lx / 16f).toInt(), (ly / 16f).toInt())) {
-        T.TALLGRASS -> 1
-        T.REED -> 2
-        else -> 0
-    }
-
     private fun sortY(e: Any): Float = when (e) {
         is Npc -> e.y + 14f
         is Cat -> e.y + 12f
@@ -1617,8 +1611,6 @@ class WorldScene(
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
                 c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
-                val gk = grassKindAt(e.cx, e.cy + 3f)
-                if (gk != 0) fx.drawGrassOver(c, sx + 4f, sy + bmp.height, bmp.width - 8f, gk == 2, e.state == 1)
                 // 밤에 웅크린 고양이는 쿨쿨
                 if (e.state == 0 && state.isNight()) {
                     val zt = (game.time * 0.8f) % 1f
@@ -1660,8 +1652,6 @@ class WorldScene(
                     a.sprPaint.alpha = 255
                 } else {
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
-                    val gk = grassKindAt(e.cx, e.y + bmp.height / WORLD_SCALE - 1f)
-                    if (gk != 0 && e.state == 0) fx.drawGrassOver(c, bx + 2f, by + bmp.height, bmp.width - 4f, gk == 2, false)
                 }
             }
             is Player -> {
@@ -1716,10 +1706,6 @@ class WorldScene(
                     }
                     c.drawCircle(ex, sy + 11.4f, 3.0f + t * 1.2f, uiFill)
                 }
-
-                // 풀숲에 들어가면 발목이 풀에 가려진다
-                val gk = grassKindAt(player.cx, player.y + 13f)
-                if (gk != 0) fx.drawGrassOver(c, sx + 3f, sy + 32f, 26f, gk == 2, player.moving)
             }
         }
     }
