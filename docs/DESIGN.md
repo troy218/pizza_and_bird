@@ -466,9 +466,13 @@ TitleScene ──새 게임──> RegionSelectScene ──> WorldScene ⇄ Home
      └─ overlay: Dialog / Menu(상태·피자·도감·설정) / CameraFx(화면 연출) / Bake / PhotoResult / Map / DecorShop / DecorPick / RegionSelect(이사)
 ```
 
-## 5. 추후 업데이트 계획 (요청 반영 대기)
+## 5. 추후 업데이트 계획
 
-1. **출현 조건 고도화** — 공식 598종의 계절/시간대/지역별 희귀도 세분화
+> ✅ **실행 계획 확정 (v0.4.0 「사계」)**: 아래 항목들은 **[plan/OVERVIEW.md](plan/OVERVIEW.md)** 의
+> 10개 독립 파트(P1~P10)로 세분화되어 있다 — 파일 소유권·충돌 방지 규칙·웨이브·머지 순서 포함.
+> 각 파트 상세: `plan/P01_seasons.md` ~ `plan/P10_release.md`.
+
+1. **출현 조건 고도화** — 공식 598종의 계절/시간대/지역별 희귀도 세분화 → **P2**
 2. **피자 확장** — 도우 종류, 지역 특산 토핑 (계열/12종 메뉴는 v0.3.3에서 완료)
 3. **계절 & 날씨** — 겨울에 두루미, 비 오는 날
 4. 사진 앨범 — 찍은 사진 저장/열람, 평점에 따른 판매

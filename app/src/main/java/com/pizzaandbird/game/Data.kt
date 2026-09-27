@@ -114,7 +114,8 @@ class BirdDef(
     val orderName: String = "",
     val familyName: String = "",
     val category: String = "",
-    val subspecies: List<String> = emptyList()
+    val subspecies: List<String> = emptyList(),
+    val birdNum: Int = 0
 ) {
     val activeLabel: String
         get() = when (active) {
@@ -122,6 +123,22 @@ class BirdDef(
             "day" -> "낮새"
             else -> "종일"
         }
+
+    val encEntry: BirdEncyclopediaEntry?
+        get() = (if (birdNum > 0) BirdEncyclopedia.get(birdNum) else null) ?: BirdEncyclopedia.get(name)
+
+    /** 엑셀의 상세 한국어 설명(위키백과 및 생태 정보) 또는 기본 설명 */
+    val fullDesc: String
+        get() = encEntry?.desc?.takeIf { it.isNotBlank() } ?: desc
+
+    val photoAuthor: String
+        get() = encEntry?.author ?: ""
+
+    val photoLicense: String
+        get() = encEntry?.license ?: ""
+
+    val conservationStatus: String
+        get() = encEntry?.status ?: ""
 }
 
 object Birds {
@@ -383,12 +400,14 @@ object Birds {
         "노랑턱멧새", "방울새", "오목눈이", "어치", "큰부리까마귀", "물까치", "찌르레기"
     )
 
-    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.map { entry ->
-        curatedByName[entry.koreanName]?.let { enrich(it, entry) } ?: generated(entry)
+    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.mapIndexed { idx, entry ->
+        val num = idx + 1
+        curatedByName[entry.koreanName]?.let { enrich(it, entry, num) } ?: generated(entry, num)
     }
 
     val byId: Map<String, BirdDef> = ALL.associateBy { it.id }
     val byName: Map<String, BirdDef> = ALL.associateBy { it.name }
+    val byNum: Map<Int, BirdDef> = ALL.associateBy { it.birdNum }
 
     /** 지역 서식지 + 밤낮에 맞는 새 풀 */
     fun poolFor(region: RegionDef, night: Boolean = false): List<BirdDef> = ALL.filter { def ->
@@ -397,7 +416,7 @@ object Birds {
                 (def.active == "any" || (if (night) def.active == "night" else def.active == "day"))
     }
 
-    private fun enrich(def: BirdDef, entry: BirdChecklistEntry): BirdDef = BirdDef(
+    private fun enrich(def: BirdDef, entry: BirdChecklistEntry, num: Int): BirdDef = BirdDef(
         id = def.id,
         name = def.name,
         tier = def.tier,
@@ -413,10 +432,11 @@ object Birds {
         orderName = entry.orderName,
         familyName = entry.familyName,
         category = entry.category,
-        subspecies = entry.subspecies
+        subspecies = entry.subspecies,
+        birdNum = num
     )
 
-    private fun generated(entry: BirdChecklistEntry): BirdDef {
+    private fun generated(entry: BirdChecklistEntry, num: Int): BirdDef {
         val tier = tierFor(entry)
         val habitats = habitatsFor(entry)
         return BirdDef(
@@ -435,7 +455,8 @@ object Birds {
             orderName = entry.orderName,
             familyName = entry.familyName,
             category = entry.category,
-            subspecies = entry.subspecies
+            subspecies = entry.subspecies,
+            birdNum = num
         )
     }
 
@@ -506,6 +527,10 @@ object Birds {
     }
 
     private fun officialDesc(entry: BirdChecklistEntry): String {
+        val enc = BirdEncyclopedia.get(entry.koreanName)
+        if (enc != null && enc.desc.isNotBlank()) {
+            return enc.desc
+        }
         val subs = if (entry.subspecies.isEmpty()) {
             "기록 아종 없음"
         } else {
