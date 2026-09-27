@@ -1,10 +1,24 @@
-# tools/preview — 그래픽 프리뷰 파이프라인 🔬
+# tools/preview — 그래픽 미리보기 도구 모음 🔬
 
-게임의 실제 렌더링 코드(Assets / Maps / Scenes / WorldScene / HomeScene / Hud / Overlays)를
-안드로이드 없이 JVM에서 그대로 실행해서 **모든 화면의 스크린샷을 PNG로 뽑는** 도구.
-그래픽/디자인 작업을 "눈으로 보면서" 반복하기 위한 아트 파이프라인이다.
+안드로이드 기기/APK 없이 게임 그래픽을 눈으로 확인하기 위한 개발 도구다.
+두 가지 파이프라인이 있으며 목적이 다르다.
 
-## 구조
+| 파이프라인 | 언어 | 무엇을 보여주나 |
+|---|---|---|
+| **JVM 스크린샷 파이프라인** (`src/`, `ci_render.sh`) | Kotlin/JVM | 실제 게임 렌더링 코드를 그대로 실행 → 모든 화면의 스크린샷 |
+| **파이썬 맵 미리보기** (`*.py`) | Python | 맵 레이아웃·타일 아트 알고리즘을 파이썬으로 이식 → 빠른 길/맵 설계 확인 |
+
+---
+
+## 1) JVM 스크린샷 파이프라인
+
+게임의 실제 렌더링 코드(Assets / Maps / Roads / Scenes / WorldScene / HomeScene / Hud /
+Overlays)를 **한 글자도 수정하지 않고** 안드로이드 없이 JVM에서 실행해
+모든 화면의 스크린샷을 PNG로 뽑는다. android.graphics 스텁(Java2D 구현)이
+android API 시그니처를 1:1로 제공한다. (MainActivity.kt / GameView.kt만 제외 —
+SurfaceView/Activity 의존이라 프리뷰 불필요)
+
+### 구조
 
 ```
 tools/preview/
@@ -21,12 +35,9 @@ tools/preview/
 └── out/                렌더링 결과 (git 미포함)
 ```
 
-- 게임 코드는 **한 글자도 수정 없이** 그대로 컴파일된다 (스텁이 android API 시그니처를 1:1 제공).
-- MainActivity.kt / GameView.kt만 제외 (SurfaceView/Activity 의존 — 프리뷰 불필요).
+### CI 자동 실행
 
-## CI 자동 실행
-
-루트 `build.gradle.kts`의 훅이 **arena 세션 브랜치 push 시에만** APK 빌드 뒤에
+루트 `gradlew`의 훅이 **arena 세션 브랜치 push 시에만** APK 빌드 뒤에
 `tools/preview/ci_render.sh`를 실행한다. 결과:
 
 - `preview/*.png` — 모든 화면 스크린샷 (같은 브랜치에 자동 커밋, `[skip ci]`)
@@ -34,23 +45,63 @@ tools/preview/
 
 다른 브랜치/로컬 빌드에서는 동작하지 않는다.
 
-## 로컬 실행 (JDK 17 + kotlinc)
+### 로컬 실행 (JDK 17 + kotlinc)
 
 ```bash
-bash tools/preview/ci_render.sh   # 컴파일 + 렌더링 (git 커밋은 변경사항 있을 때만)
-# 결과: preview/*.png 또는 tools/preview/out/
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt $SRCS -d tools/preview/out/classes-preview -jvm-target 17
+java -cp tools/preview/out/classes-preview:$KOTLIN_HOME/lib/kotlin-stdlib.jar \
+  com.pizzaandbird.preview.PreviewMain tools/preview/out
 ```
 
-## 출력물
+### 출력물
 
 | 파일 | 내용 |
 |---|---|
 | `01_tiles.png` | 전체 타일 아틀라스 (변형 포함) |
 | `02_sprites.png` | 플레이어/자전거/NPC/고양이/장식/아이콘 |
-| `03_birds.png` | 새 26종 전체 컬렉션 |
+| `03_birds.png` | 새 전체 컬렉션 |
 | `04_title.png` | 타이틀 화면 |
 | `05_region_select.png` | 정착 지역 선택 |
 | `06~12_world_*.png` | 지역별 월드 (낮/노을/밤 포함) |
 | `13_photo_mode.png` | 카메라(탐조) 모드 |
 | `14~15_home_*.png` | 집 내부 (낮/밤) |
 | `16~27_*.png` | 대화/메뉴 4탭/피자 굽기 3단계/사진 결과/지도/장식 상점 |
+
+> 게임 동작의 기준은 어디까지나 Kotlin 쪽 코드다. 이 파이프라인은 실제 코드를
+> 실행하므로 화면은 실기기와 동일한 알고리즘으로 그려진다.
+
+---
+
+## 2) 파이썬 맵 미리보기 (길 디자인)
+
+맵 레이아웃과 타일 아트 알고리즘(`Assets.kt`, `Maps.kt`, `Roads.kt`)을 파이썬으로
+옮겨 놓은 도구. 길 모양을 고칠 때 APK를 빌드하지 않고도 결과를 눈으로 확인할 수 있다.
+
+```bash
+pip3 install pillow numpy
+
+# 1) 144개(지역 12 x 홈 12) 맵 조합의 규칙 검사 — tools/MapTest.kt 의 파이썬 판
+python3 tools/preview/check.py
+
+# 2) 맵 한 장 렌더링
+python3 - <<'PY'
+import sys; sys.path.insert(0, 'tools/preview')
+import render, mapgen
+m = mapgen.build('seoul', 'seoul')
+render.render(m.tile, m.base, m.pave, m.deco, m.w, m.h).save('/tmp/seoul.png')
+PY
+```
+
+| 파일 | 역할 |
+| --- | --- |
+| `pixelcanvas.py` | `android.graphics.Canvas` / `java.util.Random` 의 픽셀 단위 클론 (안티에일리어싱 없음) |
+| `roads.py` | `Roads.kt` 프로토타입 — 포장 실루엣·바퀴자국·판석·연석·문양 |
+| `mapgen.py` | `MapBuilder.build()` 프로토타입 — 간선도로/샛길/광장 배치 |
+| `render.py` | 지면 → 포장 → 데칼 → 구조물 → 그림자 순서로 합성 |
+| `tiles_legacy.py` | `Assets.kt` 의 기존 타일 아트를 옮겨 온 **자동 생성** 파일 |
+| `_gen_tiles_legacy.py` | 위 파일을 `Assets.kt` 에서 다시 만들어 내는 스크립트 |
+
+> 이 파이썬 도구는 "빠른 눈 확인"용이며, 길 규칙을 바꿀 때는 `mapgen.py` 와
+> `Maps.kt` 를 **같이** 고쳐야 한다.

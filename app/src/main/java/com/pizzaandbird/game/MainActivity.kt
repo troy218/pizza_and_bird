@@ -69,6 +69,8 @@ class MainActivity : Activity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val gv = gameView
         if (gv != null && isGameKey(event.keyCode)) {
+            // 키 반복 이벤트는 무시 (버튼을 꾹 누르고 있을 때 연타 방지)
+            if (event.repeatCount > 0 && event.action == KeyEvent.ACTION_DOWN) return true
             gv.game.input.onKeyEvent(event.keyCode, event.action)
             return true
         }

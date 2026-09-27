@@ -122,6 +122,7 @@ class WorldScene(
         if (overlay != null) return   // 대화상자/메뉴 중에는 세계 정지
         state.playSeconds += dt
         state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
+        updateWeather(dt)
 
         updatePlayer(dt)
         updateStats(dt)
@@ -132,7 +133,7 @@ class WorldScene(
         val it = birds.iterator()
         while (it.hasNext()) {
             val b = it.next()
-            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map)
+            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult())
             if (b.gone) it.remove()
         }
 
@@ -189,6 +190,29 @@ class WorldScene(
         }
     }
 
+    private fun updateWeather(dt: Float) {
+        state.weatherSeconds -= dt
+        if (state.weatherSeconds > 0f) return
+
+        val old = state.weather()
+        val roll = rnd.nextFloat()
+        val next = when {
+            roll < 0.36f -> Weather.SUNNY
+            roll < 0.57f -> Weather.CLOUDY
+            roll < 0.76f -> Weather.RAIN
+            roll < 0.91f -> Weather.WIND
+            else -> Weather.SNOW
+        }
+        // 눈은 산·북부에서 더 자연스럽지만, 가끔 전국에 내릴 수 있다.
+        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < 0.65f) Weather.CLOUDY else next
+        state.weatherId = chosen.id
+        state.weatherSeconds = 50f + rnd.nextFloat() * 55f
+        if (chosen != old) {
+            game.hud.banner("${chosen.icon} 날씨 변화: ${chosen.label}")
+            game.hud.toast("${chosen.description} · ${chosen.label}")
+        }
+    }
+
     private fun updatePlayer(dt: Float) {
         val input = game.input
         var dx = input.dirX
@@ -207,6 +231,7 @@ class WorldScene(
             val sprint = input.isRun && !player.bike
             var speed = if (player.bike) 97f else 55f
             if (sprint) speed *= 1.45f
+            speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
@@ -233,17 +258,19 @@ class WorldScene(
             player.bike && moving -> 0.22f
             moving -> 0.14f
             else -> 0.035f
-        }
+        } * state.hungerMult()                  // 튼튼한 체력 스킬
         hungerAcc += dt * hungerRate
         while (hungerAcc >= 1f) {
             hungerAcc -= 1f
             state.hunger = (state.hunger - 1f).coerceAtLeast(0f)
         }
-        luckAcc += dt * 0.05f
+        luckAcc += dt * 0.05f * state.luckDecayMult()   // 타고난 행운 스킬
+        val luckFloor = state.luckFloor()
         while (luckAcc >= 1f) {
             luckAcc -= 1f
-            state.luck = (state.luck - 1f).coerceAtLeast(0f)
+            state.luck = (state.luck - 1f).coerceAtLeast(luckFloor)
         }
+        if (state.luck < luckFloor) state.luck = luckFloor
         if (state.hunger <= 0f) {
             hungerWarnT -= dt
             if (hungerWarnT <= 0f) {
@@ -315,7 +342,8 @@ class WorldScene(
         val pool = regionPool()
         if (pool.isEmpty()) return
 
-        val weights = pool.map { it.weight * luckBoost(it) }
+        val currentWeather = state.weather()
+        val weights = pool.map { it.weight * luckBoost(it) * weatherBirdMultiplier(it, currentWeather) }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
         for (i in pool.indices) {
@@ -337,6 +365,8 @@ class WorldScene(
             }
             if (tooClose) continue
             birds.add(FieldBird(def, bx, by))
+            if (def.tier.star >= 3) game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+            if (state.questBird == def.id) game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
             return
         }
     }
@@ -355,6 +385,7 @@ class WorldScene(
         val cam = CameraDefs.LEVELS[(state.cameraLevel - 1).coerceIn(0, CameraDefs.LEVELS.size - 1)]
         if (stars < 3 && rnd.nextDouble() < 0.13 * cam.qualityBonus) stars++
         if (stars < 3 && rnd.nextDouble() < state.effectiveLuck() / 520.0) stars++
+        if (stars < 3 && rnd.nextDouble() < state.extraStarChance()) stars++   // 매의 눈 스킬
 
         val prev = state.birdCounts[b.def.id] ?: 0
         val isNew = prev == 0
@@ -364,15 +395,23 @@ class WorldScene(
         state.photos += 1
         if (isNew) state.luck = (state.luck + 4f).coerceAtMost(100f)
 
+        // ----- 경험치 -----
+        var expGain = Progression.photoExp(b.def.tier, stars)
+        if (isNew) expGain += Progression.newSpeciesExp(b.def.tier)
+
         var questLine: String? = null
         if (state.questBird == b.def.id) {
             val bonus = if (stars >= 3) (state.questReward * 0.3f).toInt() else 0
             val total = state.questReward + bonus
             state.money += total
-            questLine = "의뢰 완료! +₩${fmtMoney(total)}" + if (bonus > 0) " (3성 보너스)" else ""
+            expGain += Progression.questExp(state.questReward)
+            questLine = "의뢰 완료! +${won(total)}" + if (bonus > 0) " (3성 보너스)" else ""
             state.questBird = null
             state.questReward = 0
         }
+
+        val prevLevel = state.level
+        val levelsGained = state.addExp(expGain)
 
         // 깃털 파티클
         for (i in 0 until 4) {
@@ -389,7 +428,12 @@ class WorldScene(
         b.fleeT = 0f
 
         SaveManager.save(game.context, state)
-        openOverlay(PhotoResultOverlay(this, b.def, stars, isNew, prev + 1, questLine))
+        openOverlay(
+            PhotoResultOverlay(
+                this, b.def, stars, isNew, prev + 1, questLine,
+                expGain, levelsGained, prevLevel
+            )
+        )
     }
 
     private fun trySnapAt(vx: Float, vy: Float) {
@@ -436,7 +480,9 @@ class WorldScene(
     }
 
     private fun ambientKind(): String = when {
-        region.id == "sokcho" || region.id == "jeju" -> "snow"
+        state.weather() == Weather.RAIN -> "rain"
+        state.weather() == Weather.SNOW -> "snow"
+        state.weather() == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
         "forest" in region.habitats -> "leaf"
@@ -452,6 +498,16 @@ class WorldScene(
         val halfW = game.virtW / (2f * WORLD_SCALE)
         val halfH = game.virtH / (2f * WORLD_SCALE)
         when (ambientKind()) {
+            "rain" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
+                Color.argb(150, 100, 160, 210), 1.5f, false
+            )
+            "wind" -> addParticle(
+                camX - 8f, camY + rnd.nextFloat() * halfH * 2f,
+                55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
+                Color.argb(150, 210, 220, 205), 2f, true
+            )
             "leaf" -> addParticle(
                 camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
                 (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,
@@ -616,7 +672,7 @@ class WorldScene(
             openOverlay(
                 DialogOverlay(
                     this, "보리 박사",
-                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ₩${fmtMoney(def.reward)}.\"",
+                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ${won(def.reward)}.\"",
                     listOf(
                         DialogOverlay.Choice("맡겨주세요!") {
                             state.questBird = def.id
@@ -656,13 +712,13 @@ class WorldScene(
                     "\"이미 최고의 장비를 갖췄구먼! 부럽다니까.\""
                 else {
                     val next = CameraDefs.LEVELS[lvl]
-                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ₩${fmtMoney(next.cost)}야.\""
+                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ${won(next.cost)}야.\""
                 },
                 buildList {
                     if (lvl < CameraDefs.LEVELS.size) {
                         val next = CameraDefs.LEVELS[lvl]
                         add(
-                            DialogOverlay.Choice("업그레이드 (₩${fmtMoney(next.cost)})") {
+                            DialogOverlay.Choice("업그레이드 (${won(next.cost)})") {
                                 if (game.state.money >= next.cost) {
                                     game.state.money -= next.cost
                                     game.state.cameraLevel = lvl + 1
@@ -675,7 +731,6 @@ class WorldScene(
                         )
                     }
                     add(DialogOverlay.Choice("장식 코너 보기") {
-                        it.finished = true
                         it.scene.openOverlay(DecorShopOverlay(it.scene))
                     })
                     add(DialogOverlay.Choice("그냥 볼게요"))
@@ -876,17 +931,31 @@ class WorldScene(
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
             is FieldBird -> {
-                val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
+                val flying = e.state == 2
+                val bmp = if (flying) {
+                    val wingFrame = ((e.fleeT * 11f).toInt() and 1)
+                    a.birdFlight(e.def.id, wingFrame, e.faceLeft)
+                } else if (e.faceLeft) {
+                    a.bird(e.def.id)
+                } else {
+                    a.birdFlipped(e.def.id)
+                }
                 val bx = (e.x - camX) * WORLD_SCALE
                 val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
-                c.drawOval(
-                    RectF(
-                        bx + bmp.width * 0.1f, (e.cy - camY) * WORLD_SCALE + 6f,
-                        bx + bmp.width * 0.9f, (e.cy - camY) * WORLD_SCALE + 13f
-                    ),
-                    a.shadowPaint
-                )
-                if (e.state == 2) {
+                // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
+                if (!flying || e.fleeT < 0.32f) {
+                    val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
+                    val shadowCx = bx + bmp.width * 0.5f
+                    val shadowHalf = bmp.width * 0.4f * shadowK
+                    c.drawOval(
+                        RectF(
+                            shadowCx - shadowHalf, (e.cy - camY) * WORLD_SCALE + 7f,
+                            shadowCx + shadowHalf, (e.cy - camY) * WORLD_SCALE + 12f
+                        ),
+                        a.shadowPaint
+                    )
+                }
+                if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
                     a.sprPaint.alpha = alpha
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
@@ -897,15 +966,16 @@ class WorldScene(
             }
             is Player -> {
                 val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
+                val ps = a.playerSet(state.gender, state.gearTier())
                 val bmp: android.graphics.Bitmap = when {
                     player.bike && player.facing == Dir.E -> a.bikeSide
                     player.bike && player.facing == Dir.W -> a.bikeSideL
                     player.bike && player.facing == Dir.N -> a.bikeUp
                     player.bike && player.facing == Dir.S -> a.bikeDown
-                    player.facing == Dir.E -> a.playerSide[frame]
-                    player.facing == Dir.W -> a.playerSideL[frame]
-                    player.facing == Dir.N -> a.playerUp[frame]
-                    else -> a.playerDown[frame]
+                    player.facing == Dir.E -> ps.side[frame]
+                    player.facing == Dir.W -> ps.sideL[frame]
+                    player.facing == Dir.N -> ps.up[frame]
+                    else -> ps.down[frame]
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE
