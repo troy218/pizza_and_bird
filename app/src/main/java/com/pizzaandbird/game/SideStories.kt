@@ -1,6 +1,7 @@
 package com.pizzaandbird.game
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -25,8 +26,19 @@ object SideStories {
         val title: String,
         val acts: List<Act>,
         val nudge: String,
-        val reward: Pair<Int, Int>      // (골드 ₩, 행운)
-    )
+        val reward: Pair<Int, Int>,     // (골드 ₩, 행운)
+        /**
+         * 「수첩에 한 줄」 — 마무리 막이 끝나면 플레이어 수첩에 **실제로 기록되는** 문장.
+         * 예전에는 대사 속에서만 있던 부탁을, 이제는 수첩이 진짜로 받아 적는다
+         * (`NotebookOverlay`, `feat_story_v1` 의 `j` 배열에 남은다).
+         */
+        val journal: String = "",
+        /** 「뒷장」 — 본편 완료 후 **다시 왔을 때** 한 번만 열리는 후일담 3줄 (작은 보상 포함) */
+        val echo: List<String> = emptyList(),
+        val echoReward: Pair<Int, Int> = 0 to 0
+    ) {
+        val hasEcho: Boolean get() = echo.isNotEmpty()
+    }
 
     data class Act(val goal: Goal, val lines: List<String>)
 
@@ -115,7 +127,14 @@ object SideStories {
                 ))
             ),
             "기록된 새 아무나 한 마리면 돼요. 참새도, 까치도 좋아요. 천천히 오세요.",
-            20000 to 5
+            20000 to 5,
+            "서울의 첫 수업은 창밖에서 시작됐다",
+            listOf(
+                "자네가 적어 준 그 한 줄, 우리 골목 문구점 유리창에도 붙였네. '창밖을 보게'라는 말이지.",
+                "손님 둘이 그걸 보고 참새 사진을 찍었다더군. 빈 수첩을 들고 왔더라네.",
+                "가르친 건 자넨데, 고맙다는 인사는 내가 다 하고 있어. 부끄러울 정도야."
+            ),
+            10000 to 2
         ),
         Episode("incheon_mudflat_road", "incheon", NpcKind.ELDER, "갯뻘이 걸어온 길",
             listOf(
@@ -136,7 +155,14 @@ object SideStories {
                 ))
             ),
             "물가의 새 한 마리 기록만 보면 된다네. 급할 것 없어, 썰물은 기다려 주는 법이지.",
-            35000 to 7
+            35000 to 7,
+            "인천의 갯벌은 진흙이 아니라 식탁이다",
+            listOf(
+                "그 문장 적어 뒀지? 이제 관광객한테도 우리가 먼저 그 말을 해 준다네. '밥상에 손을 대지 마시오' 하고.",
+                "만조 전에 둑길에 팻말도 세웠어. 새가 먼저 밥 먹게 기다리는 거지, 사람이 먼저 밟으면 안 되지.",
+                "우리 손자도 수첩 사 달라고 난리여. 배운 게 이렇게 돌아다니는 걸 보니 신기하네."
+            ),
+            12000 to 2
         ),
         Episode("chuncheon_lake_me", "chuncheon", NpcKind.KID, "호수에 비친 나",
             listOf(
@@ -157,7 +183,14 @@ object SideStories {
                 ))
             ),
             "물새 한 마리 기록이요! 호수는 도망 안 가니까 천천히 하셔도 돼요.",
-            30000 to 6
+            30000 to 6,
+            "춘천의 호수는 기다림의 거울이다",
+            listOf(
+                "저 오늘 30분 앉아 있었어요! 3분이 아니라 30분이요! 근데 오리가 진짜 왔어요!",
+                "엄마가 그 문장을 수첩 첫 장에 써 뒀어요. 물에 비친 오리 사진이랑 같이요!",
+                "다음엔 친구를 데려올게요. 기다리는 법을 제가 가르칠 거예요, 제가 선생님이니까요!"
+            ),
+            9000 to 2
         ),
         Episode("gangneung_pine_guest", "gangneung", NpcKind.VILLAGER, "소나무 아래 손님",
             listOf(
@@ -167,7 +200,15 @@ object SideStories {
             ),
             if (gangneungGoal is Goal.Deliver) "갓 구운 특산 피자 한 판이면 돼요. 식어도 정은 뜨겁죠."
             else "숲새 한 마리 기록이면 돼요. 소나무 숲이 기다리고 있어요.",
-            45000 to 8
+            45000 to 8,
+            // v0.5 — 「수첩에 한 줄」과 「뒷장」 (말투는 main 의 다듬은 문장을 따랐다)
+            "강릉의 소나무 그늘 아래엔 늘 한 자리가 비어 있다",
+            listOf(
+                "사장님 가게 그 자리, 아직도 비어 있어요. 어제 누가 거기 앉아 소나무 사진만 찍고 갔어요.",
+                "피자 한 판 들고 그늘에 앉아 있으면 새가 먼저 와요. 우리가 자리를 잡는 게 아니라니까요.",
+                "수첩에 적어 두신 그 한 줄, 저도 카페 메뉴판 옆에 붙여 뒀어요. 손님들이 먼저 읽거든요."
+            ),
+            12000 to 3
         ),
         Episode("sokcho_snow_window", "sokcho", NpcKind.ELDER, "눈 내리는 창",
             listOf(
@@ -188,7 +229,14 @@ object SideStories {
                 ))
             ),
             "겨울손님 한 마리면 돼. 눈이 기다려 주지는 않지만, 마음은 느긋하게.",
-            50000 to 9
+            50000 to 9,
+            "속초의 첫눈엔 두루미가 내려앉는다",
+            listOf(
+                "올해 첫눈엔 내가 먼저 창가에 섰다네. 자네가 적어 둔 그 문장대로 말이야.",
+                "무리 쪽으로 걸어가지 않았지. 그랬더니 발자국 두 개가 내 사진 뒤까지 오더라네.",
+                "내년엔 자네 사진을 동네 안내판에 붙이자고 했다네. 허락 받으러 갈 테니 미리 말해 두네."
+            ),
+            14000 to 3
         ),
         Episode("daejeon_crossroad", "daejeon", NpcKind.VILLAGER, "사거리의 나침반",
             listOf(
@@ -209,7 +257,14 @@ object SideStories {
                 ))
             ),
             "편하게 앉아만 계세요. 오늘의 심부름은 대화, 거의 다 끝났어요.",
-            25000 to 5
+            25000 to 5,
+            "대전에선 길을 물으면 사람이 답해 준다",
+            listOf(
+                "사거리 떡집 앞이 이제 안내판이 됐어. 누가 길 물어보면 내가 먼저 새 이야기를 한단다.",
+                "그 탐조인 동생이 왔더라. 고맙다며 찹쌀떡 한 꾸러미를 두고 갔네.",
+                "길은 알려 주는 순간 두 개가 된다더군. 걸어 본 사람이 하나, 물어본 사람이 하나."
+            ),
+            10000 to 2
         ),
         Episode("jeonju_eaves", "jeonju", NpcKind.ELDER, "한옥의 처마 끝",
             listOf(
@@ -230,7 +285,14 @@ object SideStories {
                 ))
             ),
             "텃새 한 마리 기록이면 된다네. 떠나지 않는 이웃이니 천천히 찾아도 돼.",
-            35000 to 7
+            35000 to 7,
+            "전주의 처마는 천천히 오래 보는 집이다",
+            listOf(
+                "기와 사이 해바라기가 올여름 정말로 피었네. 한 알은 꽃이 된다더니 거짓이 없었어.",
+                "손님이 처마 밑에서 두 시간 서 있다가 갔어. 아무것도 안 찍었다면서 웃더라네.",
+                "자네가 적어 둔 그 문장, 우리 대문 옆에 붙여 뒀네. 천천히 오라는 초상이야."
+            ),
+            12000 to 3
         ),
         Episode("daegu_mountain_real", "daegu", NpcKind.KID, "팔공산 코알라?",
             listOf(
@@ -251,7 +313,14 @@ object SideStories {
                 ))
             ),
             "산새 한 마리 기록이면 돼요! 코알라 말고요, 진짜 이름으로 부탁해요!",
-            30000 to 6
+            30000 to 6,
+            "팔공산엔 코알라 대신 딱다구리가 산다",
+            listOf(
+                "친구한테 그 문장 보여 줬더니! 코알라는 인도에 산대요! 제가 알아낸 거예요!",
+                "이제 시장 지붕 제비 집도 제가 기록해요. 날짜랑 날씨도 적어요, 박사님처럼요!",
+                "다음엔 친구가 카메라를 빌려 온대요. 근데 새가 놀라지 않게, 제가 먼저 가르쳐 줄게요!"
+            ),
+            10000 to 2
         ),
         Episode("gwangju_mudeung_wind", "gwangju", NpcKind.VILLAGER, "무등의 바람",
             listOf(
@@ -272,7 +341,14 @@ object SideStories {
                 ))
             ),
             "희귀새 한 마리면 돼요. 도망가는 게 아니라 기다리는 새니까, 마음은 느긋하게.",
-            60000 to 10
+            60000 to 10,
+            "무등산의 보석은 세 종, 그리고 기다리는 사람",
+            listOf(
+                "강변에서 기다리는 사람 얘기 나왔어. 셋이 두 시간 서 있다 아무것도 못 보고 돌아왔다더라.",
+                "그래도 얼굴들이 밝더군. 기다린 사람은 자꾸 오거든. 우리 동네가 그렇다니까.",
+                "보석은 캐는 게 아니라 지켜 주는 거라더군. 자네 문장을 소리 내어 읽어 봤네."
+            ),
+            15000 to 3
         ),
         Episode("ulsan_ganjeon_boat", "ulsan", NpcKind.ELDER, "간절곶 첫 배",
             listOf(
@@ -293,7 +369,14 @@ object SideStories {
                 ))
             ),
             "바닷새 한 마리 기록이면 된다네. 바다는 매일 아침 새 손님을 맞는다네.",
-            40000 to 8
+            40000 to 8,
+            "울산의 아침은 기다린 사람에게 먼저 뜬다",
+            listOf(
+                "오늘 그물 걷는데 해가 딱 뜨더라. 기다린 사람 말, 우리 배도 그 규칙대로 움직여.",
+                "대숲 백로는 아직이야. 유월쯤 오면 사진 찍으러 와. 우리 자리 알려 줄게.",
+                "사장네 진열대 얘기 들었어. 빌려 쓰는 것도 배운 거래. 그래, 그게 정답이지."
+            ),
+            13000 to 3
         ),
         Episode("busan_gull_dance", "busan", NpcKind.KID, "갈매기 따라 춤을",
             listOf(
@@ -314,7 +397,14 @@ object SideStories {
                 ))
             ),
             "괭이갈매기 한 마리 기록이요! 춤추는 게 아니라 걷는 거예요, 아마도!",
-            35000 to 7
+            35000 to 7,
+            "부산 갈매기는 춤추지 않는다. 대신 날아온다",
+            listOf(
+                "시장 아주머니들이 그 문장 보고 웃으셨어요! 근데 진짜예요, 갈매기는 안 추워요! 날아요!",
+                "저 이번엔 과자 안 들고 나갔어요. 그랬더니 더 많이 왔어요. 신기하지 않아요?",
+                "하구 쪽 가면 오리의 것도 보여요. 다음엔 제가 안내할게요. 세 걸음 물러서서요!"
+            ),
+            12000 to 3
         ),
         Episode("jeju_stone_wall_winter", "jeju", NpcKind.ELDER, "돌담의 겨울 손님",
             listOf(
@@ -335,7 +425,14 @@ object SideStories {
                 ))
             ),
             "겨울손님 중 좋은 얼굴 한 마리면 된다네. 돌담은 기다리는 법을 아는지라.",
-            55000 to 9
+            55000 to 9,
+            "제주에선 겨울도 떠나지 않는 이웃이 된다",
+            listOf(
+                "돌담에 앉은 손님 얼굴을 이제 내가 먼저 알아본다네. 자네가 적어 둔 대로 말야.",
+                "마을 회관에 그 문장을 붙였어. 아이들도 읽는다네, '떠나지 않는 이웃'이라는 걸.",
+                "섬은 떠나는 사람이 많은 데라 남는 말이 귀하지. 자네 문장이 하나 남았네."
+            ),
+            16000 to 3
         )
     )
 
@@ -368,8 +465,63 @@ object SideStories {
 
     private fun progressOf(s: JSONObject, regionId: String): Int = s.optJSONObject("p")?.optInt(regionId, 0) ?: 0
 
-    /** 0=미시작, 1=도입 본 상태, 2=심부름 중, 4=완료 */
+    /**
+     * 0=미시작, 1=도입 본 상태, 2=심부름 중, 4=완료, 5=완료 + 「뒷장」까지 읽음.
+     * 4를 넘기면 `current`/`hasMarker`/`allComplete` 는 모두 이미 완료로 본다 — 마커가 되살아나지 않는다.
+     */
     fun progress(ctx: Context, regionId: String): Int = progressOf(read(ctx), regionId)
+
+    /** 아직 안 읽은 「뒷장」의 수 (본편은 끝났는데 후일담이 남은 동네) */
+    fun echoesLeft(ctx: Context): Int =
+        EPISODES.count { it.hasEcho && progressOf(read(ctx), it.regionId) == 4 }
+
+    // -------------------------------------------------------------------
+    // 「수첩에 한 줄」 — 에피소드를 끝낼 때 실제로 남기는 기록 (`NotebookOverlay` 의 뒷장)
+    // -------------------------------------------------------------------
+
+    data class JournalEntry(
+        val regionId: String,
+        val episodeId: String,
+        val title: String,
+        val line: String,
+        val day: Int
+    )
+
+    /** 동네에서 배운 한 줄 — 기록한 순서대로. 같은 동네는 두 번 적지 않는다. */
+    fun journal(ctx: Context): List<JournalEntry> {
+        val arr = read(ctx).optJSONArray("j") ?: return emptyList()
+        val out = ArrayList<JournalEntry>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(
+                JournalEntry(
+                    o.optString("r"), o.optString("e"), o.optString("t"),
+                    o.optString("l"), o.optInt("d")
+                )
+            )
+        }
+        return out
+    }
+
+    /** 마무리 막에서 한 줄을 수첩에 남긴다. 이미 그 동네 기록이 있으면 조용히 넘긴다. */
+    private fun recordJournal(app: Context, ep: Episode, day: Int) {
+        if (ep.journal.isEmpty()) return
+        val cur = read(app)
+        val arr0 = cur.optJSONArray("j")
+        if (arr0 != null) {
+            for (i in 0 until arr0.length()) {
+                if (arr0.optJSONObject(i)?.optString("r") == ep.regionId) return
+            }
+        }
+        val done = JSONObject(cur.toString())
+        val arr = done.optJSONArray("j") ?: JSONArray().also { done.put("j", it) }
+        arr.put(
+            JSONObject()
+                .put("r", ep.regionId).put("e", ep.id).put("t", ep.title)
+                .put("l", ep.journal).put("d", day)
+        )
+        write(app, done)
+    }
 
     /** 이 지역에서 아직 진행 중(완료 아님)인 에피소드. 없으면 null. */
     fun current(ctx: Context, regionId: String): Episode? {
@@ -428,6 +580,9 @@ object SideStories {
                         "이제 자네 이름도 한 줄 적어 두게 — 새를 아는 법을 배운 사람의 자리라네.\n" +
                         "앞장은 할머니 것이고, 뒷장은 자네 것이야.\"",
                     listOf(
+                        DialogOverlay.Choice("수첩을 펼쳐 본다") {
+                            it.scene.openOverlay(NotebookOverlay(it.scene))
+                        },
                         DialogOverlay.Choice("제 이름으로 채워 주세요") {
                             state.money += 30000
                             state.luck = (state.luck + 5f).coerceAtMost(100f)
@@ -445,7 +600,14 @@ object SideStories {
         val ep = EPISODES.firstOrNull { it.regionId == regionId } ?: return false
         if (!(npc.person.resident && npc.person.regionId == regionId)) return false
         val p = progressOf(s, regionId)
-        if (p >= 4) return false
+        if (p >= 4) {
+            // 「뒷장」 — 본편을 끝낸 동네를 다시 찾았을 때 딱 한 번, 그 이웃의 후일담이 열린다
+            if (p == 4 && ep.hasEcho) {
+                showEcho(ws, app, ep)
+                return true
+            }
+            return false
+        }
 
         if (p == 0) {
             // 도입 — acts[0].goal은 항상 Talk(대화 자체가 첫 막)
@@ -466,8 +628,10 @@ object SideStories {
             showBeat(ws, ep, 2) {
                 state.money += ep.reward.first
                 state.luck = (state.luck + ep.reward.second).coerceAtMost(100f)
+                recordJournal(app, ep, state.day)
                 SaveManager.save(ws.game.context, state)
-                ws.game.toast("${ep.title} 완결! ${won(ep.reward.first)} · 행운+${ep.reward.second}")
+                val jotted = if (ep.journal.isNotEmpty()) " · 수첩에 한 줄 남김" else ""
+                ws.game.toast("${ep.title} 완결! ${won(ep.reward.first)} · 행운+${ep.reward.second}$jotted")
                 ws.game.sfx(Audio.Sfx.SPARKLE, 0.6f)
             }
             advance(app, regionId, 4)
@@ -527,11 +691,44 @@ object SideStories {
             1 -> "잘 다녀오겠습니다"
             else -> "감사합니다"
         }
+        val jotted = if (actIdx == 2 && ep.journal.isNotEmpty()) "\n\n" +
+            "(수첩에 한 줄 적었어요) '${ep.journal}'" else ""
         ws.openOverlay(
             DialogOverlay(
                 ws, ep.title,
-                "\"${act.lines.joinToString("\n")}\"",
+                "\"${act.lines.joinToString("\n")}\"$jotted",
                 listOf(DialogOverlay.Choice(choiceLabel) { onDone() })
+            )
+        )
+    }
+
+    /**
+     * 「뒷장」 — 에피소드를 끝낸 동네를 다시 찾았을 때 딱 한 번 여는 3줄 후일담.
+     * 배운 한 줄이 동네에서 어떻게 쓰이는지까지 보여 주고, 본편보다 작은 답례가 따른다.
+     * `progress` 를 4 → 5로 올려 다시 열리지 않게 한다 (완료·마커 판정은 그대로 4 이상).
+     */
+    private fun showEcho(ws: WorldScene, app: Context, ep: Episode) {
+        val echoLines = ep.echo.joinToString("\n")
+        ws.openOverlay(
+            DialogOverlay(
+                ws, ep.title + " · 뒷장",
+                "\"" + echoLines + "\"",
+                listOf(
+                    DialogOverlay.Choice("또 올게요") {
+                        val st = ws.game.state
+                        if (ep.echoReward.first > 0 || ep.echoReward.second > 0) {
+                            st.money += ep.echoReward.first
+                            st.luck = (st.luck + ep.echoReward.second).coerceAtMost(100f)
+                            SaveManager.save(ws.game.context, st)
+                            ws.game.toast(
+                                "동네의 답례 " + won(ep.echoReward.first) +
+                                    " · 행운+" + ep.echoReward.second
+                            )
+                        }
+                        ws.game.sfx(Audio.Sfx.REWARD, 0.55f)
+                        advance(app, ep.regionId, 5)
+                    }
+                )
             )
         )
     }
