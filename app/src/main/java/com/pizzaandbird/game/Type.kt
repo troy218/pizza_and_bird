@@ -458,7 +458,9 @@ object PixelFont {
         // 색은 RGB 로만 캐시하고 알파는 페인트에 실어 둔다(페이드할 때 캐시가 안 불어난다)
         val rgb = color and 0xFFFFFF
         bmpPaint.colorFilter = tints.getOrPut(rgb) {
-            PorterDuffColorFilter(rgb, PorterDuff.Mode.SRC_IN)
+            // SRC_IN also multiplies by the tint alpha. Keep it opaque here;
+            // bmpPaint.alpha below is the single source of fade opacity.
+            PorterDuffColorFilter(rgb or 0xFF000000.toInt(), PorterDuff.Mode.SRC_IN)
         }
         bmpPaint.alpha = (color ushr 24) and 0xFF
         var x = left

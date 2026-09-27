@@ -3143,6 +3143,10 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
         drawButtons(c)
         drawLegend(c)
+        // 현재 위치 출구 가이드는 항상 표시 (번호 = 월드 터널 번호)
+        if (selected == null || selected?.id == scene.game.state.region) {
+            drawExitGuide(c)
+        }
         selected?.let { drawInfo(c, it) }
     }
 
@@ -3165,13 +3169,62 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
     private fun drawLinks(c: Canvas) {
         val s = scene.game.state
+        val currentId = s.region
+        val currentExitByTarget = Regions.exitNumbered(currentId).associateBy { it.targetId }
+
         for ((a, b) in Regions.allLinks()) {
             val ra = Regions.byId[a] ?: continue
             val rb = Regions.byId[b] ?: continue
             val known = a in s.visited || b in s.visited
-            strokeP.color = if (known) Color.argb(190, 255, 255, 255) else Color.argb(70, 255, 255, 255)
-            strokeP.strokeWidth = dp(scene, if (known) 1.8f else 1.1f)
-            c.drawLine(sx(ra.mmX), sy(ra.mmY), sx(rb.mmX), sy(rb.mmY), strokeP)
+            val isCurrentLink = (a == currentId && b in currentExitByTarget) || (b == currentId && a in currentExitByTarget)
+
+            if (isCurrentLink) {
+                // 현재 위치에서 나가는 길은 더 굵고 노란빛으로 — 지도에서 추론 가능하게
+                strokeP.color = Color.argb(230, 242, 182, 60)
+                strokeP.strokeWidth = dp(scene, 3.2f)
+                c.drawLine(sx(ra.mmX), sy(ra.mmY), sx(rb.mmX), sy(rb.mmY), strokeP)
+                // 안쪽 흰 하이라이트
+                strokeP.color = Color.argb(170, 255, 252, 240)
+                strokeP.strokeWidth = dp(scene, 1.2f)
+                c.drawLine(sx(ra.mmX), sy(ra.mmY), sx(rb.mmX), sy(rb.mmY), strokeP)
+            } else {
+                strokeP.color = if (known) Color.argb(190, 255, 255, 255) else Color.argb(70, 255, 255, 255)
+                strokeP.strokeWidth = dp(scene, if (known) 1.8f else 1.1f)
+                c.drawLine(sx(ra.mmX), sy(ra.mmY), sx(rb.mmX), sy(rb.mmY), strokeP)
+            }
+
+            // 현재 위치 기준 터널 번호 뱃지 — 길 중간보다 현재 지역에 가깝게 (30%)
+            if (isCurrentLink) {
+                val targetId = if (a == currentId) b else a
+                val exitInfo = currentExitByTarget[targetId] ?: continue
+                val raX = sx(ra.mmX)
+                val raY = sy(ra.mmY)
+                val rbX = sx(rb.mmX)
+                val rbY = sy(rb.mmY)
+                val t = if (a == currentId) 0.32f else 0.68f
+                val mx = raX + (rbX - raX) * t
+                val my = raY + (rbY - raY) * t
+
+                // 번호 원
+                fillP.color = Color.argb(40, 20, 14, 10)
+                c.drawCircle(mx, my + dp(scene, 1.5f), dp(scene, 11f), fillP)
+                fillP.color = 0xFFF2B63C.toInt()
+                c.drawCircle(mx, my, dp(scene, 10f), fillP)
+                strokeP.color = 0xFF4A2E12.toInt()
+                strokeP.strokeWidth = dp(scene, 1.4f)
+                c.drawCircle(mx, my, dp(scene, 10f), strokeP)
+
+                textP.textSize = dp(scene, 10f)
+                textP.color = 0xFF4A2E12.toInt()
+                val numTxt = exitInfo.number.toString()
+                c.drawText(numTxt, mx - textP.measureText(numTxt) / 2, my - (textP.descent() + textP.ascent()) / 2, textP)
+
+                // 방향 화살표 작게
+                textP.textSize = dp(scene, 9f)
+                textP.color = 0xFFF2B63C.toInt()
+                val arrow = Regions.dirArrow(exitInfo.dir)
+                c.drawText(arrow, mx + dp(scene, 12f), my - (textP.descent() + textP.ascent()) / 2, textP)
+            }
         }
     }
 
@@ -3179,6 +3232,8 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val g = scene.game
         val s = g.state
         val showAllNames = scale > fitScale * 1.5f
+        val currentExits = Regions.exitNumbered(s.region)
+
         for (reg in Regions.ALL) {
             val x = sx(reg.mmX)
             val y = sy(reg.mmY)
@@ -3210,6 +3265,40 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 textP.textSize = dp(scene, 11f)
                 textP.color = 0xFF4A3728.toInt()
                 c.drawText("🏠", x - dp(scene, 6f), y - r - dp(scene, 3f), textP)
+            }
+
+            // 현재 위치에서는 각 방향 출구 번호를 주변에 표시 — 지하철 출입구처럼
+            if (isCurrent) {
+                for (exit in currentExits) {
+                    val dirX = when (exit.dir) {
+                        Dir.N -> 0f
+                        Dir.S -> 0f
+                        Dir.E -> 1f
+                        Dir.W -> -1f
+                    }
+                    val dirY = when (exit.dir) {
+                        Dir.N -> -1f
+                        Dir.S -> 1f
+                        Dir.E -> 0f
+                        Dir.W -> 0f
+                    }
+                    val bx = x + dirX * dp(scene, 28f)
+                    val by = y + dirY * dp(scene, 28f)
+
+                    // 번호 원
+                    fillP.color = Color.argb(40, 20, 14, 10)
+                    c.drawCircle(bx, by + dp(scene, 1f), dp(scene, 9f), fillP)
+                    fillP.color = 0xFFF2B63C.toInt()
+                    c.drawCircle(bx, by, dp(scene, 8f), fillP)
+                    strokeP.color = 0xFF4A2E12.toInt()
+                    strokeP.strokeWidth = dp(scene, 1.2f)
+                    c.drawCircle(bx, by, dp(scene, 8f), strokeP)
+
+                    textP.textSize = dp(scene, 9f)
+                    textP.color = 0xFF4A2E12.toInt()
+                    val numTxt = exit.number.toString()
+                    c.drawText(numTxt, bx - textP.measureText(numTxt) / 2, by - (textP.descent() + textP.ascent()) / 2, textP)
+                }
             }
 
             if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
@@ -3272,7 +3361,9 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val s = g.state
         val w = g.screenW.toFloat()
         val cardW = minOf(dp(scene, 320f), mapR.width() - dp(scene, 24f))
-        val cardH = dp(scene, 132f)
+        val numberedForSize = Regions.exitNumbered(reg.id)
+        val extra = if (numberedForSize.isEmpty()) 0f else 14f + numberedForSize.size * 13f
+        val cardH = dp(scene, 120f + extra)
         val r = RectF(
             mapR.right - dp(scene, 12f) - cardW, mapR.top + dp(scene, 12f),
             mapR.right - dp(scene, 12f), mapR.top + dp(scene, 12f) + cardH
@@ -3337,11 +3428,83 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         }
 
         y += dp(scene, 2f)
-        val exits = Regions.exits(reg.id).values.mapNotNull { Regions.byId[it]?.name }
-        textP.color = 0xFF8A7360.toInt()
-        val ex = "🚲 연결: " + if (exits.isEmpty()) "-" else exits.joinToString(", ")
-        for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(2)) {
-            c.drawText(ln, x, y, textP)
+        // 터널 번호와 방향을 함께 표시 — 지도 보고 월드 터널 번호 추론 가능하게
+        val numbered = Regions.exitNumbered(reg.id)
+        if (numbered.isEmpty()) {
+            textP.color = 0xFF8A7360.toInt()
+            val ex = "🚲 연결: - (막다른 길)"
+            for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(2)) {
+                c.drawText(ln, x, y, textP)
+                y += dp(scene, 12f)
+            }
+        } else {
+            // 현재 위치면 강조
+            val isCurrent = reg.id == s.region
+            textP.color = if (isCurrent) 0xFF4A2E12.toInt() else 0xFF8A7360.toInt()
+            textP.textSize = dp(scene, 9.5f)
+            val header = if (isCurrent) "🚲 터널 번호 (지도 ↔ 월드 동일, 맵별 다름):" else "🚲 연결:"
+            c.drawText(header, x, y, textP)
+            y += dp(scene, 12f)
+
+            for (exit in numbered) {
+                val target = Regions.byId[exit.targetId]
+                val targetName = target?.name ?: exit.targetId
+                val dirArrow = Regions.dirArrow(exit.dir)
+                val dirLabel = Regions.dirLabel(exit.dir)
+                val line = "${exit.number}. $dirArrow $dirLabel → $targetName"
+
+                // 번호 원
+                fillP.color = 0xFFF2B63C.toInt()
+                c.drawCircle(x + dp(scene, 6f), y - dp(scene, 3f), dp(scene, 6f), fillP)
+                strokeP.color = 0xFF4A2E12.toInt()
+                strokeP.strokeWidth = dp(scene, 1f)
+                c.drawCircle(x + dp(scene, 6f), y - dp(scene, 3f), dp(scene, 6f), strokeP)
+                textP.textSize = dp(scene, 8f)
+                textP.color = 0xFF4A2E12.toInt()
+                val nt = exit.number.toString()
+                c.drawText(nt, x + dp(scene, 6f) - textP.measureText(nt) / 2, y, textP)
+
+                // 텍스트
+                textP.textSize = dp(scene, 9.5f)
+                textP.color = if (isCurrent) 0xFF3A2A24.toInt() else 0xFF8A7360.toInt()
+                c.drawText(line, x + dp(scene, 16f), y, textP)
+                y += dp(scene, 12f)
+                if (y > r.bottom - dp(scene, 6f)) break
+            }
+        }
+    }
+
+    private fun drawExitGuide(c: Canvas) {
+        // 현재 위치 기준 출구 요약 — 지도 하단에 항상 보이게 (추론 돕기)
+        val g = scene.game
+        val s = g.state
+        val cur = Regions.byId[s.region] ?: return
+        val numbered = Regions.exitNumbered(cur.id)
+        if (numbered.isEmpty()) return
+
+        val cardW = minOf(dp(scene, 340f), mapR.width() - dp(scene, 24f))
+        val cardH = dp(scene, 18f + numbered.size * 14f)
+        val r = RectF(
+            mapR.left + dp(scene, 12f), mapR.bottom - dp(scene, 12f) - cardH - dp(scene, 40f),
+            mapR.left + dp(scene, 12f) + cardW, mapR.bottom - dp(scene, 12f) - dp(scene, 40f)
+        )
+        fillP.color = Color.argb(205, 46, 40, 58)
+        c.drawRoundRect(r, dp(scene, 10f), dp(scene, 10f), fillP)
+        strokeP.color = Color.argb(150, 233, 196, 106)
+        strokeP.strokeWidth = dp(scene, 1.4f)
+        c.drawRoundRect(r, dp(scene, 10f), dp(scene, 10f), strokeP)
+
+        var y = r.top + dp(scene, 14f)
+        textP.textSize = dp(scene, 10.5f)
+        textP.color = 0xFFF8EFDC.toInt()
+        c.drawText("📍 ${cur.name} 현재 위치 출구 (번호 = 월드 터널 번호)", r.left + dp(scene, 10f), y, textP)
+        y += dp(scene, 12f)
+        for (exit in numbered) {
+            val target = Regions.byId[exit.targetId] ?: continue
+            val line = "${exit.number}. ${Regions.dirArrow(exit.dir)} ${Regions.dirLabel(exit.dir)} → ${target.name} ${target.emoji}"
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFFE9C46A.toInt()
+            c.drawText(line, r.left + dp(scene, 10f), y, textP)
             y += dp(scene, 12f)
         }
     }

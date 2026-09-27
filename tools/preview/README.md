@@ -68,6 +68,22 @@ java -cp "tools/preview/out/classes-smoke:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.InputSmoke
 ```
 
+### UI 불투명도 회귀 테스트
+
+그림자용 `Paint.alpha`가 창·카드·버튼·게이지·힌트 배경에 남지 않는지 검사합니다.
+검정/흰 배경에서 본문 픽셀이 같은지, 비활성 버튼의 의도적인 반투명도는 유지되는지,
+픽셀 숫자의 색상/페이드가 정상인지 확인합니다. 프리뷰 스텁도 Android처럼
+셰이더에 `Paint.alpha`를 곱하고 `SRC_IN` 비트맵 틴트를 적용합니다.
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/ui_opacity_smoke.kt $SRCS \
+  -d tools/preview/out/classes-ui -jvm-target 17
+java -cp "tools/preview/out/classes-ui:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.UiOpacitySmoke
+```
+
 ### 출력물
 
 | 파일 | 내용 |
