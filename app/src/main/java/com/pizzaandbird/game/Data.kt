@@ -373,6 +373,7 @@ object Birds {
     }
 
     val byId: Map<String, BirdDef> = ALL.associateBy { it.id }
+    val byName: Map<String, BirdDef> = ALL.associateBy { it.name }
 
     /** 지역 서식지 + 밤낮에 맞는 새 풀 */
     fun poolFor(region: RegionDef, night: Boolean = false): List<BirdDef> = ALL.filter { def ->

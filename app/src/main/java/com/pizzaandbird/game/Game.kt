@@ -44,6 +44,11 @@ class Game(val context: Context) {
 
     val density: Float = context.resources.displayMetrics.density
 
+    init {
+        // 첫 프레임에 렉이 걸리지 않도록 현재 캐릭터 동작 스프라이트를 미리 만들어 둔다
+        assets.playerSet(state.gender, state.gearTier())
+    }
+
     fun onSurfaceChanged(w: Int, h: Int) {
         screenW = w
         screenH = h

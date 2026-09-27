@@ -225,7 +225,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
-        val info = "v0.3.0 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
+        val info = "v0.3.2 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 
@@ -295,8 +295,11 @@ class CharacterSelectScene(game: Game) : Scene(game) {
             p.textSize = 22f; p.isFakeBoldText = true
             c.drawText(label, r.centerX()-p.measureText(label)/2f, r.bottom-25f, p)
         }
-        card(male, "남자", game.state.gender == "male", game.assets.playerSet("male", 0).down[0])
-        card(female, "여자", game.state.gender == "female", game.assets.playerSet("female", 0).down[0])
+        val t = game.time
+        val maleIdle = game.assets.playerSet("male", 0).idle
+        val femaleIdle = game.assets.playerSet("female", 0).idle
+        card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
+        card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
         p.textSize = 15f; p.isFakeBoldText = false
         c.drawText("캐릭터를 탭해서 선택한 뒤 계속하기를 누르세요", 322f, 448f, p)
     }
@@ -314,7 +317,7 @@ class CharacterSelectScene(game: Game) : Scene(game) {
     }
 
     override fun handleInput(input: Input) {
-        if (input.justBack) { game.fadeTo { game.scene = TitleScene(game) }; return }
+        if (input.justBack || input.justB) { game.fadeTo { game.scene = TitleScene(game) }; return }
         val tap = input.consumeTapScreen()
         if (tap != null) {
             if (backRect.contains(tap.x, tap.y)) {

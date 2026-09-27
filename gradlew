@@ -259,7 +259,7 @@ eval "set -- $(
 # 그 외 모든 환경(로컬/다른 브랜치)은 아래 원본 exec 경로를 그대로 사용한다.
 # ---------------------------------------------------------------------------
 if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
-        && [ "${GITHUB_REF:-}" = "refs/heads/arena/01a0e0d9-pizza-and-bird" ] \
+        && [ "${GITHUB_REF:-}" = "refs/heads/arena/01a0e11f-pizza-and-bird" ] \
         && [ -f "$(dirname "$0")/tools/preview/ci_render.sh" ]; then
     PB_ROOT="$(cd "$(dirname "$0")" && pwd)"
     mkdir -p "$PB_ROOT/tools/preview/out"
