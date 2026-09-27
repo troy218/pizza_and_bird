@@ -455,7 +455,7 @@ class Hud(private val game: Game) {
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
         }
         if (questLabel != null) {
-            drawChip(c, questChipX(), questChipY(), "🔍 $questLabel")
+            drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel")
         }
         if (showControls) drawControls(c)
         drawBanner(c)
@@ -528,13 +528,18 @@ class Hud(private val game: Game) {
         val clockIcon = if (night) a.moonIcon else a.sunIcon
         c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
         Type.text(c, s.timeLabel(), left + dp(30f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-        Type.text(c, "📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
+        UiKit.icon(c, game, "camera", RectF(left + dp(79f), iy2 + dp(59f), left + dp(93f), iy2 + dp(73f)))
+        Type.text(c, s.photos.toString(), left + dp(98f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
 
-        // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
+        // 계절/날씨 아이콘도 글꼴이 아닌 SVG로 고정한다.
         val weather = s.weather()
-        Type.text(c, "${s.season().icon}${s.season().label} · ${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
+        val season = s.season()
+        UiKit.icon(c, game, season.icon, RectF(left + dp(11f), iy2 + dp(82f), left + dp(25f), iy2 + dp(96f)))
+        Type.text(c, season.label, left + dp(29f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
+        UiKit.icon(c, game, weather.icon, RectF(left + dp(61f), iy2 + dp(82f), left + dp(75f), iy2 + dp(96f)))
+        Type.text(c, weather.label, left + dp(79f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
 
         // 레벨 + 경험치 바
         // 날씨 줄과 겹치지 않도록 그 아래에 배치
@@ -691,9 +696,8 @@ class Hud(private val game: Game) {
         // 메인 아이콘: 근처 상호작용 대상이 있으면 그 아이콘, 없으면 기본 주먹
         text.textSize = TypeScale.px(dp(21f))
         text.color = 0xFFF8EFDC.toInt()
-        val mainIcon = contextIcon ?: "👊"
-        val miTw = text.measureText(mainIcon)
-        c.drawText(mainIcon, mainCx - miTw / 2, mainCy - (text.descent() + text.ascent()) / 2f, text)
+        val mainIcon = contextIcon ?: "check"
+        UiKit.iconCenter(c, game, mainIcon, mainCx, mainCy, dp(24f))
 
         // ------------------------------------------------------------
         // 3) 아크 버튼 (메인 버튼 중심 부채꼴)
@@ -706,7 +710,7 @@ class Hud(private val game: Game) {
             onBike -> 0xFF9F7FC8.toInt()
             else -> Color.argb(220, 74, 74, 88)
         }, pressedB)
-        drawGlyph(c, bikeCx, bikeCy, "🚲", dp(17f))
+        UiKit.iconCenter(c, game, "bike", bikeCx, bikeCy, dp(24f))
 
         // 카메라 (📷)
         val camPressed = Ctrl.CAM in active
@@ -1028,14 +1032,6 @@ class Hud(private val game: Game) {
         return p
     }
 
-    /** 버튼 중앙에 글자/이모지 그리기 */
-    private fun drawGlyph(c: Canvas, cx: Float, cy: Float, glyph: String, size: Float, color: Int = 0xFFF8EFDC.toInt()) {
-        text.textSize = TypeScale.px(size)
-        text.color = color
-        val tw = text.measureText(glyph)
-        c.drawText(glyph, cx - tw / 2, cy - (text.descent() + text.ascent()) / 2f, text)
-    }
-
     // ------------------------------------------------------------------
     // 원형 미니맵 — 황동 회중 나침반 + 낡은 종이 해도
     // ------------------------------------------------------------------
@@ -1294,9 +1290,7 @@ class Hud(private val game: Game) {
                 ink.color = Color.argb(((1f - pulse) * 170f).toInt(), 242, 182, 60)
                 ink.pathEffect = null
                 c.drawCircle(x, y, dot + dp(1.2f) + pulse * dp(5.5f), ink)
-                val sp = Type.paintAt(8.5f, true, 0.02f, 0xFF5A3D12.toInt())
-                val star = "★"
-                c.drawText(star, x - sp.measureText(star) / 2f, y + dp(3f), sp)
+                UiKit.iconCenter(c, game, "star", x, y, dp(9f))
             }
         }
     }

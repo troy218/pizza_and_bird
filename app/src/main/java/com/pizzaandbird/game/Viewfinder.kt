@@ -328,17 +328,27 @@ class Viewfinder(private val game: Game) {
 
         // 별점 구역 라벨 (왼쪽 수평선 위)
         text.textSize = 11.5f
-        zoneLabel(c, "★3", px - rangePx * 0.38f - 6f, py, 0xFF9BD98F.toInt())
-        zoneLabel(c, "★2", px - rangePx * 0.72f - 6f, py, 0xFFF2C86B.toInt())
+        zoneLabel(c, 3, px - rangePx * 0.38f - 6f, py, 0xFF9BD98F.toInt())
+        zoneLabel(c, 2, px - rangePx * 0.72f - 6f, py, 0xFFF2C86B.toInt())
     }
 
-    private fun zoneLabel(c: Canvas, s: String, x: Float, y: Float, color: Int) {
-        val tw = text.measureText(s)
+    /** 별점도 폰트 글리프가 아닌 동일한 SVG 세트로 렌더링한다. */
+    private fun drawStars(c: Canvas, x: Float, y: Float, stars: Int, size: Float = 11.5f) {
+        for (i in 0 until 3) {
+            val name = if (i < stars) "star" else "star_empty"
+            UiKit.icon(c, game, name, RectF(x + i * (size + 1.5f), y - size, x + i * (size + 1.5f) + size, y))
+        }
+    }
+
+    private fun zoneLabel(c: Canvas, stars: Int, x: Float, y: Float, color: Int) {
+        val tw = 3f * 13.5f + 9f
         if (x - tw < 8f) return
         fill.color = Color.argb(140, 16, 14, 24)
         c.drawRoundRect(RectF(x - tw - 5f, y - 10f, x + 5f, y + 6f), 4f, 4f, fill)
+        drawStars(c, x - tw + 2f, y + 5f, stars, 10f)
+        text.textSize = 10.5f
         text.color = color
-        c.drawText(s, x - tw, y + 3f, text)
+        c.drawText(stars.toString(), x - 7f, y + 3f, text)
     }
 
     // ----- 새 표시 -----------------------------------------------------
@@ -388,17 +398,14 @@ class Viewfinder(private val game: Game) {
                 // 사거리 안의 다른 새: 별점 예상만 조그맣게
                 val ratio = dTiles / rangeTiles
                 val (stars, col) = zone(ratio)
-                val txt = "★".repeat(stars) + "☆".repeat(3 - stars)
-                text.textSize = 11.5f
-                val tw = text.measureText(txt)
+                val ratingW = 3f * 13f
                 val by = sy - b.sprH * WORLD_SCALE * 0.5f * zoom - 24f
                 fill.color = Color.argb(140, 16, 14, 24)
-                c.drawRoundRect(RectF(sx - tw / 2f - 6f, by - 11f, sx + tw / 2f + 6f, by + 6f), 5f, 5f, fill)
+                c.drawRoundRect(RectF(sx - ratingW / 2f - 6f, by - 11f, sx + ratingW / 2f + 6f, by + 6f), 5f, 5f, fill)
                 stroke.color = Color.argb(150, Color.red(col), Color.green(col), Color.blue(col))
                 stroke.strokeWidth = 1.2f
-                c.drawRoundRect(RectF(sx - tw / 2f - 6f, by - 11f, sx + tw / 2f + 6f, by + 6f), 5f, 5f, stroke)
-                text.color = Color.argb(225, 246, 240, 224)
-                c.drawText(txt, sx - tw / 2f, by + 2f, text)
+                c.drawRoundRect(RectF(sx - ratingW / 2f - 6f, by - 11f, sx + ratingW / 2f + 6f, by + 6f), 5f, 5f, stroke)
+                drawStars(c, sx - ratingW / 2f, by + 3f, stars, 11f)
             }
         }
     }
@@ -455,13 +462,12 @@ class Viewfinder(private val game: Game) {
         // 라벨: 이름(찍은 적 있으면 공개) + 별점 예상 + 거리
         val seen = (state.birdCounts[b.def.id] ?: 0) > 0
         val name = if (seen) b.def.name else "??? 미확인"
-        val starTxt = "★".repeat(stars) + "☆".repeat(3 - stars)
-        val info = if (inRange) "$starTxt  ·  ${fmt(dTiles)}칸" else "더 가까이!  ·  ${fmt(dTiles)}칸"
+        val info = if (inRange) "·  ${fmt(dTiles)}칸" else "더 가까이!  ·  ${fmt(dTiles)}칸"
 
         text.textSize = 13.5f
         val nameW = text.measureText(name)
         text.textSize = 11.5f
-        val infoW = text.measureText(info)
+        val infoW = text.measureText(info) + if (inRange) 3f * 13f else 0f
         val plateW = maxOf(nameW, infoW) + 22f
         val plateH = 34f
         val plateCx = sx.coerceIn(46f + plateW / 2f, game.virtW - 46f - plateW / 2f)
@@ -491,7 +497,12 @@ class Viewfinder(private val game: Game) {
         text.textSize = 11.5f
         text.color = if (inRange) Color.argb(232, Color.red(col), Color.green(col), Color.blue(col))
         else Color.argb(205, 246, 240, 224)
-        c.drawText(info, plate.left + 20f, plate.top + 28f, text)
+        if (inRange) {
+            drawStars(c, plate.left + 20f, plate.top + 31f, stars, 10f)
+            c.drawText(info, plate.left + 20f + 3f * 11.5f, plate.top + 28f, text)
+        } else {
+            c.drawText(info, plate.left + 20f, plate.top + 28f, text)
+        }
     }
 
     // ----- 상단 정보 바 -------------------------------------------------
@@ -521,14 +532,15 @@ class Viewfinder(private val game: Game) {
 
         // 중앙: 시각
         val night = state.isNight()
-        val clockTxt = "${if (night) "🌙" else "☀"} ${state.timeLabel()}"
+        val clockTxt = state.timeLabel()
         mono.textSize = 16f
-        val cw = mono.measureText(clockTxt) + 26f
+        val cw = mono.measureText(clockTxt) + 48f
         val cr = RectF(w / 2f - cw / 2f, y, w / 2f + cw / 2f, y + 28f)
         fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
         c.drawRoundRect(cr, 7f, 7f, fill)
+        UiKit.icon(c, game, if (night) "moon" else "sun", RectF(cr.left + 10f, cr.top + 5f, cr.left + 24f, cr.top + 19f))
         mono.color = Color.argb((240 * k).toInt(), 250, 246, 236)
-        c.drawText(clockTxt, cr.left + 13f, cr.centerY() - (mono.descent() + mono.ascent()) / 2f, mono)
+        c.drawText(clockTxt, cr.left + 29f, cr.centerY() + 5.5f, mono)
 
         // 우측: 장비 + 사거리
         val rig = state.rig()
@@ -585,7 +597,7 @@ class Viewfinder(private val game: Game) {
         mono.textSize = 11f
         mono.color = Color.argb((190 * k).toInt(), 206, 200, 216)
         val burstTxt = "${fmt(rig.burst)}fps"
-        val steadyTxt = if (rig.steady >= 5f) "IS ●" else "IS ○"
+        val steadyTxt = if (rig.steady >= 5f) "IS ON" else "IS OFF"
         c.drawText("$burstTxt · $steadyTxt · ${rig.weightG}g · 관측 ${state.photos}컷", r.left + 14f, r.top + 40f, mono)
 
         // 오른쪽: 거리 게이지
@@ -613,8 +625,9 @@ class Viewfinder(private val game: Game) {
             c.drawLine(mx, gy - 5f, mx, gy + gh + 5f, stroke)
             val (stars, col) = zone((dTiles / rangeTiles).coerceAtLeast(0.001f))
             text.color = Color.argb((235 * k).toInt(), Color.red(col), Color.green(col), Color.blue(col))
-            val s = "예상 " + "★".repeat(stars) + "☆".repeat(3 - stars)
-            c.drawText(s, gx + gw - text.measureText(s), r.top + 48f, text)
+            val s = "예상 "
+            c.drawText(s, gx + gw - text.measureText(s) - 42f, r.top + 48f, text)
+            drawStars(c, gx + gw - 39f, r.top + 48f, stars, 11f)
             text.color = Color.argb((200 * k).toInt(), 214, 208, 224)
             c.drawText("거리 ${fmt(dTiles)}칸", gx, r.top + 48f, text)
         } else {

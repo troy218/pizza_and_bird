@@ -921,7 +921,7 @@ class PizzaDef(
     /** "마르게리타 화덕피자" / "불고기 피자" */
     val fullName: String get() = "$name ${kind.suffix}"
 
-    /** 난이도 표시 "●●●○○" */
+    /** 난이도 점 문자열은 저장/도메인 레이어 호환용으로 유지한다. 화면은 SVG 별을 사용한다. */
     fun difficultyDots(): String = "●".repeat(difficulty.coerceIn(1, 5)) + "○".repeat(5 - difficulty.coerceIn(1, 5))
 }
 

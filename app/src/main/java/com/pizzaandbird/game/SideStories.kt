@@ -398,7 +398,7 @@ object SideStories {
                             state.money += 30000
                             state.luck = (state.luck + 5f).coerceAtMost(100f)
                             SaveManager.save(ws.game.context, state)
-                            ws.game.toast("📖 수첩의 뒷장에 이름이 적혔어요 ${won(30000)} · ☘️+5")
+                            ws.game.toast("수첩의 뒷장에 이름이 적혔어요 ${won(30000)} · 행운+5")
                             ws.game.sfx(Audio.Sfx.SPARKLE, 0.6f)
                         }
                     )
@@ -433,7 +433,7 @@ object SideStories {
                 state.money += ep.reward.first
                 state.luck = (state.luck + ep.reward.second).coerceAtMost(100f)
                 SaveManager.save(ws.game.context, state)
-                ws.game.toast("📖 ${ep.title} 완결! ${won(ep.reward.first)} · ☘️+${ep.reward.second}")
+                ws.game.toast("${ep.title} 완결! ${won(ep.reward.first)} · 행운+${ep.reward.second}")
                 ws.game.sfx(Audio.Sfx.SPARKLE, 0.6f)
             }
             advance(app, regionId, 4)

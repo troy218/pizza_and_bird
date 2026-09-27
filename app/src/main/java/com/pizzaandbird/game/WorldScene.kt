@@ -156,7 +156,7 @@ class WorldScene(
 
         if (region.id !in state.visited) {
             state.visited.add(region.id)
-            game.hud.toast("첫 방문! ${region.name} 🎉")
+            game.hud.toast("첫 방문! ${region.name}")
         }
 
         repeat(2) { trySpawnBird() }
@@ -371,11 +371,11 @@ class WorldScene(
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
         game.hud.contextIcon = when {
-            nearestNpc() != null -> "💬"
-            nearTile(T.SIGN) != null -> "🪧"
-            nearTile(T.BENCH) != null -> "☕"
-            nearestCat() != null -> "🐈"
-            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "🚪"
+            nearestNpc() != null -> "note"
+            nearTile(T.SIGN) != null -> "map"
+            nearTile(T.BENCH) != null -> "coffee"
+            nearestCat() != null -> "bird"
+            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
             else -> null
         }
 
@@ -701,7 +701,7 @@ class WorldScene(
             hungerWarnT -= dt
             if (hungerWarnT <= 0f) {
                 hungerWarnT = 45f
-                game.toast("배고파요… 집에서 피자를 구워 먹어요! 🍕")
+                game.toast("배고파요… 집에서 피자를 구워 먹어요!")
             }
         }
     }
@@ -736,7 +736,7 @@ class WorldScene(
         state.py = player.y
         state.onBike = player.bike   // 터널을 지나도 자전거 탑승 상태 유지
         SaveManager.save(game.context, state)
-        if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
+        if (viaSea) game.toast("해저 터널을 지나~")
         // 터널로 빨려 들어가는 느낌 — 살짝 광각으로 벌어지며 흔들린다
         viewRig.punchZoom(-0.055f)
         viewRig.shake(0.2f)
@@ -829,28 +829,28 @@ class WorldScene(
             }
             Tier.UNCOMMON -> {
                 // 보통 새 — 짧은 토스트와 지저귐
-                game.toast("🐤 ${def.name} 발견 — ${def.tier.starText()}")
+                game.toast("${def.name} 발견 — 등급 ${def.tier.label}")
                 game.sfx(Audio.Sfx.BIRD_CHIRP2, 0.65f)
                 viewRig.punchZoom(0.015f)
             }
             Tier.RARE -> {
                 // 희귀새 — 숨을 죽이듯 화면이 살짝 당겨지고 알림음
                 viewRig.punchZoom(0.03f)
-                game.toast("✨ 조심하세요… 희귀한 ${def.name}가 나타났어요! ${def.tier.starText()}")
+                game.toast("조심하세요… 희귀한 ${def.name}가 나타났어요!")
                 game.sfx(Audio.Sfx.NOTIFY, 0.8f)
             }
             Tier.LEGEND -> {
                 // 전설 — 배너 + 반짝 + 화면 당김/떨림으로 최대한 극적으로
                 viewRig.punchZoom(0.06f)
                 viewRig.shake(0.28f)
-                game.banner("🌟 전설의 ${def.name} 출현! 🌟")
-                game.toast("전설급 ${def.name} — 절대 놓치지 마세요! 📷 ${def.tier.starText()}")
+                game.banner("전설의 ${def.name} 출현!")
+                game.toast("전설급 ${def.name} — 절대 놓치지 마세요!")
                 game.sfx(Audio.Sfx.SPARKLE, 1f)
                 game.sfx(Audio.Sfx.NOTIFY, 0.9f)
             }
         }
         if (state.questBird == def.id) {
-            game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+            game.toast("의뢰의 새 ${def.name} 등장!")
             // 흔함·보통이라 알림음이 약했다면 의뢰 알림음을 확실히 준다
             if (def.tier.star < 3) game.sfx(Audio.Sfx.NOTIFY, 0.7f)
         }
@@ -1132,7 +1132,7 @@ class WorldScene(
             var miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star)
             if (miss && rig.burstRetry()) {
                 miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star) * 0.5f
-                if (!miss) game.toast("연사로 겨우 건졌어요! 📸")
+                if (!miss) game.toast("연사로 겨우 건졌어요!")
             }
             if (miss) {
                 game.toast("초점을 놓쳤어요… 움직이는 새엔 빠른 AF가 필요해요")
@@ -1290,13 +1290,13 @@ class WorldScene(
         val ty = (vy / 16f).toInt()
         if (map.t(tx, ty) == T.SIGN) {
             val target = signTarget(tx, ty)
-            if (target != null) game.toast("🪧 ${directionName(signDirection(tx, ty))} 터널 → ${target.name}")
+            if (target != null) game.toast("${directionName(signDirection(tx, ty))} 터널 · ${target.name}")
         }
     }
 
     private fun restAtBench() {
         state.luck = (state.luck + 2f).coerceAtMost(100f)
-        game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
+        game.toast("벤치에 앉아 쉬었다~ 구름 구경 +2")
         game.sfx(Audio.Sfx.SPARKLE, 0.55f)
     }
 
@@ -1381,13 +1381,13 @@ class WorldScene(
         val objective = chapter.objective(state)
         val advice = MainQuestAdvisor.advise(state)
         val adviceLine = advice?.let { adv ->
-            if (adv.alreadyThere) "\n📍 ${adv.tip}" else "\n📍 추천 장소: ${adv.regionName}"
+            if (adv.alreadyThere) "\n${adv.tip}" else "\n추천 장소: ${adv.regionName}"
         } ?: ""
         openOverlay(
             DialogOverlay(
                 this, chapter.title,
                 "\"${chapter.intro}\"\n\n목표: $objective" +
-                    (if (ready) "\n✓ 기록을 정리할 준비가 됐어요." else "") + adviceLine,
+                    (if (ready) "\n기록을 정리할 준비가 됐어요." else "") + adviceLine,
                 buildList {
                     if (!state.mainQuestStarted) {
                         add(DialogOverlay.Choice("수첩을 이어 쓸게요") { completeMainChapter(chapter) })
@@ -1398,7 +1398,7 @@ class WorldScene(
                     }
                     advice?.let { adv ->
                         if (!adv.alreadyThere && adv.regionId != state.region) {
-                            add(DialogOverlay.Choice("🚲 이동하기") { fastTravel(game, adv.regionId) })
+                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
                         }
                     }
                     add(DialogOverlay.Choice("사진 의뢰 보기") { showSideQuest() })
@@ -1451,7 +1451,7 @@ class WorldScene(
                             state.questBird = def.id
                             state.questReward = def.reward
                             SaveManager.save(game.context, state)
-                            game.toast("서브 의뢰 접수: ${def.name} 사진 📷")
+                            game.toast("서브 의뢰 접수: ${def.name} 사진")
                             game.sfx(Audio.Sfx.NOTIFY, 0.8f)
                         },
                         DialogOverlay.Choice("다른 일을 할게요"))
@@ -1494,7 +1494,7 @@ class WorldScene(
                     DialogOverlay.Choice("장비 가방(조립)") {
                         it.scene.openOverlay(GearBagOverlay(it.scene))
                     },
-                    DialogOverlay.Choice("자전거 상점 🚲") {
+                    DialogOverlay.Choice("자전거 상점") {
                         it.scene.openOverlay(BikeShopOverlay(it.scene))
                     },
                     DialogOverlay.Choice("장식 코너") {
@@ -1543,7 +1543,7 @@ class WorldScene(
             viewRig.punchZoom(if (player.bike) -0.02f else 0.02f)
             game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
             game.toast(
-                if (player.bike) "${state.bike().name} 탔다! 쌩~ 🚲"
+                if (player.bike) "${state.bike().name} 탔다! 쌩~"
                 else "${state.bike().name}에서 내렸어요"
             )
             return
@@ -1557,7 +1557,7 @@ class WorldScene(
             nearTile(T.SIGN)?.let { (sx, sy) ->
                 val target = signTarget(sx, sy)
                 if (target != null) {
-                    game.toast("🪧 ${directionName(signDirection(sx, sy))} 터널 → ${target.name}")
+                    game.toast("${directionName(signDirection(sx, sy))} 터널 · ${target.name}")
                     return
                 }
             }
@@ -1576,7 +1576,7 @@ class WorldScene(
                         Color.argb(220, 242, 130, 160), 3.4f, true
                     )
                 }
-                game.toast("야옹~ 🐈 좋은 기운이 든다 (행운+1)")
+                game.toast("야옹~ 좋은 기운이 든다 (행운+1)")
                 return
             }
             if (map.hasHouse) {
@@ -1609,7 +1609,7 @@ class WorldScene(
             // 고양이 탭
             for (cat in cats) {
                 if (hypot(cat.cx - tap.x, cat.cy - tap.y) < 14f) {
-                    game.toast("야옹~ 🐈")
+                    game.toast("야옹~")
                     return
                 }
             }
@@ -1640,7 +1640,7 @@ class WorldScene(
     private fun quickEat() {
         val pid = state.eatBest()
         if (pid == null) {
-            game.toast("피자가 없어요! 🍕")
+            game.toast("피자가 없어요!")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val p = Pizzas.of(pid)
@@ -1828,9 +1828,7 @@ class WorldScene(
                     bubbleFill.color = 0xFF8FC7F0.toInt()
                     c.drawCircle(bx, by, 9f, bubbleFill)
                     c.drawCircle(bx, by, 9f, bubbleStroke)
-                    tinyPaint.textSize = 13f
-                    val tw = tinyPaint.measureText("💬")
-                    c.drawText("💬", bx - tw / 2, by + 5f, tinyPaint)
+                    UiKit.iconCenter(c, game, "note", bx, by, 14f)
                 }
             }
             is Cat -> {
@@ -2141,11 +2139,11 @@ class WorldScene(
             if (n.kind == NpcKind.PROFESSOR && state.questBird == null) continue   // "!" 말풍선이 우선
             val rainy = weather == Weather.RAIN
             val opts = when (n.kind) {
-                NpcKind.VILLAGER -> if (rainy) listOf("☔", "💧", "…") else listOf("♪", "🌸", "🐦")
-                NpcKind.KID -> if (night) listOf("🥱", "🌙") else if (rainy) listOf("☔", "💦") else listOf("♪", "!", "🦋", "😆")
-                NpcKind.ELDER -> if (night) listOf("💤", "🌙") else if (rainy) listOf("☔", "🍵") else listOf("…", "🍵", "☀️")
-                NpcKind.SHOP -> listOf("📷", "✨", "💰")
-                NpcKind.PROFESSOR -> listOf("🔍", "📖", "🐦")
+                NpcKind.VILLAGER -> if (rainy) listOf("rain", "sparkle", "…") else listOf("music", "sparkle", "bird")
+                NpcKind.KID -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "sparkle") else listOf("music", "!", "sparkle", "bird")
+                NpcKind.ELDER -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "coffee") else listOf("…", "coffee", "sun")
+                NpcKind.SHOP -> listOf("camera", "sparkle", "coin")
+                NpcKind.PROFESSOR -> listOf("search", "book", "bird")
             }
             n.emote = opts[rnd.nextInt(opts.size)]
             n.emoteT = 2.6f
