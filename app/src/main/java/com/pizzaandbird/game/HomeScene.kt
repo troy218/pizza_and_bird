@@ -358,7 +358,7 @@ class HomeScene(game: Game) : Scene(game) {
     // -------------------------------------------------------------------
 
     private fun buildBedMessage(): String {
-        val herbs = Healing.herbs(state).entries.sumBy { it.value }
+        val herbs = Healing.herbs(state).entries.sumOf { it.value }
         val treats = Healing.catTreats(state)
         val love = Healing.catLove(state)
         val moments = Healing.momentCount(state)
