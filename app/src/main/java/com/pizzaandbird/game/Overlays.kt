@@ -1194,7 +1194,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
         val rects = LinkedHashMap<String, RectF>()
         val startIndex = bookPage * pageSize
-        val pageItems = Birds.ALL.drop(startIndex).take(pageSize)
+        // 촬영한 종을 먼저 모은 뒤 페이지를 나눈다. 각 그룹 안에서는 공식 목록 순서를 유지한다.
+        val orderedBirds = Birds.ALL.sortedByDescending { (s.birdCounts[it.id] ?: 0) > 0 }
+        val pageItems = orderedBirds.drop(startIndex).take(pageSize)
         // 이 페이지의 사진을 미리 받는다 (디코드는 로더 스레드가, 여기는 그리기만)
         for (def in pageItems) a.prefetchBirdThumb(def.birdNum)
         for ((i, def) in pageItems.withIndex()) {
