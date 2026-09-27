@@ -150,6 +150,8 @@ class Hud(private val game: Game) {
     private val serif = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
     private val serifBold = Typeface.create(Typeface.SERIF, Typeface.BOLD)
     private var routeDashFx: DashPathEffect? = null
+    /** 카메라 모드에서 조작 버튼을 한 겹으로 옅게 그릴 때 쓰는 페인트 */
+    private val photoDimPaint = Paint()
 
     private val GLASS_RATIO = 0.745f
 
@@ -400,15 +402,27 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun draw(c: Canvas) {
-        if (showStats) drawStats(c)
-        if (showMinimap) {
+        // 카메라(탐조) 모드에서는 뷰파인더가 화면의 주인이다.
+        // 구석의 정보 패널·나침반은 잠시 내려놓고, 조작 버튼만 옅게 남겨 길을 잃지 않게 한다.
+        val photo = photoModeHint
+        if (showStats && !photo) drawStats(c)
+        if (showMinimap && !photo) {
             drawMinimap(c, mmCx, mmCy, mmR, false)
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
         }
-        if (questLabel != null) {
+        if (questLabel != null && !photo) {
             drawChip(c, questChipX(), questChipY(), "🔍 $questLabel")
         }
-        if (showControls) drawControls(c)
+        if (showControls) {
+            if (photo) {
+                photoDimPaint.alpha = 104
+                val layer = c.saveLayer(0f, 0f, game.screenW.toFloat(), game.screenH.toFloat(), photoDimPaint)
+                drawControls(c)
+                c.restoreToCount(layer)
+            } else {
+                drawControls(c)
+            }
+        }
         drawBanner(c)
         drawMessages(c)
     }
