@@ -680,36 +680,39 @@ object MapBuilder {
 
     /** 집 내부 맵 (13x9) */
     fun buildHome(): GameMap {
-        val w = 13
-        val h = 9
+        // 2K 화질 업그레이드: 집 내부를 13x9 -> 16x12로 넓혀 넓은 화면비(20:9)에서도 가득 차 보이게.
+        val w = 16
+        val h = 12
         val t = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         // 벽
         for (x in 0 until w) { t[0][x] = T.WALL_IN.ordinal; t[1][x] = T.WALL_IN.ordinal }
         for (y in 0 until h) { t[y][0] = T.WALL_IN.ordinal; t[y][w - 1] = T.WALL_IN.ordinal }
-        for (y in 2 until h) t[y][w - 1] = T.WALL_IN.ordinal
         // 현관문 (아래쪽 중앙)
         for (x in 0 until w) t[h - 1][x] = T.WALL_IN.ordinal
-        t[h - 1][6] = T.HOUSE_DOOR.ordinal
+        t[h - 1][7] = T.HOUSE_DOOR.ordinal
+        t[h - 1][8] = T.HOUSE_DOOR.ordinal
         // 창문
         t[1][2] = T.WALL_WIN.ordinal
-        t[1][5] = T.WALL_WIN.ordinal
-        t[1][8] = T.WALL_WIN.ordinal
-        // 화덕 (기본 제공!)
-        t[2][9] = T.OVEN.ordinal; t[2][10] = T.OVEN.ordinal
-        t[3][9] = T.OVEN.ordinal; t[3][10] = T.OVEN.ordinal
-        // 침대
+        t[1][6] = T.WALL_WIN.ordinal
+        t[1][10] = T.WALL_WIN.ordinal
+        t[1][13] = T.WALL_WIN.ordinal
+        // 화덕 (기본 제공!) — 오른쪽 상단
+        t[2][12] = T.OVEN.ordinal; t[2][13] = T.OVEN.ordinal
+        t[3][12] = T.OVEN.ordinal; t[3][13] = T.OVEN.ordinal
+        // 침대 — 왼쪽 상단
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
+        t[3][2] = T.BED.ordinal
         // 이사 박스
-        t[6][2] = T.BOX.ordinal
+        t[8][2] = T.BOX.ordinal
         // 장식 슬롯 (DECOR 0,1,2 순서로 HomeScene과 매칭)
-        t[2][5] = T.DECOR.ordinal
-        t[2][7] = T.DECOR.ordinal
-        t[5][11] = T.DECOR.ordinal
+        t[2][6] = T.DECOR.ordinal
+        t[2][9] = T.DECOR.ordinal
+        t[7][13] = T.DECOR.ordinal
         val home = Regions.byId["seoul"]!! // 내부맵은 지역 무관 (더미)
         val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
-        return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 6, h - 1)
+        return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 7, h - 1)
     }
 }
 

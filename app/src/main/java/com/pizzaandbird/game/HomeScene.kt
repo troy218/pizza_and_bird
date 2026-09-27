@@ -27,32 +27,32 @@ class HomeScene(game: Game) : Scene(game) {
     private val uiFill = Paint()
 
     // 상호작용 대상 위치 (월드 px)
-    private val ovenX = 10f * 16f
-    private val ovenY = 4f * 16f
-    private val bedX = 3f * 16f
+    private val ovenX = 12.5f * 16f       // buildHome 오븐 타일 (12..13, 2..3) 중심
+    private val ovenY = 3.5f * 16f
+    private val bedX = 3f * 16f           // 침대 타일 (2..3, 2..3) 중심
     private val bedY = 3f * 16f
     private val boxX = 2.5f * 16f
-    private val boxY = 6.5f * 16f
+    private val boxY = 8.5f * 16f
     // 거실의 인테리어 카탈로그. A를 누르면 여러 디자인을 보고 구매한다.
-    private val interiorX = 4.5f * 16f
-    private val interiorY = 6.5f * 16f
+    private val interiorX = 5f * 16f
+    private val interiorY = 8.5f * 16f
 
     /** 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1 */
     private val decorSpots = listOf(
-        Triple(0, 5.5f * 16f, 3f * 16f),
-        Triple(1, 7.5f * 16f, 3f * 16f),
-        Triple(2, 11.5f * 16f, 6f * 16f)
+        Triple(0, 6.5f * 16f, 3f * 16f),
+        Triple(1, 9.5f * 16f, 3f * 16f),
+        Triple(2, 13.5f * 16f, 8f * 16f)
     )
     /** 장식이 놓이는 타일 위치 (월드 px, 좌상단) */
     private val decorTiles = listOf(
-        5f * 16f to 2f * 16f,
-        7f * 16f to 2f * 16f,
-        11f * 16f to 5f * 16f
+        6f * 16f to 2f * 16f,
+        9f * 16f to 2f * 16f,
+        13f * 16f to 7f * 16f
     )
 
     init {
         state.inHome = true
-        player.set(6 * 16f + 4f, 6 * 16f)
+        player.set(7.5f * 16f, 8.5f * 16f)
 
         game.hud.showControls = true
         game.hud.showStats = true
@@ -320,9 +320,9 @@ class HomeScene(game: Game) : Scene(game) {
         game.illustrations.draw(
             c, "wood_fired_oven.svg",
             RectF(
-                (9f * 16f - camX) * WORLD_SCALE - 16f,
+                (12f * 16f - camX) * WORLD_SCALE - 16f,
                 (1f * 16f - camY) * WORLD_SCALE - 8f,
-                (9f * 16f - camX) * WORLD_SCALE + 80f,
+                (12f * 16f - camX) * WORLD_SCALE + 80f,
                 (1f * 16f - camY) * WORLD_SCALE + 100f
             )
         )
@@ -356,7 +356,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (state.worldTime >= 18.5f || state.worldTime < 5f) {
             uiFill.color = Color.argb(30, 20, 26, 60)
             c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiFill)
-            for (wx in listOf(2, 5, 8)) {
+            for (wx in listOf(2, 6, 10, 13)) {
                 val wxx = (wx * 16f - camX) * WORLD_SCALE
                 val wyy = (1 * 16f - camY) * WORLD_SCALE
                 uiFill.color = Color.argb(90, 24, 32, 80)
@@ -426,16 +426,20 @@ class HomeScene(game: Game) : Scene(game) {
                 }
             }
         }
-        // 스타일별 포인트 라인/패턴
+        // 스타일별 포인트 라인/패턴 — 룸(16x12 타일) 좌표계를 그대로 따른다.
+        // (이전 구현은 누락된 좌표 변환 때문에 방 밖까지 그려지는 버그가 있었다)
         p.color = Color.argb(150, Color.red(style.accentTint), Color.green(style.accentTint), Color.blue(style.accentTint))
+        fun rx(px: Float): Float = (px - camX) * WORLD_SCALE
+        fun ry(py: Float): Float = (py - camY) * WORLD_SCALE
+        val roomPx = map.w * 16f     // 방 폭 (월드 px)
         when (style.id) {
-            "hanok" -> c.drawRect(32f, 64f, 384f, 69f, p)
-            "modern" -> c.drawRect(32f, 190f, 384f, 195f, p)
+            "hanok" -> c.drawRect(rx(32f), ry(64f), rx(roomPx - 32f), ry(69f), p)
+            "modern" -> c.drawRect(rx(32f), ry(190f), rx(roomPx - 32f), ry(195f), p)
             "garden" -> {
-                c.drawCircle(130f, 190f, 14f, p)
-                c.drawCircle(165f, 190f, 10f, p)
+                c.drawCircle(rx(130f), ry(190f), 14f, p)
+                c.drawCircle(rx(165f), ry(190f), 10f, p)
             }
-            else -> c.drawRect(32f, 202f, 384f, 206f, p)
+            else -> c.drawRect(rx(32f), ry(202f), rx(roomPx - 32f), ry(206f), p)
         }
         // 인테리어 카탈로그 보드
         val bx = (interiorX - 10f - camX) * WORLD_SCALE

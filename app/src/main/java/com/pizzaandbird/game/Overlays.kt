@@ -706,7 +706,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val total = Birds.ALL.size
         textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("📚 도감 $done/$total종", areaLeft, contentTop() + dp(scene, 4f), textP)
+        c.drawText("📚 도감 $done/${total}종", areaLeft, contentTop() + dp(scene, 4f), textP)
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFFB5651D.toInt()
         val pctTxt = "${(done * 100f / total).toInt()}% 완성!"
@@ -847,6 +847,23 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             g.audio.setSfx(g.state.sfxOn)
             SaveManager.save(g.context, g.state)
         }
+        row("🖥", "화질: " + when (g.state.renderScale) {
+            "1" -> "1배 (성능 우선)"
+            "2" -> "2배 (고화질)"
+            "3" -> "3배 (최고 화질)"
+            else -> "자동 (2K 기준)"
+        }, "월드 렌더 해상도 — 높을수록 또렷해요", false) {
+            g.state.renderScale = when (g.state.renderScale) {
+                "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
+            }
+            g.applyRenderQuality()
+            SaveManager.save(g.context, g.state)
+        }
+        row("🎨", "화면 보간: " + if (g.state.smoothScreen) "부드럽게" else "끔 (픽셀 선명)", "픽셀 아트를 부드럽게 확대해 보여요", false) {
+            g.state.smoothScreen = !g.state.smoothScreen
+            g.applyRenderQuality()
+            SaveManager.save(g.context, g.state)
+        }
         row("💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false) {
             SaveManager.save(g.context, g.state)
             g.toast("저장 완료! ✨")
@@ -876,7 +893,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             drawCard(c, scene, footR)
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.3.0-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
+            c.drawText("🍕 Pizza and Bird v0.4.0-beta01 · 2K", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)

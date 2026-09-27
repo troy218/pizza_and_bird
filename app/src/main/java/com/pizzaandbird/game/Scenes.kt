@@ -55,6 +55,9 @@ class TitleScene(game: Game) : Scene(game) {
     override fun drawWorld(c: Canvas) {
         val p = Paint()
         val a = game.assets
+        val W = game.virtW.toFloat()          // 화면비 적응 가상 너비
+        val ox = (W - 960f) / 2f              // 16:9 구도를 중앙 유지하기 위한 오프셋
+        val span = W + 160f                   // 구름/새 반복 범위
 
         // 하늘 그라데이션(밴드)
         val skyBands = intArrayOf(
@@ -63,52 +66,54 @@ class TitleScene(game: Game) : Scene(game) {
         )
         for (i in skyBands.indices) {
             p.color = skyBands[i]
-            c.drawRect(0f, i * 76f, 960f, (i + 1) * 76f, p)
+            c.drawRect(0f, i * 76f, W, (i + 1) * 76f, p)
         }
 
         // 햇살
         p.color = 0xFFF7EDB8.toInt()
-        c.drawCircle(856f, 84f, 44f, p)
+        c.drawCircle(856f + ox, 84f, 44f, p)
         p.color = Color.argb(50, 247, 237, 184)
-        c.drawCircle(856f, 84f, 62f, p)
+        c.drawCircle(856f + ox, 84f, 62f, p)
         p.color = Color.argb(28, 247, 237, 184)
-        c.drawCircle(856f, 84f, 84f, p)
+        c.drawCircle(856f + ox, 84f, 84f, p)
         p.color = 0xFFFFFBE0.toInt()
-        c.drawCircle(856f, 84f, 32f, p)
+        c.drawCircle(856f + ox, 84f, 32f, p)
 
         // 구름 (두 겹)
         p.color = Color.argb(215, 255, 255, 255)
-        drawCloud(c, p, (t * 9f) % 1120f - 120f, 70f, 1.4f)
-        drawCloud(c, p, (t * 5f + 300f) % 1120f - 120f, 130f, 1.0f)
-        drawCloud(c, p, (t * 6.5f + 640f) % 1120f - 120f, 52f, 1.2f)
+        drawCloud(c, p, (t * 9f) % span - 120f, 70f, 1.4f)
+        drawCloud(c, p, (t * 5f + 300f) % span - 120f, 130f, 1.0f)
+        drawCloud(c, p, (t * 6.5f + 640f) % span - 120f, 52f, 1.2f)
         p.color = Color.argb(120, 214, 236, 244)
-        drawCloud(c, p, (t * 3.5f + 120f) % 1120f - 120f, 180f, 2.2f)
-        drawCloud(c, p, (t * 4.5f + 760f) % 1120f - 120f, 110f, 1.8f)
+        drawCloud(c, p, (t * 3.5f + 120f) % span - 120f, 180f, 2.2f)
+        drawCloud(c, p, (t * 4.5f + 760f) % span - 120f, 110f, 1.8f)
 
         // 날아가는 새 실루엣
         p.color = Color.argb(150, 90, 80, 90)
         p.strokeWidth = 2.4f
         for (i in 0 until 4) {
-            val bx = (t * 26f + i * 240f) % 1120f - 80f
+            val bx = (t * 26f + i * 240f) % span - 80f
             val by = 90f + i * 38f + sin(t * 2f + i) * 9f
             c.drawLine(bx, by, bx + 9f, by - 4f, p)
             c.drawLine(bx + 9f, by - 4f, bx + 18f, by, p)
         }
 
-        // 먼 언덕
+        // 먼 언덕 (넓은 화면비에서도 지평선이 빈틈없이 덮이도록 가장자리를 채운다)
         p.color = 0xFF7ABC7A.toInt()
-        c.drawCircle(200f, 470f, 190f, p)
-        c.drawCircle(640f, 492f, 230f, p)
+        if (W > 962f) { c.drawCircle(ox - 60f, 474f, 230f, p); c.drawCircle(W - ox + 60f, 480f, 240f, p) }
+        c.drawCircle(200f + ox, 470f, 190f, p)
+        c.drawCircle(640f + ox, 492f, 230f, p)
         p.color = 0xFF68AC6C.toInt()
-        c.drawCircle(420f, 486f, 170f, p)
-        c.drawCircle(880f, 478f, 150f, p)
+        c.drawCircle(420f + ox, 486f, 170f, p)
+        c.drawCircle(880f + ox, 478f, 150f, p)
 
-        // 풀 타일 바닥 (하단 3줄)
+        // 풀 타일 바닥 (하단 3줄 — 화면비에 맞춰 채운다)
         val grass = a.tiles[T.GRASS.ordinal]
         val flowers = a.tiles[T.FLOWER.ordinal]
         val tall = a.tiles[T.TALLGRASS.ordinal]
+        val maxCol = (game.virtW + 31) / 32
         for (row in 12..16) {
-            for (col in 0 until 30) {
+            for (col in 0 until maxCol) {
                 val variant = a.tileVariant(T.GRASS.ordinal, col, row)
                 c.drawBitmap(grass[variant], col * 32f, row * 32f, a.sprPaint)
             }
@@ -116,37 +121,39 @@ class TitleScene(game: Game) : Scene(game) {
         // 꽃/풀숲 포인트
         val decoSpots = listOf(
             1 to 13, 5 to 14, 9 to 13, 14 to 15, 18 to 13, 22 to 14, 26 to 13, 28 to 15,
-            3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16
-        )
+            3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16,
+            31 to 13, 34 to 15, 37 to 14, 40 to 16
+        ).filter { it.first < maxCol }
         for ((i, pair) in decoSpots.withIndex()) {
             val (col, row) = pair
             val bmp = if (i % 3 == 2) tall[i % tall.size] else flowers[i % flowers.size]
             c.drawBitmap(bmp, col * 32f, row * 32f, a.sprPaint)
         }
 
-        // 지평선 나무
+        // 지평선 나무 (화면비에 따라 분포)
         val trees = a.tiles[T.TREE.ordinal]
-        for ((i, tx) in listOf(60f, 300f, 560f, 820f).withIndex()) {
-            c.drawBitmap(trees[i % trees.size], tx, 352f, a.sprPaint)
+        val treeFx = listOf(0.0625f, 0.3125f, 0.5833f, 0.8542f)
+        for ((i, fx) in treeFx.withIndex()) {
+            c.drawBitmap(trees[i % trees.size], fx * W, 352f, a.sprPaint)
         }
         val pines = trees.size
-        if (pines > 1) c.drawBitmap(trees[1], 690f, 356f, a.sprPaint)
+        if (pines > 1) c.drawBitmap(trees[1], 0.719f * W, 356f, a.sprPaint)
 
         // 피자 & 새 로고
         val bob = sin(t * 2.2f) * 5f
         val pz = a.pizzaIconBig
-        c.drawBitmap(pz, 384f, 336f + bob, a.sprPaint)
+        c.drawBitmap(pz, 384f + ox, 336f + bob, a.sprPaint)
         p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
-        c.drawCircle(658f, 380f, 43f, p)
-        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f, 334f, 696f, 424f))
+        c.drawCircle(658f + ox, 380f, 43f, p)
+        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f + ox, 334f, 696f + ox, 424f))
         val bird = a.bird("sparrow")
-        c.drawBitmap(bird, 296f, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
+        c.drawBitmap(bird, 296f + ox, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
         val fb = sin(t * 2.6f + 1f) * 7f
-        c.drawBitmap(a.birdFlipped("sparrow"), 536f, 300f + fb, a.sprPaint)
+        c.drawBitmap(a.birdFlipped("sparrow"), 536f + ox, 300f + fb, a.sprPaint)
         val crane = a.bird("crane")
-        c.drawBitmap(crane, 130f, 300f + sin(t * 1.7f) * 5f, a.sprPaint)
+        c.drawBitmap(crane, 130f + ox, 300f + sin(t * 1.7f) * 5f, a.sprPaint)
         val owl = a.bird("owl")
-        c.drawBitmap(owl, 806f, 306f + sin(t * 2.9f) * 4f, a.sprPaint)
+        c.drawBitmap(owl, 806f + ox, 306f + sin(t * 2.9f) * 4f, a.sprPaint)
     }
 
     private fun drawCloud(c: Canvas, p: Paint, x: Float, y: Float, s: Float) {
@@ -222,7 +229,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
-        val info = "v0.3.0 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
+        val info = "v0.4.0 beta · 2K 렌더링 · 오프라인 · 한국 12곳 · 공식 새 598종 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 
@@ -261,19 +268,40 @@ class TitleScene(game: Game) : Scene(game) {
 /** 스폰 위치 종류 */
 enum class SpawnKind { SAVED, TUNNEL, HOME }
 
-/** 첫 플레이 시 아바타 선택 화면 */
+/** 첫 플레이 시 아바타 선택 화면 (가상 좌표계 — 화면비 적응) */
 class CharacterSelectScene(game: Game) : Scene(game) {
-    private val male = RectF(180f, 245f, 450f, 390f)
-    private val female = RectF(510f, 245f, 780f, 390f)
-    init { game.hud.showControls = false; game.hud.showStats = false; game.hud.showMinimap = false }
+    private val male: RectF
+    private val female: RectF
+    init {
+        game.hud.showControls = false; game.hud.showStats = false; game.hud.showMinimap = false
+        val cx = game.virtW / 2f
+        male = RectF(cx - 300f, 245f, cx - 30f, 390f)
+        female = RectF(cx + 30f, 245f, cx + 300f, 390f)
+    }
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFFA4E4EE.toInt()); val p=Paint(Paint.ANTI_ALIAS_FLAG)
+        val cx = game.virtW / 2f
         p.color=0xFF6B4F35.toInt(); p.textSize=30f; p.isFakeBoldText=true
-        c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, p)
-        p.textSize=16f; p.isFakeBoldText=false; c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
+        var t1 = "여행할 캐릭터를 골라 주세요"
+        c.drawText(t1, cx - p.measureText(t1)/2, 115f, p)
+        p.textSize=16f; p.isFakeBoldText=false
+        var t2 = "선택한 캐릭터는 게임 내내 함께 여행해요"
+        c.drawText(t2, cx - p.measureText(t2)/2, 145f, p)
         fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); p.textSize=22f; p.isFakeBoldText=true; c.drawText(label,r.centerX()-p.measureText(label)/2,r.bottom-25,p) }
         card(male,"남자",game.state.gender=="male",game.assets.playerDown[0]); card(female,"여자",game.state.gender=="female",game.assets.playerDown[0])
-        p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
+        p.textSize=15f; p.isFakeBoldText=false
+        var t3 = "탭해서 선택 · A 버튼으로 계속"
+        c.drawText(t3, cx - p.measureText(t3)/2, 455f, p)
     }
-    override fun handleInput(input:Input) { val t=input.consumeTapScreen(); if(t!=null){ if(male.contains(t.x,t.y)) game.state.gender="male"; if(female.contains(t.x,t.y)) game.state.gender="female"; if(male.contains(t.x,t.y)||female.contains(t.x,t.y)) game.haptic() }; if(input.justA && (game.state.gender=="male"||game.state.gender=="female")) game.fadeTo { game.scene=RegionSelectScene(game) } }
+    override fun handleInput(input:Input) {
+        val t=input.consumeTapScreen()
+        if(t!=null){
+            // 화면 px -> 가상 좌표 변환 (기기 해상도와 무관하게 동일하게 동작)
+            val v = game.screenToWorld(android.graphics.PointF(t.x, t.y))
+            if(male.contains(v.x,v.y)) game.state.gender="male"
+            if(female.contains(v.x,v.y)) game.state.gender="female"
+            if(male.contains(v.x,v.y)||female.contains(v.x,v.y)) game.haptic()
+        }
+        if(input.justA && (game.state.gender=="male"||game.state.gender=="female")) game.fadeTo { game.scene=RegionSelectScene(game) }
+    }
 }

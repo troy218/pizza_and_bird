@@ -50,6 +50,35 @@ object Color {
 
     @JvmStatic
     fun blue(color: Int): Int = color and 0xFF
+
+    private val NAMED = mapOf(
+        "black" to 0xFF000000, "white" to 0xFFFFFFFF, "red" to 0xFFFF0000,
+        "green" to 0xFF008000, "blue" to 0xFF0000FF, "yellow" to 0xFFFFFF00,
+        "gray" to 0xFF808080, "grey" to 0xFF808080, "orange" to 0xFFFFA500,
+        "brown" to 0xFFA52A2A, "pink" to 0xFFFFC0CB, "purple" to 0xFF800080,
+        "transparent" to 0x00000000L
+    )
+
+    @JvmStatic
+    fun parseColor(colorString: String): Int {
+        val s = colorString.trim()
+        NAMED[s.lowercase()]?.let { return it.toInt() }
+        require(s.startsWith("#")) { "Unknown color: $colorString" }
+        val hex = s.substring(1)
+        return when (hex.length) {
+            3 -> {
+                val r = hex[0].digitToInt(16); val g = hex[1].digitToInt(16); val b = hex[2].digitToInt(16)
+                argb(255, r * 17, g * 17, b * 17)
+            }
+            4 -> {
+                val a = hex[0].digitToInt(16); val r = hex[1].digitToInt(16); val g = hex[2].digitToInt(16); val b = hex[3].digitToInt(16)
+                argb(a * 17, r * 17, g * 17, b * 17)
+            }
+            6 -> argb(255, hex.substring(0, 2).toInt(16), hex.substring(2, 4).toInt(16), hex.substring(4, 6).toInt(16))
+            8 -> argb(hex.substring(0, 2).toInt(16), hex.substring(2, 4).toInt(16), hex.substring(4, 6).toInt(16), hex.substring(6, 8).toInt(16))
+            else -> throw IllegalArgumentException("Unknown color: $colorString")
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -216,20 +245,20 @@ class Path {
 // Shader / Effect
 // ---------------------------------------------------------------------------
 
-open class Shader
-
-enum class TileMode { CLAMP, REPEAT, MIRROR }
+open class Shader {
+    enum class TileMode { CLAMP, REPEAT, MIRROR }
+}
 
 class LinearGradient(
     x0: Float, y0: Float, x1: Float, y1: Float,
-    color0: Int, color1: Int, tileMode: TileMode = TileMode.CLAMP
+    color0: Int, color1: Int, tileMode: Shader.TileMode = Shader.TileMode.CLAMP
 ) : Shader() {
-    internal val gp = GradientPaint(x0, y0, JColor(color0, true), x1, y1, JColor(color1, true), tileMode == TileMode.REPEAT)
+    internal val gp = GradientPaint(x0, y0, JColor(color0, true), x1, y1, JColor(color1, true), tileMode == Shader.TileMode.REPEAT)
 }
 
 class RadialGradient(
     centerX: Float, centerY: Float, radius: Float,
-    color0: Int, color1: Int, tileMode: TileMode = TileMode.CLAMP
+    color0: Int, color1: Int, tileMode: Shader.TileMode = Shader.TileMode.CLAMP
 ) : Shader() {
     internal val rgp = java.awt.RadialGradientPaint(
         centerX, centerY, max(radius, 0.01f), floatArrayOf(0f, 1f),
@@ -258,10 +287,11 @@ object StubText {
 
     fun loadFromDir(dir: File) {
         try {
+            // 파일 경로 대신 바이트 스트림으로 로드 (일부 런타임의 파일 mmap 제한 회피)
             val reg = File(dir, "NotoSansKR-Regular.ttf")
             val bold = File(dir, "NotoSansKR-Bold.ttf")
-            if (reg.exists()) regular = Font.createFont(Font.TRUETYPE_FONT, reg)
-            if (bold.exists()) this.bold = Font.createFont(Font.TRUETYPE_FONT, bold)
+            if (reg.exists()) regular = Font.createFont(Font.TRUETYPE_FONT, java.io.ByteArrayInputStream(reg.readBytes()))
+            if (bold.exists()) this.bold = Font.createFont(Font.TRUETYPE_FONT, java.io.ByteArrayInputStream(bold.readBytes()))
             // deriveFont를 한 번 호출해 글리프 초기화
             regular?.deriveFont(12f)
             this.bold?.deriveFont(12f)
@@ -641,10 +671,26 @@ class Canvas {
 
     fun scale(sx: Float, sy: Float) = g.scale(sx.toDouble(), sy.toDouble())
 
+    fun scale(sx: Float, sy: Float, px: Float, py: Float) {
+        g.translate(px.toDouble(), py.toDouble())
+        g.scale(sx.toDouble(), sy.toDouble())
+        g.translate(-px.toDouble(), -py.toDouble())
+    }
+
     fun rotate(degrees: Float) = g.rotate(Math.toRadians(degrees.toDouble()))
+
+    fun restoreToCount(count: Int) {
+        // Android 시맨틱: save()가 반환한 값 n에 대해 스택을 n-1개가 남을 때까지 되돌린다
+        // (해당 save 시점의 상태로 복원).
+        while (stack.size >= count && stack.isNotEmpty()) restore()
+    }
 
     fun clipRect(l: Float, t: Float, r: Float, b: Float) {
         g.clip(Rectangle2D.Float(l, t, r - l, b - t))
+    }
+
+    fun clipRect(r: RectF) {
+        g.clip(Rectangle2D.Float(r.left, r.top, r.width(), r.height()))
     }
 
     fun clipPath(path: Path) {

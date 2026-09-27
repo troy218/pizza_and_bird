@@ -35,6 +35,7 @@ import com.pizzaandbird.game.RegionSelectScene
 import com.pizzaandbird.game.Scene
 import com.pizzaandbird.game.SpawnKind
 import com.pizzaandbird.game.T
+import com.pizzaandbird.game.TitleScene
 import com.pizzaandbird.game.WorldScene
 import java.io.File
 import javax.imageio.ImageIO
@@ -101,9 +102,9 @@ private class FakeContext(density: Float) : Context() {
 object PreviewMain {
 
     private lateinit var outDir: File
-    private val density = 2f
-    private const val SW = 1920
-    private const val SH = 1080
+    private val density = 2.6f
+    private const val SW = 2560
+    private const val SH = 1440
 
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt()
@@ -173,6 +174,9 @@ object PreviewMain {
         // ---------------- 오버레이 ----------------
         overlayShots(game)
 
+        // ---------------- 화면비 적응 검증 ----------------
+        ultrawideShots(game)
+
         println("preview done -> ${outDir.absolutePath}")
     }
 
@@ -223,6 +227,18 @@ object PreviewMain {
         game.render(c)
         ImageIO.write(bmp.image, "png", File(outDir, "$name.png"))
         println("  + $name.png")
+    }
+
+    private fun renderScreen(game: Game, name: String, w: Int, h: Int) {
+        game.onSurfaceChanged(w, h)
+        // 실제 기기와 동일하게: 리사이즈 후 몇 프레임 업데이트로 카메라를 재클램프/수렴
+        simulate(game, 0.6f)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        game.render(c)
+        ImageIO.write(bmp.image, "png", File(outDir, "$name.png"))
+        println("  + $name.png")
+        game.onSurfaceChanged(SW, SH)
     }
 
     // ------------------------------------------------------------------
@@ -355,6 +371,19 @@ object PreviewMain {
         scene.openOverlay(DecorPickOverlay(scene, 0) {})
         renderScreen(game, "27_decor_pick")
         scene.closeOverlay()
+    }
+
+    /** 화면비 적응 검증: 20:9 · 16:10 울트라와이드 샷 */
+    private fun ultrawideShots(game: Game) {
+        game.state.worldTime = 12.5f
+        game.scene = TitleScene(game)
+        simulate(game, 2.2f)
+        renderScreen(game, "28_ultrawide_title_20x9", 2400, 1080)
+
+        game.state.worldTime = 12.5f
+        game.scene = WorldScene(game, "seoul", SpawnKind.SAVED)
+        simulate(game, 2.0f)
+        renderScreen(game, "29_ultrawide_world_20x9", 2400, 1080)
     }
 
     // ------------------------------------------------------------------

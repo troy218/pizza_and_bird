@@ -11,16 +11,43 @@ import android.graphics.RectF
 /** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 32px 렌더 */
 const val WORLD_SCALE = 2f
 
+/** 가상 렌더링 세로 기준 (2K 설계). 모든 화면비에서 이 높이를 유지한다. */
+const val VIRT_H = 540
+
+/** 가상 너비 클램프 — 초광폭/4:3까지 지원 (540p 기준 4:3=720, 21.3:9=1280) */
+private const val VIRT_W_MIN = 720
+private const val VIRT_W_MAX = 1280
+
+/** 월드 슈퍼샘플 비트맵 상한 (픽셀 수 — 메모리 가드, ≈52MB @ARGB8888, 4K@2× 허용) */
+private const val WORLD_BITMAP_MAX_PIXELS = 13_000_000L
+
 /**
- * 게임 전역 컨텍스트: 씬 관리, 가상 해상도(960x540) 스케일링, 페이드 전환.
+ * 게임 전역 컨텍스트: 씬 관리, 2K 기준 가상 해상도 스케일링, 페이드 전환.
+ *
+ * ## 2K 렌더링 아키텍처 (v0.4)
+ * - **가상 해상도**: 세로 540 고정 · 가로는 화면 비율에 맞춰 720~1280으로 자동 확장
+ *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 레터박스 없이 넓게 보인다)
+ * - **월드 슈퍼샘플링**: 월드는 `worldScale`(정수 1~3배) 비트맵에 렌더된 뒤 화면에 출력된다.
+ *   스프라이트는 정수배로 커지므로 픽셀 아트 격자가 흐트러지지 않고,
+ *   FHD=2×(1080p 네이티브) · QHD(2K)=2×(업스케일 1.33, 기존 2.67 대비 픽셀 굵기 절반) · 4K=3×
+ * - **HUD/오버레이/텍스트**: 항상 실제 화면 해상도에 직접 렌더 — 2K에서도 글자가 선명하다
+ * - 설정 › 화질에서 렌더 배율(자동/1×/2×/3×)과 화면 보간을 바꿀 수 있다
  */
 class Game(val context: Context) {
 
-    val virtW = 960
-    val virtH = 540
+    /** 가상 화면 크기 (세로 540 고정, 가로는 화면비 적응) */
+    var virtW = 960
+        private set
+    val virtH = VIRT_H
 
-    val worldBitmap: Bitmap = Bitmap.createBitmap(virtW, virtH, Bitmap.Config.ARGB_8888)
-    val worldCanvas = Canvas(worldBitmap)
+    /** 월드 슈퍼샘플 배율 (정수 1~3). 월드 비트맵 = virt*worldScale */
+    var worldScale = 1
+        private set
+
+    var worldBitmap: Bitmap = Bitmap.createBitmap(virtW, virtH, Bitmap.Config.ARGB_8888)
+        private set
+    var worldCanvas = Canvas(worldBitmap)
+        private set
 
     val state: GameState = SaveManager.load(context)
     val assets = Assets()
@@ -47,11 +74,53 @@ class Game(val context: Context) {
     fun onSurfaceChanged(w: Int, h: Int) {
         screenW = w
         screenH = h
-        viewScale = minOf(w.toFloat() / virtW, h.toFloat() / virtH)
+        // 1) 가상 너비 = 세로 540 기준 화면 비율 (클램프로 극단 비율 대응)
+        virtW = (VIRT_H.toFloat() * w / h.toFloat()).toInt().coerceIn(VIRT_W_MIN, VIRT_W_MAX)
+        // 2) 월드 슈퍼샘플 배율 (설정 반영 + 메모리 가드)
+        worldScale = computeWorldScale(w, h)
+        rebuildWorldBitmap()
+        // 3) 화면 매핑: 세로 길이에 정확히 맞춘다 (가로는 클램프 시에만 아주 작은 여백)
+        viewScale = h.toFloat() / virtH.toFloat()
         viewOffX = (w - virtW * viewScale) / 2f
-        viewOffY = (h - virtH * viewScale) / 2f
+        viewOffY = 0f
         hud.layout(w, h)
         scene.onLayout()
+    }
+
+    /** 설정(state.renderScale)과 화면 크기로 월드 배율 결정 */
+    private fun computeWorldScale(w: Int, h: Int): Int {
+        val auto = (h / VIRT_H).coerceIn(1, 3)   // FHD=2 · QHD=2 · 4K=3
+        val s = when (state.renderScale) {
+            "1" -> 1
+            "2" -> 2
+            "3" -> 3
+            else -> auto
+        }
+        // 가드: 비트맵 픽셀 수 상한 초과 시 배율을 줄인다
+        var k = s
+        while (k > 1 && virtW.toLong() * k * virtH.toLong() * k > WORLD_BITMAP_MAX_PIXELS) k--
+        return k
+    }
+
+    /** 월드 비트맵 재생성 (배율/화면 크기 변경 시) */
+    private fun rebuildWorldBitmap() {
+        val bw = (virtW * worldScale).coerceAtLeast(1)
+        val bh = (virtH * worldScale).coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+        worldBitmap = bmp
+        worldCanvas = Canvas(bmp)
+    }
+
+    /** 화질 설정 변경 후 호출 — 배율/보간을 다시 적용한다 */
+    fun applyRenderQuality() {
+        assets.pxPaint.isFilterBitmap = state.smoothScreen
+        if (screenW > 0 && screenH > 0) {
+            val newScale = computeWorldScale(screenW, screenH)
+            if (newScale != worldScale) {
+                worldScale = newScale
+                rebuildWorldBitmap()
+            }
+        }
     }
 
     /** 화면 좌표 -> 월드 논리 좌표 (월드는 WORLD_SCALE배로 그려진다) */
@@ -101,7 +170,13 @@ class Game(val context: Context) {
     }
 
     fun render(c: Canvas) {
-        scene.drawWorld(worldCanvas)
+        // 월드: 가상 좌표계로 그리고 worldScale배 슈퍼샘플 비트맵에 기록
+        val wc = worldCanvas
+        wc.save()
+        wc.scale(worldScale.toFloat(), worldScale.toFloat())
+        scene.drawWorld(wc)
+        wc.restore()
+        // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())
         val dst = RectF(
             viewOffX, viewOffY,

@@ -146,11 +146,12 @@ class RegionSelectScene(game: Game) : Scene(game) {
     override fun drawWorld(c: Canvas) {
         val p = Paint()
         val a = game.assets
+        val W = game.virtW.toFloat()          // 화면비 적응 가상 너비
         // 하늘
         p.color = 0xFFA4E4EE.toInt()
-        c.drawRect(0f, 0f, 960f, 540f, p)
+        c.drawRect(0f, 0f, W, 540f, p)
         p.color = 0xFFBCEAF0.toInt()
-        c.drawRect(0f, 180f, 960f, 540f, p)
+        c.drawRect(0f, 180f, W, 540f, p)
         // 구름
         p.color = Color.argb(200, 255, 255, 255)
         c.drawCircle(120f, 60f, 16f, p); c.drawCircle(146f, 52f, 20f, p); c.drawCircle(174f, 62f, 15f, p)
@@ -163,9 +164,9 @@ class RegionSelectScene(game: Game) : Scene(game) {
         c.drawCircle(780f, 630f, 300f, p)
         p.color = 0xFF7ABC7A.toInt()
         c.drawCircle(470f, 620f, 240f, p)
-        // 풀 타일 바닥
+        // 풀 타일 바닥 (화면비에 맞춰 채운다)
         val grass = a.tiles[T.GRASS.ordinal]
-        for (row in 13..16) for (col in 0 until 30) {
+        for (row in 13..16) for (col in 0 until (game.virtW + 31) / 32) {
             val variant = a.tileVariant(T.GRASS.ordinal, col, row)
             c.drawBitmap(grass[variant], col * 32f, row * 32f, a.sprPaint)
         }
@@ -173,7 +174,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
         // 날아가는 새들
         val birds = listOf("sparrow", "gull", "greattit", "egret")
         for (i in 0 until 4) {
-            val bx = (t * (16f + i * 6f) + i * 240f) % 1120f - 80f
+            val bx = (t * (16f + i * 6f) + i * 240f) % (W + 160f) - 80f
             val by = 60f + i * 34f + sin(t * 1.8f + i * 2f) * 9f
             c.drawBitmap(a.bird(birds[i]), bx, by, a.sprPaint)
         }
