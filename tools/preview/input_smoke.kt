@@ -6,6 +6,7 @@ import android.content.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.PointF
+import android.graphics.RectF
 import android.view.KeyEvent
 import android.view.MotionEvent
 import com.pizzaandbird.game.*
@@ -33,6 +34,11 @@ object InputSmoke {
         g.input.onTouchEvent(MotionEvent(MotionEvent.ACTION_UP, pointers = point))
         frame(g)
     }
+    private fun tapButton(g: Game, name: String) {
+        val r = g.scene.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(g.scene) as RectF
+        check(r.width() > 0f && r.height() > 0f)
+        tap(g, r.centerX(), r.centerY())
+    }
     private fun advanceFade(g: Game) { repeat(40) { frame(g) }; render(g) }
     private fun near(a: Float, b: Float) = check(abs(a - b) < 0.01f) { "$a != $b" }
 
@@ -41,23 +47,24 @@ object InputSmoke {
         val g = Game(TestContext())
         // 가로가 더 긴 기기의 양쪽 레터박스까지 검증한다 (가상 1200x540 -> 2400x1080).
         g.onSurfaceChanged(2400, 1080)
+        repeat(60) { frame(g) } // 타이틀 등장 애니메이션 완료
         render(g)
-        tap(g, 1200f, 740f) // 타이틀의 '시작하기' (히어로 카드 리디자인 후 버튼 위치)
+        tapButton(g, "startRect")
         advanceFade(g)
         check(g.scene is CharacterSelectScene)
         tap(g, g.viewOffX + 645f * 2f, 310f * 2f) // 가상 화면의 여자 카드
         check(g.state.gender == "female")
-        tap(g, 1200f, 1008f) // 실제 화면의 '계속하기'
+        tapButton(g, "nextRect") // 실제 화면의 계속하기
         advanceFade(g)
         check(g.scene is RegionSelectScene)
-        tap(g, 100f, 70f) // 뒤로 가서 캐릭터를 다시 고를 수 있다
+        tapButton(g, "backRect") // 뒤로 가서 캐릭터를 다시 고를 수 있다
         advanceFade(g)
         check(g.scene is CharacterSelectScene)
         render(g)
-        tap(g, 1200f, 1008f)
+        tapButton(g, "nextRect")
         advanceFade(g)
         check(g.scene is RegionSelectScene)
-        tap(g, 2194f, 1000f) // 서울 시작 버튼
+        tapButton(g, "confirmRect") // 서울 시작 버튼
         advanceFade(g)
         check(g.scene is WorldScene && g.state.started && g.state.gender == "female")
 
