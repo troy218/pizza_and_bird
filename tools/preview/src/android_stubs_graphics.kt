@@ -664,7 +664,15 @@ class Paint {
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
+    // Kotlin property mirrors Android Paint.getFontMetrics(); ascent is negative.
+    data class FontMetrics(val ascent: Float, val descent: Float, val top: Float,
+                           val bottom: Float, val leading: Float)
+    val fontMetrics: FontMetrics
+        get() {
+            val fm = StubText.metrics(awtFont())
+            return FontMetrics(-fm.ascent.toFloat(), fm.descent.toFloat(),
+                -fm.maxAscent.toFloat(), fm.maxDescent.toFloat(), fm.leading.toFloat())
+        }
 }
 
 // ---------------------------------------------------------------------------
