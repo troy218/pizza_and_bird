@@ -1,8 +1,8 @@
 @file:Suppress("unused")
 
 /**
- * tools/preview — android.media 스텁 (프리뷰에서는 소리를 내지 않는다).
- * Audio.kt 컴파일에 필요한 최소 API만 제공.
+ * tools/preview — android.media 스텁.
+ * Audio.kt 컴파일/런타임용이며 아무 소리도 내지 않는다.
  */
 package android.media
 
@@ -10,57 +10,62 @@ import android.content.Context
 
 class AudioAttributes private constructor() {
     class Builder {
-        fun setUsage(@Suppress("UNUSED_PARAMETER") u: Int) = this
-        fun setContentType(@Suppress("UNUSED_PARAMETER") t: Int) = this
-        fun build() = AudioAttributes()
+        fun setUsage(usage: Int): Builder = this
+        fun setContentType(contentType: Int): Builder = this
+        fun build(): AudioAttributes = AudioAttributes()
     }
+
     companion object {
         const val USAGE_GAME = 14
         const val CONTENT_TYPE_SONIFICATION = 4
     }
 }
 
-class SoundPool private constructor() {
+open class SoundPool private constructor() {
     class Builder {
-        fun setMaxStreams(@Suppress("UNUSED_PARAMETER") n: Int) = this
-        fun setAudioAttributes(@Suppress("UNUSED_PARAMETER") a: AudioAttributes) = this
-        fun build() = SoundPool()
+        fun setMaxStreams(maxStreams: Int): Builder = this
+        fun setAudioAttributes(attributes: AudioAttributes): Builder = this
+        fun build(): SoundPool = SoundPool()
     }
 
     fun interface OnLoadCompleteListener {
         fun onLoadComplete(soundPool: SoundPool, sampleId: Int, status: Int)
     }
 
-    private val listeners = ArrayList<OnLoadCompleteListener>()
-
-    fun setOnLoadCompleteListener(l: OnLoadCompleteListener) { listeners.add(l) }
-
-    fun load(context: Context, resId: Int, priority: Int): Int = resId
-
-    fun play(
-        soundID: Int, leftVolume: Float, rightVolume: Float,
-        priority: Int, loop: Int, rate: Float
-    ): Int = soundID
-
-    fun stop(streamID: Int) {}
+    private var next = 1
+    fun load(context: Context, resId: Int, priority: Int): Int = next++
+    fun setOnLoadCompleteListener(listener: OnLoadCompleteListener?) {}
+    fun play(soundId: Int, leftVolume: Float, rightVolume: Float, priority: Int, loop: Int, rate: Float): Int = 0
+    fun stop(streamId: Int) {}
+    fun pause(streamId: Int) {}
+    fun resume(streamId: Int) {}
     fun autoPause() {}
     fun autoResume() {}
+    fun setRate(streamId: Int, rate: Float) {}
+    fun setVolume(streamId: Int, leftVolume: Float, rightVolume: Float) {}
     fun release() {}
 }
 
-class MediaPlayer private constructor() {
-    var isLooping = false
-    var isPlaying = false
-        private set
-
+open class MediaPlayer {
     companion object {
+        @JvmStatic
         fun create(context: Context, resId: Int): MediaPlayer? = MediaPlayer()
     }
 
+    var isLooping: Boolean = false
+    var isPlaying: Boolean = false
+    var volume: Float = 1f
+
+    fun setVolume(leftVolume: Float, rightVolume: Float) { volume = (leftVolume + rightVolume) / 2f }
+    fun setDataSource(path: String) {}
+    fun setAudioAttributes(attributes: AudioAttributes) {}
+    fun prepare() {}
+    fun prepareAsync() {}
     fun start() { isPlaying = true }
     fun pause() { isPlaying = false }
     fun stop() { isPlaying = false }
-    fun setVolume(@Suppress("UNUSED_PARAMETER") l: Float, @Suppress("UNUSED_PARAMETER") r: Float) {}
+    fun seekTo(msec: Int) {}
     fun release() {}
-    fun reset() {}
+    fun setOnCompletionListener(listener: Any?) {}
+    fun setOnErrorListener(listener: Any?) {}
 }

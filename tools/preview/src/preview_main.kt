@@ -20,6 +20,7 @@ import android.graphics.RectF
 import android.graphics.StubText
 import com.pizzaandbird.game.Assets
 import com.pizzaandbird.game.BakeOverlay
+import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.Birds
 import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.DecorPickOverlay

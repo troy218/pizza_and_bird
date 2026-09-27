@@ -148,6 +148,12 @@ object UiKit {
         val d = game.density
         val radius = radiusDp * d
         fill.shader = null
+        // 프레스 상태 — 누른 카드가 살짝 눌린다 (터치 피드백)
+        val pressed = game.input.isPressedIn(r)
+        if (pressed) {
+            c.save()
+            c.translate(0f, 1.4f * d)
+        }
         // 섀도우
         fill.color = Color.argb(if (selected) 55 else 34, 60, 42, 22)
         c.drawRoundRect(
@@ -170,6 +176,12 @@ object UiKit {
         stroke.color = borderColor
         stroke.strokeWidth = borderWidthDp * d
         c.drawRoundRect(r, radius, radius, stroke)
+        if (pressed) {
+            c.restore()
+            fill.shader = null
+            fill.color = Color.argb(30, 40, 26, 12)
+            c.drawRoundRect(r, radius, radius, fill)
+        }
     }
 
     // ------------------------------------------------------------------
@@ -191,6 +203,12 @@ object UiKit {
             c.drawRoundRect(r, radius, radius, stroke)
             drawCenterText(c, game, label, r, textSizeDp, textCol, shadow = false)
             return
+        }
+        // 프레스 상태 — 누른 만큼 눌리고 어둡게 (UI 공통 터치 피드백)
+        val pressed = game.input.isPressedIn(r)
+        if (pressed) {
+            c.save()
+            c.translate(0f, 1.8f * d)
         }
         // 섀도우
         fill.color = Color.argb(66, 50, 30, 12)
@@ -224,6 +242,12 @@ object UiKit {
             )
         }
         drawCenterText(c, game, label, r, textSizeDp, textCol, shadow = true)
+        if (pressed) {
+            c.restore()
+            fill.shader = null
+            fill.color = Color.argb(34, 40, 26, 12)
+            c.drawRoundRect(r, radius, radius, fill)
+        }
     }
 
     // ------------------------------------------------------------------
@@ -235,6 +259,12 @@ object UiKit {
         base: Int = CREAM, glyphCol: Int = BROWN_MID
     ) {
         val d = game.density
+        // 프레스 상태 — 원형 히트체크 + 눌림 피드백
+        val pressed = game.input.isPressedInCircle(cx, cy, radius)
+        if (pressed) {
+            c.save()
+            c.translate(0f, 1.6f * d)
+        }
         fill.shader = null
         fill.color = Color.argb(60, 40, 26, 12)
         c.drawCircle(cx, cy + 2f * d, radius, fill)
@@ -249,6 +279,12 @@ object UiKit {
         c.drawCircle(cx, cy, radius - 2.4f * d, stroke)
         val gp = Type.paintAt(glyphSizeDp, true, 0.02f, glyphCol)
         c.drawText(glyph, cx - gp.measureText(glyph) / 2f, Type.midBaseline(gp, cy), gp)
+        if (pressed) {
+            c.restore()
+            fill.shader = null
+            fill.color = Color.argb(34, 40, 26, 12)
+            c.drawCircle(cx, cy, radius, fill)
+        }
     }
 
     // ------------------------------------------------------------------

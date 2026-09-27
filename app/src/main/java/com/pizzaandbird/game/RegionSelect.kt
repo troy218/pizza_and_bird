@@ -188,9 +188,10 @@ class RegionSelectScene(game: Game) : Scene(game) {
         Type.text(c, "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요",
             w / 2f, dp * 50f, Role.CAPTION, Type.LEAF, 0.5f)
 
-        area = RectF(
-            dp * 56f, dp * 70f, w - dp * 56f, h - dp * 88f
-        )
+        // 카드는 화면을 가득 채우지 않도록 가운데에 알맞은 크기로 배치
+        val cardW = minOf(w - dp * 112f, dp * 520f)
+        val cardH = minOf(h - dp * 158f, dp * 280f)
+        area = RectF((w - cardW) / 2f, dp * 70f, (w + cardW) / 2f, dp * 70f + cardH)
         cardRects = listOf(area)
         RegionCards.draw(c, game, cardRects, regions, selected.id)
 
@@ -210,10 +211,11 @@ class RegionSelectScene(game: Game) : Scene(game) {
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
         if (input.justBack || (tap != null && backRect.contains(tap.x, tap.y))) {
-            game.scene = CharacterSelectScene(game)
+            game.fadeTo { game.scene = CharacterSelectScene(game) }
             return
         }
         if (tap != null && confirmRect.contains(tap.x, tap.y)) {
+            game.haptic()
             startGame(selected)
             return
         }
@@ -259,18 +261,31 @@ class RegionSelectOverlay(
         }
         if (selected == null) {
             val pages = RegionCards.pageCount(allRegions.size)
-            if (prevRect.contains(tap.x, tap.y)) { page = (page - 1 + pages) % pages; return }
-            if (nextRect.contains(tap.x, tap.y)) { page = (page + 1) % pages; return }
+            if (prevRect.contains(tap.x, tap.y)) {
+                scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+                page = (page - 1 + pages) % pages
+                return
+            }
+            if (nextRect.contains(tap.x, tap.y)) {
+                scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+                page = (page + 1) % pages
+                return
+            }
             val hit = RegionCards.hit(cardRects, regions, tap.x, tap.y)
-            if (hit != null) selected = hit
+            if (hit != null) {
+                scene.game.haptic()
+                selected = hit
+            }
             if (input.justB || input.justBack) finished = true
             return
         }
         if (cancelRect.contains(tap.x, tap.y)) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             selected = null
             return
         }
         if (confirmRect.contains(tap.x, tap.y)) {
+            scene.game.haptic()
             val r = selected
             selected = null
             if (r != null) {

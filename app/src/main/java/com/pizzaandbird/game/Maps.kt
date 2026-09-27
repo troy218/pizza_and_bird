@@ -171,12 +171,28 @@ class GameMap(
                     else a.tiles[gv][a.tileVariant(gv, x, y)]
                     c.drawBitmap(gBmp, fx, fy, a.sprPaint)
 
-                    // 물가 거품 (물 타일 가장자리)
+                    // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
                     if (gTile == T.WATER && pv == Pave.NONE) {
-                        if (y > 0 && groundAt(x, y - 1) != T.WATER) c.drawRect(fx, fy, fx + 32f, fy + 3.2f, foamPaint)
-                        if (y < h - 1 && groundAt(x, y + 1) != T.WATER) c.drawRect(fx, fy + 28.8f, fx + 32f, fy + 32f, foamPaint)
-                        if (x > 0 && groundAt(x - 1, y) != T.WATER) c.drawRect(fx, fy, fx + 3.2f, fy + 32f, foamPaint)
-                        if (x < w - 1 && groundAt(x + 1, y) != T.WATER) c.drawRect(fx + 28.8f, fy, fx + 32f, fy + 32f, foamPaint)
+                        val ph = time * 2.8f + x * 1.15f + y * 0.85f
+                        if (y > 0 && groundAt(x, y - 1) != T.WATER) foamEdge(c, fx, fy, fx + 32f, fy, ph)
+                        if (y < h - 1 && groundAt(x, y + 1) != T.WATER) foamEdge(c, fx, fy + 32f, fx + 32f, fy + 32f, ph + 1.7f)
+                        if (x > 0 && groundAt(x - 1, y) != T.WATER) foamEdgeV(c, fx, fy, fx, fy + 32f, ph + 0.9f)
+                        if (x < w - 1 && groundAt(x + 1, y) != T.WATER) foamEdgeV(c, fx + 32f, fy, fx + 32f, fy + 32f, ph + 2.3f)
+                        // 물 반짝임 (별 반짝임 십자)
+                        if ((x * 7 + y * 13) % 6 == 0) {
+                            val tw = (sin(time * 2.6f + x * 1.7f + y * 2.3f) + 1f) / 2f
+                            if (tw > 0.62f) {
+                                val k = (tw - 0.62f) / 0.38f
+                                val sx = fx + 8f + ((x * 11 + y * 5) % 16)
+                                val sy = fy + 7f + ((x * 3 + y * 9) % 18)
+                                val al = (110 + 130 * k).toInt()
+                                sparkle.color = Color.argb(al, 255, 255, 255)
+                                c.drawRect(sx, sy - 2.2f, sx + 1.6f, sy + 3.8f, sparkle)
+                                c.drawRect(sx - 2.2f, sy, sx + 3.8f, sy + 1.6f, sparkle)
+                                sparkle.color = Color.argb(al / 2, 255, 255, 255)
+                                c.drawRect(sx - 4f, sy, sx + 5.6f, sy + 1.2f, sparkle)
+                            }
+                        }
                     }
                 }
 
@@ -269,10 +285,40 @@ class GameMap(
         }
     }
 
+    /** 물가 거품 (가로 변) — 기본 라인 위에 출렁이는 포말 */
+    private fun foamEdge(c: Canvas, x0: Float, yEdge: Float, x1: Float, yEdge2: Float, ph: Float) {
+        c.drawRect(x0, yEdge, x1, yEdge + 2.8f, foamPaint)
+        for (i in 0 until 5) {
+            val u = (i * 0.22f + (Math.sin(ph.toDouble() + i).toFloat() * 0.06f) + 0.12f) % 1f
+            val bx = x0 + u * (x1 - x0)
+            val bw = 4.2f + ((i * 3) % 3)
+            foamDot.color = Color.argb(170, 240, 250, 255)
+            c.drawRect(bx, yEdge + 1.2f, bx + bw, yEdge + 3.4f, foamDot)
+            foamDot.color = Color.argb(110, 240, 250, 255)
+            c.drawRect(bx - 1.2f, yEdge + 2.6f, bx + bw + 1.4f, yEdge + 4.2f, foamDot)
+        }
+    }
+
+    /** 물가 거품 (세로 변) */
+    private fun foamEdgeV(c: Canvas, xEdge: Float, y0: Float, xEdge2: Float, y1: Float, ph: Float) {
+        c.drawRect(xEdge, y0, xEdge + 2.8f, y1, foamPaint)
+        for (i in 0 until 5) {
+            val u = (i * 0.22f + (Math.cos(ph.toDouble() + i).toFloat() * 0.06f) + 0.12f) % 1f
+            val by = y0 + u * (y1 - y0)
+            val bh = 4.2f + ((i * 3) % 3)
+            foamDot.color = Color.argb(170, 240, 250, 255)
+            c.drawRect(xEdge + 1.2f, by, xEdge + 3.4f, by + bh, foamDot)
+            foamDot.color = Color.argb(110, 240, 250, 255)
+            c.drawRect(xEdge + 2.6f, by - 1.2f, xEdge + 4.2f, by + bh + 1.4f, foamDot)
+        }
+    }
+
     companion object {
         private val foamPaint = Paint().apply {
             color = Color.argb(150, 226, 244, 250)
         }
+        private val foamDot = Paint()
+        private val sparkle = Paint()
         private val sunPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val sunRect = android.graphics.RectF()
     }
@@ -944,13 +990,13 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     val cx: Float get() = x + sprW / 2f
     val cy: Float get() = y + sprH * 0.45f
 
-    fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f) {
+    fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
             Tier.UNCOMMON -> 2.3f
             Tier.RARE -> 3.0f
             Tier.LEGEND -> 3.8f
-        } * (if (sneaking) 0.6f else 1f) * (if (onBike) 1.4f else 1f) * calmFactor
+        } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
         when (state) {
             0 -> {
