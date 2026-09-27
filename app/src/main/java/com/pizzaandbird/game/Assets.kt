@@ -58,6 +58,13 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
     // 타일 (32x32) ------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant 또는 프레임]
 
+    // 살아있는 풀 리그 (§ 아래 buildGrassRig) ------------------------------------
+    // 주의: 아래 init 블록에서 buildGrassRig()가 이 배열들을 채우므로,
+    //       반드시 init 보다 *앞쪽*에 선언해야 한다 (Kotlin은 선언 순서대로 실행).
+    private lateinit var grassPoses: Array<Array<Array<Bitmap>>>   // [종][lean][curl]
+    val grassOx = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 X
+    val grassOy = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 Y
+
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
     lateinit var pizzaIconBig: Bitmap
@@ -1121,10 +1128,6 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
     private const val GRASS_CX = 9    // 비트맵 안에서 밑동(뿌리) 열
     private const val GRASS_LEAN_UNIT = 1.5f
     private const val GRASS_CURL_UNIT = 1.25f
-
-    private lateinit var grassPoses: Array<Array<Array<Bitmap>>>   // [종][lean][curl]
-    val grassOx = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 X
-    val grassOy = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 Y
 
     private class GrassKind(
         val h: Int, val bh: Int, val oy: Int,        // 높이 / 비트맵 높이 / 밑동 행

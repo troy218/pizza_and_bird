@@ -97,25 +97,21 @@ class GrassField(map: GameMap) {
         for (ty in 0 until map.h) {
             for (tx in 0 until map.w) {
                 val tile = map.t(tx, ty)
-                val clumps: Int
-                val forced: Int          // -1 = 종류 자유, 그 외 = 이 종류를 74% 확률로 강제
-                when (tile) {
-                    T.GRASS -> { clumps = if (r.nextFloat() < 0.35f) 2 else 1; forced = -1 }
-                    T.FLOWER -> { clumps = 1; forced = -1 }            // 꽃이 보이도록 성기게
-                    T.TALLGRASS -> { clumps = 2 + r.nextInt(2); forced = 2 }
-                    T.REED -> { clumps = 2; forced = 4 }
-                    T.SAND -> {
-                        if (r.nextFloat() > 0.22f) continue             // 모래밭엔 마른 풀 드물게
-                        clumps = 1; forced = 3
-                    }
+                // (다발 수, 강제 풀잎 종류) — 강제 종류가 -1 이면 종류를 자유롭게 섞는다.
+                // null 이면 이 지형에는 풀을 심지 않는다.
+                val plan: Pair<Int, Int>? = when (tile) {
+                    T.GRASS -> (if (r.nextFloat() < 0.35f) 2 else 1) to -1
+                    T.FLOWER -> 1 to -1                     // 꽃이 보이도록 성기게
+                    T.TALLGRASS -> (2 + r.nextInt(2)) to 2
+                    T.REED -> 2 to 4
+                    T.SAND -> if (r.nextFloat() > 0.22f) null else (1 to 3)   // 모래밭엔 드물게
                     // 돌길/광장 틈새에서 자라는 잡초
-                    T.PATH, T.PLAZA -> {
-                        if (r.nextFloat() > 0.10f) continue
-                        clumps = 1; forced = 0
-                    }
-                    else -> continue
-                }
-                repeat(clumps) {
+                    T.PATH, T.PLAZA -> if (r.nextFloat() > 0.10f) null else (1 to 0)
+                    else -> null
+                } ?: continue
+                val forced = plan.second
+
+                repeat(plan.first) {
                     // 55%는 타일 경계에 몰아 심어 타일 이음새에 자연스러운 덩어리를 만든다
                     val cx = if (r.nextFloat() < 0.55f) {
                         if (r.nextBoolean()) tx * 32f + r.nextInt(4).toFloat()
