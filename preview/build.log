@@ -1,9 +1,9 @@
-# preview build 2026-09-27 07:35:31Z
-# commit: dbba749e57fc4047e807ead5cd43ebe06c3fd8d4
+# preview build 2026-09-27 07:37:02Z
+# commit: 7f71ff2e6df01a0d58075d7320ff36d8485f1e30
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
->> 프리뷰 렌더링...
-# status: ok
+# status: compile-failed
+WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
 ...
@@ -55,48 +55,40 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:compileReleaseJavaWithJavac NO-SOURCE
 > Task :app:dexBuilderRelease
 > Task :app:mergeReleaseGlobalSynthetics
-> Task :app:processReleaseJavaRes
 > Task :app:mergeDexRelease
+> Task :app:processReleaseJavaRes
 > Task :app:compileReleaseArtProfile
 > Task :app:mergeReleaseJavaResource
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494490552.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494589559.json
 
-BUILD SUCCESSFUL in 41s
+BUILD SUCCESSFUL in 33s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-  + 01_tiles.png
-  + 02_sprites.png
-  + 03_birds.png
-  + 04_title.png
-  + 05_region_select.png
-  + 06_world_seoul_day.png
-  + 07_world_seoul_sunset.png
-  + 08_world_seoul_night.png
-  + 09_world_sokcho.png
-  + 10_world_chuncheon.png
-  + 11_world_busan.png
-  + 12_world_jeju.png
-  + 13_photo_mode.png
-  + 14_home_day.png
-  + 15_home_night.png
-  + 16_dialog.png
-  + 17_menu_tab1.png
-  + 17_menu_tab2.png
-  + 17_menu_tab3.png
-  + 17_menu_tab4.png
-  + 17_menu_tab5.png
-  + 17_menu_tab6.png
-  + 21_bake_topping.png
-  + 22_bake_gauge.png
-  + 23_bake_result.png
-  + 24_photo_result.png
-  + 25_map_overlay.png
-  + 26_decor_shop.png
-  + 27_decor_pick.png
-  + 28_ultrawide_title_20x9.png
-  + 29_ultrawide_world_20x9.png
-preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out
+app/src/main/java/com/pizzaandbird/game/Audio.kt:37:20: error: unresolved reference 'sfx_crow'.
+        CROW(R.raw.sfx_crow),                  // 밤/흐린 날 까마귀 (으스스한 한 소리)
+                   ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:38:23: error: unresolved reference 'sfx_cuckoo1'.
+        CUCKOO1(R.raw.sfx_cuckoo1),            // 뻐꾸기 1 (숲·산 지역 지저귐)
+                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:39:23: error: unresolved reference 'sfx_cuckoo2'.
+        CUCKOO2(R.raw.sfx_cuckoo2),            // 뻐꾸기 2 (짧은 한 마디)
+                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:40:25: error: unresolved reference 'sfx_book_open'.
+        BOOK_OPEN(R.raw.sfx_book_open),        // 📚 도감 펼치기
+                        ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:41:24: error: unresolved reference 'sfx_bag_open'.
+        BAG_OPEN(R.raw.sfx_bag_open)           // 🎒 가방/장비 가방 열기
+                       ^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:190:57: error: unresolved reference 'amb_night'.
+            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+                                                        ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:191:68: error: unresolved reference 'amb_sea'.
+            "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
+                                                                   ^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:192:69: error: unresolved reference 'amb_forest'.
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
+                                                                    ^^^^^^^^^^
