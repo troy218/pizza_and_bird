@@ -56,8 +56,8 @@ class Input(private val game: Game) {
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     // ----- 로우 터치 (확대/이동 가능한 지도 같은 전체화면 오버레이용) -----
-    /** true 로 두면 모든 터치가 HUD 버튼 대신 rawEvents 로만 전달된다. */
-    var rawMode = false
+    /** 현재 창의 입력 방식만 따른다. 닫힘/교체/씬 전환 후 raw 상태가 남지 않는다. */
+    val rawMode: Boolean get() = game.scene.overlay?.usesRawTouch == true
     class RawEv(val kind: Int, val id: Int, val x: Float, val y: Float) {
         companion object { const val DOWN = 0; const val MOVE = 1; const val UP = 2; const val CANCEL = 3 }
     }

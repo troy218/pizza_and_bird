@@ -75,6 +75,30 @@ java -cp "tools/preview/out/classes-smoke:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.InputSmoke
 ```
 
+### 퀘스트·상점 및 버튼 회귀 테스트
+
+`navigation_smoke.kt`는 실제 `Input → Game → Overlay`에 DOWN/UP을 서로 다른 프레임으로
+전달합니다. 2400×1080 @ 2×, 1280×720 @ 2×, 2400×1080 @ 3×의 세 환경에서 검사합니다.
+
+- 가방 8개 탭, 상태/퀘스트/일일 의뢰 페이지, 퀘스트·상점 바로가기
+- 상점 네 가지 진열대, 다른 지역에서 상점 이동 취소, 카메라 구매/상세/복귀 및 장식 구매
+- 자전거 모델 → 도색 → 부속품 → 모델 전환: 숨겨진 이전 탭의 영역이 구매/도색을 가로채지 않는지
+- 지도 확대/축소/닫기, 지도 교체·백업 복귀 뒤 raw 입력이 남지 않는지
+- HUD 가방·자전거·카메라·피자·펀치·의뢰·지도·NPC 대화, 메뉴 키 닫기, 음악/효과음/저장/화면 연출 설정
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/navigation_smoke.kt $SRCS \
+  -d tools/preview/out/classes-navigation -jvm-target 17
+java -Djava.awt.headless=true -cp "tools/preview/out/classes-navigation:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.NavigationSmoke
+```
+
+`bike`, `shortcuts`, `raw` 인자로 해당 회귀만 따로 실행할 수도 있습니다.
+전체 실행은 `tools/preview/out/navigation/`에 작은 화면의 상태·퀘스트·상점 스크린샷도 남깁니다.
+JVM 스텁 테스트이므로 실제 Android 기기의 터치/렌더링 확인을 완전히 대신하지는 않습니다.
+
 ### UI 불투명도 회귀 테스트
 
 그림자용 `Paint.alpha`가 창·카드·버튼·게이지·힌트 배경에 남지 않는지 검사합니다.
@@ -227,7 +251,13 @@ python3 tools/preview/render_people.py docs/img
 # 3) 자전거 스펙 시트 (models_side/paints/accessories — docs/img/ 갱신)
 python3 tools/preview/render_bikes.py docs/img
 
-# 4) 맵 한 장 렌더링
+# 4) 바위 28종 + 지역별 바위 조합 시트 (docs/img/ 갱신)
+python3 tools/preview/render_rocks.py docs/img/rock_catalog.png
+
+# 5) 지역 수종 4종 시트 (docs/img/ 갱신)
+python3 tools/preview/tree_art.py docs/img/regional_trees.png
+
+# 6) 맵 한 장 렌더링
 python3 - <<'PY'
 import sys; sys.path.insert(0, 'tools/preview')
 import render, mapgen
@@ -245,6 +275,10 @@ PY
 | `people.py` | `CharacterArt.kt` 프로토타입 — 사람/자전거/고양이 **관절 애니메이션** (포즈 수식이 게임과 동일) |
 | `render_people.py` | 동작 스프라이트 시트 · GIF 출력 |
 | `render_bikes.py` | 자전거 스펙 시트 출력 — 11종 모델 · 프레임/타이어/안장 색상표 · 액세서리 (cards의 스펙 표와 1:1) |
+| `rock_art.py` | `Assets.kt` 바위 아트 키트(`rockBody`·`lump`·`mossCap`·`weedFringe`·`crackIn`)의 프로토타입 — 8개 암종 팔레트 그대로 |
+| `rock_catalog.py` | 바위 **28종** 저작도 — `PropLooks.ROCKS` 순서와 1:1 (`r00`~`r27`) |
+| `render_rocks.py` | 바위 28종 접촉 시트 + **지역 32곳별 바위 조합 시트** 출력 (`RegionMapStyle.kt`를 파싱) |
+| `tree_art.py` | 지역 수종 4종(느티나무·향나무·야자수·오리나무) 시트 출력 |
 | `tiles_legacy.py` | `Assets.kt` 의 기존 타일 아트를 옮겨 온 **자동 생성** 파일 |
 | `_gen_tiles_legacy.py` | 위 파일을 `Assets.kt` 에서 다시 만들어 내는 스크립트 |
 

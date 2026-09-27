@@ -44,7 +44,7 @@ private const val BANNER_LIFE = 2.6f
 
 /**
  * 화면 좌표(실제 해상도) 기반 HUD.
- * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
+ * - 좌상단: 레벨/배고픔/행운 플로팅 게이지
  * - 우상단: 황동 회중 나침반 미니맵 (낡은 종이 해도, 탭하면 큰 지도)
  * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/간식) + 메뉴
  */
@@ -63,6 +63,9 @@ class Hud(private val game: Game) {
     var showMinimap = false
     var regionLabel = ""
     var questLabel: String? = null
+    var questObjective: String? = null
+    var questProgress: String? = null
+    var questTravelLabel: String? = null
 
     /** 카메라 모드 활성 (뷰파인더가 세계를 덮고 있다) */
     var photoModeHint = false
@@ -241,16 +244,21 @@ class Hud(private val game: Game) {
         punchCx = (eatCx - dp(54f)).coerceIn(punchR + dp(8f), wf - punchR - dp(8f))
         punchCy = (eatCy + dp(2f)).coerceIn(punchR + dp(8f), hf - punchR - dp(8f))
 
-        // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
-        menuR = dp(17f)
-        menuCx = dp(18f) + menuR
-        menuCy = hf - dp(18f) - menuR
-
         // Split-screen can leave a very narrow landscape surface. Shrink the compass
         // before it collides with the fixed-width status panel at the opposite corner.
         mmR = minOf(dp(68f), wf * 0.16f)
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
+
+        // --- 메뉴 클러스터 (시계 왼쪽 상단) ---
+        menuR = dp(16f)
+        val gap = dp(9f)
+        val dialSize = dp(42f)
+        val dialCxCalc = mmCx - mmR - gap - dialSize / 2f
+        val clockSizeCalc = dp(38f)
+        val clockCxCalc = dialCxCalc - dialSize / 2f - gap - clockSizeCalc / 2f
+        menuCx = clockCxCalc - dp(10f) - menuR
+        menuCy = mmCy - dp(4f)
 
         // --- 토스트 고정 자리 -------------------------------------------
         // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
@@ -471,6 +479,7 @@ class Hud(private val game: Game) {
         }
         if (questLabel != null) {
             drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel")
+            drawQuestDetails(c)
         }
         if (showControls) drawControls(c)
         drawBanner(c)
@@ -502,20 +511,15 @@ class Hud(private val game: Game) {
     }
 
     /**
-     * 좌상단 상태창 — 화면을 적게 가리도록 핵심 게이지만 남긴다.
+     * 좌상단 상태 게이지 — 패널 배경 없이 세계 위에 직접 띄운다.
      * 위에서부터: 레벨(경험치) 바 → 체력(배고픔) 바 → 행운 바.
-     * 돈·계절·시계·장비 정보는 이 창에서 빼고 각각 가방/우상단으로 옮겼다.
+     * 돈·계절·시계·장비 정보는 가방/우상단에 둔다.
      */
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(statsPanelH)
-
-        // 프리미엄 패널
-        val r = RectF(left, top, left + w, top + h)
-        UiKit.panel(c, game, r, 12f)
 
         val a = game.assets
         val iconSz = dp(16f)
@@ -534,8 +538,6 @@ class Hud(private val game: Game) {
 
         // 체력(배고픔) — 레벨 바 아래 (위험하면 맥동해 알린다)
         val hy = top + dp(40f)
-        fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
-        c.drawCircle(left + dp(20f), hy + dp(8f), dp(11f), fill)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), hy, left + dp(12f) + iconSz, hy + iconSz), a.sprPaint)
         val hungerColor = when {
             s.hunger >= 25f -> 0xFFF2913C.toInt()
@@ -549,8 +551,6 @@ class Hud(private val game: Game) {
 
         // 행운 — 체력 바 아래
         val ly = hy + dp(22f)
-        fill.color = Color.argb(60, 111, 186, 107)
-        c.drawCircle(left + dp(20f), ly + dp(8f), dp(11f), fill)
         c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), ly, left + dp(12f) + iconSz, ly + iconSz), a.sprPaint)
         drawBar(c, left + dp(36f), ly + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
     }
@@ -682,6 +682,38 @@ class Hud(private val game: Game) {
 
     private fun drawChip(c: Canvas, cx: Float, cy: Float, txt: String) {
         UiKit.darkChip(c, game, cx, cy, txt, 12f)
+    }
+
+    /** Objectives and live progress stay visible next to the quest chip while roaming. */
+    private fun drawQuestDetails(c: Canvas) {
+        val objective = questObjective ?: return
+        val left = dp(16f)
+        val top = questChipY() + dp(15f)
+        val r = RectF(left, top, left + dp(162f), top + dp(53f))
+        UiKit.panel(c, game, r, 9f)
+        val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
+        val maxW = r.width() - dp(14f)
+        fun fitLine(raw: String): String {
+            var line = raw
+            while (line.length > 2 && p.measureText(line) > maxW) line = line.dropLast(1)
+            return if (line != raw) "$line…" else line
+        }
+        val lines = Type.wrap(objective, p, maxW).take(2)
+        var y = r.top + dp(11f)
+        for (line in lines) {
+            c.drawText(line, r.left + dp(7f), y, p)
+            y += dp(10f)
+        }
+        val progress = questProgress
+        if (progress != null) {
+            p.color = 0xFF795A2B.toInt()
+            val progressY = if (questTravelLabel != null) r.bottom - dp(16f) else r.bottom - dp(5f)
+            c.drawText(fitLine("진행: $progress"), r.left + dp(7f), progressY, p)
+        }
+        questTravelLabel?.let { route ->
+            p.color = 0xFF3E7550.toInt()
+            c.drawText(fitLine(route), r.left + dp(7f), r.bottom - dp(4f), p)
+        }
     }
 
     private fun drawMessages(c: Canvas) {
@@ -1569,26 +1601,23 @@ class Hud(private val game: Game) {
         c.drawCircle(gx, gy, dp(1.7f), fx)
     }
 
-    /** 해 질 녘·밤에는 나침반 유리에 노을/등잔 빛이 돈다. 한낮에는 그리지 않는다. */
+    /**
+     * 해 질 녘·밤에는 나침반 유리에 노을/등잔 빛이 돈다. 한낮에는 그리지 않는다.
+     * 세기·색 모두 DayCycle 의 연속 곡선을 따라가므로 시각이 흐르면 유리 위 색도 같이 흐른다.
+     */
     private fun drawInstrumentLight(c: Canvas, cx: Float, cy: Float, r: Float, glass: Float) {
         val h = game.state.worldTime
-        val night = h >= 19.5f || h < 4.5f
-        val dusk = h >= 17f && h < 19.5f
-        val dawn = h >= 4.5f && h < 7.2f
-        if (!night && !dusk && !dawn) return
+        val dark = DayCycle.darkness(h)
+        val gold = DayCycle.golden(h)
+        val k = maxOf(dark, gold)
+        if (k < 0.05f) return
 
-        val center: Int
-        val rim: Int
-        if (night) {
-            center = Color.argb(42, 255, 188, 112)
-            rim = Color.argb(82, 12, 22, 48)
-        } else if (dusk) {
-            center = Color.argb(22, 255, 160, 80)
-            rim = Color.argb(46, 170, 72, 36)
-        } else {
-            center = Color.argb(20, 255, 176, 110)
-            rim = Color.argb(36, 196, 110, 64)
-        }
+        // 노을빛(금빛)과 밤빛(등잔+남색 테)을 섞는다
+        val sun = DayCycle.sunlightColor(h)
+        val centerA = (16f + 30f * dark + 10f * gold).toInt().coerceIn(0, 60)
+        val center = Color.argb(centerA, Color.red(sun), Color.green(sun), Color.blue(sun))
+        val amb = DayCycle.ambient(h)
+        val rim = Color.argb((84f * k).toInt().coerceIn(0, 96), Color.red(amb), Color.green(amb), Color.blue(amb))
         c.save()
         clipPath.reset()
         clipPath.addCircle(cx, cy, r, Path.Direction.CW)

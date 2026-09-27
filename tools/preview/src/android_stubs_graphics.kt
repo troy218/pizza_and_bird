@@ -656,11 +656,23 @@ class Paint {
         return w
     }
 
+    /** Android과 동일하게 부분 문자열(start..end) 폭을 재는다. */
+    fun measureText(text: String, start: Int, end: Int): Float =
+        measureText(text.substring(start.coerceIn(0, text.length), end.coerceIn(start, text.length)))
+
     fun ascent(): Float = -StubText.metrics(awtFont()).ascent.toFloat()
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
+    // Kotlin property mirrors Android Paint.getFontMetrics(); ascent is negative.
+    data class FontMetrics(val ascent: Float, val descent: Float, val top: Float,
+                           val bottom: Float, val leading: Float)
+    val fontMetrics: FontMetrics
+        get() {
+            val fm = StubText.metrics(awtFont())
+            return FontMetrics(-fm.ascent.toFloat(), fm.descent.toFloat(),
+                -fm.maxAscent.toFloat(), fm.maxDescent.toFloat(), fm.leading.toFloat())
+        }
 }
 
 // ---------------------------------------------------------------------------
@@ -744,9 +756,14 @@ class Bitmap internal constructor(val image: BufferedImage) {
             val base = src.image.getSubimage(x, y, max(width, 1), max(height, 1))
             val at = m?.tx ?: AffineTransform()
             val bounds = at.createTransformedShape(Rectangle2D.Float(0f, 0f, base.width.toFloat(), base.height.toFloat())).bounds2D
+            // 음의 스케일(좌우 반전)이면 변환 결과가 음수 영역에 놓이므로 (0,0) 기준으로 끌어온다.
+            // 그대로 두면 출력이 1px 투명 비트맵이 돼서 반전 스프라이트가 사라진다.
+            val offX = if (bounds.x < 0) -bounds.x else 0.0
+            val offY = if (bounds.y < 0) -bounds.y else 0.0
             val out = BufferedImage(max(bounds.width.toInt() + 2, 1), max(bounds.height.toInt() + 2, 1), BufferedImage.TYPE_INT_ARGB)
             val g = out.createGraphics()
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+            g.translate(offX, offY)
             g.transform(at)
             g.drawImage(base, 0, 0, null)
             g.dispose()
@@ -981,6 +998,10 @@ class Canvas {
 
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
 
+    fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float,
+                      rx: Float, ry: Float, paint: Paint) =
+        drawRoundRect(RectF(left, top, right, bottom), rx, ry, paint)
+
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
         GfxStats.drawRoundRect++
         record("rrect", rect.left, rect.top, rect.right, rect.bottom, paint)
@@ -1052,6 +1073,10 @@ class Canvas {
             Paint.Style.FILL_AND_STROKE -> { strokeOf(paint); g.fill(path.p2d); g.draw(path.p2d) }
         }
     }
+
+    /** Android과 동일하게 부분 문자열(start..end)을 x,y 에 그린다. */
+    fun drawText(text: String, start: Int, end: Int, x: Float, y: Float, paint: Paint) =
+        drawText(text.substring(start.coerceIn(0, text.length), end.coerceIn(start, text.length)), x, y, paint)
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         GfxStats.drawText++
@@ -1164,6 +1189,14 @@ class Canvas {
         stack.add(g)
         g = g.create() as Graphics2D
         return stack.size - 1
+    }
+
+    /** save() + 투명도를 가진 레이어 시작 — 헤드리스 프리뷰는 레이어 대신 합성 알파로 근사한다. */
+    fun saveLayerAlpha(bounds: RectF, alpha: Int): Int {
+        val save = save()
+        g.setComposite(java.awt.AlphaComposite.getInstance(
+            java.awt.AlphaComposite.SRC_OVER, (alpha / 255f).coerceIn(0f, 1f)))
+        return save
     }
 
     fun restoreToCount(count: Int) {

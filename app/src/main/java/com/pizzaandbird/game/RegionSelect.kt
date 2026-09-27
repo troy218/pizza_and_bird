@@ -134,7 +134,6 @@ class RegionSelectScene(game: Game) : Scene(game) {
     private var area = RectF()
     private var confirmRect = RectF()
     private var backRect = RectF()
-    private val regions = listOf(selected)
 
     init {
         game.hud.showControls = false
@@ -191,28 +190,231 @@ class RegionSelectScene(game: Game) : Scene(game) {
         backRect = RectF(dp * 14f, dp * 14f, dp * 90f, dp * 50f)
         UiKit.button(c, game, backRect, "arrow_left 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
 
-        Type.sticker(c, "서울에서 시작해볼까요?", w / 2f, dp * 32f, Role.DISPLAY, Type.INK)
-        Type.text(c, "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요",
-            w / 2f, dp * 50f, Role.CAPTION, Type.LEAF, 0.5f)
+        Type.sticker(c, "서울에서 시작해볼까요?", w / 2f, dp * 34f, Role.DISPLAY, Type.INK)
+        Type.text(c, "시작 지역은 서울로 고정되어 있어요 · 다른 지역은 여행하며 집을 매입해요",
+            w / 2f, dp * 54f, Role.CAPTION, Type.LEAF, 0.5f)
 
-        // 카드는 화면을 가득 채우지 않도록 가운데에 알맞은 크기로 배치
-        val cardW = minOf(w - dp * 112f, dp * 520f)
-        val cardH = minOf(h - dp * 158f, dp * 280f)
-        area = RectF((w - cardW) / 2f, dp * 70f, (w + cardW) / 2f, dp * 70f + cardH)
-        cardRects = listOf(area)
-        RegionCards.draw(c, game, cardRects, regions, selected.id)
-
-        // 하단 확인 바 — 프리미엄 패널 + 골드 버튼
+        // 하단 확인 바를 먼저 잡고, 남은 공간에 맞춰 히어로 카드를 올린다
         val barH = dp * 56f
         val bar = RectF(dp * 16f, h - barH - dp * 12f, w - dp * 16f, h - dp * 12f)
+        val cardW = minOf(w - dp * 32f, dp * 560f)
+        val cardTop = dp * 66f
+        val maxCardH = bar.top - dp * 10f - cardTop
+        val layout = heroLayout(cardW, maxCardH)
+        area = RectF((w - cardW) / 2f, cardTop, (w + cardW) / 2f, cardTop + layout.totalH)
+        cardRects = listOf(area)
+        drawHeroCard(c, area, selected, layout)
+
         UiKit.panel(c, game, bar)
-
-        val info = "서울에 집을 마련하고 여행을 시작할게요"
-        Type.textCentered(c, info, bar.left + dp * 16f, bar.centerY(), Role.BODY, Type.INK)
-
-        val bw = dp * 150f
+        Type.textCentered(c, "서울에 집을 마련하고 여행을 시작할게요", bar.left + dp * 16f, bar.centerY(), Role.BODY, Type.INK)
+        val bw = dp * 160f
         confirmRect = RectF(bar.right - bw - dp * 12f, bar.top + dp * 10f, bar.right - dp * 12f, bar.bottom - dp * 10f)
-        UiKit.button(c, game, confirmRect, "서울에서 시작!", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
+        UiKit.button(c, game, confirmRect, "서울에서 시작!", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14.5f)
+    }
+
+    /** 히어로 카드의 작은 알약 칩 (서식지 · 추천 시기 · 가게/박사 안내) */
+    private data class HeroChip(val label: String, val bg: Int, val fg: Int)
+
+    /** drawHud 측정 → 그리기까지 같은 배치를 공유하기 위한 레이아웃 결과 */
+    private data class HeroLayout(
+        val pad: Float,
+        val headerH: Float,
+        val chipLines: List<List<HeroChip>>,
+        val chipWidths: List<List<Float>>,
+        val chipH: Float,
+        val leftW: Float,
+        val birdRowH: Float,
+        val birdLabelH: Float,
+        val descLines: List<String>,
+        val tipLines: List<String>,
+        val bodyH: Float,
+        val totalH: Float
+    )
+
+    /**
+     * 히어로 카드 배치 계산 — 글자는 크게, 공간은 넉넉하게.
+     * 화면이 낮으면 탐조 팁부터 빼고 그래도 모자라면 카드를 납작하게 접는다.
+     */
+    private fun heroLayout(cardW: Float, maxH: Float): HeroLayout {
+        val dp = game.density
+        val reg = selected
+        val pad = dp * 14f
+        val contentW = cardW - pad * 2f
+
+        // 칩 목록: 서식지 + 추천 시기 + (가게·박사가 있으면 안내)
+        val chips = ArrayList<HeroChip>()
+        for (hab in reg.habitats) {
+            chips.add(HeroChip(HabitatLabels[hab] ?: hab, UiKit.PASTEL_MINT, 0xFF3E5A34.toInt()))
+        }
+        chips.add(HeroChip(reg.season, UiKit.PASTEL_SKY, 0xFF2E4F6B.toInt()))
+        if (reg.id == NpcRoster.SHOP_REGION) {
+            chips.add(HeroChip("사진용품점", UiKit.PASTEL_LILAC, 0xFF5A4A7A.toInt()))
+        }
+        if (reg.id == NpcRoster.PROFESSOR_REGION) {
+            chips.add(HeroChip("보리 박사", UiKit.PASTEL_PEACH, 0xFF7A4A22.toInt()))
+        }
+        // 칩 흐름 배치 (한 줄에 다 안 들어가면 다음 줄로)
+        val chipPaint = Type.paintAt(11f, true, 0.02f, Type.INK)
+        val gap = dp * 6f
+        val lines = ArrayList<ArrayList<HeroChip>>()
+        val widths = ArrayList<ArrayList<Float>>()
+        var cur = ArrayList<HeroChip>()
+        var curW = ArrayList<Float>()
+        var curLineW = 0f
+        for (chip in chips) {
+            val cw = chipPaint.measureText(chip.label) + dp * 20f
+            if (cur.isNotEmpty() && curLineW + gap + cw > contentW) {
+                lines.add(cur); widths.add(curW)
+                cur = ArrayList(); curW = ArrayList(); curLineW = 0f
+            }
+            if (cur.isNotEmpty()) curLineW += gap
+            cur.add(chip); curW.add(cw); curLineW += cw
+        }
+        if (cur.isNotEmpty()) { lines.add(cur); widths.add(curW) }
+        val chipRowH = dp * 24f
+        val chipH = chipRowH * lines.size + gap * (lines.size - 1).coerceAtLeast(0)
+
+        // 본문 두 단: 왼쪽 대표 새 / 오른쪽 소개 + 탐조 팁
+        val leftW = (contentW * 0.40f).coerceIn(dp * 118f, dp * 180f)
+        val rightW = contentW - leftW - dp * 12f
+        val bodyPaint = Type.paint(Role.BODY, Type.INK)
+        val tipPaint = Type.paint(Role.CAPTION, Type.SOFT)
+        val bodyLH = Type.lineHeight(Role.BODY)
+        val tipLH = Type.lineHeight(Role.CAPTION)
+
+        var headerH = dp * 58f
+        var birdLabelH = dp * 18f
+        var birdRowH = dp * 25f
+        var desc = Type.wrap(reg.desc, bodyPaint, rightW).take(2)
+        // 팁은 앞에 전구 아이콘이 붙으니 그 자리만큼 좁게 감는다
+        val tipW = (rightW - dp * 17f).coerceAtLeast(dp * 60f)
+        var tip = if (reg.tip.isEmpty()) emptyList() else Type.wrap(reg.tip, tipPaint, tipW).take(2)
+        fun bodyH(): Float {
+            val birds = birdLabelH + birdRowH * 3f
+            var text = bodyLH * desc.size
+            if (tip.isNotEmpty()) text += dp * 8f + tipLH * tip.size
+            return maxOf(birds, text)
+        }
+        fun total(): Float = pad * 2f + headerH + dp * 10f + chipH + dp * 8f + bodyH()
+        // 1차: 팁을 빼고, 2차: 카드를 납작하게 — 그래도 모자라면 설명을 한 줄로
+        if (total() > maxH) tip = emptyList()
+        if (total() > maxH) {
+            headerH = dp * 52f
+            birdLabelH = dp * 16f
+            birdRowH = dp * 23f
+        }
+        if (total() > maxH && desc.size > 1) desc = desc.take(1)
+
+        return HeroLayout(
+            pad, headerH, lines, widths, chipH, leftW, birdRowH, birdLabelH,
+            desc, tip, bodyH(), total().coerceAtMost(maxH.coerceAtLeast(dp * 120f))
+        )
+    }
+
+    /** 서울 히어로 카드 — 큰 이름 + 서식지 칩 + 대표 새 + 소개를 한눈에 */
+    private fun drawHeroCard(c: Canvas, r: RectF, reg: RegionDef, layout: HeroLayout) {
+        val dp = game.density
+        UiKit.panel(c, game, r)
+        val pad = layout.pad
+        val lx = r.left + pad
+
+        // 헤더: 지역 아이콘 + 큰 이름 + 영문/성격 + 시작 집 뱃지
+        val iconR = (layout.headerH / 2f - dp * 2f).coerceAtLeast(dp * 20f)
+        val iconCx = lx + iconR + dp * 2f
+        val iconCy = r.top + pad + layout.headerH / 2f
+        UiKit.iconCircle(c, game, iconCx, iconCy, iconR, reg.emoji, 0f, reg.kind.color)
+        val nameX = lx + iconR * 2f + dp * 12f
+        val namePaint = Type.paintAt(20f, true, 0.02f, Type.INK)
+        val subPaint = Type.paint(Role.CAPTION, Type.SOFT)
+        c.drawText(reg.name, nameX, iconCy - dp * 2f, namePaint)
+        c.drawText("${reg.english} · ${reg.kind.label}", nameX, iconCy + dp * 18f, subPaint)
+        val houseLabel = "시작 집 제공"
+        val housePaint = Type.paintAt(11.5f, true, 0.02f, 0xFF4A2E12.toInt())
+        // 글자가 가운데로 그려지니 아이콘 자리를 양쪽에 넉넉히 둔다
+        val houseW = housePaint.measureText(houseLabel) + dp * 50f
+        val houseH = dp * 26f
+        val houseR = RectF(r.right - pad - houseW, iconCy - houseH / 2f, r.right - pad, iconCy + houseH / 2f)
+        UiKit.badge(c, game, houseR, houseLabel, UiKit.GOLD, 0xFF4A2E12.toInt(), 11.5f)
+        UiKit.icon(c, game, "house", RectF(houseR.left + dp * 8f, houseR.top + dp * 5f, houseR.left + dp * 24f, houseR.bottom - dp * 5f))
+
+        // 구분선
+        val divY = r.top + pad + layout.headerH + dp * 5f
+        UiKit.divider(c, game, lx, r.right - pad, divY)
+
+        // 칩 줄
+        var chipY = divY + dp * 5f
+        for (li in layout.chipLines.indices) {
+            var cx = lx
+            val line = layout.chipLines[li]
+            for (ci in line.indices) {
+                val chip = line[ci]
+                val cw = layout.chipWidths[li][ci]
+                UiKit.badge(
+                    c, game, RectF(cx, chipY, cx + cw, chipY + dp * 24f),
+                    chip.label, chip.bg, chip.fg, 11f
+                )
+                cx += cw + dp * 6f
+            }
+            chipY += dp * 30f
+        }
+
+        // 본문: 왼쪽 대표 새 / 오른쪽 소개 + 탐조 팁
+        val bodyTop = divY + dp * 5f + layout.chipH + dp * 8f
+        val birds = Regions.signatureBirds(reg)
+        Type.text(c, "대표 새", lx, bodyTop + layout.birdLabelH - dp * 5f, Role.LABEL, Type.BROWN)
+        for (i in 0 until 3) {
+            if (i >= birds.size) break
+            val rowCy = bodyTop + layout.birdLabelH + layout.birdRowH * i + layout.birdRowH / 2f
+            drawBirdThumb(c, lx + layout.birdRowH / 2f, rowCy, layout.birdRowH - dp * 4f, birds[i])
+            val np = Type.paint(Role.LABEL, Type.INK)
+            var birdName = birds[i].name
+            val maxNameW = layout.leftW - layout.birdRowH - dp * 6f
+            while (birdName.length > 2 && np.measureText(birdName) > maxNameW) birdName = birdName.dropLast(1)
+            if (birdName != birds[i].name) birdName = birdName.dropLast(1) + "…"
+            c.drawText(birdName, lx + layout.birdRowH + dp * 4f, Type.midBaseline(np, rowCy), np)
+        }
+        val rightX = lx + layout.leftW + dp * 12f
+        val bodyPaint = Type.paint(Role.BODY, Type.INK)
+        val bodyLH = Type.lineHeight(Role.BODY)
+        var ty = bodyTop + (bodyLH - bodyPaint.descent() - bodyPaint.ascent()) / 2f
+        for (ln in layout.descLines) {
+            c.drawText(ln, rightX, ty, bodyPaint)
+            ty += bodyLH
+        }
+        if (layout.tipLines.isNotEmpty()) {
+            val tipPaint = Type.paint(Role.CAPTION, Type.SOFT)
+            val tipLH = Type.lineHeight(Role.CAPTION)
+            val tipTop = bodyTop + bodyLH * layout.descLines.size + dp * 8f
+            // 첫 줄 앞에 전구 아이콘 — 줄들은 아이콘 오른쪽에 가지런히 맞춘다
+            val iconBox = dp * 13f
+            UiKit.icon(c, game, "sun", RectF(rightX, tipTop, rightX + iconBox, tipTop + iconBox))
+            val tipX = rightX + iconBox + dp * 4f
+            var tty = tipTop + (tipLH - tipPaint.descent() - tipPaint.ascent()) / 2f
+            for (ln in layout.tipLines) {
+                c.drawText(ln, tipX, tty, tipPaint)
+                tty += tipLH
+            }
+        }
+    }
+
+    /** 대표 새 미니 썸네일 — 크림 동그라미 + 픽셀 도트 */
+    private fun drawBirdThumb(c: Canvas, cx: Float, cy: Float, size: Float, def: BirdDef) {
+        val dp = game.density
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        fill.color = Color.argb(60, 60, 42, 22)
+        c.drawCircle(cx, cy + dp * 1.5f, size / 2f, fill)
+        fill.color = 0xFFFFFBEF.toInt()
+        c.drawCircle(cx, cy, size / 2f, fill)
+        stroke.color = 0xFFC9A87B.toInt()
+        stroke.strokeWidth = dp * 1.2f
+        c.drawCircle(cx, cy, size / 2f, stroke)
+        val bmp = game.assets.bird(def.id)
+        val box = size - dp * 6f
+        val k = minOf(box / bmp.width.toFloat(), box / bmp.height.toFloat())
+        val bw = bmp.width * k
+        val bh = bmp.height * k
+        c.drawBitmap(bmp, null, RectF(cx - bw / 2f, cy - bh / 2f, cx + bw / 2f, cy + bh / 2f), game.assets.sprPaint)
     }
 
     override fun handleInput(input: Input) {
