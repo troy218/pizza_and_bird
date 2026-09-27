@@ -512,6 +512,9 @@ class Paint {
     enum class Cap { BUTT, ROUND, SQUARE }
     enum class Join { MITER, ROUND, BEVEL }
 
+    /** [P05] BootView/Maps 가 쓰는 정렬 — 프리뷰에서도 실제로 반영한다. */
+    enum class Align { LEFT, CENTER, RIGHT }
+
     var color: Int = 0xFF000000.toInt()
     var textSize: Float = 12f
     var strokeWidth: Float = 1f
@@ -528,6 +531,7 @@ class Paint {
     var maskFilter: MaskFilter? = null
     var colorFilter: ColorFilter? = null
     var letterSpacing: Float = 0f
+    var textAlign: Align = Align.LEFT
 
     constructor()
 
@@ -662,6 +666,10 @@ class Bitmap private constructor(val image: BufferedImage) {
             g.dispose()
             return Bitmap(out)
         }
+
+        // [P05] 프리뷰 파이프라인이 조류 도감 사진(assets/birds 안의 jpg)을 실제로 읽을 수 있도록
+        // BitmapFactory 를 위한 팩토리를 열어 둔다 (Bitmap 생성자는 파일 안에서만 보인다).
+        fun fromImage(img: BufferedImage): Bitmap = Bitmap(img)
     }
 }
 

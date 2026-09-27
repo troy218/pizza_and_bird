@@ -51,3 +51,20 @@ class KeyEvent {
         const val KEYCODE_SHIFT_RIGHT = 60
     }
 }
+
+/**
+ * [P05] BootView(부팅 스플래시) 컴파일용 View 스텁.
+ * 프리뷰는 View 트리를 그리지 않으므로 크기/무효화는 아무 일도 하지 않는다.
+ */
+open class View(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+    open var width: Int = 0
+    open var height: Int = 0
+    open val isAttachedToWindow: Boolean = false
+
+    open fun onDraw(canvas: android.graphics.Canvas) {}
+    open fun invalidate() {}
+    open fun postInvalidate() {}
+    open fun postInvalidateDelayed(delayMillis: Long) {}
+    open fun requestLayout() {}
+    open fun setBackgroundColor(color: Int) {}
+}

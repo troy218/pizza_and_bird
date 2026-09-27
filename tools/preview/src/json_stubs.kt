@@ -16,19 +16,25 @@ class JSONObject {
     constructor(json: String) {
         val v = JsonParser.parse(json.trim())
         if (v !is Map<*, *>) throw JSONException("JSONObject expected")
-        @Suppress("UNCHECKED_CAST")
-        map.putAll(v as Map<String, Any>)
+        for ((k, value) in v) map[k.toString()] = normalize(value)
     }
 
     constructor(m: Map<*, *>) {
         for ((k, v) in m) map[k.toString()] = normalize(v)
     }
 
+    /** [P05] 백업 코드가 중첩 객체를 그대로 주고받아야 하므로 Map/List 도 JSON 값으로 감싼다. */
     private fun normalize(v: Any?): Any = when (v) {
         is Int, is Long, is Boolean, is Double, is String, is JSONObject, is JSONArray -> v
         is Float -> v.toDouble()
         null -> JSONObject.NULL
+        is Map<*, *> -> JSONObject().apply { for ((k2, v2) in v) putAny(k2.toString(), normalize(v2)) }
+        is List<*> -> JSONArray().apply { for (e in v) addAny(normalize(e)) }
         else -> v.toString()
+    }
+
+    internal fun putAny(key: String, value: Any) {
+        map[key] = value
     }
 
     fun put(key: String, value: Int): JSONObject {
@@ -62,6 +68,56 @@ class JSONObject {
     fun has(key: String): Boolean = map.containsKey(key)
 
     fun opt(key: String): Any? = map[key]
+
+    // ---- [P05] 백업 코드가 쓰는 get 계열 (없으면 JSONException) ----
+
+    fun get(key: String): Any = map[key] ?: throw JSONException("no value for $key")
+
+    fun getString(key: String): String = get(key).let { if (it is String) it else it.toString() }
+
+    fun getInt(key: String): Int = when (val v = get(key)) {
+        is Int -> v
+        is Long -> v.toInt()
+        is Double -> v.toInt()
+        is String -> v.toDoubleOrNull()?.toInt() ?: throw JSONException("not an int: $key")
+        else -> throw JSONException("not an int: $key")
+    }
+
+    fun getLong(key: String): Long = when (val v = get(key)) {
+        is Int -> v.toLong()
+        is Long -> v
+        is Double -> v.toLong()
+        is String -> v.toDoubleOrNull()?.toLong() ?: throw JSONException("not a long: $key")
+        else -> throw JSONException("not a long: $key")
+    }
+
+    fun getDouble(key: String): Double = when (val v = get(key)) {
+        is Int -> v.toDouble()
+        is Long -> v.toDouble()
+        is Double -> v
+        is String -> v.toDoubleOrNull() ?: throw JSONException("not a double: $key")
+        else -> throw JSONException("not a double: $key")
+    }
+
+    fun getBoolean(key: String): Boolean = when (val v = get(key)) {
+        is Boolean -> v
+        is String -> v.toBooleanStrictOrNull() ?: throw JSONException("not a boolean: $key")
+        else -> throw JSONException("not a boolean: $key")
+    }
+
+    fun getJSONObject(key: String): JSONObject =
+        optJSONObject(key) ?: throw JSONException("not a JSONObject: $key")
+
+    fun getJSONArray(key: String): JSONArray =
+        optJSONArray(key) ?: throw JSONException("not a JSONArray: $key")
+
+    fun remove(key: String): Any? = map.remove(key)
+
+    fun names(): JSONArray {
+        val a = JSONArray()
+        for (k in map.keys) a.put(k)
+        return a
+    }
 
     fun optInt(key: String, def: Int = 0): Int = when (val v = map[key]) {
         is Int -> v
@@ -130,7 +186,19 @@ class JSONArray {
     constructor(json: String) {
         val v = JsonParser.parse(json.trim())
         if (v !is List<*>) throw JSONException("JSONArray expected")
-        for (e in v) list.add(e ?: JSONObject.NULL)
+        for (e in v) list.add(wrapValue(e))
+    }
+
+    internal fun addAny(value: Any) {
+        list.add(value)
+    }
+
+    private fun wrapValue(v: Any?): Any = when (v) {
+        null -> JSONObject.NULL
+        is Map<*, *> -> JSONObject().apply { for ((k2, v2) in v) putAny(k2.toString(), wrapValue(v2)) }
+        is List<*> -> JSONArray().apply { for (e in v) addAny(wrapValue(e)) }
+        is Float -> v.toDouble()
+        else -> v
     }
 
     fun put(value: Int): JSONArray {
@@ -163,6 +231,24 @@ class JSONArray {
 
     fun length(): Int = list.size
 
+    // ---- [P05] get 계열 ----
+    fun get(index: Int): Any = list.getOrNull(index) ?: throw JSONException("index $index out of bounds")
+
+    fun getString(index: Int): String = get(index).let { if (it is String) it else it.toString() }
+
+    fun getInt(index: Int): Int = when (val v = get(index)) {
+        is Int -> v
+        is Long -> v.toInt()
+        is Double -> v.toInt()
+        else -> throw JSONException("not an int at $index")
+    }
+
+    fun getJSONObject(index: Int): JSONObject =
+        optJSONObject(index) ?: throw JSONException("not a JSONObject at $index")
+
+    fun getJSONArray(index: Int): JSONArray =
+        optJSONArray(index) ?: throw JSONException("not a JSONArray at $index")
+
     fun optInt(index: Int, def: Int = 0): Int = when (val v = list.getOrNull(index)) {
         is Int -> v
         is Long -> v.toInt()
@@ -188,6 +274,10 @@ class JSONArray {
     fun optString(index: Int, def: String = ""): String = (list.getOrNull(index) as? String) ?: def
 
     fun optJSONObject(index: Int): JSONObject? = list.getOrNull(index) as? JSONObject
+
+    fun optJSONArray(index: Int): JSONArray? = list.getOrNull(index) as? JSONArray
+
+    fun opt(index: Int): Any? = list.getOrNull(index)
 
     override fun toString(): String {
         val sb = StringBuilder("[")

@@ -358,6 +358,38 @@ class Game(val context: Context) {
             )
         )
     }
+
+    /**
+     * [P05] 백업 코드에서 복원한 직후 — prefs를 다시 읽어 **살아 있는 `state` 객체**를 갱신한다.
+     *
+     * `state`는 val이라 통째로 갈아끼울 수 없고, 씬·HUD·Audio는 전부 이 한 객체를 붙잡고 있다.
+     * 그래서 새로 로드한 상태의 필드를 지금 객체에 그대로 복사해 넣는다(참조 동일성 유지).
+     * 세이브 포맷/스키마는 건드리지 않는다 — [SaveManager.load] 경로만 다시 탄다.
+     *
+     * @return 복원된 상태로 게임 시작 지점(`started`)이 참인지.
+     *         거짓이면 타이틀에서 「새로 시작하기」를 눌러야 한다.
+     */
+    fun reloadState(): Boolean {
+        val fresh = SaveManager.load(context)
+        var k: Class<*> = GameState::class.java
+        while (k != Any::class.java) {
+            for (f in k.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(f.modifiers)) continue
+                try {
+                    f.isAccessible = true
+                    f.set(state, f.get(fresh))
+                } catch (_: Throwable) {
+                }
+            }
+            k = k.superclass ?: Any::class.java
+        }
+        // 복원된 설정을 곧바로 반영한다 (음소거/화질이 백업 기준으로 돌아온다)
+        audio.setMusic(state.musicOn)
+        audio.setSfx(state.sfxOn)
+        hud.releaseStick()
+        applyRenderQuality()
+        return state.started
+    }
 }
 
 /** 검은 페이드 인/아웃 */
