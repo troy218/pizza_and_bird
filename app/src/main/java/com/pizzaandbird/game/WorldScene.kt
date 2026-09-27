@@ -937,7 +937,7 @@ class WorldScene(
         }
         val target = best
         if (target == null) {
-            game.toast("그곳엔 새가 없어요… 새 근처를 탭해 주세요")
+            game.toast("그곳엔 새가 없어요…")
             return
         }
         val rig = state.rig()
@@ -1440,7 +1440,6 @@ class WorldScene(
                     return
                 }
             }
-            game.toast("주민·이정표·벤치·고양이에게 다가가 육각 메인 버튼을 눌러보세요!")
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -1467,13 +1466,6 @@ class WorldScene(
                     return
                 }
             }
-            // 새 탭 (힌트)
-            for (b in birds) {
-                if (b.state != 2 && hypot(b.cx - tap.x, b.cy - tap.y) < 14f) {
-                    game.toast("카메라 버튼을 누르고 찍어보세요! 📷")
-                    return
-                }
-            }
         }
     }
 
@@ -1491,7 +1483,6 @@ class WorldScene(
             game.hud.questLabel = null
             viewfinder.onEnter()
             game.haptic()
-            game.toast("📷 카메라 모드 — 새를 탭해 촬영하세요")
         } else {
             game.hud.showStats = true
             game.hud.showMinimap = true
@@ -1502,7 +1493,7 @@ class WorldScene(
     private fun quickEat() {
         val pid = state.eatBest()
         if (pid == null) {
-            game.toast("피자가 없어요! 집의 화덕이나 오븐에서 구워요 🍕")
+            game.toast("피자가 없어요! 🍕")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val p = Pizzas.of(pid)
