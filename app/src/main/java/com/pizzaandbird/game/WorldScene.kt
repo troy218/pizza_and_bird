@@ -1878,12 +1878,14 @@ class WorldScene(
         val levels = state.addExp(chapter.rewardExp)
         state.mainQuestStage++
         if (state.mainQuestStage >= MainStory.CHAPTERS.size) state.mainQuestFinished = true
+        val newRecipes = MainStory.newlyUnlockedPizzas(state.mainQuestStage)
         SaveManager.save(game.context, state)
         game.sfx(Audio.Sfx.REWARD, 0.9f)
         val reward = buildString {
             if (chapter.rewardMoney > 0) append("\n보상 ${won(chapter.rewardMoney)}")
             if (chapter.rewardExp > 0) append(" · 경험치 +${chapter.rewardExp}")
             if (levels > 0) append(" · 레벨 업!")
+            if (newRecipes.isNotEmpty()) append("\n📖 할머니의 피자 레시피 해금: ${newRecipes.joinToString(" · ") { it.name }}")
         }
         openOverlay(
             DialogOverlay(
