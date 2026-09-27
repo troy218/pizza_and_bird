@@ -461,16 +461,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             c.drawText(value, cr.right - dp(scene, 8f) - textP.measureText(value), vty, textP)
         }
 
-        // 장비 가방 바로가기 + 지금 장비 그림
-        val bagR = RectF(panelR.right - dp(scene, 140f), contentBottom() - dp(scene, 30f), panelR.right - dp(scene, 18f), contentBottom() - dp(scene, 4f))
-        drawButton(c, scene, bagR, "🎒 장비 가방", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 12f)
-        btnRects.add(Triple(bagR, "gearbag") { scene.openOverlay(GearBagOverlay(scene)) })
-        val iw = dp(scene, 96f)
-        c.drawBitmap(
-            g.assets.camProfile(rig.look), null,
-            RectF(bagR.left - dp(scene, 8f) - iw, bagR.top - dp(scene, 34f), bagR.left - dp(scene, 8f), bagR.top - dp(scene, 34f) + iw * 20f / 32f),
-            g.assets.sprPaint
-        )
     }
 
     private fun drawQuest(c: Canvas) {
