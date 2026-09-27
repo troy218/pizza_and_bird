@@ -795,18 +795,32 @@ class Canvas {
     fun drawBitmap(bitmap: Bitmap, matrix: Matrix, paint: Paint?) {
         val image = filteredImage(bitmap, paint)
         val oldComp = g.composite
-        g.composite = java.awt.AlphaComposite.getInstance(
-            java.awt.AlphaComposite.SRC_OVER, (paint?.alpha ?: 255) / 255f
-        )
+        g.composite = compOf(paint, (paint?.alpha ?: 255) / 255f)
         g.drawImage(image, matrix.tx, null)
         g.composite = oldComp
+    }
+
+    /** xfermode → AWT 합성 규칙 (LightMap DST_OUT 등) */
+    private fun compOf(paint: Paint?, alpha: Float): java.awt.Composite {
+        val xf = paint?.xfermode as? PorterDuffXfermode
+        val rule = when (xf?.mode) {
+            PorterDuff.Mode.SRC -> java.awt.AlphaComposite.SRC
+            PorterDuff.Mode.SRC_IN -> java.awt.AlphaComposite.SRC_IN
+            PorterDuff.Mode.DST_IN -> java.awt.AlphaComposite.DST_IN
+            PorterDuff.Mode.DST_OUT -> java.awt.AlphaComposite.DST_OUT
+            PorterDuff.Mode.DST_OVER -> java.awt.AlphaComposite.DST_OVER
+            PorterDuff.Mode.CLEAR -> java.awt.AlphaComposite.CLEAR
+            PorterDuff.Mode.MULTIPLY -> java.awt.AlphaComposite.SRC_OVER
+            else -> java.awt.AlphaComposite.SRC_OVER
+        }
+        return java.awt.AlphaComposite.getInstance(rule, alpha.coerceIn(0f, 1f))
     }
 
     fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
         val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
-        g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
+        g.composite = compOf(paint, alpha)
         g.drawImage(image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
@@ -819,7 +833,7 @@ class Canvas {
         val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
-        g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
+        g.composite = compOf(paint, alpha)
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
         at.scale((dst.width() / bitmap.width).toDouble(), (dst.height() / bitmap.height).toDouble())
         if (src != null) {

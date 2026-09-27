@@ -83,6 +83,8 @@ object UiOpacitySmoke {
         val surfaces: List<Pair<String, (Canvas) -> Unit>> = listOf(
             "dialog / HUD panel" to { c -> UiKit.panel(c, game, rect) },
             "card" to { c -> UiKit.card(c, game, rect) },
+            "stitched card" to { c -> UiKit.stitchCard(c, game, rect) },
+            "name tag" to { c -> UiKit.nameTag(c, game, rect, "", 12f) },
             "selected card" to { c -> UiKit.card(c, game, rect, selected = true) },
             "button" to { c -> UiKit.button(c, game, rect, "", UiKit.GOLD, UiKit.INK, 12f) },
             "circle button" to { c -> UiKit.circleButton(c, game, 120f, 80f, 50f, "", 12f) },
@@ -109,6 +111,6 @@ object UiOpacitySmoke {
             UiKit.button(c, game, rect, "", Color.argb(120, 90, 80, 70), UiKit.INK, 12f)
         }
         check(pixel(image(Color.BLACK, disabled)) != pixel(image(Color.WHITE, disabled)))
-        println("UI opacity smoke OK: shader alpha, bitmap isolation/tint, 8 surfaces, gauge, disabled button")
+        println("UI opacity smoke OK: shader alpha, bitmap isolation/tint, 10 surfaces, gauge, disabled button")
     }
 }
