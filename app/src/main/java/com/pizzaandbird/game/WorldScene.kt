@@ -2405,10 +2405,8 @@ class WorldScene(
             val gy = (ghostY[idx] - camY) * WORLD_SCALE
             val alpha = ((78 - i * 26) * k).toInt().coerceIn(0, 255)
             if (alpha <= 3) continue
-            a.sprPaint.alpha = alpha
-            c.drawBitmap(bmp, gx, gy, a.sprPaint)
+            a.drawPlayer(c, bmp, gx, gy, game.worldScale.toFloat(), alpha)
         }
-        a.sprPaint.alpha = 255
     }
 
     private fun sortY(e: Any): Float = when (e) {
@@ -2424,12 +2422,12 @@ class WorldScene(
         when (e) {
             is Npc -> {
                 // 사람마다 옷차림이 다르고, 대기 동작 위상도 어긋나게 한다
-                val bmp = a.npcBitmap(e.person, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
+                val bmp = a.npcBitmap(e.person, game.time, e.tileX * 0.37f + e.tileY * 0.71f, game.hdSprites)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE
                 scratchRect.set(sx + 8f, sy + 26f, sx + 24f, sy + 32f)
                 c.drawOval(scratchRect, a.shadowPaint)
-                c.drawBitmap(bmp, sx, sy, a.sprPaint)
+                a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
                 // 메인 보고 가능 또는 새 서브 의뢰가 있으면 느낌표 표시
                 if (e.kind == NpcKind.PROFESSOR) {
                     val mainReady = !state.mainQuestFinished &&
@@ -2541,9 +2539,10 @@ class WorldScene(
             }
             is Player -> {
                 val punching = punchT > 0f && !player.bike
-                val set = a.playerSet(state.gender, state.gearTier())
+                val hd = game.hdSprites
+                val set = a.playerSet(state.gender, state.gearTier(), hd)
                 val bmp: android.graphics.Bitmap = if (player.bike) {
-                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal, state.bikeStyle())
+                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal, state.bikeStyle(), hd)
                 } else if (punching) {
                     val frame = ((punchT / PUNCH_DUR) * set.punch.count).toInt().coerceIn(0, set.punch.count - 1)
                     set.punch.frame(punchDir, frame)
@@ -2570,7 +2569,7 @@ class WorldScene(
                 scratchRect.set(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k)
                 c.drawOval(scratchRect, a.shadowPaint)
                 drawGhosts(c, bmp)
-                c.drawBitmap(bmp, sx, sy, a.sprPaint)
+                a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
                 if (punchT > 0f) drawPunchFist(c, sx, sy)
 
                 // 장착한 카메라를 몸에 겹쳐 그린다 (촬영 모드면 눈높이로 들어올린다)
@@ -2593,7 +2592,7 @@ class WorldScene(
                     }
                     val lift = if (raised) -1f else 0f
                     val ride = if (player.bike) 1.5f else 0f
-                    c.drawBitmap(a.camHeld(look, camDir, raised), sx, sy + bob + lift + ride, a.sprPaint)
+                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, sy + bob + lift + ride, game.worldScale.toFloat())
 
                     // 촬영 모드: 렌즈 앞알이 반짝인다
                     if (raised && camDir != 1) {

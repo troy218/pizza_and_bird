@@ -577,9 +577,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
-        val ps = a.playerSet(state.gender, state.gearTier())
+        val hd = game.hdSprites
+        val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 집 안에서도 카메라는 목에 걸고 다닌다
         val camDir = when (player.facing) {
             Dir.E -> 2
@@ -587,7 +588,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, game.worldScale.toFloat())
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)
