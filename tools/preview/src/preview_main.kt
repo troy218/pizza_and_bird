@@ -22,7 +22,6 @@ import com.pizzaandbird.game.Assets
 import com.pizzaandbird.game.BakeOverlay
 import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.Birds
-import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.DecorPickOverlay
 import com.pizzaandbird.game.DecorShopOverlay
 import com.pizzaandbird.game.DialogOverlay

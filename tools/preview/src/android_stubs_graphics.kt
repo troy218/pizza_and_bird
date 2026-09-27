@@ -52,9 +52,6 @@ object Color {
     fun alpha(color: Int): Int = (color ushr 24) and 0xFF
 
     @JvmStatic
-    const val WHITE = 0xFFFFFFFF.toInt()
-    const val BLACK = 0xFF000000.toInt()
-
     fun red(color: Int): Int = (color shr 16) and 0xFF
 
     @JvmStatic
