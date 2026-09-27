@@ -108,7 +108,7 @@ app/src/main/java/com/pizzaandbird/game/
 ├── GameView.kt          SurfaceView 게임 루프 (60fps)
 ├── Game.kt              씬 관리, 가상 해상도(960×540) 스케일링, 페이드 전환, 햅틱
 ├── Input.kt             멀티터치 D패드 + A/B/카메라/메뉴/달리기/간식 + 키보드
-├── Assets.kt            모든 픽셀 아트를 코드로 생성 (이미지 파일 0개! 사람·고양이·32px 타일)
+├── Assets.kt            VectorDrawable(res/drawable/art_*) 래스터 로더 (아트 파이프라인 아래 참조)
 ├── Data.kt              공식 조류 598종 / 지역 12곳 / 토핑 / 장식 / 카메라 데이터 정의
 ├── BirdChecklist.kt     한국조류학회 2025 v2.1 공식 조류목록 598종
 ├── GameState.kt         진행 상황 + 낮밤 시각 + 오프라인 저장 (JSON, v1 세이브 마이그레이션)
@@ -128,7 +128,8 @@ tools/MapTest.kt         맵 로직 검증 스크립트 (144개 맵 조합 자�
 ### 콘텐츠 추가 방법
 - **새 목록 갱신**: `한반도_조류_전체목록_2025.txt` 갱신 후 `python3 tools/generate_bird_checklist.py` 실행 → `Birds.ALL`/도감/스폰/박사 의뢰에 자동 반영 (`active = "night"`로 밤새 지정 가능)
 - **지역 추가**: `Regions.ALL` + `LINKS`에 연결 추가 → 맵은 절차 생성 (지역당 각 방향 최대 1개 터널)
-- **피자 토핑/장식 소품**: `Toppings.ALL` / `Decors.ALL`에 추가 (아트는 자동 생성은 아니고 `Assets.buildDecorArt`에 추가)
+- **피자 토핑/장식 소품**: `Toppings.ALL` / `Decors.ALL`에 추가 (아트는 `art/svg/items.svg`에 symbol 추가 후 `python3 tools/build_art.py`)
+- **아트 파이프라인**: 픽셀 아트 마스터는 `art/svg/*.svg` (64px 그리드, `<symbol id="art_*">`) — `python3 tools/build_art.py` 로 VectorDrawable 생성, `python3 tools/svg_preview.py --zoom 5` 로 미리보기 PNG 확인, `python3 tools/bird_preview.py` 로 새 치환 검증. 자세한 마스터 작성 규칙은 `tools/build_art.py` 주석 참조
 
 ---
 

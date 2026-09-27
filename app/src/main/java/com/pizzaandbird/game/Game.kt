@@ -23,7 +23,7 @@ class Game(val context: Context) {
     val worldCanvas = Canvas(worldBitmap)
 
     val state: GameState = SaveManager.load(context)
-    val assets = Assets()
+    val assets = Assets(context)
     val hud = Hud(this)
     val input = Input(this)
 
