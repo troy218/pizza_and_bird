@@ -4,25 +4,33 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * 카메라 뷰파인더 연출 (탐조 화면).
+ * 카메라 뷰파인더 (탐조 화면) — 이 게임에서 제일 예쁜 화면.
  *
- * 진짜 카메라 앱처럼 보이도록 다음을 그린다.
- *  - 부드러운 비네트 + 모서리 브래킷 + 3분할 그리드 + 필름 그레인
- *  - 상단 바: 촬영 표시등 · 시각 · 장비 이름/사거리
- *  - 하단 바: 촬영 정보(ISO/조리개/셔터) · 거리 게이지 · 별점 예상
- *  - AF 박스: 조준 중인 새에 초점 박스 + 이름/별점 예상 힌트
- *  - 사거리 원과 별점 구역(★3/★2/★1) 안내 링
- *  - 카메라 모드 진입 / 촬영 순간의 셔터 블레이드 애니메이션
+ * 진짜 카메라 앱을 들여다보는 기분이 나도록 다음을 겹겹이 그린다.
  *
- * 좌표는 모두 가상 해상도(960x540) 기준이며 월드 캔버스에 그린다.
+ *  1. **렌즈 톤** — 차가운 필름 색조, 좌상단 빛 번짐(낮엔 햇살색 · 밤엔 달빛색),
+ *     초점 밖 보케, 필름 그레인, 네 변에서 스며드는 비네트.
+ *  2. **프레임** — 유리 가장자리 그림자, 크림색 코너 브래킷 + 금색 포인트,
+ *     3분할 그리드와 교차점 마커, 조리개 눈금, 중앙 십자.
+ *  3. **사거리 안내** — 점선 사거리 원 + 24눈금, ★3 / ★2 구역 링과 라벨,
+ *     최단 촬영 거리(빨강) 링, 아래쪽 사거리 명판.
+ *  4. **상단 바** — REC 점멸등 · PHOTO · AF-C · 시각(하루 진행 게이지) · 장비 카드(렌즈 아이콘).
+ *  5. **하단 바** — EXIF(조리개·셔터·ISO), 장비 정보, 거리 게이지(★구역·마커), 촬영 수, 계절·날씨.
+ *  6. **AF 박스** — 조준 중인 새에 초점 브래킷 + AF 획득 연출 + 이름/등급/별점/거리 명판
+ *     + 초점 영역 거리 바 + 피사체 뒤로 번지는 빛 + 3★ 순간의 금빛 링·반짝임.
+ *  7. **셔터** — 곡선 블레이드가 닫히고, 빛이 번지고, "찰칵!" 과 플래시가 터진다.
+ *
+ * 좌표는 모두 가상 해상도(960x540) 기준이며 월드 캔버스에 그린다(HUD 는 나중에 그려진다).
  */
 class Viewfinder(private val game: Game) {
 
@@ -41,6 +49,7 @@ class Viewfinder(private val game: Game) {
     private var grainSeed = 0
     private var focusId: String? = null   // 현재 조준 중인 새
     private var focusT = 0f               // 조준 시작 후 경과 (AF 획득 연출)
+    private var sparkT = 0f               // 3★ 조준 반짝임 위상
 
     /** 카메라 모드에 들어갈 때: 닫힌 셔터가 열리며 등장 */
     fun onEnter() {
@@ -74,6 +83,7 @@ class Viewfinder(private val game: Game) {
     fun update(dt: Float) {
         clock += dt
         focusT += dt
+        sparkT += dt
         if (enterT < 1f) enterT = (enterT + dt / 0.45f).coerceAtMost(1f)
         if (flash > 0f) flash = (flash - dt * 4.6f).coerceAtLeast(0f)
         when (phase) {
@@ -99,13 +109,21 @@ class Viewfinder(private val game: Game) {
         else -> 0f
     }
 
+    /** 등장 연출 곡선 (smoothstep) */
+    private fun easeIn(): Float {
+        val e = enterT
+        return e * e * (3f - 2f * e)
+    }
+
     // ------------------------------------------------------------------
     // 페인트
     // ------------------------------------------------------------------
 
     private val fill = Paint()
+    private val grad = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val text = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true)
+    private val textSoft = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), false)
     private val mono = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.MONOSPACE
         isFakeBoldText = true
@@ -114,6 +132,8 @@ class Viewfinder(private val game: Game) {
     private val grainPaint = Paint().apply { alpha = 46 }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bladePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val leakPaint = Paint()
+    private val sparkle = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private var grainBmp: Bitmap? = null
 
@@ -154,32 +174,29 @@ class Viewfinder(private val game: Game) {
         val w = game.virtW.toFloat()
         val h = game.virtH.toFloat()
         val rig = state.rig()
+        val k = easeIn()
         val rangeTiles = rig.reach
         val rangePx = rangeTiles * 16f * WORLD_SCALE * zoom
         val px = sx(playerCx, camX, zoom)
         val py = sy(playerCy, camY, zoom)
-
-        // 카메라 색감 (약간 차갑게)
-        fill.color = Color.argb(16, 42, 60, 92)
-        c.drawRect(0f, 0f, w, h, fill)
-        drawGrain(c, w, h)
-        drawVignette(c, w, h)
-
-        drawRange(c, px, py, rangePx, rangeTiles, rig.minDist * 16f * WORLD_SCALE, rig.minDist)
+        val bokeh = ((8f - rig.apTele) / 6f).coerceIn(0f, 1f)
 
         val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles, zoom)
         if (focus?.def?.id != focusId) {
             focusId = focus?.def?.id
             focusT = 0f
         }
-        drawBirdMarks(c, birds, focus, playerCx, playerCy, camX, camY, rangeTiles, zoom)
-        drawFrame(c, w, h)
 
-        drawTopBar(c, w)
-        drawBottomBar(c, w, h, focus, playerCx, playerCy, rangeTiles)
+        drawTone(c, w, h, bokeh)
+        drawRange(c, px, py, rangePx, rangeTiles, rig.minDist * 16f * WORLD_SCALE, rig.minDist, k, rig)
+        drawBirdMarks(c, birds, focus, playerCx, playerCy, camX, camY, rangeTiles, zoom, k)
+        drawFrame(c, w, h, k)
+
+        drawTopBar(c, w, k)
+        drawBottomBar(c, w, h, focus, playerCx, playerCy, rangeTiles, k)
     }
 
-    /** 월드 논리 좌표 → 화면 좌표 (월드가 화면 중앙 기준으로 zoom 배 확대돼 있다) */
+    /** 월드 논리 좌표 -> 화면 좌표 (월드가 화면 중앙 기준으로 zoom 배 확대돼 있다) */
     private fun sx(wx: Float, camX: Float, zoom: Float): Float {
         val hx = game.virtW / 2f
         return hx + ((wx - camX) * WORLD_SCALE - hx) * zoom
@@ -190,7 +207,46 @@ class Viewfinder(private val game: Game) {
         return hy + ((wy - camY) * WORLD_SCALE - hy) * zoom
     }
 
-    // ----- 배경 연출 ---------------------------------------------------
+    // ------------------------------------------------------------------
+    // 1. 렌즈 톤 (색조 · 빛 번짐 · 보케 · 그레인 · 비네트)
+    // ------------------------------------------------------------------
+
+    private fun drawTone(c: Canvas, w: Float, h: Float, bokeh: Float) {
+        // 차가운 필름 색조
+        fill.color = Color.argb(13, 42, 60, 92)
+        c.drawRect(0f, 0f, w, h, fill)
+
+        // 좌상단 빛 번짐 — 밤에는 달빛, 낮에는 햇살 색으로
+        val dark = state.darkness()
+        val leak = if (dark > 0.6f) intArrayOf(150, 186, 255) else intArrayOf(255, 214, 150)
+        val leakA = (20f * (1f - dark * 0.55f)).toInt().coerceIn(4, 26)
+        leakPaint.shader = LinearGradient(
+            -w * 0.08f, -h * 0.16f, w * 0.72f, h * 0.86f,
+            intArrayOf(Color.argb(leakA, leak[0], leak[1], leak[2]), Color.argb(0, leak[0], leak[1], leak[2])),
+            floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
+        )
+        c.drawRect(0f, 0f, w, h, leakPaint)
+        leakPaint.shader = null
+
+        drawBokeh(c, w, h, bokeh)
+        drawGrain(c, w, h)
+        drawVignette(c, w, h)
+    }
+
+    /** 초점 밖 하이라이트가 동그랗게 번지는 느낌 — 아주 옅게 떠다닌다 */
+    private fun drawBokeh(c: Canvas, w: Float, h: Float, bokeh: Float) {
+        if (bokeh < 0.15f) return
+        val warm = if (state.darkness() > 0.6f) Glow.soft else Glow.warm
+        for (i in 0 until 6) {
+            val s = i * 1.71f
+            val ph = clock * (0.10f + 0.03f * (i % 3))
+            val x = ((sin(ph + s) * 0.5f + 0.5f) * (w + 220f)) - 110f
+            val y = ((sin(ph * 0.83f + s * 1.9f) * 0.5f + 0.5f) * (h + 200f)) - 100f
+            val r = 30f + 62f * frac(sin(s * 12.9898f) * 43758.5453f)
+            val a = (7f + 15f * bokeh * (0.6f + 0.4f * sin(clock * 0.7f + s))).toInt().coerceIn(3, 26)
+            Glow.draw(c, warm, x, y, r, r, a)
+        }
+    }
 
     private fun drawGrain(c: Canvas, w: Float, h: Float) {
         grainT += 0.016f
@@ -209,14 +265,14 @@ class Viewfinder(private val game: Game) {
         }
     }
 
-    /** 네 변에서 안쪽으로 부드럽게 어두워지는 비네트 */
+    /** 네 변에서 안쪽으로 부드럽게 어두워지는 비네트 + 위아래 정보 바 그늘 */
     private fun drawVignette(c: Canvas, w: Float, h: Float) {
-        val inset = 96f
-        val steps = 8
+        val inset = 104f
+        val steps = 12
         val band = inset / steps
         for (i in 0 until steps) {
             val k = (steps - i).toFloat() / steps
-            val a = (132f * k * k).toInt().coerceAtLeast(1)
+            val a = (100f * k * k).toInt().coerceAtLeast(1)
             fill.color = Color.argb(a, 12, 10, 20)
             val d = band * i
             c.drawRect(0f, d, w, d + band + 0.5f, fill)
@@ -226,38 +282,31 @@ class Viewfinder(private val game: Game) {
         }
         // 상단/하단은 정보 바 가독성을 위해 조금 더
         fill.color = Color.argb(40, 10, 8, 18)
-        c.drawRect(0f, 0f, w, 78f, fill)
+        c.drawRect(0f, 0f, w, 84f, fill)
         fill.color = Color.argb(30, 10, 8, 18)
-        c.drawRect(0f, h - 150f, w, h, fill)
+        c.drawRect(0f, h - 160f, w, h, fill)
     }
 
-    /** 뷰파인더 프레임: 모서리 브래킷 + 3분할 그리드 + 눈금 + 중앙 십자 */
-    private fun drawFrame(c: Canvas, w: Float, h: Float) {
-        val m = 22f
-        val len = 54f
+    // ------------------------------------------------------------------
+    // 2. 프레임 (브래킷 · 그리드 · 눈금 · 십자)
+    // ------------------------------------------------------------------
 
-        stroke.color = Color.argb(232, 255, 250, 235)
-        stroke.strokeWidth = 3.4f
+    private fun drawFrame(c: Canvas, w: Float, h: Float, k: Float) {
+        val m = 24f
+        val len = 58f
+        val alpha = k
+
+        // 유리 가장자리 — 안쪽으로 살짝 어두운 이중 테
         stroke.pathEffect = null
-        val p = Path()
-        p.moveTo(m, m + len); p.lineTo(m, m); p.lineTo(m + len, m)
-        p.moveTo(w - m - len, m); p.lineTo(w - m, m); p.lineTo(w - m, m + len)
-        p.moveTo(w - m, h - m - len); p.lineTo(w - m, h - m); p.lineTo(w - m - len, h - m)
-        p.moveTo(m + len, h - m); p.lineTo(m, h - m); p.lineTo(m, h - m - len)
-        c.drawPath(p, stroke)
+        stroke.color = Color.argb((44 * alpha).toInt(), 8, 6, 14)
+        stroke.strokeWidth = 9f
+        c.drawRoundRect(RectF(11f, 11f, w - 11f, h - 11f), 22f, 22f, stroke)
+        stroke.color = Color.argb((72 * alpha).toInt(), 8, 6, 14)
+        stroke.strokeWidth = 2.4f
+        c.drawRoundRect(RectF(19f, 19f, w - 19f, h - 19f), 16f, 16f, stroke)
 
-        // 모서리 안쪽 금색 포인트
-        stroke.color = Color.argb(190, 242, 208, 107)
-        stroke.strokeWidth = 2.2f
-        val q = Path()
-        q.moveTo(m + 9f, m + 20f); q.lineTo(m + 9f, m + 9f); q.lineTo(m + 20f, m + 9f)
-        q.moveTo(w - m - 20f, m + 9f); q.lineTo(w - m - 9f, m + 9f); q.lineTo(w - m - 9f, m + 20f)
-        q.moveTo(w - m - 9f, h - m - 20f); q.lineTo(w - m - 9f, h - m - 9f); q.lineTo(w - m - 20f, h - m - 9f)
-        q.moveTo(m + 20f, h - m - 9f); q.lineTo(m + 9f, h - m - 9f); q.lineTo(m + 9f, h - m - 20f)
-        c.drawPath(q, stroke)
-
-        // 3분할 그리드
-        stroke.color = Color.argb(28, 255, 250, 235)
+        // 3분할 그리드 + 교차점 마커
+        stroke.color = Color.argb((24 * alpha).toInt(), 255, 250, 235)
         stroke.strokeWidth = 1.2f
         val gw = (w - m * 2f) / 3f
         val gh = (h - m * 2f) / 3f
@@ -265,83 +314,161 @@ class Viewfinder(private val game: Game) {
             c.drawLine(m + gw * i, m, m + gw * i, h - m, stroke)
             c.drawLine(m, m + gh * i, w - m, m + gh * i, stroke)
         }
+        fill.color = Color.argb((150 * alpha).toInt(), 255, 250, 235)
+        for (i in 1..2) for (j in 1..2) c.drawCircle(m + gw * i, m + gh * j, 2.1f, fill)
 
-        // 좌우 눈금 (조리개 스케일 느낌)
-        stroke.color = Color.argb(46, 255, 250, 235)
+        // 좌우 조리개 눈금
+        stroke.color = Color.argb((46 * alpha).toInt(), 255, 250, 235)
         stroke.strokeWidth = 1.6f
-        var y = m + 24f
-        while (y < h - m - 24f) {
+        var y = m + 26f
+        while (y < h - m - 26f) {
             val long = ((y / 44f).toInt() % 2 == 0)
-            val tl = if (long) 11f else 6f
-            c.drawLine(m, y, m + tl, y, stroke)
-            c.drawLine(w - m, y, w - m - tl, y, stroke)
+            val tl = if (long) 12f else 6f
+            c.drawLine(m - 4f, y, m - 4f + tl, y, stroke)
+            c.drawLine(w - m + 4f, y, w - m + 4f - tl, y, stroke)
             y += 22f
         }
 
-        // 중앙 십자
-        stroke.color = Color.argb(70, 255, 250, 235)
+        // 코너 브래킷 (크림) + 안쪽 금색 포인트
+        stroke.color = Color.argb((236 * alpha).toInt(), 255, 250, 235)
+        stroke.strokeWidth = 3.6f
+        val p = Path()
+        p.moveTo(m, m + len); p.lineTo(m, m); p.lineTo(m + len, m)
+        p.moveTo(w - m - len, m); p.lineTo(w - m, m); p.lineTo(w - m, m + len)
+        p.moveTo(w - m, h - m - len); p.lineTo(w - m, h - m); p.lineTo(w - m - len, h - m)
+        p.moveTo(m + len, h - m); p.lineTo(m, h - m); p.lineTo(m, h - m - len)
+        c.drawPath(p, stroke)
+
+        stroke.color = Color.argb((190 * alpha).toInt(), 242, 208, 107)
+        stroke.strokeWidth = 2.2f
+        val q = Path()
+        val g0 = 10f
+        val g1 = 23f
+        q.moveTo(m + g0, m + g1); q.lineTo(m + g0, m + g0); q.lineTo(m + g1, m + g0)
+        q.moveTo(w - m - g1, m + g0); q.lineTo(w - m - g0, m + g0); q.lineTo(w - m - g0, m + g1)
+        q.moveTo(w - m - g0, h - m - g1); q.lineTo(w - m - g0, h - m - g0); q.lineTo(w - m - g1, h - m - g0)
+        q.moveTo(m + g1, h - m - g0); q.lineTo(m + g0, h - m - g0); q.lineTo(m + g0, h - m - g1)
+        c.drawPath(q, stroke)
+
+        // 중앙 십자 + 중심점
+        stroke.color = Color.argb((92 * alpha).toInt(), 255, 250, 235)
         stroke.strokeWidth = 1.6f
-        c.drawLine(w / 2f - 12f, h / 2f, w / 2f - 4f, h / 2f, stroke)
-        c.drawLine(w / 2f + 4f, h / 2f, w / 2f + 12f, h / 2f, stroke)
-        c.drawLine(w / 2f, h / 2f - 12f, w / 2f, h / 2f - 4f, stroke)
-        c.drawLine(w / 2f, h / 2f + 4f, w / 2f, h / 2f + 12f, stroke)
+        c.drawLine(w / 2f - 14f, h / 2f, w / 2f - 5f, h / 2f, stroke)
+        c.drawLine(w / 2f + 5f, h / 2f, w / 2f + 14f, h / 2f, stroke)
+        c.drawLine(w / 2f, h / 2f - 14f, w / 2f, h / 2f - 5f, stroke)
+        c.drawLine(w / 2f, h / 2f + 5f, w / 2f, h / 2f + 14f, stroke)
+        fill.color = Color.argb((120 * alpha).toInt(), 255, 250, 235)
+        c.drawCircle(w / 2f, h / 2f, 1.7f, fill)
     }
 
-    /** 사거리 원 + 별점 구역 링 */
-    private fun drawRange(c: Canvas, px: Float, py: Float, rangePx: Float, rangeTiles: Float, minPx: Float, minTiles: Float) {
-        // 사거리 안쪽을 아주 살짝 밝게
-        fill.color = Color.argb(9, 255, 250, 235)
-        c.drawCircle(px, py, rangePx, fill)
-        fill.color = Color.argb(9, 255, 250, 235)
-        c.drawCircle(px, py, rangePx * 0.72f, fill)
+    // ------------------------------------------------------------------
+    // 3. 사거리 · 별점 구역
+    // ------------------------------------------------------------------
 
+    private fun drawRange(
+        c: Canvas,
+        px: Float,
+        py: Float,
+        rangePx: Float,
+        rangeTiles: Float,
+        minPx: Float,
+        minTiles: Float,
+        k: Float,
+        rig: CameraRig
+    ) {
+        // 등장할 때 바깥에서 살짝 좁혀 들어온다
+        val grow = 1f + 0.06f * (1f - k)
+        val rOut = rangePx * grow
+
+        // 사거리 안쪽을 아주 살짝 밝게
+        fill.color = Color.argb((9 * k).toInt(), 255, 250, 235)
+        c.drawCircle(px, py, rOut, fill)
+        fill.color = Color.argb((8 * k).toInt(), 255, 250, 235)
+        c.drawCircle(px, py, rOut * 0.72f, fill)
+
+        // 사거리 원 둘레 눈금 (렌즈 거리 스케일 느낌)
+        stroke.pathEffect = null
+        stroke.strokeWidth = 1.5f
+        for (i in 0 until 24) {
+            val a = i * 15f
+            val rad = Math.toRadians(a.toDouble())
+            val cosA = kotlin.math.cos(rad).toFloat()
+            val sinA = sin(rad).toFloat()
+            val long = i % 4 == 0
+            val inner = rOut + 5f
+            val outer = inner + if (long) 9f else 5f
+            stroke.color = Color.argb(((if (long) 96 else 46) * k).toInt(), 255, 248, 232)
+            c.drawLine(
+                px + cosA * inner, py + sinA * inner,
+                px + cosA * outer, py + sinA * outer, stroke
+            )
+        }
+
+        // 사거리 점선 원 (천천히 돈다)
         ring.strokeWidth = 1.7f
         ring.pathEffect = DashPathEffect(floatArrayOf(11f, 9f), -clock * 14f)
-        ring.color = Color.argb(120, 255, 250, 235)
-        c.drawCircle(px, py, rangePx, ring)
-
+        ring.color = Color.argb((124 * k).toInt(), 255, 250, 235)
+        c.drawCircle(px, py, rOut, ring)
         ring.pathEffect = null
+
+        // ★3 / ★2 구역 링
         ring.strokeWidth = 1.3f
-        ring.color = Color.argb(74, 111, 186, 107)
-        c.drawCircle(px, py, rangePx * 0.38f, ring)
-        ring.color = Color.argb(74, 242, 182, 60)
-        c.drawCircle(px, py, rangePx * 0.72f, ring)
+        ring.color = Color.argb((78 * k).toInt(), 111, 186, 107)
+        c.drawCircle(px, py, rOut * 0.38f, ring)
+        ring.color = Color.argb((78 * k).toInt(), 242, 182, 60)
+        c.drawCircle(px, py, rOut * 0.72f, ring)
 
         // 최단 촬영 거리 — 초망원은 너무 가까우면 화각에 안 들어온다
         if (minTiles > 0.9f) {
             ring.strokeWidth = 1.5f
             ring.pathEffect = DashPathEffect(floatArrayOf(6f, 6f), clock * 10f)
-            ring.color = Color.argb(150, 226, 87, 76)
+            ring.color = Color.argb((150 * k).toInt(), 226, 87, 76)
             c.drawCircle(px, py, minPx, ring)
             ring.pathEffect = null
+            val mx = px - minPx
+            text.textSize = 10.5f
+            text.color = Color.argb((190 * k).toInt(), 255, 196, 188)
+            val ms = "최소 ${fmt(minTiles)}칸"
+            c.drawText(ms, mx - text.measureText(ms) - 6f, py + 4f, text)
         }
 
-        // 라벨: 사거리 (원 아래쪽, 화면 안으로 보정)
-        val labelY = (py + rangePx + 18f).coerceIn(120f, game.virtH - 104f)
-        text.textSize = 12.5f
-        val lbl = "사거리 ${fmt(rangeTiles)}칸"
-        val lw = text.measureText(lbl)
-        fill.color = Color.argb(150, 16, 14, 24)
-        c.drawRoundRect(RectF(px - lw / 2f - 7f, labelY - 12f, px + lw / 2f + 7f, labelY + 5f), 5f, 5f, fill)
-        text.color = Color.argb(210, 246, 240, 224)
-        c.drawText(lbl, px - lw / 2f, labelY, text)
-
-        // 별점 구역 라벨 (왼쪽 수평선 위)
+        // 별점 구역 라벨 (왼쪽 반지름 위)
         text.textSize = 11.5f
-        zoneLabel(c, "★3", px - rangePx * 0.38f - 6f, py, 0xFF9BD98F.toInt())
-        zoneLabel(c, "★2", px - rangePx * 0.72f - 6f, py, 0xFFF2C86B.toInt())
+        zoneLabel(c, "★3", px - rOut * 0.38f - 8f, py - 2f, ZONE3, k)
+        zoneLabel(c, "★2", px - rOut * 0.72f - 8f, py - 2f, ZONE2, k)
+
+        // 사거리 명판 (원 아래쪽)
+        val labelY = (py + rOut + 30f).coerceIn(150f, game.virtH - 112f)
+        val lbl = "사거리 ${fmt(rangeTiles)}칸"
+        val sub = "★3 ≤ ${fmt(rangeTiles * 0.38f)}칸 · ★2 ≤ ${fmt(rangeTiles * 0.72f)}칸"
+        text.textSize = TypeScale.px(12.5f)
+        textSoft.textSize = TypeScale.px(9.6f)
+        val lw = maxOf(text.measureText(lbl), textSoft.measureText(sub)) + 30f
+        val plate = RectF(px - lw / 2f, labelY - 15f, px + lw / 2f, labelY + 15f)
+        glass(c, plate, 8f, (196 * k).toInt(), (110 * k).toInt())
+        fill.color = Color.argb((230 * k).toInt(), 242, 208, 107)
+        c.drawCircle(plate.left + 12f, plate.centerY(), 3.1f, fill)
+        text.color = Color.argb((228 * k).toInt(), 252, 246, 232)
+        c.drawText(lbl, plate.left + 21f, plate.top + 13.5f, text)
+        textSoft.color = Color.argb((170 * k).toInt(), 214, 206, 190)
+        c.drawText(sub, plate.left + 21f, plate.top + 25.5f, textSoft)
     }
 
-    private fun zoneLabel(c: Canvas, s: String, x: Float, y: Float, color: Int) {
+    private fun zoneLabel(c: Canvas, s: String, x: Float, y: Float, color: Int, k: Float) {
+        text.textSize = 11.5f
         val tw = text.measureText(s)
-        if (x - tw < 8f) return
-        fill.color = Color.argb(140, 16, 14, 24)
-        c.drawRoundRect(RectF(x - tw - 5f, y - 10f, x + 5f, y + 6f), 4f, 4f, fill)
+        if (x - tw < 26f) return
+        val r = RectF(x - tw - 17f, y - 11f, x + 5f, y + 7f)
+        glass(c, r, 6f, (150 * k).toInt(), (70 * k).toInt())
+        fill.color = Color.argb((235 * k).toInt(), Color.red(color), Color.green(color), Color.blue(color))
+        c.drawCircle(r.left + 8f, r.centerY(), 3f, fill)
         text.color = color
-        c.drawText(s, x - tw, y + 3f, text)
+        c.drawText(s, r.left + 14f, r.centerY() + 3.8f, text)
     }
 
-    // ----- 새 표시 -----------------------------------------------------
+    // ------------------------------------------------------------------
+    // 4. 새 표시 (AF 박스 · 별점 칩)
+    // ------------------------------------------------------------------
 
     /** 조준 중인 새: 사거리 안에서 가장 가까운 새 (없으면 1.45배까지 후보로 삼아 안내) */
     private fun pickFocus(
@@ -354,9 +481,9 @@ class Viewfinder(private val game: Game) {
         val h = game.virtH.toFloat()
         for (b in birds) {
             if (b.state == 2) continue
-            val sx = sx(b.cx, camX, zoom)
-            val sy = sy(b.cy, camY, zoom)
-            if (sx < 34f || sx > w - 34f || sy < 84f || sy > h - 76f) continue
+            val bx = sx(b.cx, camX, zoom)
+            val by = sy(b.cy, camY, zoom)
+            if (bx < 34f || bx > w - 34f || by < 84f || by > h - 76f) continue
             val d = hypot(b.cx - pcx, b.cy - pcy) / 16f
             if (d > rangeTiles * 1.45f) continue
             if (d < bestD) { bestD = d; best = b }
@@ -373,75 +500,116 @@ class Viewfinder(private val game: Game) {
         camX: Float,
         camY: Float,
         rangeTiles: Float,
-        zoom: Float
+        zoom: Float,
+        k: Float
     ) {
         for (b in birds) {
             if (b.state == 2) continue
-            val sx = sx(b.cx, camX, zoom)
-            val sy = sy(b.cy, camY, zoom)
-            if (sx < -40f || sx > game.virtW + 40f || sy < -40f || sy > game.virtH + 40f) continue
+            val bx = sx(b.cx, camX, zoom)
+            val by = sy(b.cy, camY, zoom)
+            if (bx < -40f || bx > game.virtW + 40f || by < -40f || by > game.virtH + 40f) continue
             val dTiles = hypot(b.cx - pcx, b.cy - pcy) / 16f
             val inRange = dTiles <= rangeTiles
+            val topY = by - b.sprH * WORLD_SCALE * 0.5f * zoom - 26f
             if (b === focus) {
-                drawFocusBox(c, b, sx, sy, dTiles, rangeTiles, inRange, zoom)
+                drawFocusBox(c, b, bx, by, dTiles, rangeTiles, inRange, zoom, k)
             } else if (inRange) {
-                // 사거리 안의 다른 새: 별점 예상만 조그맣게
-                val ratio = dTiles / rangeTiles
-                val (stars, col) = zone(ratio)
-                val txt = "★".repeat(stars) + "☆".repeat(3 - stars)
-                text.textSize = 11.5f
-                val tw = text.measureText(txt)
-                val by = sy - b.sprH * WORLD_SCALE * 0.5f * zoom - 24f
-                fill.color = Color.argb(140, 16, 14, 24)
-                c.drawRoundRect(RectF(sx - tw / 2f - 6f, by - 11f, sx + tw / 2f + 6f, by + 6f), 5f, 5f, fill)
-                stroke.color = Color.argb(150, Color.red(col), Color.green(col), Color.blue(col))
-                stroke.strokeWidth = 1.2f
-                c.drawRoundRect(RectF(sx - tw / 2f - 6f, by - 11f, sx + tw / 2f + 6f, by + 6f), 5f, 5f, stroke)
-                text.color = Color.argb(225, 246, 240, 224)
-                c.drawText(txt, sx - tw / 2f, by + 2f, text)
+                drawStarChip(c, bx, topY, dTiles / rangeTiles, b, k)
+            } else {
+                // 사거리 밖 — 아주 옅은 점으로만 존재를 알린다
+                val tw = 0.5f + 0.5f * sin(clock * 2.2f + bx * 0.05f)
+                fill.color = Color.argb(((60 + 40 * tw) * k).toInt(), 255, 248, 232)
+                c.drawCircle(bx, topY + 8f, 2.1f, fill)
+                fill.color = Color.argb((26 * k).toInt(), 255, 248, 232)
+                c.drawCircle(bx, topY + 8f, 5.2f, fill)
             }
         }
     }
 
-    /** AF 박스 + 이름/별점 예상 라벨 */
+    /** 사거리 안의 다른 새 — 별점 예상 칩 (미확인 종은 금색 ? 칩) */
+    private fun drawStarChip(c: Canvas, cx: Float, y: Float, ratio: Float, b: FieldBird, k: Float) {
+        val seen = (state.birdCounts[b.def.id] ?: 0) > 0
+        val (stars, col) = zone(ratio)
+        val label = if (seen) "★".repeat(stars) + "☆".repeat(3 - stars) else "미확인 ?"
+        val chipCol = if (seen) col else GOLD
+        text.textSize = TypeScale.px(11f)
+        val tw = text.measureText(label)
+        val r = RectF(cx - (tw + 20f) / 2f, y - 11f, cx + (tw + 20f) / 2f, y + 7f)
+        glass(c, r, 6f, (168 * k).toInt(), (96 * k).toInt())
+        fill.color = Color.argb((240 * k).toInt(), Color.red(chipCol), Color.green(chipCol), Color.blue(chipCol))
+        c.drawCircle(r.left + 8f, r.centerY(), 2.8f, fill)
+        text.color = if (seen) Color.argb((238 * k).toInt(), 250, 244, 230)
+        else Color.argb((245 * k).toInt(), Color.red(GOLD), Color.green(GOLD), Color.blue(GOLD))
+        c.drawText(label, r.left + 14f, r.centerY() + 3.8f, text)
+    }
+
+    /** AF 박스 + 이름/등급/별점 명판 + 초점 거리 바 */
     private fun drawFocusBox(
         c: Canvas,
         b: FieldBird,
-        sx: Float,
-        sy: Float,
+        bx: Float,
+        by: Float,
         dTiles: Float,
         rangeTiles: Float,
         inRange: Boolean,
-        zoom: Float
+        zoom: Float,
+        k: Float
     ) {
         val ratio = (dTiles / rangeTiles).coerceAtLeast(0.001f)
         val (stars, col) = zone(ratio)
-        val pulse = if (inRange) 1f + sin(clock * 5.5f) * 0.02f else 1f + sin(clock * 3f) * 0.05f
-        val halfW = (b.sprW * WORLD_SCALE * 0.5f * zoom + 13f) * pulse
-        val halfH = (b.sprH * WORLD_SCALE * 0.5f * zoom + 13f) * pulse
-        val box = RectF(sx - halfW, sy - halfH, sx + halfW, sy + halfH)
+        val seen = (state.birdCounts[b.def.id] ?: 0) > 0
+        val perfect = inRange && ratio < 0.38f
+        val pulse = if (inRange) 1f + sin(clock * 5.5f) * 0.018f else 1f + sin(clock * 3f) * 0.05f
+        val halfW = (b.sprW * WORLD_SCALE * 0.5f * zoom + 14f) * pulse
+        val halfH = (b.sprH * WORLD_SCALE * 0.5f * zoom + 14f) * pulse
+        val box = RectF(bx - halfW, by - halfH, bx + halfW, by + halfH)
 
-        // 어두운 보조 사각형 (초점 영역 강조)
-        fill.color = Color.argb(26, 10, 8, 18)
-        c.drawRect(box, fill)
-
-        // AF 획득 순간: 바깥에서 안으로 좁혀오는 링
-        if (focusT < 0.42f) {
-            val k = (focusT / 0.42f).coerceIn(0f, 1f)
-            val grow = (1f - k) * 26f
-            val a = ((1f - k) * 210f).toInt().coerceIn(0, 255)
-            stroke.color = Color.argb(a, Color.red(col), Color.green(col), Color.blue(col))
-            stroke.strokeWidth = 2.2f
-            stroke.pathEffect = null
-            c.drawRoundRect(
-                RectF(box.left - grow, box.top - grow, box.right + grow, box.bottom + grow),
-                5f, 5f, stroke
-            )
+        // 초점 피사체 뒤의 부드러운 빛 — 심도 어둠 속에서 새가 또렷하게 떠 보이도록
+        val ghost = if (perfect) GOLD else 0xFFFFF2CE.toInt()
+        Glow.draw(c, Glow.warm, bx, by, halfW * 1.55f, halfH * 1.45f, if (perfect) 46 else 30)
+        if (perfect) {
+            // 3★ 순간 — 금빛 초점 링
+            ring.strokeWidth = 1.8f
+            ring.pathEffect = null
+            ring.color = Color.argb((120 + 70 * sin(clock * 4f)).toInt().coerceIn(0, 255), Color.red(ghost), Color.green(ghost), Color.blue(ghost))
+            c.drawOval(RectF(bx - halfW * 1.25f, by - halfH * 1.2f, bx + halfW * 1.25f, by + halfH * 1.2f), ring)
         }
 
-        val tick = minOf(12f, box.width() * 0.34f)
-        stroke.color = if (inRange) Color.argb(240, Color.red(col), Color.green(col), Color.blue(col))
-        else Color.argb(200, 246, 240, 224)
+        // AF 획득 연출 — 바깥에서 좁혀오는 링 두 겹
+        if (focusT < 0.5f) {
+            val p = (focusT / 0.5f).coerceIn(0f, 1f)
+            val grow = (1f - p) * 30f
+            val a = ((1f - p) * 210f).toInt().coerceIn(0, 255)
+            stroke.pathEffect = null
+            stroke.color = Color.argb(a, Color.red(col), Color.green(col), Color.blue(col))
+            stroke.strokeWidth = 2.2f
+            c.drawRoundRect(
+                RectF(box.left - grow, box.top - grow, box.right + grow, box.bottom + grow),
+                6f, 6f, stroke
+            )
+            stroke.strokeWidth = 1.2f
+            stroke.color = Color.argb((a * 0.55f).toInt(), 255, 250, 235)
+            c.drawRoundRect(
+                RectF(box.left - grow * 0.55f, box.top - grow * 0.55f, box.right + grow * 0.55f, box.bottom + grow * 0.55f),
+                6f, 6f, stroke
+            )
+            // 대각선 AF 틱 (카메라 앱 특유의 연출)
+            val dl = 9f + 7f * p
+            stroke.strokeWidth = 2f
+            stroke.color = Color.argb((a * 0.9f).toInt(), Color.red(col), Color.green(col), Color.blue(col))
+            val d = grow + 7f + dl
+            val dp = Path()
+            dp.moveTo(box.left - d, box.top - d + dl); dp.lineTo(box.left - d, box.top - d); dp.lineTo(box.left - d + dl, box.top - d)
+            dp.moveTo(box.right + d - dl, box.top - d); dp.lineTo(box.right + d, box.top - d); dp.lineTo(box.right + d, box.top - d + dl)
+            dp.moveTo(box.right + d, box.bottom + d - dl); dp.lineTo(box.right + d, box.bottom + d); dp.lineTo(box.right + d - dl, box.bottom + d)
+            dp.moveTo(box.left - d + dl, box.bottom + d); dp.lineTo(box.left - d, box.bottom + d); dp.lineTo(box.left - d, box.bottom + d - dl)
+            c.drawPath(dp, stroke)
+        }
+
+        // 모서리 브래킷
+        val tick = minOf(13f, box.width() * 0.32f)
+        stroke.color = if (inRange) Color.argb(242, Color.red(col), Color.green(col), Color.blue(col))
+        else Color.argb(205, 246, 240, 224)
         stroke.strokeWidth = 2.4f
         stroke.pathEffect = if (inRange) null else DashPathEffect(floatArrayOf(7f, 6f), -clock * 26f)
         val p = Path()
@@ -452,108 +620,183 @@ class Viewfinder(private val game: Game) {
         c.drawPath(p, stroke)
         stroke.pathEffect = null
 
-        // 라벨: 이름(찍은 적 있으면 공개) + 별점 예상 + 거리
-        val seen = (state.birdCounts[b.def.id] ?: 0) > 0
-        val name = if (seen) b.def.name else "??? 미확인"
-        val starTxt = "★".repeat(stars) + "☆".repeat(3 - stars)
-        val info = if (inRange) "$starTxt  ·  ${fmt(dTiles)}칸" else "더 가까이!  ·  ${fmt(dTiles)}칸"
+        // 좌우 미세 눈금 (초점 거리 스케일)
+        stroke.strokeWidth = 1.3f
+        stroke.color = Color.argb(96, 255, 250, 235)
+        for (i in 1..4) {
+            val yy = box.top + box.height() * i / 5f
+            c.drawLine(box.left + 2f, yy, box.left + 8f, yy, stroke)
+            c.drawLine(box.right - 8f, yy, box.right - 2f, yy, stroke)
+        }
 
-        text.textSize = 13.5f
+        // 초점 영역 거리 바 (박스 아래) — 구역 색과 현재 거리 마커
+        val barR = RectF(box.left, box.bottom + 7f, box.right, box.bottom + 12f)
+        fill.color = Color.argb(170, 14, 12, 22)
+        c.drawRoundRect(barR, 2.5f, 2.5f, fill)
+        val w3 = barR.width() * 0.38f
+        fill.color = Color.argb(170, 111, 186, 107)
+        c.drawRoundRect(RectF(barR.left, barR.top, barR.left + w3, barR.bottom), 2.5f, 2.5f, fill)
+        fill.color = Color.argb(150, 242, 182, 60)
+        c.drawRoundRect(RectF(barR.left + w3, barR.top, barR.left + barR.width() * 0.72f, barR.bottom), 2f, 2f, fill)
+        fill.color = Color.argb(130, 226, 87, 76)
+        c.drawRoundRect(RectF(barR.left + barR.width() * 0.72f, barR.top, barR.right, barR.bottom), 2f, 2f, fill)
+        val markX = barR.left + barR.width() * ratio.coerceIn(0f, 1f)
+        stroke.color = Color.argb(250, 255, 252, 244)
+        stroke.strokeWidth = 1.8f
+        c.drawLine(markX, barR.top - 3f, markX, barR.bottom + 3f, stroke)
+
+        // 이름 명판
+        val name = if (seen) b.def.name else "??? 미확인"
+        val tier = b.def.tier
+        val tierStr = if (seen) tier.label else "??"
+        val info = if (inRange) "★".repeat(stars) + "☆".repeat(3 - stars) + "  ·  ${fmt(dTiles)}칸"
+        else "더 가까이!  ·  ${fmt(dTiles)}칸"
+
+        text.textSize = TypeScale.px(13.5f)
         val nameW = text.measureText(name)
-        text.textSize = 11.5f
+        text.textSize = TypeScale.px(10.5f)
+        val tierW = text.measureText(tierStr) + 14f
+        text.textSize = TypeScale.px(11.5f)
         val infoW = text.measureText(info)
-        val plateW = maxOf(nameW, infoW) + 22f
-        val plateH = 34f
-        val plateCx = sx.coerceIn(46f + plateW / 2f, game.virtW - 46f - plateW / 2f)
-        var plateTop = box.top - plateH - 8f
-        if (plateTop < 84f) plateTop = box.bottom + 8f
+        val rowNameW = 20f + nameW + (if (seen) 8f + tierW else 0f) + 14f
+        val rowInfoW = 20f + infoW + 14f
+        val plateW = maxOf(rowNameW, rowInfoW)
+        val plateH = 38f
+        val plateCx = bx.coerceIn(52f + plateW / 2f, game.virtW - 52f - plateW / 2f)
+        var plateTop = box.top - plateH - 12f
+        if (plateTop < 88f) plateTop = box.bottom + 20f
         val plate = RectF(plateCx - plateW / 2f, plateTop, plateCx + plateW / 2f, plateTop + plateH)
 
-        fill.color = Color.argb(196, 14, 12, 22)
-        c.drawRoundRect(plate, 7f, 7f, fill)
-        stroke.color = Color.argb(215, Color.red(col), Color.green(col), Color.blue(col))
-        stroke.strokeWidth = 1.5f
-        c.drawRoundRect(plate, 7f, 7f, stroke)
+        glass(c, plate, 9f, 210, 92)
+        stroke.color = Color.argb(232, Color.red(col), Color.green(col), Color.blue(col))
+        stroke.strokeWidth = 1.4f
+        c.drawRoundRect(plate, 9f, 9f, stroke)
 
-        // 초점 확인 표시
+        // 왼쪽: 초점 확인 표시 (●) 또는 대기 (◌)
         if (inRange) {
-            fill.color = Color.argb(235, Color.red(col), Color.green(col), Color.blue(col))
-            c.drawCircle(plate.left + 11f, plate.top + plateH / 2f, 3.4f, fill)
+            fill.color = Color.argb(240, Color.red(col), Color.green(col), Color.blue(col))
+            c.drawCircle(plate.left + 11f, plate.centerY(), 3.5f, fill)
+            fill.color = Color.argb(70, Color.red(col), Color.green(col), Color.blue(col))
+            c.drawCircle(plate.left + 11f, plate.centerY(), 6.6f, fill)
         } else {
             stroke.color = Color.argb(200, 246, 240, 224)
             stroke.strokeWidth = 1.4f
-            c.drawCircle(plate.left + 11f, plate.top + plateH / 2f, 4.6f, stroke)
+            c.drawCircle(plate.left + 11f, plate.centerY(), 4.8f, stroke)
         }
 
-        text.textSize = 13.5f
-        text.color = if (seen) Color.argb(240, 250, 246, 236) else Color.argb(210, 200, 195, 210)
-        c.drawText(name, plate.left + 20f, plate.top + 14.5f, text)
-        text.textSize = 11.5f
-        text.color = if (inRange) Color.argb(232, Color.red(col), Color.green(col), Color.blue(col))
-        else Color.argb(205, 246, 240, 224)
-        c.drawText(info, plate.left + 20f, plate.top + 28f, text)
+        text.textSize = TypeScale.px(13.5f)
+        text.color = if (seen) Color.argb(244, 252, 248, 238) else Color.argb(215, 202, 197, 212)
+        c.drawText(name, plate.left + 20f, plate.top + 16f, text)
+
+        // 등급 뱃지
+        if (seen) {
+            val tierBg = UiKit.tierColor(tier)
+            val badge = RectF(plate.left + 28f + nameW, plate.top + 5f, plate.left + 28f + nameW + tierW, plate.top + 18f)
+            fill.color = Color.argb(230, Color.red(tierBg), Color.green(tierBg), Color.blue(tierBg))
+            c.drawRoundRect(badge, 4f, 4f, fill)
+            text.textSize = TypeScale.px(10.5f)
+            text.color = Color.argb(250, 255, 252, 244)
+            c.drawText(tierStr, badge.left + 7f, badge.centerY() + 3.6f, text)
+        }
+
+        text.textSize = TypeScale.px(11.5f)
+        text.color = if (inRange) Color.argb(236, Color.red(col), Color.green(col), Color.blue(col))
+        else Color.argb(210, 246, 240, 224)
+        c.drawText(info, plate.left + 20f, plate.top + 31f, text)
+
+        // 3★ 순간의 반짝임
+        if (perfect) {
+            UiKit.sparkle(c, plate.right - 12f, plate.top + 10f, 5f, GOLD, sparkT * 1.6f)
+            UiKit.sparkle(c, box.right + 6f, box.top + 4f, 4f, 0xFFFFFFFF.toInt(), sparkT * 2.1f)
+            UiKit.sparkle(c, box.left - 6f, box.bottom - 4f, 3.5f, GOLD, sparkT * 1.2f)
+        }
     }
 
-    // ----- 상단 정보 바 -------------------------------------------------
+    // ------------------------------------------------------------------
+    // 5. 상단 정보 바
+    // ------------------------------------------------------------------
 
-    private fun drawTopBar(c: Canvas, w: Float) {
-        val et = enterT
-        val k = et * et * (3f - 2f * et)   // smoothstep 등장
+    private fun drawTopBar(c: Canvas, w: Float, k: Float) {
         val y = 26f - (1f - k) * 16f
-        val alpha = (255 * k).toInt()
+        val a = k
 
-        // 좌측: 촬영 표시등 + PHOTO
-        val blink = if (sin(clock * 4.2f) > -0.2f) 1f else 0.25f
+        // 좌측: REC 표시등 + PHOTO
+        val blink = if (sin(clock * 4.2f) > -0.2f) 1f else 0.22f
         text.textSize = 13f
-        val badgeW = text.measureText("PHOTO") + 46f
-        val badge = RectF(40f, y, 40f + badgeW, y + 28f)
-        fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
-        c.drawRoundRect(badge, 7f, 7f, fill)
-        stroke.color = Color.argb((90 * k).toInt(), 246, 240, 224)
-        stroke.strokeWidth = 1.2f
-        c.drawRoundRect(badge, 7f, 7f, stroke)
-        fill.color = Color.argb((240 * k * blink).toInt(), 226, 87, 76)
-        c.drawCircle(badge.left + 14f, badge.centerY(), 4.6f, fill)
-        fill.color = Color.argb((70 * k * blink).toInt(), 226, 87, 76)
+        val badgeW = text.measureText("PHOTO") + 44f
+        val badge = RectF(38f, y, 38f + badgeW, y + 28f)
+        glass(c, badge, 8f, (176 * a).toInt(), (96 * a).toInt())
+        fill.color = Color.argb((72 * a * blink).toInt(), 226, 87, 76)
         c.drawCircle(badge.left + 14f, badge.centerY(), 9f, fill)
-        text.color = Color.argb((240 * k).toInt(), 250, 246, 236)
-        c.drawText("PHOTO", badge.left + 26f, badge.centerY() + 4.5f, text)
+        fill.color = Color.argb((242 * a * blink).toInt(), 226, 87, 76)
+        c.drawCircle(badge.left + 14f, badge.centerY(), 4.6f, fill)
+        text.color = Color.argb((242 * a).toInt(), 250, 246, 236)
+        c.drawText("PHOTO", badge.left + 24f, badge.centerY() + 4.6f, text)
 
-        // 중앙: 시각
+        // 그 옆: AF-C · RAW 칩
+        text.textSize = 10.5f
+        val modeStr = "AF-C · RAW"
+        val modeW = text.measureText(modeStr) + 20f
+        val modeR = RectF(badge.right + 8f, y + 4f, badge.right + 8f + modeW, y + 24f)
+        glass(c, modeR, 7f, (140 * a).toInt(), (58 * a).toInt())
+        text.color = Color.argb((196 * a).toInt(), 226, 218, 200)
+        c.drawText(modeStr, modeR.left + 10f, modeR.centerY() + 3.6f, text)
+
+        // 중앙: 시각 + 하루 진행 게이지
         val night = state.isNight()
-        val clockTxt = "${if (night) "🌙" else "☀"} ${state.timeLabel()}"
+        val clockTxt = "${state.timeEmoji()} ${state.timeLabel()}"
         mono.textSize = 16f
-        val cw = mono.measureText(clockTxt) + 26f
-        val cr = RectF(w / 2f - cw / 2f, y, w / 2f + cw / 2f, y + 28f)
-        fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
-        c.drawRoundRect(cr, 7f, 7f, fill)
-        mono.color = Color.argb((240 * k).toInt(), 250, 246, 236)
-        c.drawText(clockTxt, cr.left + 13f, cr.centerY() + 5.5f, mono)
+        val cw = mono.measureText(clockTxt) + 56f
+        val cr = RectF(w / 2f - cw / 2f, y, w / 2f + cw / 2f, y + 32f)
+        glass(c, cr, 9f, (176 * a).toInt(), (96 * a).toInt())
+        mono.color = Color.argb((242 * a).toInt(), 250, 246, 236)
+        c.drawText(clockTxt, cr.left + 14f, cr.top + 15f, mono)
+        // 하루 진행 게이지 (0시 → 24시)
+        val dayP = (state.worldTime / 24f).coerceIn(0f, 1f)
+        val barR = RectF(cr.left + 14f, cr.top + 21f, cr.right - 14f, cr.top + 26f)
+        fill.color = Color.argb((130 * a).toInt(), 32, 28, 44)
+        c.drawRoundRect(barR, 2.5f, 2.5f, fill)
+        val dayCol = if (night) 0xFF7C8CC8.toInt() else GOLD
+        fill.color = Color.argb((190 * a).toInt(), Color.red(dayCol), Color.green(dayCol), Color.blue(dayCol))
+        c.drawRoundRect(RectF(barR.left, barR.top, barR.left + barR.width() * dayP, barR.bottom), 2.5f, 2.5f, fill)
+        // 밤 구간 표시
+        val nightStart = 19.5f / 24f
+        fill.color = Color.argb((90 * a).toInt(), 24, 28, 48)
+        c.drawRoundRect(RectF(barR.left + barR.width() * nightStart, barR.top, barR.right, barR.bottom), 2.5f, 2.5f, fill)
 
-        // 우측: 장비 + 사거리
+        // 우측: 장비 카드 (렌즈 아이콘 + 이름 + 성능)
         val rig = state.rig()
+        val cardW = 264f
+        val card = RectF(w - 38f - cardW, y, w - 38f, y + 46f)
+        glass(c, card, 9f, (176 * a).toInt(), (96 * a).toInt())
+        val camIcon = game.assets.camIcon(rig.look)
+        val iconW = 44f
+        val iconH = iconW * 18f / 22f
+        c.drawBitmap(
+            camIcon, null,
+            RectF(card.left + 8f, card.centerY() - iconH / 2f, card.left + 8f + iconW, card.centerY() + iconH / 2f),
+            game.assets.sprPaint
+        )
         text.textSize = 13f
         var nameTxt = rig.title
-        if (text.measureText(nameTxt) > 250f) {
-            while (nameTxt.length > 1 && text.measureText("$nameTxt…") > 250f) nameTxt = nameTxt.dropLast(1)
+        val nameMax = card.width() - iconW - 26f
+        if (text.measureText(nameTxt) > nameMax) {
+            while (nameTxt.length > 1 && text.measureText("$nameTxt…") > nameMax) nameTxt = nameTxt.dropLast(1)
             nameTxt = "$nameTxt…"
         }
-        val subTxt = "환산 ${rig.teleMm}mm · ${rig.sensor.label} · 사거리 ${fmt(rig.reach)}칸"
-        val bw = maxOf(text.measureText(nameTxt), text.measureText(subTxt)) + 24f
-        val br = RectF(w - 40f - bw, y, w - 40f, y + 44f)
-        fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
-        c.drawRoundRect(br, 7f, 7f, fill)
-        stroke.color = Color.argb((90 * k).toInt(), 246, 240, 224)
-        stroke.strokeWidth = 1.2f
-        c.drawRoundRect(br, 7f, 7f, stroke)
-        text.color = Color.argb((240 * k).toInt(), 250, 246, 236)
-        c.drawText(nameTxt, br.left + 12f, br.top + 19f, text)
-        text.textSize = 11.5f
-        text.color = Color.argb((200 * k).toInt(), 214, 208, 224)
-        c.drawText(subTxt, br.left + 12f, br.top + 34f, text)
+        text.color = Color.argb((242 * a).toInt(), 250, 246, 236)
+        c.drawText(nameTxt, card.left + 10f + iconW, card.top + 19f, text)
+        textSoft.textSize = 10.8f
+        textSoft.color = Color.argb((196 * a).toInt(), 214, 208, 224)
+        c.drawText(
+            "환산 ${rig.teleMm}mm · ${rig.sensor.label} · 사거리 ${fmt(rig.reach)}칸",
+            card.left + 10f + iconW, card.top + 34f, textSoft
+        )
     }
 
-    // ----- 하단 정보 바 -------------------------------------------------
+    // ------------------------------------------------------------------
+    // 6. 하단 정보 바
+    // ------------------------------------------------------------------
 
     private fun drawBottomBar(
         c: Canvas,
@@ -562,46 +805,54 @@ class Viewfinder(private val game: Game) {
         focus: FieldBird?,
         pcx: Float,
         pcy: Float,
-        rangeTiles: Float
+        rangeTiles: Float,
+        k: Float
     ) {
-        val et = enterT
-        val k = et * et * (3f - 2f * et)   // smoothstep 등장
-        val y = h - 92f + (1f - k) * 18f
-        val boxW = 432f
-        val boxH = 58f
+        val y = h - 88f + (1f - k) * 18f
+        val boxW = 640f
+        val boxH = 62f
         val r = RectF(w / 2f - boxW / 2f, y, w / 2f + boxW / 2f, y + boxH)
+        glass(c, r, 11f, (186 * k).toInt(), (100 * k).toInt())
 
-        fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
-        c.drawRoundRect(r, 10f, 10f, fill)
-        stroke.color = Color.argb((90 * k).toInt(), 246, 240, 224)
-        stroke.strokeWidth = 1.2f
-        c.drawRoundRect(r, 10f, 10f, stroke)
-
-        // 왼쪽: 촬영 정보
         val rig = state.rig()
-        mono.textSize = 12.5f
-        mono.color = Color.argb((225 * k).toInt(), 232, 226, 240)
-        c.drawText(rig.exifLine(state.darkness()), r.left + 14f, r.top + 22f, mono)
-        mono.textSize = 11f
-        mono.color = Color.argb((190 * k).toInt(), 206, 200, 216)
-        val burstTxt = "${fmt(rig.burst)}fps"
-        val steadyTxt = if (rig.steady >= 5f) "IS ●" else "IS ○"
-        c.drawText("$burstTxt · $steadyTxt · ${rig.weightG}g · 관측 ${state.photos}컷", r.left + 14f, r.top + 40f, mono)
 
-        // 오른쪽: 거리 게이지
-        val gx = r.right - 190f
-        val gy = r.top + 24f
-        val gw = 160f
+        // 왼쪽: EXIF + 장비 정보
+        mono.textSize = 13f
+        mono.color = Color.argb((236 * k).toInt(), 240, 234, 246)
+        c.drawText(rig.exifLine(state.darkness()), r.left + 16f, r.top + 24f, mono)
+        mono.textSize = 11f
+        mono.color = Color.argb((196 * k).toInt(), 208, 202, 218)
+        val steadyTxt = if (rig.steady >= 5f) "IS ●" else "IS ○"
+        c.drawText(
+            "${fmt(rig.burst)}fps · $steadyTxt · ${rig.weightG}g",
+            r.left + 16f, r.top + 42f, mono
+        )
+
+        // 구분선
+        divider(c, r.left + 214f, r.top + 10f, r.bottom - 10f, k)
+
+        // 가운데: 거리 게이지
+        val gx = r.left + 232f
+        val gw = 174f
+        val gy = r.top + 20f
         val gh = 9f
         fill.color = Color.argb((200 * k).toInt(), 32, 28, 44)
         c.drawRoundRect(RectF(gx, gy, gx + gw, gy + gh), 4.5f, 4.5f, fill)
-        // 구역: ★3 (초록) / ★2 (노랑) / ★1 (빨강)
-        fill.color = Color.argb((170 * k).toInt(), 111, 186, 107)
+        fill.color = Color.argb((176 * k).toInt(), 111, 186, 107)
         c.drawRoundRect(RectF(gx + 1f, gy + 1f, gx + gw * 0.38f, gy + gh - 1f), 4f, 4f, fill)
-        fill.color = Color.argb((150 * k).toInt(), 242, 182, 60)
+        fill.color = Color.argb((154 * k).toInt(), 242, 182, 60)
         c.drawRoundRect(RectF(gx + gw * 0.38f, gy + 1f, gx + gw * 0.72f, gy + gh - 1f), 4f, 4f, fill)
-        fill.color = Color.argb((130 * k).toInt(), 226, 87, 76)
+        fill.color = Color.argb((134 * k).toInt(), 226, 87, 76)
         c.drawRoundRect(RectF(gx + gw * 0.72f, gy + 1f, gx + gw - 1f, gy + gh - 1f), 4f, 4f, fill)
+
+        // 게이지 눈금
+        stroke.strokeWidth = 1f
+        stroke.color = Color.argb((110 * k).toInt(), 255, 250, 235)
+        for (i in 1..7) {
+            val tx = gx + gw * i / 8f
+            val lh = if (i == 4) 4f else 2.5f
+            c.drawLine(tx, gy - lh, tx, gy - 1f, stroke)
+        }
 
         text.textSize = 11f
         if (focus != null) {
@@ -610,32 +861,47 @@ class Viewfinder(private val game: Game) {
             val mx = gx + gw * ratio
             stroke.color = Color.argb((250 * k).toInt(), 255, 252, 244)
             stroke.strokeWidth = 2f
-            c.drawLine(mx, gy - 5f, mx, gy + gh + 5f, stroke)
+            c.drawLine(mx, gy - 6f, mx, gy + gh + 6f, stroke)
+            fill.color = Color.argb((250 * k).toInt(), 255, 252, 244)
+            c.drawCircle(mx, gy - 7.5f, 1.9f, fill)
             val (stars, col) = zone((dTiles / rangeTiles).coerceAtLeast(0.001f))
-            text.color = Color.argb((235 * k).toInt(), Color.red(col), Color.green(col), Color.blue(col))
+            text.color = Color.argb((238 * k).toInt(), Color.red(col), Color.green(col), Color.blue(col))
             val s = "예상 " + "★".repeat(stars) + "☆".repeat(3 - stars)
             c.drawText(s, gx + gw - text.measureText(s), r.top + 48f, text)
-            text.color = Color.argb((200 * k).toInt(), 214, 208, 224)
+            text.color = Color.argb((205 * k).toInt(), 214, 208, 224)
             c.drawText("거리 ${fmt(dTiles)}칸", gx, r.top + 48f, text)
         } else {
-            text.color = Color.argb((200 * k).toInt(), 214, 208, 224)
+            text.color = Color.argb((205 * k).toInt(), 214, 208, 224)
             c.drawText("새를 찾는 중…", gx, r.top + 48f, text)
-            val sx = gx + (0.5f + 0.5f * sin(clock * 3f)) * gw
-            fill.color = Color.argb((220 * k).toInt(), 246, 240, 224)
-            c.drawCircle(sx, gy + gh / 2f, 3.2f, fill)
+            val sx1 = gx + (0.5f + 0.5f * sin(clock * 3f)) * gw
+            fill.color = Color.argb((224 * k).toInt(), 246, 240, 224)
+            c.drawCircle(sx1, gy + gh / 2f, 3.2f, fill)
         }
 
+        divider(c, r.left + 442f, r.top + 10f, r.bottom - 10f, k)
+
+        // 오른쪽: 촬영 수 + 계절·날씨
+        mono.textSize = 12.5f
+        mono.color = Color.argb((228 * k).toInt(), 240, 234, 246)
+        val shots = "관측 ${state.photos}컷"
+        c.drawText(shots, r.left + 460f, r.top + 24f, mono)
+        textSoft.textSize = 10.6f
+        textSoft.color = Color.argb((190 * k).toInt(), 208, 200, 214)
+        c.drawText(
+            "${state.seasonLabel()} · ${state.weather().icon} ${state.weather().label}",
+            r.left + 460f, r.top + 42f, textSoft
+        )
     }
 
-    private fun hudLine(c: Canvas, cx: Float, y: Float, s: String, size: Float, color: Int, mono: Boolean) {
-        val p = if (mono) this.mono else this.text
-        p.textSize = size
-        p.color = color
-        c.drawText(s, cx - p.measureText(s) / 2f, y, p)
+    private fun divider(c: Canvas, x: Float, top: Float, bottom: Float, k: Float) {
+        stroke.strokeWidth = 1f
+        stroke.pathEffect = null
+        stroke.color = Color.argb((70 * k).toInt(), 246, 240, 224)
+        c.drawLine(x, top, x, bottom, stroke)
     }
 
     // ------------------------------------------------------------------
-    // 셔터 애니메이션 (월드 위에 마지막으로 그린다)
+    // 7. 셔터 (월드 위에 마지막으로 그린다)
     // ------------------------------------------------------------------
 
     fun drawShutter(c: Canvas) {
@@ -659,9 +925,14 @@ class Viewfinder(private val game: Game) {
                     p.lineTo(w + 4f, h - edge); p.quadTo(w / 2f, h - edge - curve, -4f, h - edge)
                     p.close()
                 }
-                bladePaint.color = 0xFF120F1A.toInt()
-                bladePaint.isAntiAlias = true
-                c.drawPath(p, bladePaint)
+                // 블레이드 몸통 — 위는 살짝 밝고 아래로 갈수록 어두운 금속 느낌
+                grad.shader = LinearGradient(
+                    0f, if (top) edge - 40f else h - edge, 0f, if (top) 0f else h,
+                    intArrayOf(0xFF1B1622.toInt(), 0xFF100D16.toInt()),
+                    floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
+                )
+                c.drawPath(p, grad)
+                grad.shader = null
 
                 // 날 끝의 따뜻한 빛
                 val g = Path()
@@ -675,44 +946,104 @@ class Viewfinder(private val game: Game) {
                 glow.style = Paint.Style.STROKE
                 glow.isAntiAlias = true
                 c.drawPath(g, glow)
-                glow.color = Color.argb((200 * e).toInt(), 255, 244, 214)
+                glow.color = Color.argb((205 * e).toInt(), 255, 244, 214)
                 glow.strokeWidth = 2.4f
                 c.drawPath(g, glow)
+
+                // 금색 헤어라인
+                glow.color = Color.argb((120 * e).toInt(), 242, 208, 107)
+                glow.strokeWidth = 1.1f
+                c.drawPath(g, glow)
+            }
+
+            // 닫히는 속도감 — 안쪽으로 빨려드는 짧은 선
+            val closing = if (phase == CLOSING) (t / CLOSE_T).coerceIn(0f, 1f) else 0f
+            if (closing > 0.08f) {
+                stroke.strokeWidth = 1.4f
+                stroke.pathEffect = null
+                for (i in 0 until 9) {
+                    val x = w * (0.1f + 0.1f * i)
+                    val len = 20f + 34f * closing
+                    stroke.color = Color.argb((120 * closing).toInt(), 255, 246, 224)
+                    c.drawLine(x, 0f, x + 14f, len, stroke)
+                    c.drawLine(x, h, x - 14f, h - len, stroke)
+                }
             }
         }
 
         // "찰칵!" 순간 연출
         if (phase == CLOSING) {
             val p = (t / CLOSE_T).coerceIn(0f, 1f)
-            if (p > 0.45f) {
-                val a = (255 * ((p - 0.45f) / 0.55f)).toInt().coerceIn(0, 255)
-                text.textSize = 27f
+            if (p > 0.42f) {
+                val q = ((p - 0.42f) / 0.58f).coerceIn(0f, 1f)
+                val a = (255 * q).toInt().coerceIn(0, 255)
+                val pop = 1f + (1f - q) * 0.22f
+                text.textSize = 28f * pop
                 val s = "찰칵!"
                 val tw = text.measureText(s)
-                text.color = Color.argb((a * 0.5f).toInt(), 10, 8, 16)
-                c.drawText(s, w / 2f - tw / 2f + 2f, h / 2f + 12f, text)
+                text.color = Color.argb((a * 0.55f).toInt(), 10, 8, 16)
+                c.drawText(s, w / 2f - tw / 2f + 2.5f, h / 2f + 13f, text)
                 text.color = Color.argb(a, 255, 248, 232)
                 c.drawText(s, w / 2f - tw / 2f, h / 2f + 10f, text)
+                // 금색 밑줄 플러리시
+                stroke.strokeWidth = 2.2f
+                stroke.color = Color.argb((a * 0.85f).toInt(), 242, 208, 107)
+                c.drawLine(w / 2f - tw / 2f - 8f, h / 2f + 20f, w / 2f + tw / 2f + 8f, h / 2f + 20f, stroke)
             }
         }
 
-        // 플래시
+        // 플래시 + 따뜻한 파문
         if (flash > 0f) {
-            fill.color = Color.argb((165 * flash).toInt().coerceIn(0, 255), 255, 252, 244)
+            val cx = w / 2f
+            val cy = h / 2f
+            glow.color = Color.argb((70 * flash).toInt().coerceIn(0, 255), 255, 236, 190)
+            glow.strokeWidth = 26f
+            glow.style = Paint.Style.STROKE
+            glow.isAntiAlias = true
+            c.drawCircle(cx, cy, 120f + 260f * (1f - flash), glow)
+            glow.style = Paint.Style.FILL
+            fill.color = Color.argb((168 * flash).toInt().coerceIn(0, 255), 255, 252, 244)
             c.drawRect(0f, 0f, w, h, fill)
         }
     }
 
     // ------------------------------------------------------------------
+    // 공통
+    // ------------------------------------------------------------------
+
+    /** 유리 카드 — 위에서 아래로 살짝 밝아지는 반투명 + 크림 헤어라인 */
+    private fun glass(c: Canvas, r: RectF, radius: Float, alpha: Int, edge: Int) {
+        if (alpha <= 2) return
+        grad.shader = LinearGradient(
+            0f, r.top, 0f, r.bottom,
+            intArrayOf(Color.argb((alpha * 0.94f).toInt(), 36, 30, 46), Color.argb(alpha, 14, 12, 20)),
+            floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
+        )
+        c.drawRoundRect(r, radius, radius, grad)
+        grad.shader = null
+        if (edge > 2) {
+            stroke.color = Color.argb(edge, 246, 240, 224)
+            stroke.strokeWidth = 1.1f
+            stroke.pathEffect = null
+            c.drawRoundRect(r, radius, radius, stroke)
+            // 상단 하이라이트
+            stroke.color = Color.argb((edge * 0.35f).toInt(), 255, 252, 244)
+            stroke.strokeWidth = 1f
+            c.drawLine(r.left + radius, r.top + 1.1f, r.right - radius, r.top + 1.1f, stroke)
+        }
+    }
 
     /** 거리 비율 -> (별점, 색) */
     private fun zone(ratio: Float): Pair<Int, Int> = when {
-        ratio < 0.38f -> 3 to 0xFF7FD07A.toInt()
-        ratio < 0.72f -> 2 to 0xFFF2C86B.toInt()
-        else -> 1 to 0xFFE2574C.toInt()
+        ratio < 0.38f -> 3 to ZONE3
+        ratio < 0.72f -> 2 to ZONE2
+        else -> 1 to ZONE1
     }
 
     private fun fmt(v: Float): String = String.format("%.1f", v)
+
+    /** 0..1 해시 (보케 자리 잡기용) */
+    private fun frac(v: Float): Float = v - kotlin.math.floor(v)
 
     private companion object {
         const val CLOSING = 0
@@ -721,5 +1052,10 @@ class Viewfinder(private val game: Game) {
         const val OPEN = 3
         const val CLOSE_T = 0.10f
         const val OPEN_T = 0.28f
+
+        val GOLD = 0xFFF2C86B.toInt()
+        val ZONE3 = 0xFF7FD07A.toInt()
+        val ZONE2 = 0xFFF2C86B.toInt()
+        val ZONE1 = 0xFFE2574C.toInt()
     }
 }

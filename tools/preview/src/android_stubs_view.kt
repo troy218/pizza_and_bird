@@ -24,6 +24,26 @@ class MotionEvent(
     fun getPointerId(index: Int): Int = pointers[index].first
 }
 
+/**
+ * 프리뷰용 View 스텁 — BootView(부팅 스플래시)가 컴파일되도록 최소 시그니처만 제공한다.
+ * 실제 화면에 붙지 않으므로 크기는 0, 무효화 요청은 무시한다.
+ */
+open class View(private val context: android.content.Context) {
+    open val width: Int = 0
+    open val height: Int = 0
+    open val isAttachedToWindow: Boolean = false
+
+    open fun onDraw(canvas: android.graphics.Canvas) {}
+
+    open fun invalidate() {}
+
+    open fun postInvalidate() {}
+
+    open fun postInvalidateDelayed(delayMillis: Long) {}
+
+    open fun postInvalidateOnAnimation() {}
+}
+
 class KeyEvent {
     companion object {
         const val ACTION_DOWN = 0

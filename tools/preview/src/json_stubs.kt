@@ -95,6 +95,27 @@ class JSONObject {
 
     fun optString(key: String, def: String = ""): String = (map[key] as? String) ?: def
 
+    fun getString(key: String): String = map[key] as? String
+        ?: throw org.json.JSONException("no string: $key")
+
+    fun getInt(key: String): Int = map[key] as? Int ?: (map[key] as? Number)?.toInt()
+        ?: throw org.json.JSONException("no int: $key")
+
+    fun getLong(key: String): Long = map[key] as? Long ?: (map[key] as? Number)?.toLong()
+        ?: throw org.json.JSONException("no long: $key")
+
+    fun getDouble(key: String): Double = map[key] as? Double ?: (map[key] as? Number)?.toDouble()
+        ?: throw org.json.JSONException("no double: $key")
+
+    fun getBoolean(key: String): Boolean = map[key] as? Boolean
+        ?: throw org.json.JSONException("no boolean: $key")
+
+    fun getJSONObject(key: String): JSONObject = map[key] as? JSONObject
+        ?: throw org.json.JSONException("no object: $key")
+
+    fun getJSONArray(key: String): JSONArray = map[key] as? JSONArray
+        ?: throw org.json.JSONException("no array: $key")
+
     fun optJSONObject(key: String): JSONObject? = map[key] as? JSONObject
 
     fun optJSONArray(key: String): JSONArray? = map[key] as? JSONArray
@@ -188,6 +209,20 @@ class JSONArray {
     fun optString(index: Int, def: String = ""): String = (list.getOrNull(index) as? String) ?: def
 
     fun optJSONObject(index: Int): JSONObject? = list.getOrNull(index) as? JSONObject
+
+    fun getJSONObject(index: Int): JSONObject = optJSONObject(index)
+        ?: throw org.json.JSONException("no object at $index")
+
+    fun getJSONArray(index: Int): JSONArray = list.getOrNull(index) as? JSONArray
+        ?: throw org.json.JSONException("no array at $index")
+
+    fun getString(index: Int): String = optString(index)
+
+    fun getInt(index: Int): Int = optInt(index)
+
+    fun getBoolean(index: Int): Boolean = optBoolean(index)
+
+    fun getDouble(index: Int): Double = optDouble(index)
 
     override fun toString(): String {
         val sb = StringBuilder("[")

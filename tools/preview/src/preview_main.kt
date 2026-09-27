@@ -301,6 +301,17 @@ object PreviewMain {
         simulate(game, 0.2f)
         s.worldTime = 12.5f
         renderScreen(game, "13_photo_mode")
+
+        // 밤 탐조 — 3★ 순간(가까운 밤새)의 연출 확인
+        birds.clear()
+        birds.add(FieldBird(Birds.byId["owl"]!!, player.x + 34f, player.y - 26f))
+        birds.add(FieldBird(Birds.byId["nightheron"]!!, player.x - 96f, player.y + 44f))
+        birds.add(FieldBird(Birds.byId["sparrow"]!!, player.x + 168f, player.y + 18f))
+        setField(game.scene as Any, "photoMode", true)
+        runCatching { setField(game.hud, "photoModeHint", true) }
+        simulate(game, 0.25f)
+        s.worldTime = 21.6f
+        renderScreen(game, "30_photo_mode_night")
     }
 
     // ------------------------------------------------------------------

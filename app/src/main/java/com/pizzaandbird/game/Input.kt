@@ -82,6 +82,7 @@ class Input(private val game: Game) {
                         queue.add(QEv(K.CANCEL, e.getX(i), e.getY(i), e.getPointerId(i), 0, 0))
                     }
                 }
+                else -> {}
             }
         }
         return true

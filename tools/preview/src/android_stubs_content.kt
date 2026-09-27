@@ -66,6 +66,9 @@ open class InMemorySharedPreferences : SharedPreferences {
 }
 
 open class Context {
+    /** 설정 저장 경로 이름 등에 쓰인다 (TypeScale 접근성 배율 저장) */
+    open val packageName: String = "com.pizzaandbird.game"
+
     companion object {
         const val VIBRATOR_SERVICE = "vibrator"
         const val MODE_PRIVATE = 0
