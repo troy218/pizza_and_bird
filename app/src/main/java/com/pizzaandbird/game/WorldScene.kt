@@ -125,6 +125,9 @@ class WorldScene(
         textSize = 13f
     }
     private val bubbleFill = Paint()
+    // [P84 이후] 고양이 간식(생선) 아이콘용 페인트 — HomeScene 의 aaFill 과 같은 역할.
+    // (main 쪽에서 HomeScene private 필드를 그대로 참조해 컴파일이 깨졌던 것을 WorldScene 에 정의)
+    private val aaFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bubbleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         color = 0xFF6B4F35.toInt()
