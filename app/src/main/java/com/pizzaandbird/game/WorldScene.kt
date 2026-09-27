@@ -2907,10 +2907,17 @@ class WorldScene(
                 val label = "$dirArrow $targetName"
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(label)
+                // 화면 가장자리에서는 칩째로 안으로 밀어 넣는다 (글자가 화면 밖으로 나가지 않게)
+                var tl = badgeCx - lw / 2f
+                var rl = tl - 6f
+                val minL = 8f
+                val maxR = game.virtW - 8f
+                if (rl < minL) { val dx = minL - rl; rl += dx; tl += dx }
+                if (tl + lw + 6f > maxR) { val dx = maxR - (tl + lw + 6f); tl += dx; rl += dx }
                 uiFill.color = Color.argb(200, 58, 52, 74)
-                scratchRect.set(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f)
+                scratchRect.set(rl, badgeCy + 12f, rl + lw + 12f, badgeCy + 26f)
                 c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
-                c.drawText(label, badgeCx - lw / 2, scratchRect.centerY() - (lp.descent() + lp.ascent()) / 2f, lp)
+                c.drawText(label, tl, scratchRect.centerY() - (lp.descent() + lp.ascent()) / 2f, lp)
             }
         }
     }
@@ -2930,18 +2937,27 @@ class WorldScene(
                 val target = Regions.byId[tunnel.targetId] ?: continue
                 val dirArrow = Regions.dirArrow(tunnel.dir)
                 val dirLabel = Regions.dirLabel(tunnel.dir)
-                val line = "${tunnel.number} $dirArrow $dirLabel -> ${target.name}"
+                // 번호는 왼쪽 노란 배지가 이미 보여 주므로 글자에서는 뺀다.
+                // 배지 + 글자 전체 폭으로 칩을 만들어 글자가 칩 오른쪽으로 삐져나가지 않게 한다.
+                val line = "$dirArrow $dirLabel → ${target.name}"
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(line)
-                uiFill.color = Color.argb(210, 58, 52, 74)
-                scratchRect.set(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f)
-                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
-                bubbleFill.color = 0xFFF2B63C.toInt()
-                c.drawCircle(sx - lw / 2 - 4f, curY - 5f, 8f, bubbleFill)
                 val np = Type.paintPx(9f, true, 0.02f, 0xFF4A2E12.toInt())
                 val nt = tunnel.number.toString()
-                c.drawText(nt, sx - lw / 2 - 4f - np.measureText(nt) / 2, curY - 1.5f, np)
-                c.drawText(line, sx - lw / 2 + 10f, curY, lp)
+                val badgeR = 8f
+                val badgeGap = 7f
+                val padX = 8f
+                val content = badgeR * 2f + badgeGap + lw      // 배지 + 간격 + 글자
+                val chipL = sx - content / 2f - padX
+                val chipR = sx + content / 2f + padX
+                uiFill.color = Color.argb(210, 58, 52, 74)
+                scratchRect.set(chipL, curY - 12f, chipR, curY + 2f)
+                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
+                val badgeCx = sx - content / 2f + badgeR
+                bubbleFill.color = 0xFFF2B63C.toInt()
+                c.drawCircle(badgeCx, curY - 5f, badgeR, bubbleFill)
+                c.drawText(nt, badgeCx - np.measureText(nt) / 2, curY - 1.5f, np)
+                c.drawText(line, badgeCx + badgeR + badgeGap, curY, lp)
                 curY += 18f
             }
         }
