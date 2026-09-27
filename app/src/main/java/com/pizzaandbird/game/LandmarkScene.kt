@@ -515,7 +515,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sx = (docentX - 8f - camX) * WORLD_SCALE
         val sy = (docentY - 13f - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f), a.shadowPaint)
-        val bmp = a.npcBitmap(theme.docentKind, game.time, 1.3f, game.hdSprites)
+        val bmp = a.docentBitmap(theme, game.time, game.hdSprites)
         a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 머리 위 💬 마커
         val bx = sx + 16f

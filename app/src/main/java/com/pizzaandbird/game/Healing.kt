@@ -264,8 +264,19 @@ object Healing {
     private class Scent(var x:Float, var y:Float, var vx:Float, var vy:Float, var life:Float, var col:Int, var size:Float)
     private val scents = ArrayList<Scent>()
     private var scentAccum = 0f
+    private var scentIntensity = 1f
 
-    fun updateScents(dt: Float, season: Season, px: Float, py: Float, rnd: Random) {
+    fun updateScents(
+        dt: Float, season: Season, px: Float, py: Float, rnd: Random,
+        blossomIntensity: Float = 0f
+    ) {
+        // 분홍빛 향 입자도 꽃바람과 함께 보인다. 밤에 꽃잎처럼 남지 않도록 한다.
+        scentIntensity = if (season == Season.SPRING) blossomIntensity.coerceIn(0f, 1f) else 1f
+        if (scentIntensity <= 0f) {
+            scents.clear()
+            scentAccum = 0f
+            return
+        }
         scentAccum += dt
         if (scentAccum > 0.8f && scents.size < 14) {
             scentAccum = 0f
@@ -292,7 +303,7 @@ object Healing {
 
     fun drawScents(canvas: Canvas, paint: Paint) {
         for (s in scents) {
-            val a = (s.life / 5f).coerceIn(0f, 0.45f)
+            val a = (s.life / 5f).coerceIn(0f, 0.45f) * scentIntensity
             paint.color = Color.argb((80*a).toInt(), Color.red(s.col), Color.green(s.col), Color.blue(s.col))
             canvas.drawCircle(s.x, s.y, s.size, paint)
         }

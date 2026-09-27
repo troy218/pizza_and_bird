@@ -77,6 +77,22 @@ java -Djava.awt.headless=true -cp "tools/preview/out/classes-korea-map:$KOTLIN_H
   com.pizzaandbird.preview.KoreaMapSmoke
 ```
 
+### 벚꽃 연출 회귀 테스트
+
+`cherry_blossom_smoke.kt`는 두 해의 날짜·시각·날씨를 분 단위로 훑어 개화기 낮의
+짧은 꽃바람만 허용하는지 검사합니다. 실제 `WorldScene`에서 화면/월드/분홍 향 입자가
+동시에 멈추는지, 밤·비·눈·연출 종료 후 남은 꽃잎이 제거되는지, 씬 재진입 시
+시간표가 유지되는지와 다른 계절의 효과·벤치 기념도 확인합니다.
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/cherry_blossom_smoke.kt $SRCS \
+  -d tools/preview/out/classes-blossom -jvm-target 17
+java -Djava.awt.headless=true -cp "tools/preview/out/classes-blossom:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.CherryBlossomSmoke
+```
+
 ### 입력 회귀 테스트
 
 동일한 프리뷰 스텁으로 실제 `Input`/`Game`/`Scene`을 구동해 **타이틀 → 캐릭터 선택 → 서울 시작 → 월드**, 레터박스 좌표·집/월드 카메라·모달 터치·일시정지 입력 해제를 검사합니다 (JDK 17 + kotlinc 필요).
@@ -266,7 +282,13 @@ python3 tools/preview/render_people.py docs/img
 # 3) 자전거 스펙 시트 (models_side/paints/accessories — docs/img/ 갱신)
 python3 tools/preview/render_bikes.py docs/img
 
-# 4) 맵 한 장 렌더링
+# 4) 바위 28종 + 지역별 바위 조합 시트 (docs/img/ 갱신)
+python3 tools/preview/render_rocks.py docs/img/rock_catalog.png
+
+# 5) 지역 수종 4종 시트 (docs/img/ 갱신)
+python3 tools/preview/tree_art.py docs/img/regional_trees.png
+
+# 6) 맵 한 장 렌더링
 python3 - <<'PY'
 import sys; sys.path.insert(0, 'tools/preview')
 import render, mapgen
@@ -284,6 +306,10 @@ PY
 | `people.py` | `CharacterArt.kt` 프로토타입 — 사람/자전거/고양이 **관절 애니메이션** (포즈 수식이 게임과 동일) |
 | `render_people.py` | 동작 스프라이트 시트 · GIF 출력 |
 | `render_bikes.py` | 자전거 스펙 시트 출력 — 11종 모델 · 프레임/타이어/안장 색상표 · 액세서리 (cards의 스펙 표와 1:1) |
+| `rock_art.py` | `Assets.kt` 바위 아트 키트(`rockBody`·`lump`·`mossCap`·`weedFringe`·`crackIn`)의 프로토타입 — 8개 암종 팔레트 그대로 |
+| `rock_catalog.py` | 바위 **28종** 저작도 — `PropLooks.ROCKS` 순서와 1:1 (`r00`~`r27`) |
+| `render_rocks.py` | 바위 28종 접촉 시트 + **지역 32곳별 바위 조합 시트** 출력 (`RegionMapStyle.kt`를 파싱) |
+| `tree_art.py` | 지역 수종 4종(느티나무·향나무·야자수·오리나무) 시트 출력 |
 | `tiles_legacy.py` | `Assets.kt` 의 기존 타일 아트를 옮겨 온 **자동 생성** 파일 |
 | `_gen_tiles_legacy.py` | 위 파일을 `Assets.kt` 에서 다시 만들어 내는 스크립트 |
 

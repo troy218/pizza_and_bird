@@ -185,9 +185,19 @@ class GameMap(
         else -> fallback
     }
 
-    /** A region chooses its own silhouettes; non-nature tiles keep the global tile pattern. */
-    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int =
-        mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+    /**
+     * A region chooses its own silhouettes; non-nature tiles keep the global tile pattern.
+     * 지역 표가 아트 수를 넘어섰더라도 크래시하지 않도록 항상 실제 범위로 눌러 준다.
+     */
+    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int {
+        val picked = mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+        return picked.coerceIn(0, a.tiles[tile.ordinal].size - 1)
+    }
+
+    /** 이 칸에 그려질 바위 변형 — 숨김 판정이 함께 쓴다. */
+    fun rockLook(x: Int, y: Int): Int =
+        mapStyle.natureArt.variant(T.ROCK, x, y, region.id)
+            ?.coerceIn(0, PropLooks.ROCK_COUNT - 1) ?: 0
 
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
@@ -279,11 +289,15 @@ class GameMap(
 
     /**
      * 시야를 가리는 키 큰 지형지물인가 — 바위·나무·산·건물 등.
-     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하다.
+     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하고,
+     * **발목만 넘는 자갈(PropSize.PEBBLE) 뒤에도 숨지 못한다** — 그 정도 크기로는
+     * 새가 플레이어를 못 볼 테니까. 자갈 더미를 피해 새에게 다가가야 하는 재미가 생긴다.
      */
     fun occludesSight(x: Int, y: Int): Boolean {
         val tile = t(x, y)
-        return tile.bulk || tile == T.TREE || tile == T.ROCK
+        if (tile.bulk || tile == T.TREE) return true
+        if (tile != T.ROCK) return false
+        return PropLooks.rockBlocksSight(rockLook(x, y))
     }
 
     /**
@@ -926,6 +940,25 @@ object MapBuilder {
             if (t[y][x] == T.MOUNTAIN.ordinal) return
             t[y][x] = T.ROCK.ordinal
             reserved[y][x] = true
+        }
+        /**
+         * 바위 옆에 동행 돌을 하나 얹는다 — 3~4칸짜리 돌무더기로 읽히게 한다.
+         * 한 칸짜리 바위를 등간격으로 뿌리면 '붙여놓은 돌' 같아서 동물을 숨길 때도
+         * 주변이 어중간한 얼룩이 된다. 크기가 다른 바위가 겹치면 하나의 노두로 보인다.
+         */
+        val ROCK_OFFSETS = arrayOf(
+            intArrayOf(1, 0), intArrayOf(0, 1), intArrayOf(-1, 0), intArrayOf(0, -1),
+            intArrayOf(1, 1), intArrayOf(1, -1), intArrayOf(-1, 1), intArrayOf(-1, -1)
+        )
+        fun rockBuddy(x: Int, y: Int) {
+            if (rnd.nextFloat() > 0.42f) return
+            val step = ROCK_OFFSETS[rnd.nextInt(8)]
+            val bx = x + step[0]
+            val by = y + step[1]
+            if (bx < 2 || by < 2 || bx >= w - 2 || by >= h - 2) return
+            if (reserved[by][bx] || t[by][bx] != T.GRASS.ordinal) return
+            if (base[by][bx] == T.WATER.ordinal || pave[by][bx] != Pave.NONE) return
+            placeRock(bx, by)
         }
         fun placeTree(x: Int, y: Int) {
             if (!inb(x, y) || isPlazaOrRoad(x, y)) return
@@ -1825,9 +1858,9 @@ object MapBuilder {
             when {
                 // 습지·강은 갈대/물억새를 우선하고, 산은 바위와 숲을 우선한다.
                 isWet && r < 0.28 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
-                isRiver && r < 0.17 -> t[y][x] = T.ROCK.ordinal
-                isCoast && r < 0.16 -> t[y][x] = T.ROCK.ordinal
-                isMountain && r < 0.15 -> t[y][x] = T.ROCK.ordinal
+                isRiver && r < 0.17 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
+                isCoast && r < 0.16 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
+                isMountain && r < 0.15 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
                 // 도시 공원·하천 산책로에는 꽃밭을 조금 더 자주 만든다.
                 region.city && r < 0.19 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
@@ -1835,7 +1868,9 @@ object MapBuilder {
                     t[y][x] = T.FLOWER.ordinal
                     base[y][x] = T.FLOWER.ordinal
                 }
-                r < region.treeDensity + region.flowerDensity + region.rockDensity -> t[y][x] = T.ROCK.ordinal
+                r < region.treeDensity + region.flowerDensity + region.rockDensity -> {
+                    t[y][x] = T.ROCK.ordinal; rockBuddy(x, y)
+                }
             }
         }
 
