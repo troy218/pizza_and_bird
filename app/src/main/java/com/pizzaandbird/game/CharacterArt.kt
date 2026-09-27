@@ -317,6 +317,48 @@ object CharacterArt {
         )
     }
 
+    /**
+     * 펀치 — 팔을 뒤로 뺐다가 바라보는 쪽으로 쭉 뻗는다.
+     * phase 0 와인드업, 0.5 근처가 타점, 이후 따라가기.
+     */
+    fun punchPose(phase: Float): Pose {
+        val p = ((phase % 1f) + 1f) % 1f
+        val windup = when {
+            p < 0.20f -> 1f - p / 0.20f * 0.15f
+            p < 0.36f -> 0.85f * (1f - (p - 0.20f) / 0.16f)
+            else -> 0f
+        }.coerceIn(0f, 1f)
+        val extend = when {
+            p < 0.12f -> 0f
+            p < 0.40f -> (p - 0.12f) / 0.28f
+            p < 0.62f -> 1f
+            else -> 1f - (p - 0.62f) / 0.38f
+        }.coerceIn(0f, 1f)
+        return Pose(
+            bodyX = 1.7f * extend - 0.9f * windup,
+            bodyY = 0.4f * extend + 0.2f * windup,
+            lean = 16f * extend - 8f * windup,
+            hipR = 12f * extend,
+            hipL = -5f * extend - 4f * windup,
+            kneeR = 8f + 14f * extend,
+            kneeL = 6f + 18f * windup,
+            armR = -40f * windup + 98f * extend,
+            elbowR = 10f + 74f * (1f - extend) + 8f * windup,
+            armL = -14f - 30f * windup,
+            elbowL = 18f + 24f * windup,
+            shoulderR = -1.2f * extend,
+            shoulderL = 0.35f * windup,
+            headX = 0.55f * extend - 0.35f * windup,
+            tilt = -3.2f * extend + 1.6f * windup,
+            mouth = 0.9f * extend.coerceAtLeast(windup * 0.4f),
+            brow = 1f,
+            breath = 0.2f + 0.55f * extend,
+            hairSway = -2f * extend + 0.7f * windup,
+            clothSway = -1.4f * extend,
+            packBob = 0.45f * extend
+        )
+    }
+
     /** 만세! — 레벨업 축하 (폴짝폴짝 뛰며 두 팔을 든다) */
     fun cheerPose(phase: Float): Pose {
         val p = ((phase % 1f) + 1f) % 1f
