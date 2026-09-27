@@ -1037,14 +1037,22 @@ class WorldScene(
         return null
     }
 
+    private fun signDirection(sx: Int, sy: Int): Dir = when {
+        sy <= 2 -> Dir.N
+        sy >= map.h - 5 -> Dir.S
+        sx <= 3 -> Dir.W
+        else -> Dir.E
+    }
+
+    private fun directionName(dir: Dir): String = when (dir) {
+        Dir.N -> "북쪽"
+        Dir.E -> "동쪽"
+        Dir.S -> "남쪽"
+        Dir.W -> "서쪽"
+    }
+
     private fun signTarget(sx: Int, sy: Int): RegionDef? {
-        val dir = when {
-            sy <= 2 -> Dir.N
-            sy >= map.h - 5 -> Dir.S
-            sx <= 3 -> Dir.W
-            else -> Dir.E
-        }
-        val targetId = Regions.exits(map.region.id)[dir] ?: return null
+        val targetId = Regions.exits(map.region.id)[signDirection(sx, sy)] ?: return null
         return Regions.byId[targetId]
     }
 
@@ -1053,7 +1061,7 @@ class WorldScene(
         val ty = (vy / 16f).toInt()
         if (map.t(tx, ty) == T.SIGN) {
             val target = signTarget(tx, ty)
-            if (target != null) game.toast("🪧 이 터널 → ${target.name}")
+            if (target != null) game.toast("🪧 ${directionName(signDirection(tx, ty))} 터널 → ${target.name}")
         }
     }
 
@@ -1331,7 +1339,7 @@ class WorldScene(
             nearTile(T.SIGN)?.let { (sx, sy) ->
                 val target = signTarget(sx, sy)
                 if (target != null) {
-                    game.toast("🪧 이 터널 → ${target.name}")
+                    game.toast("🪧 ${directionName(signDirection(sx, sy))} 터널 → ${target.name}")
                     return
                 }
             }

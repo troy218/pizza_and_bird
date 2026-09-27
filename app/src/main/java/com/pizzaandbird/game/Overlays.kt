@@ -3273,10 +3273,18 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         }
 
         y += dp(scene, 2f)
-        val exits = Regions.exits(reg.id).values.mapNotNull { Regions.byId[it]?.name }
+        val exits = Regions.exits(reg.id).entries.sortedBy { it.key.ordinal }.mapNotNull { (dir, targetId) ->
+            val cardinal = when (dir) {
+                Dir.N -> "북"
+                Dir.E -> "동"
+                Dir.S -> "남"
+                Dir.W -> "서"
+            }
+            Regions.byId[targetId]?.let { "$cardinal→${it.name}" }
+        }
         textP.color = 0xFF8A7360.toInt()
-        val ex = "🚲 연결: " + if (exits.isEmpty()) "-" else exits.joinToString(", ")
-        for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(2)) {
+        val ex = "🚲 터널: " + if (exits.isEmpty()) "-" else exits.joinToString(", ")
+        for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(3)) {
             c.drawText(ln, x, y, textP)
             y += dp(scene, 12f)
         }
