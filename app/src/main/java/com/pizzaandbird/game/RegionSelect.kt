@@ -85,7 +85,7 @@ object RegionCards {
             c.drawText(reg.english, x + nameW + dp * 6f, y, enPaint)
 
             y += dp * 13f
-            c.drawText(reg.habitatLabels, x, y, metaLeaf)
+            UiKit.drawIconText(c, game, reg.habitatLabels, x, y, metaLeaf)
 
             y += dp * 12f
             val sig = "대표 새: " + Regions.signatureBirds(reg).joinToString(", ") { it.name }

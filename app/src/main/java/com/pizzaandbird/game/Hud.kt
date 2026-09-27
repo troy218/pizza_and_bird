@@ -707,11 +707,11 @@ class Hud(private val game: Game) {
             val maxW = game.screenW - dp(70f)
             var msg = m.text
             var tp = Type.paintAt(12.5f, true, 0.02f, tcol)
-            if (tp.measureText(msg) > maxW) tp = Type.paintAt(11f, true, 0.02f, tcol)
+            if (UiKit.iconTextWidth(msg, tp) > maxW) tp = Type.paintAt(11f, true, 0.02f, tcol)
             val full = msg
-            while (msg.length > 4 && tp.measureText("$msg…") > maxW) msg = msg.dropLast(1)
+            while (msg.length > 4 && UiKit.iconTextWidth("$msg…", tp) > maxW) msg = msg.dropLast(1)
             if (msg != full) msg = "$msg…"
-            val tw = tp.measureText(msg)
+            val tw = UiKit.iconTextWidth(msg, tp)
             val cx = game.screenW / 2f
             val pad = dp(10f)
             val r = RectF(cx - tw / 2 - pad, yy - dp(12f), cx + tw / 2 + pad, yy + dp(13f))
@@ -723,7 +723,7 @@ class Hud(private val game: Game) {
             stroke.color = Color.argb((alpha * 0.85f).toInt(), 233, 196, 106)
             stroke.strokeWidth = dp(1.5f)
             c.drawRoundRect(r, dp(13f), dp(13f), stroke)
-            c.drawText(msg, cx - tw / 2, Type.midBaseline(tp, yy), tp)
+            UiKit.drawIconText(c, game, msg, cx - tw / 2f, Type.midBaseline(tp, yy), tp)
             y += step
         }
     }
@@ -745,10 +745,10 @@ class Hud(private val game: Game) {
         // 좌우 HUD를 피해 폭이 넘치면 폰트를 줄여 한 줄에 맞춘다
         val bwMax = (if (showStats) w - dp(360f) else w - dp(40f))
             .coerceIn(dp(200f), (w - dp(40f)).coerceAtLeast(dp(200f)))
-        while (tp.measureText(bt) + dp(44f) > bwMax && tp.textSize > dp(16f)) {
+        while (UiKit.iconTextWidth(bt, tp) + dp(44f) > bwMax && tp.textSize > dp(16f)) {
             tp.textSize -= dp(1f)
         }
-        val tw = tp.measureText(bt)
+        val tw = UiKit.iconTextWidth(bt, tp)
         val cx = w / 2f
         // 토스트는 고정 자리를 지키므로, 겹치지 않게 배너 쪽이 토스트 아래로 내려간다
         val cy = maxOf(h * 0.24f, toastTopY + dp(76f))
@@ -774,7 +774,7 @@ class Hud(private val game: Game) {
             RectF(r.left + dp(4f), r.top + dp(4f), r.right - dp(4f), r.bottom - dp(4f)),
             dp(13f), dp(13f), stroke
         )
-        c.drawText(bt, cx - tw / 2, Type.midBaseline(tp, cy), tp)
+        UiKit.drawIconText(c, game, bt, cx - tw / 2f, Type.midBaseline(tp, cy), tp)
         c.restore()
     }
 
