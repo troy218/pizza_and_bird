@@ -977,50 +977,94 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val g = scene.game
         val left = panelR.left + dp(scene, 12f)
         val right = panelR.right - dp(scene, 12f)
-        var ty = contentTop() + dp(scene, 4f)
+        // 가로가 넉넉하면 2열 배치 (세로 공간 절약)
+        val wide = panelR.width() > dp(scene, 560f)
+        val colW = if (wide) (right - left - dp(scene, 12f)) / 2f else right - left
+        val yCol = floatArrayOf(contentTop() + dp(scene, 4f), contentTop() + dp(scene, 4f))
 
-        fun row(icon: String, label: String, sub: String, danger: Boolean, action: () -> Unit) {
+        fun rowAt(
+            col: Int, icon: String, label: String, sub: String,
+            danger: Boolean, switch: Boolean?, action: () -> Unit
+        ) {
+            val rx = if (col == 0) left else left + colW + dp(scene, 12f)
+            val yy = yCol[col]
             val rh = dp(scene, 46f)
-            val r = RectF(left, ty, right, ty + rh)
+            val r = RectF(rx, yy, rx + colW, yy + rh)
             UiKit.card(c, g, r, 10f, false,
                 if (danger) 0xFFE2574C.toInt() else 0xFFC9A87B.toInt(),
                 if (danger) 2f else 1.5f)
-            UiKit.iconCircle(c, g, left + dp(scene, 24f), r.centerY(), dp(scene, 14f), icon, 15f,
+            UiKit.iconCircle(c, g, rx + dp(scene, 24f), r.centerY(), dp(scene, 14f), icon, 15f,
                 if (danger) 0xFFF28B82.toInt() else 0xFFF2B63C.toInt())
             textP.textSize = dp(scene, 13f)
             textP.color = if (danger) 0xFFB03A30.toInt() else 0xFF4A3728.toInt()
-            c.drawText(label, left + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
+            c.drawText(label, rx + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
-            c.drawText(sub, left + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
-            textP.textSize = dp(scene, 15f)
-            textP.color = if (danger) 0xFFE2574C.toInt() else 0xFFB5651D.toInt()
-            c.drawText("›", right - dp(scene, 20f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+            c.drawText(sub, rx + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
+            if (switch != null) {
+                // 미니 토글 스위치
+                val sw = dp(scene, 34f); val sh = dp(scene, 18f)
+                val sx0 = r.right - dp(scene, 14f) - sw
+                val sy0 = r.centerY() - sh / 2f
+                fillP.color = if (switch) 0xFF6FBA6B.toInt() else 0xFFD9CBAE.toInt()
+                c.drawRoundRect(RectF(sx0, sy0, sx0 + sw, sy0 + sh), sh / 2, sh / 2, fillP)
+                strokeP.color = 0xFFB5651D.toInt()
+                strokeP.strokeWidth = dp(scene, 1.4f)
+                c.drawRoundRect(RectF(sx0, sy0, sx0 + sw, sy0 + sh), sh / 2, sh / 2, strokeP)
+                val kr = sh * 0.36f
+                val kx = if (switch) sx0 + sw - kr - dp(scene, 3.5f) else sx0 + kr + dp(scene, 3.5f)
+                fillP.color = 0xFFFDF6E8.toInt()
+                c.drawCircle(kx, sy0 + sh / 2, kr, fillP)
+                strokeP.color = 0xFF6B4F35.toInt()
+                strokeP.strokeWidth = dp(scene, 1.2f)
+                c.drawCircle(kx, sy0 + sh / 2, kr, strokeP)
+            } else {
+                textP.textSize = dp(scene, 15f)
+                textP.color = if (danger) 0xFFE2574C.toInt() else 0xFFB5651D.toInt()
+                c.drawText("›", r.right - dp(scene, 20f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+            }
             btnRects.add(Triple(r, label, action))
-            ty += rh + dp(scene, 8f)
+            yCol[col] = yy + rh + dp(scene, 8f)
         }
 
-        row(if (g.state.musicOn) "🎵" else "🔇", "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐", "배경 음악을 켜고 꺼요", false) {
+        // 1열: 사운드 + 조이스틱 설정
+        rowAt(0, if (g.state.musicOn) "🎵" else "🔇", "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐", "배경 음악을 켜고 꺼요", false, null) {
             g.state.musicOn = !g.state.musicOn
             g.audio.setMusic(g.state.musicOn)
             SaveManager.save(g.context, g.state)
         }
-        row(if (g.state.sfxOn) "🔊" else "🔈", "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐", "새 소리와 버튼음을 켜고 꺼요", false) {
+        rowAt(0, if (g.state.sfxOn) "🔊" else "🔈", "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐", "새 소리와 버튼음을 켜고 꺼요", false, null) {
             g.state.sfxOn = !g.state.sfxOn
             g.audio.setSfx(g.state.sfxOn)
             SaveManager.save(g.context, g.state)
         }
-        row("💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false) {
+        rowAt(0, "🕹️", "움직이는 조이스틱: " + if (g.state.floatStick) "켜짐" else "꺼짐",
+            "왼쪽 아래를 끌면 그 자리에 스틱이 생겨요", false, g.state.floatStick) {
+            g.state.floatStick = !g.state.floatStick
+            g.hud.releaseStick()
+            SaveManager.save(g.context, g.state)
+            g.toast(if (g.state.floatStick) "움직이는 스틱 켬 🕹️" else "고정 스틱만 쓸게요")
+        }
+        rowAt(0, "🎚️", "민 만큼 속도: " + if (g.state.analogStick) "켜짐" else "꺼짐",
+            "스틱을 살짝 밀면 살금살금, 끝까지 밀면 쌩쌩", false, g.state.analogStick) {
+            g.state.analogStick = !g.state.analogStick
+            SaveManager.save(g.context, g.state)
+            g.toast(if (g.state.analogStick) "아날로그 이동 켬 — 틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
+        }
+
+        // 2열(화면이 좁으면 1열 이어서): 저장/타이틀/초기화
+        val c2 = if (wide) 1 else 0
+        rowAt(c2, "💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false, null) {
             SaveManager.save(g.context, g.state)
             g.toast("저장 완료! ✨")
         }
-        row("🏠", "타이틀로 가기", "저장 후 타이틀 화면으로 돌아가요", false) {
+        rowAt(c2, "🏠", "타이틀로 가기", "저장 후 타이틀 화면으로 돌아가요", false, null) {
             SaveManager.save(g.context, g.state)
             finished = true
             g.scene = TitleScene(g)
         }
         if (resetArmed) {
-            row("⚠️", "정말 처음부터 시작할까요?", "되돌릴 수 없어요! 다시 누르면 초기화돼요", true) {
+            rowAt(c2, "⚠️", "정말 처음부터 시작할까요?", "되돌릴 수 없어요! 다시 누르면 초기화돼요", true, null) {
                 SaveManager.clear(g.context)
                 g.state.reset("seoul")
                 g.state.started = false
@@ -1028,23 +1072,24 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 g.scene = TitleScene(g)
             }
         } else {
-            row("🗑", "처음부터 다시 시작", "저장 데이터를 모두 지우고 새로 시작해요", false) {
+            rowAt(c2, "🗑", "처음부터 다시 시작", "저장 데이터를 모두 지우고 새로 시작해요", false, null) {
                 resetArmed = true
             }
         }
 
         // 푸터 정보 카드
+        val ty = maxOf(yCol[0], yCol[1])
         val footR = RectF(left, ty, right, contentBottom())
         if (footR.height() > dp(scene, 40f)) {
             drawCard(c, scene, footR)
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.3.3-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
+            c.drawText("🍕 Pizza and Bird v0.4.1-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)
             if (footR.height() > dp(scene, 62f)) {
-                c.drawText("새를 찍어 경험치를 모으면 탐조가 레벨이 올라요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
+                c.drawText("조이스틱은 왼쪽 아래 어디든 잡으면 그 자리에 생겨요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
             }
         }
     }
