@@ -140,15 +140,17 @@ class GameMap(
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
      * 레이어 순서: 지면 -> 포장(오토타일) -> 데칼 -> 구조물/소품 -> 접지 그림자.
-     * 물/화덕은 애니메이션, 물가에는 거품이 인다.
+     * 물은 애니메이션, 집 화덕은 HomeScene의 SVG 일러스트로 렌더링하며 물가에는 거품이 인다.
      */
-    fun draw(c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float) {
+    fun draw(
+        c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float,
+        sunDx: Float = 0f, sunLen: Float = 0f, sunAlpha: Int = 0
+    ) {
         val x0 = (camX / 32f).toInt().coerceAtLeast(0)
         val y0 = (camY / 32f).toInt().coerceAtLeast(0)
         val x1 = ((camX + vw) / 32f).toInt().coerceAtMost(w - 1)
         val y1 = ((camY + vh) / 32f).toInt().coerceAtMost(h - 1)
         val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
-        val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2
 
         for (y in y0..y1) {
             for (x in x0..x1) {
@@ -159,7 +161,7 @@ class GameMap(
                 val pv = paving[y][x]
 
                 // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-                if (pv != Pave.NONE || tile.ground || tile.prop) {
+                if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
                     val gv = ground[y][x]
                     val gTile = T.ALL[gv]
                     val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
@@ -187,10 +189,62 @@ class GameMap(
                 if (d in 1..9) c.drawBitmap(a.medallion[d - 1], fx, fy, a.sprPaint)
                 else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
 
+            }
+        }
+
+        // 3.5) 햇빛 그림자 — 해의 위치(시각)에 따라 나무·가로등·이정표의 긴 그림자가 돌아간다
+        if (sunAlpha > 0 && sunLen > 0f) {
+            sunPaint.color = Color.argb(sunAlpha, 18, 30, 22)
+            val k = sunDx / sunLen
+            // 화면 바로 위/옆의 소품도 그림자가 화면 안으로 드리울 수 있다
+            for (y in (y0 - 2).coerceAtLeast(0)..y1) {
+                for (x in (x0 - 1).coerceAtLeast(0)..(x1 + 1).coerceAtMost(w - 1)) {
+                    val tile = T.ALL[tiles[y][x]]
+                    if (tile != T.TREE && tile != T.LAMP && tile != T.SIGN && tile != T.ROCK) continue
+                    val bx = x * 32f - camX + 16f
+                    val by = y * 32f - camY + 29f
+                    c.save()
+                    c.translate(bx, by)
+                    c.skew(k, 0f)
+                    when (tile) {
+                        T.TREE -> {
+                            sunRect.set(-3f, -1f, 3f, sunLen * 0.45f)
+                            c.drawRect(sunRect, sunPaint)                       // 줄기
+                            sunRect.set(-11f, sunLen * 0.3f, 11f, sunLen * 1.05f + 4f)
+                            c.drawOval(sunRect, sunPaint)                       // 수관
+                        }
+                        T.LAMP -> {
+                            sunRect.set(-1.6f, -1f, 1.6f, sunLen * 1.2f)
+                            c.drawRect(sunRect, sunPaint)
+                            sunRect.set(-6f, sunLen * 1.15f, 6f, sunLen * 1.15f + 5f)
+                            c.drawRect(sunRect, sunPaint)
+                        }
+                        T.SIGN -> {
+                            sunRect.set(-1.4f, -1f, 1.4f, sunLen * 0.5f)
+                            c.drawRect(sunRect, sunPaint)
+                            sunRect.set(-10f, sunLen * 0.45f, 10f, sunLen * 0.8f)
+                            c.drawRect(sunRect, sunPaint)
+                        }
+                        else -> {
+                            sunRect.set(-9f, -3f, 9f, sunLen * 0.4f)
+                            c.drawOval(sunRect, sunPaint)
+                        }
+                    }
+                    c.restore()
+                }
+            }
+        }
+
+        for (y in y0..y1) {
+            for (x in x0..x1) {
+                val fx = x * 32f - camX
+                val fy = y * 32f - camY
+                val tv = tiles[y][x]
+                val tile = T.ALL[tv]
+
                 // 4) 구조물 / 소품
-                if (!tile.ground) {
-                    val bmp = if (tile == T.OVEN) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
-                    else a.tiles[tv][a.tileVariant(tv, x, y)]
+                if (!tile.ground && tile != T.OVEN) {
+                    val bmp = a.tiles[tv][a.tileVariant(tv, x, y)]
                     c.drawBitmap(bmp, fx, fy, a.sprPaint)
                 }
             }
@@ -215,6 +269,8 @@ class GameMap(
         private val foamPaint = Paint().apply {
             color = Color.argb(150, 226, 244, 250)
         }
+        private val sunPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val sunRect = android.graphics.RectF()
     }
 }
 
@@ -727,6 +783,11 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
+    // 머리 위 말풍선 이모트 (♪, …, 💤 등) — WorldScene이 갱신
+    var emote: String? = null
+    var emoteT = 0f
+    var emoteCd = 3f + ((tileX * 37 + tileY * 11) % 7)
+
     val name: String
         get() = when (kind) {
             NpcKind.PROFESSOR -> "보리 박사"
@@ -865,6 +926,7 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var hopT = 0f
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
+    var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
     var faceLeft = true
     var sprW = 16                    // 스프라이트 크기 (생성 시 Assets에서 설정)
     var sprH = 15
