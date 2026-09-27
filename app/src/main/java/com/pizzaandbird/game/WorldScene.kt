@@ -166,6 +166,16 @@ class WorldScene(
         state.onBike = player.bike
         game.hud.questLabel = state.questBird?.let { "의뢰: ${Birds.byId[it]?.name ?: "?"} 사진" }
 
+        // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
+        game.hud.contextIcon = when {
+            nearestNpc() != null -> "💬"
+            nearTile(T.SIGN) != null -> "🪧"
+            nearTile(T.BENCH) != null -> "☕"
+            nearestCat() != null -> "🐈"
+            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "🚪"
+            else -> null
+        }
+
         saveT -= dt
         if (saveT <= 0f) {
             saveT = 25f
@@ -761,7 +771,7 @@ class WorldScene(
                     return
                 }
             }
-            game.toast("주민·이정표·벤치·고양이에게 다가가 A를 눌러보세요!")
+            game.toast("주민·이정표·벤치·고양이에게 다가가 육각 메인 버튼을 눌러보세요!")
             return
         }
         val tap = input.consumeTapWorld()

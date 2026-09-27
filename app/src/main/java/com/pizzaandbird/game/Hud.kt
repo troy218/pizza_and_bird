@@ -9,10 +9,12 @@ import android.graphics.RectF
 import kotlin.math.sqrt
 
 /**
- * 화면 좌표(실제 해상도) 기반 HUD.
+ * 화면 좌표(실제 해상도) 기반 HUD — 듀랑고(Wild Lands) 스타일 조작 구조.
  * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
  * - 우상단: 원형 한국 지도 미니맵 (탭하면 큰 지도)
- * - 하단: D패드 + A/B/카메라/메뉴/달리기/간식 버튼
+ * - 좌하단: 플로팅 가상 조이스틱 (손을 대는 자리에 베이스가 생긴다)
+ * - 우하단: 육각 메인 버튼 + 부채꼴 아크 버튼(자전거·카메라·달리기·간식)
+ * - 좌하단 구석: 메뉴 클러스터(≡)
  */
 class Hud(private val game: Game) {
 
@@ -27,15 +29,31 @@ class Hud(private val game: Game) {
     var questLabel: String? = null
     var photoModeHint = false
 
-    // ----- 레이아웃(px) -----
-    var dpadCx = 0f; var dpadCy = 0f; var dpadR = 0f
-    var aCx = 0f; var aCy = 0f; var aR = 0f
-    var bCx = 0f; var bCy = 0f; var bR = 0f
-    var camBCx = 0f; var camBCy = 0f; var camBR = 0f
-    var menuCx = 0f; var menuCy = 0f; var menuR = 0f
-    var runCx = 0f; var runCy = 0f; var runR = 0f
-    var eatCx = 0f; var eatCy = 0f; var eatR = 0f
-    var mmCx = 0f; var mmCy = 0f; var mmR = 0f
+    /** 메인 버튼에 표시할 맥락 아이콘(근처 상호작용 대상). null이면 기본 주먹 아이콘. 씬이 매 프레임 설정 */
+    var contextIcon: String? = null
+
+    // ----- 조이스틱 상태 (듀랑고식 플로팅) -----
+    var stickHeld = false
+        private set
+    var stickBaseX = 0f
+        private set
+    var stickBaseY = 0f
+        private set
+
+    // ----- 레이아웃(px) — 조이스틱 -----
+    var stickBaseR = 0f; var stickKnobR = 0f
+    var stickIdleX = 0f; var stickIdleY = 0f
+    private var stickZoneRight = 0f   // 조이스틱 구역: x < 이 값
+    private var stickZoneTop = 0f     // 조이스틱 구역: y > 이 값
+
+    // ----- 레이아웃(px) — 버튼 -----
+    var mainCx = 0f; var mainCy = 0f; var mainR = 0f          // 육각 메인(상호작용)
+    var bikeCx = 0f; var bikeCy = 0f; var bikeR = 0f          // 자전거 (아크)
+    var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
+    var runCx = 0f; var runCy = 0f; var runR = 0f             // 달리기 (아크)
+    var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
+    var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
+    var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
 
     private val messages = ArrayList<Message>()
     private var bannerText: String? = null
@@ -76,37 +94,77 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun layout(w: Int, h: Int) {
-        dpadR = dp(54f)
-        dpadCx = dp(26f) + dpadR
-        dpadCy = h - dp(24f) - dpadR
+        val wf = w.toFloat()
+        val hf = h.toFloat()
 
-        aR = dp(27f)
-        aCx = w - dp(26f) - aR
-        aCy = h - dp(26f) - aR
+        // --- 플로팅 조이스틱 (왼쪽 아래 구역) ---
+        stickBaseR = dp(46f)
+        stickKnobR = dp(20f)
+        stickIdleX = dp(86f)
+        stickIdleY = hf - dp(86f)
+        stickZoneRight = wf * 0.42f
+        stickZoneTop = hf * 0.40f
+        stickBaseX = stickIdleX
+        stickBaseY = stickIdleY
 
-        bR = dp(21f)
-        bCx = aCx - aR - dp(8f) - bR
-        bCy = h - dp(22f) - bR
+        // --- 육각 메인 버튼 (오른쪽 아래 구석) ---
+        mainR = dp(31f)
+        mainCx = wf - dp(26f) - mainR
+        mainCy = hf - dp(26f) - mainR
 
-        camBR = dp(21f)
-        camBCx = aCx
-        camBCy = aCy - aR - dp(12f) - camBR
+        // --- 아크 버튼 (메인 버튼 중심 부채꼴 — 듀랑고 스타일) ---
+        val arcR = dp(19f)
+        val arcDist = mainR + dp(9f) + arcR
+        fun arc(angleDeg: Float): Pair<Float, Float> {
+            val rad = Math.toRadians(angleDeg.toDouble())
+            return Pair(
+                mainCx + arcDist * kotlin.math.cos(rad).toFloat(),
+                mainCy - arcDist * kotlin.math.sin(rad).toFloat()
+            )
+        }
+        bikeR = arcR; val (bx, by) = arc(66f); bikeCx = bx; bikeCy = by
+        camBR = arcR; val (cx2, cy2) = arc(105f); camBCx = cx2; camBCy = cy2
+        runR = arcR; val (rx, ry) = arc(144f); runCx = rx; runCy = ry
+        eatR = arcR; val (ex, ey) = arc(183f); eatCx = ex; eatCy = ey
 
-        runR = dp(19f)
-        runCx = camBCx - camBR - dp(8f) - runR
-        runCy = camBCy + dp(2f)
+        // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
+        menuR = dp(17f)
+        menuCx = dp(18f) + menuR
+        menuCy = hf - dp(18f) - menuR
 
-        eatR = dp(19f)
-        eatCx = runCx - runR - dp(8f) - eatR
-        eatCy = camBCy + dp(2f)
-
-        menuR = dp(16f)
-        menuCx = bCx - bR - dp(10f) - menuR
-        menuCy = bCy + dp(6f)
-
+        // --- 미니맵 (오른쪽 위) ---
         mmR = dp(58f)
-        mmCx = w - dp(16f) - mmR
+        mmCx = wf - dp(16f) - mmR
         mmCy = dp(16f) + mmR
+    }
+
+    // ------------------------------------------------------------------
+    // 조이스틱 (게임 스레드에서 Input이 호출)
+    // ------------------------------------------------------------------
+
+    /** 손을 댄 자리가 조이스틱 베이스가 된다 (듀랑고식 플로팅) */
+    fun grabStick(x: Float, y: Float) {
+        stickHeld = true
+        val minX = stickBaseR * 0.35f
+        stickBaseX = x.coerceIn(minX, stickZoneRight)
+        stickBaseY = y.coerceIn(stickZoneTop, game.screenH.toFloat() - stickBaseR * 0.35f)
+    }
+
+    fun releaseStick() {
+        stickHeld = false
+        stickBaseX = stickIdleX
+        stickBaseY = stickIdleY
+    }
+
+    /** 베이스 대비 손가락 위치 → 이동 벡터 (길이 0..1) */
+    fun stickVector(p: PointF): PointF {
+        val dx = p.x - stickBaseX
+        val dy = p.y - stickBaseY
+        val len = sqrt(dx * dx + dy * dy)
+        if (len < stickBaseR * 0.18f || len == 0f) return PointF(0f, 0f)
+        val maxLen = stickBaseR * 0.9f
+        val k = if (len > maxLen) 1f else (len - stickBaseR * 0.18f) / (maxLen - stickBaseR * 0.18f)
+        return PointF(dx / len * k, dy / len * k)
     }
 
     // ------------------------------------------------------------------
@@ -124,24 +182,17 @@ class Hud(private val game: Game) {
             if (showMinimap && inCircle(x, y, mmCx, mmCy, mmR * 0.96f)) return Ctrl.MAP
             return Ctrl.NONE
         }
-        if (inCircle(x, y, dpadCx, dpadCy, dpadR * 1.12f)) return Ctrl.DPAD
-        if (inCircle(x, y, aCx, aCy, aR * 1.22f)) return Ctrl.A
-        if (inCircle(x, y, bCx, bCy, bR * 1.25f)) return Ctrl.B
-        if (inCircle(x, y, camBCx, camBCy, camBR * 1.25f)) return Ctrl.CAM
+        // 버튼 최우선 (메뉴 클러스터가 조이스틱 구역과 겹치므로 먼저 판정)
+        if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
+        if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
+        if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
+        if (inCircle(x, y, camBCx, camBCy, camBR * 1.3f)) return Ctrl.CAM
         if (inCircle(x, y, runCx, runCy, runR * 1.3f)) return Ctrl.RUN
         if (inCircle(x, y, eatCx, eatCy, eatR * 1.3f)) return Ctrl.EAT
-        if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (showMinimap && inCircle(x, y, mmCx, mmCy, mmR * 0.96f)) return Ctrl.MAP
+        // 듀랑고식: 왼쪽 아래 구역은 어디를 짚어도 그 자리가 조이스틱
+        if (!stickHeld && x < stickZoneRight && y > stickZoneTop) return Ctrl.STICK
         return Ctrl.NONE
-    }
-
-    fun dpadVector(p: PointF): PointF {
-        val dx = p.x - dpadCx
-        val dy = p.y - dpadCy
-        val len = sqrt(dx * dx + dy * dy)
-        if (len < dpadR * 0.22f || len == 0f) return PointF(0f, 0f)
-        val k = if (len > dpadR * 0.85f) 1f else len / (dpadR * 0.85f)
-        return PointF(dx / len * k, dy / len * k)
     }
 
     // ------------------------------------------------------------------
@@ -317,49 +368,82 @@ class Hud(private val game: Game) {
     }
 
     // ------------------------------------------------------------------
-    // 컨트롤
+    // 컨트롤 (듀랑고 스타일)
     // ------------------------------------------------------------------
 
     private fun drawControls(c: Canvas) {
         val active = game.input.activeControls()
 
-        // D패드
-        fill.color = Color.argb(88, 40, 36, 54)
-        c.drawCircle(dpadCx, dpadCy, dpadR, fill)
-        stroke.color = Color.argb(150, 248, 239, 220)
+        // ------------------------------------------------------------
+        // 1) 플로팅 조이스틱 (왼쪽) — 잡으면 손을 댄 자리에 베이스가 생긴다
+        // ------------------------------------------------------------
+        val grabbed = Ctrl.STICK in active
+        val bx = if (stickHeld) stickBaseX else stickIdleX
+        val by = if (stickHeld) stickBaseY else stickIdleY
+        val ringAlpha = if (stickHeld) 1f else 0.62f
+
+        fill.color = Color.argb((96 * ringAlpha).toInt(), 40, 36, 54)
+        c.drawCircle(bx, by, stickBaseR, fill)
+        stroke.color = Color.argb((170 * ringAlpha).toInt(), 248, 239, 220)
         stroke.strokeWidth = dp(2f)
-        c.drawCircle(dpadCx, dpadCy, dpadR, stroke)
+        c.drawCircle(bx, by, stickBaseR, stroke)
+        stroke.color = Color.argb((70 * ringAlpha).toInt(), 248, 239, 220)
+        stroke.strokeWidth = dp(1.2f)
+        c.drawCircle(bx, by, stickBaseR * 0.55f, stroke)
 
-        val tri = dp(10f)
-        val inn = dpadR * 0.62f
-        fun triAt(cx: Float, cy: Float, dirX: Float, dirY: Float, on: Boolean) {
-            fill.color = if (on) 0xFFF2D06B.toInt() else Color.argb(200, 248, 239, 220)
-            val px = -dirY; val py = dirX
-            val path = Path()
-            path.moveTo(cx + dirX * tri, cy + dirY * tri)
-            path.lineTo(cx - dirX * tri * 0.5f + px * tri * 0.8f, cy - dirY * tri * 0.5f + py * tri * 0.8f)
-            path.lineTo(cx - dirX * tri * 0.5f - px * tri * 0.8f, cy - dirY * tri * 0.5f - py * tri * 0.8f)
-            path.close()
-            c.drawPath(path, fill)
-        }
-        val dx = game.input.dirX
-        val dy = game.input.dirY
-        triAt(dpadCx, dpadCy - inn, 0f, -1f, dy < -0.25f)
-        triAt(dpadCx, dpadCy + inn, 0f, 1f, dy > 0.25f)
-        triAt(dpadCx - inn, dpadCy, -1f, 0f, dx < -0.25f)
-        triAt(dpadCx + inn, dpadCy, 1f, 0f, dx > 0.25f)
-        if (Ctrl.DPAD in active) {
-            fill.color = Color.argb(120, 242, 208, 107)
-            val v = dpadVector(game.input.dpadTouchPoint())
-            c.drawCircle(dpadCx + v.x * inn, dpadCy + v.y * inn, dp(10f), fill)
-        }
+        // 노브 (손가락 방향으로 이동)
+        val v = if (grabbed) stickVector(game.input.stickTouchPoint()) else PointF(0f, 0f)
+        val knobMax = stickBaseR - stickKnobR
+        val kx = bx + v.x * knobMax
+        val ky = by + v.y * knobMax
+        fill.color = if (grabbed) 0xFFF2D06B.toInt() else Color.argb(215, 248, 239, 220)
+        c.drawCircle(kx, ky, stickKnobR, fill)
+        stroke.color = Color.argb(190, 74, 55, 40)
+        stroke.strokeWidth = dp(2f)
+        c.drawCircle(kx, ky, stickKnobR, stroke)
 
-        // A (상호작용)
-        drawButton(c, aCx, aCy, aR, if (Ctrl.A in active) 0xFFD99B26.toInt() else 0xFFF2B63C.toInt(), "A", dp(18f))
-        // B (자전거)
-        drawButton(c, bCx, bCy, bR, if (Ctrl.B in active) 0xFF9F7FC8.toInt() else 0xFFC3A3E8.toInt(), "B", dp(14f))
-        // 카메라
-        drawButton(c, camBCx, camBCy, camBR, if (photoModeHint) 0xFFE2574C.toInt() else Color.argb(220, 74, 74, 88), null, 0f)
+        // ------------------------------------------------------------
+        // 2) 육각 메인 버튼 (오른쪽 아래) — 상호작용/맥락 액션
+        // ------------------------------------------------------------
+        val pressedA = Ctrl.A in active
+        val hasCtx = contextIcon != null
+        val hexR = mainR * (if (pressedA) 1.07f else 1f)
+        drawHexButton(
+            c, mainCx, mainCy, hexR,
+            when {
+                pressedA -> 0xFFD99B26.toInt()
+                hasCtx -> 0xFF4A4458.toInt()
+                else -> Color.argb(220, 74, 74, 88)
+            },
+            emphasized = hasCtx || pressedA
+        )
+        // 메인 아이콘: 근처 상호작용 대상이 있으면 그 아이콘, 없으면 기본 주먹
+        text.textSize = dp(21f)
+        text.color = 0xFFF8EFDC.toInt()
+        val mainIcon = contextIcon ?: "👊"
+        val miTw = text.measureText(mainIcon)
+        c.drawText(mainIcon, mainCx - miTw / 2, mainCy - (text.descent() + text.ascent()) / 2f, text)
+
+        // ------------------------------------------------------------
+        // 3) 아크 버튼 (메인 버튼 중심 부채꼴)
+        // ------------------------------------------------------------
+        // 자전거 (🚲)
+        val pressedB = Ctrl.B in active
+        val onBike = game.state.onBike
+        drawArcButton(c, bikeCx, bikeCy, bikeR, when {
+            pressedB -> 0xFFD99B26.toInt()
+            onBike -> 0xFF9F7FC8.toInt()
+            else -> Color.argb(220, 74, 74, 88)
+        })
+        drawGlyph(c, bikeCx, bikeCy, "🚲", dp(17f))
+
+        // 카메라 (📷)
+        val camPressed = Ctrl.CAM in active
+        drawArcButton(c, camBCx, camBCy, camBR, when {
+            camPressed -> 0xFFD99B26.toInt()
+            photoModeHint -> 0xFFE2574C.toInt()
+            else -> Color.argb(220, 74, 74, 88)
+        })
         val cam = game.assets.cameraIcon
         val cw = cam.width * (dp(20f) / 20f)
         val ch = cam.height * (dp(20f) / 16f)
@@ -367,22 +451,17 @@ class Hud(private val game: Game) {
 
         // 달리기 (») — 누르고 있으면 강조
         val running = game.input.isRun
-        drawButton(
+        drawArcButton(
             c, runCx, runCy, runR,
-            if (running) 0xFFF2D06B.toInt() else if (Ctrl.RUN in active) 0xFFD9A03C.toInt() else Color.argb(220, 74, 74, 88),
-            null, 0f
+            if (running) 0xFFF2D06B.toInt() else if (Ctrl.RUN in active) 0xFFD9A03C.toInt() else Color.argb(220, 74, 74, 88)
         )
-        text.textSize = dp(17f)
-        text.color = if (running) 0xFF4A3728.toInt() else Color.argb(230, 248, 239, 220)
-        val runLabel = "»"
-        c.drawText(runLabel, runCx - text.measureText(runLabel) / 2, runCy - (text.descent() + text.ascent()) / 2, text)
+        drawGlyph(c, runCx, runCy, "»", dp(19f), if (running) 0xFF4A3728.toInt() else Color.argb(235, 248, 239, 220))
 
         // 간식 (🍕) — 피자 개수 표시
         val pizzaN = game.state.pizzaCount
-        drawButton(
+        drawArcButton(
             c, eatCx, eatCy, eatR,
-            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (pizzaN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
-            null, 0f
+            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (pizzaN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100)
         )
         val pz = game.assets.pizzaIcon
         val psz = dp(20f)
@@ -395,12 +474,21 @@ class Hud(private val game: Game) {
             c.drawText("$pizzaN", eatCx + eatR * 0.62f - text.measureText("$pizzaN") / 2, eatCy - eatR * 0.62f - (text.descent() + text.ascent()) / 2, text)
         }
 
-        // 메뉴 (≡)
-        drawButton(c, menuCx, menuCy, menuR, if (Ctrl.MENU in active) 0xFF9F7FC8.toInt() else Color.argb(220, 74, 74, 88), null, 0f)
-        linePaint.color = Color.argb(220, 248, 239, 220)
+        // ------------------------------------------------------------
+        // 4) 메뉴 클러스터 (왼쪽 아래 구석, 모서리 둥근 사각형)
+        // ------------------------------------------------------------
+        val menuPressed = Ctrl.MENU in active
+        val ms = menuR
+        val mr = RectF(menuCx - ms, menuCy - ms, menuCx + ms, menuCy + ms)
+        fill.color = if (menuPressed) 0xFF9F7FC8.toInt() else Color.argb(220, 58, 52, 74)
+        c.drawRoundRect(mr, dp(7f), dp(7f), fill)
+        stroke.color = Color.argb(190, 248, 239, 220)
+        stroke.strokeWidth = dp(2f)
+        c.drawRoundRect(mr, dp(7f), dp(7f), stroke)
+        linePaint.color = Color.argb(230, 248, 239, 220)
         linePaint.strokeWidth = dp(2.2f)
         for (i in -1..1) {
-            c.drawLine(menuCx - dp(6f), menuCy + i * dp(4f), menuCx + dp(6f), menuCy + i * dp(4f), linePaint)
+            c.drawLine(menuCx - dp(6.5f), menuCy + i * dp(4.2f), menuCx + dp(6.5f), menuCy + i * dp(4.2f), linePaint)
         }
 
         // 미니맵 살짝 강조 (탭 가능 힌트)
@@ -411,19 +499,47 @@ class Hud(private val game: Game) {
         }
     }
 
-    private fun drawButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, label: String?, labelSize: Float) {
+    /** 원형 아크 버튼 몸통 */
+    private fun drawArcButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int) {
         fill.color = color
         c.drawCircle(cx, cy, r, fill)
-        stroke.color = Color.argb(190, 248, 239, 220)
+        stroke.color = Color.argb(200, 248, 239, 220)
         stroke.strokeWidth = dp(2f)
         c.drawCircle(cx, cy, r, stroke)
-        if (label != null) {
-            text.color = 0xFF3A2A24.toInt()
-            text.textSize = labelSize
-            val tw = text.measureText(label)
-            val ty = cy - (text.descent() + text.ascent()) / 2f
-            c.drawText(label, cx - tw / 2, ty, text)
+    }
+
+    /** 듀랑고식 육각 메인 버튼 */
+    private fun drawHexButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, emphasized: Boolean) {
+        fill.color = color
+        c.drawPath(hexPath(cx, cy, r), fill)
+        stroke.color = Color.argb(230, 248, 239, 220)
+        stroke.strokeWidth = dp(2.5f)
+        c.drawPath(hexPath(cx, cy, r), stroke)
+        // 안쪽 골드 링 (듀랑고의 이중 테두리)
+        stroke.color = if (emphasized) Color.argb(220, 242, 208, 107) else Color.argb(110, 242, 208, 107)
+        stroke.strokeWidth = dp(1.4f)
+        c.drawPath(hexPath(cx, cy, r - dp(4f)), stroke)
+    }
+
+    /** 납작한 윗면의 육각형 (듀랑고 메인 버튼 모양) */
+    private fun hexPath(cx: Float, cy: Float, r: Float): Path {
+        val p = Path()
+        for (i in 0 until 6) {
+            val ang = Math.toRadians((60.0 * i))
+            val x = cx + r * kotlin.math.cos(ang).toFloat()
+            val y = cy + r * kotlin.math.sin(ang).toFloat()
+            if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
         }
+        p.close()
+        return p
+    }
+
+    /** 버튼 중앙에 글자/이모지 그리기 */
+    private fun drawGlyph(c: Canvas, cx: Float, cy: Float, glyph: String, size: Float, color: Int = 0xFFF8EFDC.toInt()) {
+        text.textSize = size
+        text.color = color
+        val tw = text.measureText(glyph)
+        c.drawText(glyph, cx - tw / 2, cy - (text.descent() + text.ascent()) / 2f, text)
     }
 
     // ------------------------------------------------------------------
