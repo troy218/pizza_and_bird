@@ -664,7 +664,8 @@ class Paint {
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
+    /** 안드로이드 Paint.getFontMetrics() — 코틀린 호출부는 .fontMetrics 속성으로 접근한다 */
+    val fontMetrics: FontMetrics get() = StubText.metrics(awtFont())
 }
 
 // ---------------------------------------------------------------------------
