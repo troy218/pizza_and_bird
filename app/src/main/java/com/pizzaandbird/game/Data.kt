@@ -876,21 +876,10 @@ object HousePrices {
     fun forRegion(regionId: String): Int = byRegion[regionId] ?: 30000000
 }
 
-/** 카메라 등급 (상점에서 업그레이드) */
-object CameraDefs {
-    class Cam(val name: String, val rangeTiles: Float, val cost: Int, val qualityBonus: Int)
-
-    val LEVELS = listOf(
-        Cam("폰 카메라", 4.5f, 0, 0),
-        Cam("컴팩트 카메라", 6.0f, 80000, 0),
-        Cam("미러리스", 7.5f, 250000, 1),
-        Cam("DSLR", 9.0f, 600000, 1),
-        Cam("프리미엄 DSLR", 11.0f, 1500000, 2)
-    )
-
-    fun name(level: Int): String = LEVELS[(level - 1).coerceIn(0, LEVELS.size - 1)].name
-    fun range(level: Int): Float = LEVELS[(level - 1).coerceIn(0, LEVELS.size - 1)].rangeTiles
-}
+/**
+ * 카메라 장비는 Cameras.kt(컴팩트 / 바디 + 렌즈 조합)로 분리되었다.
+ * 예전 세이브의 `cameraLevel`은 GameState.fromJSON에서 자동 변환된다.
+ */
 
 /** 이사 용달·중개 수수료 (대한민국 원) */
 const val MOVE_COST = 300000
