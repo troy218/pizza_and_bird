@@ -664,7 +664,15 @@ class Paint {
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
+    // Kotlin property mirrors Android Paint.getFontMetrics(); ascent is negative.
+    data class FontMetrics(val ascent: Float, val descent: Float, val top: Float,
+                           val bottom: Float, val leading: Float)
+    val fontMetrics: FontMetrics
+        get() {
+            val fm = StubText.metrics(awtFont())
+            return FontMetrics(-fm.ascent.toFloat(), fm.descent.toFloat(),
+                -fm.maxAscent.toFloat(), fm.maxDescent.toFloat(), fm.leading.toFloat())
+        }
 }
 
 // ---------------------------------------------------------------------------
@@ -989,6 +997,10 @@ class Canvas {
     }
 
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
+
+    fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float,
+                      rx: Float, ry: Float, paint: Paint) =
+        drawRoundRect(RectF(left, top, right, bottom), rx, ry, paint)
 
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
         GfxStats.drawRoundRect++

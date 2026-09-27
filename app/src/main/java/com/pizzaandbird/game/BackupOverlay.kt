@@ -95,9 +95,9 @@ class BackupOverlay(
     /** 지금 눌린 자리 (버튼 눌림 표시용) — 드래그가 되면 null */
     private var pressPoint: android.graphics.PointF? = null
 
+    override val usesRawTouch: Boolean get() = true
+
     init {
-        // 코드 영역을 손가락으로 끌어서 스크롤하려면 raw 터치가 필요하다
-        g.input.rawMode = true
         if (mode == Mode.CREATE) startExport()
     }
 
@@ -181,7 +181,6 @@ class BackupOverlay(
     private fun backToGame() {
         val s = g.state
         finished = true
-        g.input.rawMode = false
         g.scene.closeOverlay()
         g.audio.stopAmb()
         g.sfx(Audio.Sfx.SUCCESS, 0.7f)
@@ -197,7 +196,6 @@ class BackupOverlay(
 
     private fun close() {
         finished = true
-        g.input.rawMode = false
         worker?.interrupt()
         worker = null
         // 닫히면 왔던 자리(여행 가방 › 설정 탭)로 돌아간다

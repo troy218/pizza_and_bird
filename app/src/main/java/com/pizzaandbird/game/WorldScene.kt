@@ -2320,24 +2320,7 @@ class WorldScene(
             DialogOverlay(
                 this, "사진용품점 · ${NpcRoster.shopkeeper.title}",
                 lines[rnd.nextInt(lines.size)] + "\n\n(이 가게는 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}에 하나뿐이야. 장비는 여기서만 살 수 있어.)",
-                listOf(
-                    DialogOverlay.Choice("카메라 진열대") {
-                        it.scene.openOverlay(CameraShopOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("장비 가방(조립)") {
-                        it.scene.openOverlay(GearBagOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("자전거 상점") {
-                        it.scene.openOverlay(BikeShopOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("행운 장신구") {
-                        it.scene.openOverlay(CharmOverlay(it.scene, shop = true))
-                    },
-                    DialogOverlay.Choice("장식 코너") {
-                        it.scene.openOverlay(DecorShopOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("그냥 볼게요")
-                )
+                shopChoices(this)
             )
         )
     }

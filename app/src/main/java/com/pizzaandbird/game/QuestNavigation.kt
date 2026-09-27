@@ -6,6 +6,10 @@ import java.util.PriorityQueue
 import kotlin.math.abs
 import kotlin.math.hypot
 
+/** GameMap.feetTile은 지형 종류(T)를 반환한다. 경로 탐색에는 발 위치의 격자 좌표가 필요하다. */
+private fun feetTileCoords(px: Float, py: Float): Pair<Int, Int> =
+    ((px + 8f) / 16f).toInt() to ((py + 13f) / 16f).toInt()
+
 /** 퀘스트가 실제로 해결되는 장소의 종류. */
 enum class QuestTargetKind {
     PERSON,
@@ -376,7 +380,7 @@ object QuestNavigation {
     private fun bestHabitatSpot(map: GameMap, startX: Float, startY: Float, rawHabitats: String): PointF? {
         val habitats = rawHabitats.split(',').map { it.trim() }.filter { it in habitatKeys }
             .ifEmpty { map.region.habitats.toList() }
-        val startTile = ((startX + 8f) / 16f).toInt() to ((startY + 13f) / 16f).toInt()
+        val startTile = feetTileCoords(startX, startY)
         val candidates = ArrayList<Triple<Float, Int, Int>>()
         for (y in 1 until map.h - 1) for (x in 1 until map.w - 1) {
             if (!standable(map, x, y)) continue
@@ -532,8 +536,9 @@ object QuestPathfinder {
     )
 
     fun findPath(map: GameMap, startX: Float, startY: Float, targetX: Float, targetY: Float): List<PointF>? {
-        val startTile = ((startX + 8f) / 16f).toInt() to ((startY + 13f) / 16f).toInt()
-        val goalTile = ((targetX + 8f) / 16f).toInt() to ((targetY + 13f) / 16f).toInt()
+        val startTile = feetTileCoords(startX, startY)
+        val goalTile = feetTileCoords(targetX, targetY)
+        if (startTile.first !in 0 until map.w || startTile.second !in 0 until map.h) return null
         if (goalTile.first !in 0 until map.w || goalTile.second !in 0 until map.h) return null
         val size = map.w * map.h
         val start = startTile.second * map.w + startTile.first
