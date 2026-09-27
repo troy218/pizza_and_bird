@@ -110,6 +110,9 @@ class Canvas {
     fun restore() {}
     fun translate(dx: Float, dy: Float) {}
     fun scale(sx: Float, sy: Float) {}
+    fun rotate(deg: Float) {}
+    fun rotate(deg: Float, px: Float, py: Float) {}
+    fun drawOval(l: Float, t: Float, r: Float, b: Float, paint: Paint) {}
     fun drawPath(path: Path, paint: Paint) {}
     fun drawRect(l: Float, t: Float, r: Float, b: Float, paint: Paint) {}
     fun drawColor(color: Int) {}

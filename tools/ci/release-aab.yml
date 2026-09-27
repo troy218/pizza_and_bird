@@ -1,0 +1,161 @@
+name: Release AAB (Play Store)
+
+# [P10] 출시 패키지 — v* 태그 push → bundleRelease(AAB) + assembleRelease(APK) → GitHub Release 첨부
+#
+# ⚠️ 기존 `.github/workflows/android-apk.yml`(push CI)은 이 파일과 완전히 분리되어 있다.
+#    이 파일은 브랜치 push 트리거가 없으므로 push CI와 간섭하지 않는다. android-apk.yml 수정 금지.
+#
+# 트리거: v로 시작하는 태그 push (예: v0.4.2, v1.0.0)
+#   ※ GitHub Actions는 태그가 가리키는 커밋에 이 워크플로 파일이 존재할 때만 실행한다.
+#     첫 태그는 반드시 이 파일이 main에 머지된 뒤에 찍는다 → docs/RELEASE.md §4.
+#
+# 버전 주입: 태그 이름을 파싱해 Gradle 속성으로 넘긴다 (app/build.gradle.kts의 [P10] 버전 라인이 소비)
+#   -PVERSION_NAME = 태그에서 v를 뗀 값            (예: v0.4.2 → 0.4.2, v0.4.2-beta01 → 0.4.2-beta01)
+#   -PVERSION_CODE = major*10000 + minor*100 + patch (예: 0.4.2 → 402) ← 규칙은 docs/RELEASE.md §3
+#
+# 서명 시크릿 (등록 절차 — GitHub 저장소 Settings > Secrets and variables > Actions):
+#   1) 키스토어가 없으면 먼저 생성:
+#        keytool -genkeypair -v -keystore release.keystore -alias pizzaandbird \
+#          -keyalg RSA -keysize 2048 -validity 10000
+#   2) base64로 인코딩:
+#        base64 -w0 release.keystore > keystore.b64
+#   3) 아래 4개 시크릿을 등록한다 (이름은 android-apk.yml의 PB_* 시크릿과 별개):
+#        KEYSTORE_BASE64    = keystore.b64 파일 내용 전체
+#        KEYSTORE_PASSWORD  = 키스토어(스토어) 비밀번호
+#        KEY_ALIAS          = pizzaandbird
+#        KEY_PASSWORD       = 키 비밀번호
+#   4) 시크릿이 없으면 debug 키로 서명된 AAB/APK가 생성된다 (빌드·설치 검증용).
+#      Play Console 업로드 전에는 반드시 정식 키스토어를 시크릿에 등록할 것 → docs/RELEASE.md §5.
+#
+# 수동 실행(리허설): Actions 탭 Run workflow — 태그 없이 빌드+아티팩트만 확인하고
+#   Release는 만들지 않는다. 입력을 비우면 build.gradle.kts의 기본 버전을 사용한다.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "VERSION_NAME (비우면 build.gradle.kts 기본값)"
+        required: false
+        default: ""
+      version_code:
+        description: "VERSION_CODE (비우면 build.gradle.kts 기본값)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    name: Build & sign AAB + APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" > /dev/null || true
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          # 수동 실행 + 입력값이 있으면 그 값을 우선한다 (리허설용)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.version_name }}" ]; then
+            echo "version_name=${{ inputs.version_name }}" >> "$GITHUB_OUTPUT"
+            echo "version_code=${{ inputs.version_code }}" >> "$GITHUB_OUTPUT"
+            echo "override=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"                 # 예: 0.4.2 / 0.4.2-beta01
+            BASE="${V%%-*}"                          # 프리릴리스 접미사 제거
+            if [[ "$BASE" != *.*.* ]]; then
+              echo "::error::태그는 vX.Y.Z 형식이어야 합니다 (예: v0.4.2). 받은 값: $GITHUB_REF_NAME"
+              exit 1
+            fi
+            MAJOR="${BASE%%.*}"
+            REST="${BASE#*.}"
+            MINOR="${REST%%.*}"
+            PATCH="${REST#*.}"
+            CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+            echo "version_name=$V"    >> "$GITHUB_OUTPUT"
+            echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+            echo "override=true"      >> "$GITHUB_OUTPUT"
+          else
+            echo "태그가 아닌 수동 실행 — Gradle 기본 버전 사용"
+            echo "override=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build signed AAB + APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          PROPS=""
+          if [ "${{ steps.version.outputs.override }}" = "true" ]; then
+            PROPS="-PVERSION_NAME=${{ steps.version.outputs.version_name }} -PVERSION_CODE=${{ steps.version.outputs.version_code }}"
+          fi
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+            ./gradlew bundleRelease assembleRelease --stacktrace $PROPS \
+              -PpbKeystore="$PWD/app/release.keystore" \
+              -PpbStorePassword="$KEYSTORE_PASSWORD" \
+              -PpbKeyAlias="$KEY_ALIAS" \
+              -PpbKeyPassword="$KEY_PASSWORD"
+            rm -f app/release.keystore
+          else
+            echo "시크릿 키스토어 없음 — debug 키로 서명된 AAB/APK를 빌드합니다 (검증용)."
+            ./gradlew bundleRelease assembleRelease --stacktrace $PROPS
+          fi
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pizza-and-bird-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pizza-and-bird-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release (AAB + APK)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pizza-and-bird-release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

@@ -3,7 +3,7 @@
 #
 #   bash tools/backup_test/run.sh
 #
-# 실제 소스(Backup.kt · GameState.kt · Weather.kt · Data.kt · Cameras.kt · Quests.kt)를
+# 실제 소스(Backup.kt · GameState.kt · Weather.kt · Data.kt · Cameras.kt · Quests.kt · Season.kt 등)를
 # 이 폴더의 스텁(android.content / android.util.Base64 / org.json / Game·Context 가짜)과
 # 함께 컴파일해 왕복·손상·구버전 시나리오를 돌린다.
 # JDK/kotlinc 경로는 tools/typecheck.sh 와 같은 샌드박스 위치를 쓴다.
@@ -21,6 +21,7 @@ rm -rf "$OUT" && mkdir -p "$OUT"
   "$SRC/Backup.kt" "$SRC/GameState.kt" "$SRC/Weather.kt" "$SRC/Data.kt" \
   "$SRC/Cameras.kt" "$SRC/Quests.kt" "$SRC/KoreaMap.kt" \
   "$SRC/BirdChecklist.kt" "$SRC/BirdEncyclopedia.kt" \
+  "$SRC/Season.kt" \
   tools/backup_test/*.kt 2>&1 | grep -v "^warning:" | head -40
 
 KOTLIN_LIB="$(dirname "$(readlink -f "$KOTLINC")")/../lib"

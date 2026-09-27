@@ -39,6 +39,18 @@ class BitmapFactory {
             }
 
         @JvmStatic
+        fun decodeByteArray(data: ByteArray, offset: Int, length: Int): Bitmap? =
+            decodeByteArray(data, offset, length, null)
+
+        @JvmStatic
+        fun decodeByteArray(data: ByteArray, offset: Int, length: Int, opts: BitmapFactory.Options?): Bitmap? =
+            try {
+                decodeStream(java.io.ByteArrayInputStream(data, offset, length), null, opts)
+            } catch (_: Exception) {
+                null
+            }
+
+        @JvmStatic
         fun decodeFile(path: String, opts: BitmapFactory.Options? = null): Bitmap? =
             try {
                 java.io.FileInputStream(path).use { decodeStream(it, null, opts) }

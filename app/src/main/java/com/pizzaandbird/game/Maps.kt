@@ -115,6 +115,19 @@ class GameMap(
     }
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
+    /** 이정표 표시 기준점(지도 렌더 좌표, 32px 타일). NaN이면 항상 보인다. */
+    var signViewerX = Float.NaN
+    var signViewerY = Float.NaN
+
+    /** 이정표 불투명도 0..1 — 가까이 가야만 나타나고, 멀어지면 서서히 사라진다. */
+    fun signAlpha(x: Int, y: Int): Float {
+        if (signViewerX.isNaN() || signViewerY.isNaN()) return 1f
+        val dx = x * 32f + 16f - signViewerX
+        val dy = y * 32f + 24f - signViewerY
+        val d = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        return ((SIGN_FADE_FAR - d) / (SIGN_FADE_FAR - SIGN_FADE_NEAR)).coerceIn(0f, 1f)
+    }
+
     fun t(x: Int, y: Int): T {
         if (x < 0 || y < 0 || x >= w || y >= h) return T.MOUNTAIN
         return T.ALL[tiles[y][x]]
@@ -276,6 +289,9 @@ class GameMap(
                 for (x in (x0 - 1).coerceAtLeast(0)..(x1 + 1).coerceAtMost(w - 1)) {
                     val tile = T.ALL[tiles[y][x]]
                     if (tile != T.TREE && tile != T.LAMP && tile != T.SIGN && tile != T.ROCK) continue
+                    val shadowK = if (tile == T.SIGN) signAlpha(x, y) else 1f
+                    if (shadowK <= 0f) continue
+                    sunPaint.alpha = (sunAlpha * shadowK).toInt()
                     val bx = x * 32f - camX + 16f
                     val by = y * 32f - camY + 29f
                     c.save()
@@ -321,6 +337,14 @@ class GameMap(
                 if (!tile.ground && tile != T.OVEN) {
                     val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
                     else a.tiles[tv][a.tileVariant(tv, x, y)]
+                    if (tile == T.SIGN) {
+                        val k = signAlpha(x, y)
+                        if (k <= 0f) continue
+                        signPaint.alpha = (255 * k).toInt()
+                        c.drawBitmap(bmp, fx, fy, signPaint)
+                        signDirectionAt(x, y)?.let { drawSignArrow(c, fx, fy, it, k) }
+                        continue
+                    }
                     when (tile) {
                         T.TUNNEL -> {
                             val edge = tunnelDirectionAt(x, y)
@@ -329,7 +353,6 @@ class GameMap(
                         }
                         else -> c.drawBitmap(bmp, fx, fy, terrainPaint(tile, a.sprPaint))
                     }
-                    if (tile == T.SIGN) signDirectionAt(x, y)?.let { drawSignArrow(c, fx, fy, it) }
                 }
             }
         }
@@ -365,7 +388,10 @@ class GameMap(
     }
 
     /** 이정표는 세워 둔 채, 판자의 화살표만 연결 터널 방향으로 돌린다. */
-    private fun drawSignArrow(c: Canvas, x: Float, y: Float, direction: Dir) {
+    private fun drawSignArrow(c: Canvas, x: Float, y: Float, direction: Dir, alpha: Float = 1f) {
+        val ai = (255 * alpha).toInt()
+        signArrowPaint.alpha = ai
+        signArrowLinePaint.alpha = ai
         val (dx, dy) = when (direction) {
             Dir.N -> 0f to -1f
             Dir.E -> 1f to 0f
@@ -458,6 +484,11 @@ class GameMap(
         private val sparkle by lazy { Paint() }
         private val sunPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG) }
         private val sunRect by lazy { RectF() }
+        private val signPaint by lazy { Paint() }
+        /** 이 거리(지도 렌더 px) 안에서는 이정표가 완전히 보인다 — 약 2.5칸 */
+        private const val SIGN_FADE_NEAR = 80f
+        /** 이 거리 밖에서는 이정표가 보이지 않는다 — 약 4칸 */
+        private const val SIGN_FADE_FAR = 128f
         private val signArrowPaint by lazy { Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF4A3728.toInt()
             style = Paint.Style.FILL
@@ -638,6 +669,259 @@ object MapBuilder {
             }
         }
 
+        // 3.5 각 도시의 실제 지형 — 한눈에 다른 땅모양 ----------------------------
+        // 중앙 광장(17..25, 12..18)과 십자 간선(19,20 / 15,16), 도시 블록·집을 비워 둔다.
+        val northY0 = mapStyle.northBuildingY
+        fun isPlazaOrRoad(x: Int, y: Int): Boolean =
+            (x in PLAZA_X0 - 1..PLAZA_X1 + 1 && y in PLAZA_Y0 - 1..PLAZA_Y1 + 1) ||
+                (x in 19..20 && y in 2..27) || (y in 15..16 && x in 2..37) ||
+                // 도시 4블록 자리 (건물이 들어갈 곳)
+                (x in 6..8 && y in northY0..northY0 + 2) ||
+                (x in 31..33 && y in northY0..northY0 + 2) ||
+                (x in 6..8 && y in 24..26) ||
+                (x in 31..33 && y in 24..26) ||
+                // 우리 집 자리 (서울 시작)
+                (x in 20..26 && y in 8..12)
+
+        fun placeMountain(x: Int, y: Int) {
+            if (!inb(x, y) || isPlazaOrRoad(x, y)) return
+            if (base[y][x] == T.WATER.ordinal) return
+            t[y][x] = T.MOUNTAIN.ordinal
+            structure[y][x] = true
+            reserved[y][x] = true
+        }
+        fun placeRock(x: Int, y: Int) {
+            if (!inb(x, y) || isPlazaOrRoad(x, y)) return
+            if (base[y][x] == T.WATER.ordinal) return
+            if (t[y][x] == T.MOUNTAIN.ordinal) return
+            t[y][x] = T.ROCK.ordinal
+            reserved[y][x] = true
+        }
+        fun placeTree(x: Int, y: Int) {
+            if (!inb(x, y) || isPlazaOrRoad(x, y)) return
+            if (base[y][x] == T.WATER.ordinal) return
+            if (t[y][x] != T.GRASS.ordinal) return
+            t[y][x] = T.TREE.ordinal
+            reserved[y][x] = true
+        }
+        fun placeSandGround(x: Int, y: Int) {
+            if (!inb(x, y) || isPlazaOrRoad(x, y)) return
+            setGround(x, y, T.SAND)
+            reserved[y][x] = true
+        }
+        fun hillCone(cx: Int, cy: Int, rad: Int) {
+            for (y in cy - rad - 1..cy + rad + 1) for (x in cx - rad - 1..cx + rad + 1) {
+                if (!inb(x, y) || isPlazaOrRoad(x, y)) continue
+                if (base[y][x] == T.WATER.ordinal) continue
+                val dx = x - cx; val dy = y - cy
+                val d2 = dx * dx + dy * dy
+                when {
+                    d2 <= rad * rad * 0.35f -> placeMountain(x, y)
+                    d2 <= rad * rad * 0.75f -> placeRock(x, y)
+                    d2 <= (rad + 1) * (rad + 1) -> if (t[y][x] == T.GRASS.ordinal) placeTree(x, y)
+                }
+            }
+        }
+        fun islandInSea(cx: Int, cy: Int, rad: Int) {
+            for (y in cy - rad - 1..cy + rad + 1) for (x in cx - rad - 1..cx + rad + 1) {
+                if (!inb(x, y)) continue
+                val dx = x - cx; val dy = y - cy
+                val d2 = dx * dx + dy * dy
+                if (d2 <= rad * rad) {
+                    if (d2 <= rad * rad * 0.28f) {
+                        t[y][x] = T.ROCK.ordinal; base[y][x] = T.SAND.ordinal; reserved[y][x] = true
+                    } else {
+                        setGround(x, y, T.SAND); // base already SAND
+                        if (d2 > rad * rad * 0.75f) {
+                            // 해변가 풀 한두 개 — 자연스럽게
+                            if ((x + y) % 5 == 0) { t[y][x] = T.TALLGRASS.ordinal; base[y][x] = T.TALLGRASS.ordinal }
+                        }
+                    }
+                }
+            }
+        }
+        fun ridgeLine(points: List<Pair<Int, Int>>, width: Int) {
+            for ((x, y) in points) for (dy in -width..width) for (dx in -width..width) {
+                if (dx * dx + dy * dy <= width * width) {
+                    if (rnd.nextFloat() < 0.82f) placeMountain(x + dx, y + dy)
+                    else placeRock(x + dx, y + dy)
+                }
+            }
+        }
+        fun forestBelt(x0: Int, x1: Int, y0: Int, y1: Int, density: Double) {
+            for (y in y0..y1) for (x in x0..x1) {
+                if (isPlazaOrRoad(x, y)) continue
+                if (!inb(x, y) || t[y][x] != T.GRASS.ordinal || base[y][x] == T.WATER.ordinal) continue
+                if (reserved[y][x]) continue
+                if (rnd.nextDouble() < density) placeTree(x, y)
+            }
+        }
+
+        when (region.id) {
+            "seoul" -> {
+                // 북한산 — 북서쪽 봉우리 2개가 한강을 굽어본다
+                hillCone(7, 4, 3); hillCone(11, 5, 2)
+                // 남산 — 한강 바로 남쪽, 도심 한가운데 동그란 숲 언덕 (광장 바로 남쪽)
+                hillCone(22, 19, 2)
+                hillCone(27, 13, 2) // 동남쪽 능선
+                hillCone(33, 7, 2) // 아차산·용마산 동쪽
+                // 관악산 — 남서쪽 큰 산괴
+                hillCone(8, 26, 4)
+                hillCone(12, 27, 3)
+                // 한강변 북쪽 능선 소나무 숲과 강남 구릉 가로수 벨트
+                forestBelt(4, 13, 4, 9, 0.38)
+                forestBelt(28, 36, 22, 26, 0.28)
+            }
+            "incheon" -> {
+                // 서해 갯벌 위 섬들 — 영종·무의도 느낌의 작은 모래섬 3개
+                islandInSea(4, 9, 2)
+                islandInSea(5, 18, 2)
+                islandInSea(3, 26, 2)
+                // 내륙 계양산 — 동북쪽 봉우리
+                hillCone(33, 6, 3)
+                forestBelt(28, 36, 4, 12, 0.32)
+            }
+            "chuncheon" -> {
+                // 호반도시 — 서쪽 의암호 외에 동북쪽 소양호 쪽 능선과 물길 주변 산
+                hillCone(32, 6, 3)
+                hillCone(34, 11, 2)
+                hillCone(5, 7, 3)
+                hillCone(6, 26, 3)
+                // 북한강 협곡을 따라 삼나무 숲 벨트
+                forestBelt(4, 10, 10, 19, 0.36)
+                forestBelt(26, 36, 14, 20, 0.30)
+                // 호수 주변 완만한 구릉 — 바위와 소나무 섞음
+                hillCone(14, 22, 2)
+            }
+            "gangneung" -> {
+                // 태백산맥 — 서쪽에 길게 늘어선 능선 (대관령)
+                ridgeLine(listOf(6 to 6, 7 to 10, 7 to 14, 8 to 18, 7 to 22, 6 to 26), 2)
+                // 소나무 해안림 — 동해 모래 바로 안쪽 솔숲
+                forestBelt(34, 37, 4, 26, 0.45)
+                forestBelt(9, 14, 4, 12, 0.42)
+                // 경포호 주변 갈대·소나무 혼합
+                hillCone(27, 19, 2)
+            }
+            "sokcho" -> {
+                // 설악산 — 서쪽을 두껍게 막는 암벽
+                ridgeLine(listOf(5 to 4, 6 to 8, 7 to 12, 6 to 16, 7 to 20, 6 to 24), 3)
+                // 울산바위 느낌의 뾰족한 암봉 2개
+                hillCone(9, 8, 2); hillCone(10, 15, 2)
+                // 해안 소나무 + 청초호 주변 갈대
+                forestBelt(32, 37, 5, 19, 0.38)
+            }
+            "daejeon" -> {
+                // 계족산·식장산 — 동쪽과 남쪽을 두르는 낮은 산
+                hillCone(34, 7, 3)
+                hillCone(35, 24, 3)
+                hillCone(5, 26, 3)
+                // 갑천 합류점 주변 둔치 숲
+                forestBelt(9, 16, 12, 20, 0.34)
+                // 도심 남쪽 보문산 구릉
+                hillCone(15, 26, 2)
+            }
+            "jeonju" -> {
+                // 전주 한옥마을 — 북동쪽 기와 능선을 HOUSE_ROOF로 표현 (건물 대신 지형으로)
+                // 대신 남쪽 논두렁과 서쪽 건지산 구릉을 지형으로
+                hillCone(8, 6, 2)
+                hillCone(32, 6, 2)
+                // 남쪽 만경평야 — 논둑 풀결은 fieldRows로 이미 있지만, 외곽에 낮은 구릉
+                forestBelt(28, 36, 6, 11, 0.26)
+                // 모악산 남서
+                hillCone(7, 26, 3)
+            }
+            "daegu" -> {
+                // 분지 도시 — 북쪽 팔공산, 남쪽 비슬산/앞산이 분지를 둘러싼다
+                ridgeLine(listOf(7 to 4, 13 to 3, 19 to 3, 26 to 4, 32 to 5), 2) // 북쪽 능선
+                ridgeLine(listOf(7 to 26, 14 to 27, 21 to 28, 28 to 27, 33 to 26), 2) // 남쪽 능선
+                // 동쪽 영천 구릉
+                hillCone(35, 13, 2)
+                // 분지 안은 건조 — 바위와 드문 소나무, 꽃밭 조금
+                for (y in 14..22) for (x in 16..26) if (rnd.nextDouble() < 0.08 && t[y][x] == T.GRASS.ordinal) placeRock(x, y)
+                // 낙동 정맥 동쪽에 사과밭 느낌 꽃 군락 (기성 flowerDensity 외 추가)
+                forestBelt(22, 30, 20, 24, 0.18)
+            }
+            "gwangju" -> {
+                // 무등산 — 동쪽 거대한 산괴
+                hillCone(33, 8, 4)
+                hillCone(35, 13, 3)
+                hillCone(31, 16, 2)
+                // 서쪽 평야와 광주천 둔치 숲
+                forestBelt(6, 13, 14, 24, 0.32)
+                forestBelt(18, 24, 5, 10, 0.22)
+            }
+            "ulsan" -> {
+                // 태화강 상류 가지산·신불산 — 서북쪽 산군
+                hillCone(7, 6, 3)
+                hillCone(11, 8, 2)
+                hillCone(6, 22, 2)
+                // 동해안 대왕암 방파제 느낌 — 남동 해안에 바위 띠
+                for (x in 35..37) for (y in 18..24) if (inb(x, y) && base[y][x] != T.WATER.ordinal && rnd.nextFloat() < 0.72f) placeRock(x, y)
+                // 태화강 십리대숲 — 강변 대나무 대신 소나무·갈대 혼합 벨트
+                forestBelt(8, 18, 23, 27, 0.30)
+            }
+            "busan" -> {
+                // 금정산·장산 — 북쪽과 동쪽을 둘러싼 산
+                hillCone(10, 5, 3)
+                hillCone(14, 4, 2)
+                hillCone(33, 8, 3)
+                hillCone(35, 15, 2)
+                // 해운대·광안리 모래 해변은 이미 sandEdges로, 남쪽 항만 방파제 바위 추가 (남쪽 모래띠 y 25~26)
+                for (x in 16..26) for (y in 25..26) if (inb(x, y) && base[y][x] == T.SAND.ordinal && rnd.nextFloat() < 0.52f) placeRock(x, y)
+                // 동쪽 해안 솔숲
+                forestBelt(34, 37, 4, 18, 0.32)
+                // 낙동강 하구 갈대섬
+                for (y in 22..26) for (x in 13..18) if (inb(x, y) && t[y][x] == T.GRASS.ordinal && rnd.nextFloat() < 0.22f) {
+                    setGround(x, y, T.REED); reserved[y][x] = true
+                }
+            }
+            "jeju" -> {
+                // 한라산 — 섬 중앙 약간 남쪽의 거대한 방패 화산
+                hillCone(20, 14, 5)
+                hillCone(20, 15, 4)
+                // 오름 7개 — 전역에 퍼진 작은 화산체
+                hillCone(12, 7, 2)
+                hillCone(28, 9, 2)
+                hillCone(30, 16, 2)
+                hillCone(26, 23, 2)
+                hillCone(10, 23, 2)
+                hillCone(14, 17, 2)
+                hillCone(33, 21, 2)
+                // 곶자왈 — 중산간 숲 벨트 (동서로)
+                forestBelt(10, 30, 11, 13, 0.38)
+                forestBelt(8, 32, 17, 19, 0.34)
+                // 현무암 들판 — 섬 전역에 검은 바위 자갈
+                for (y in 4..26) for (x in 4..36) {
+                    if (isPlazaOrRoad(x, y)) continue
+                    if (t[y][x] != T.GRASS.ordinal) continue
+                    if (base[y][x] == T.WATER.ordinal) continue
+                    if (rnd.nextDouble() < 0.09) placeRock(x, y)
+                }
+                // 해안 주상절리 — 남쪽 모래띠(y 23~25)에 돌출 현무암
+                for (x in 18..28) for (y in 23..25) if (inb(x, y) && base[y][x] == T.SAND.ordinal) if (rnd.nextFloat() < 0.72f) placeRock(x, y)
+                // 북쪽 해협 쪽 모래에도 자갈
+                for (x in 12..24) for (y in 4..6) if (inb(x, y) && base[y][x] == T.SAND.ordinal) if (rnd.nextFloat() < 0.45f) placeRock(x, y)
+            }
+            else -> {
+                // 그 외 탐조지 등은 기존 고도 팔레트와 grove 생성으로 충분하지만,
+                // 해안·습지·산지에 따라 가볍게 한두 개 언덕을 얹어 단조로움을 깬다.
+                when (region.kind) {
+                    RegionKind.MOUNTAIN -> {
+                        hillCone(7, 7, 2); hillCone(33, 24, 2)
+                    }
+                    RegionKind.COAST -> {
+                        // 해안이면 안쪽에 솔숲 벨트 하나
+                        forestBelt(w - 9, w - 4, 4, h - 6, 0.30)
+                    }
+                    RegionKind.WETLAND -> {
+                        // 습지는 갈대 외에 낮은 둑 풀섶 하나
+                        forestBelt(5, 13, 5, 8, 0.20)
+                    }
+                    else -> {}
+                }
+            }
+        }
+
         // 4. 도시 건물 (길보다 먼저 — 정문 앞으로 샛길을 내기 위해) ---------------
         val buildingFronts = ArrayList<Pair<Int, Int>>()
         if (region.city) {
@@ -659,6 +943,68 @@ object MapBuilder {
                 }
                 // 정문은 간선도로를 바라보는 쪽에
                 buildingFronts.add(if (by + 3 <= AVE_Y) (bx + 1 to by + 3) else (bx + 1 to by - 1))
+            }
+        }
+
+        // 4.5 도시별 건물 밀도 — 실제 도시 규모를 살린다
+        if (region.city) {
+            fun tryExtra(bx: Int, by: Int) {
+                if (inb(bx, by) && inb(bx + 2, by + 2)) {
+                    var ok = true
+                    for (y in by until by + 3) for (x in bx until bx + 3) {
+                        if (x !in 2 until w - 2 || y !in 2 until h - 2 || t[y][x] != T.GRASS.ordinal) ok = false
+                    }
+                    if (!ok) return
+                    for (y in by until by + 3) for (x in bx until bx + 3) {
+                        t[y][x] = when {
+                            y == by -> T.BLDG_ROOF
+                            (x + y) % 2 == 0 -> T.BLDG_WIN
+                            else -> T.BLDG_WALL
+                        }.ordinal
+                        structure[y][x] = true; reserved[y][x] = true
+                    }
+                    buildingFronts.add(if (by + 3 <= AVE_Y) (bx + 1 to by + 3) else (bx + 1 to by - 1))
+                }
+            }
+            when (region.id) {
+                "seoul" -> {
+                    // 서울 — 북촌·강남에 빽빽한 빌딩
+                    tryExtra(12, northY0); tryExtra(14, 24); tryExtra(24, 24)
+                }
+                "busan" -> {
+                    // 부산 — 항만 뒤 고층 빌딩 밀집
+                    tryExtra(12, 5); tryExtra(9, 24); tryExtra(26, 24)
+                }
+                "daegu" -> {
+                    // 대구 — 분지 안 중밀도
+                    tryExtra(14, northY0)
+                }
+                "incheon" -> {
+                    // 인천 — 신도시 고층 2동 추가
+                    tryExtra(12, 5); tryExtra(14, 24)
+                }
+                "daejeon" -> tryExtra(26, 5)
+                "gwangju" -> tryExtra(24, 24)
+                "ulsan" -> tryExtra(10, 24)
+                "jeonju" -> {
+                    // 한옥마을 느낌 — 북동쪽에 기와집 2채 (HOUSE 타일로)
+                    for ((hx, hy) in listOf(28 to 5, 30 to 8)) {
+                        if (!inb(hx, hy) || t[hy][hx] != T.GRASS.ordinal) continue
+                        var ok = true
+                        for (y in hy until hy + 3) for (x in hx until hx + 3) if (t[y][x] != T.GRASS.ordinal) ok = false
+                        if (!ok) continue
+                        for (y in hy until hy + 3) for (x in hx until hx + 3) {
+                            t[y][x] = when {
+                                y == hy -> T.HOUSE_ROOF.ordinal
+                                y == hy + 1 && (x == hx + 1) -> T.HOUSE_WIN.ordinal
+                                y == hy + 1 -> T.HOUSE_WALL.ordinal
+                                else -> T.HOUSE_WALL.ordinal
+                            }
+                            structure[y][x] = true; reserved[y][x] = true
+                        }
+                    }
+                }
+                else -> {}
             }
         }
 
@@ -1123,11 +1469,16 @@ object MapBuilder {
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
         t[3][2] = T.BED.ordinal
         // 이사 박스
-        t[8][2] = T.BOX.ordinal
-        // 장식 슬롯 (DECOR 0,1,2 순서로 HomeScene과 매칭)
-        t[2][6] = T.DECOR.ordinal
-        t[2][9] = T.DECOR.ordinal
-        t[7][13] = T.DECOR.ordinal
+        t[6][2] = T.BOX.ordinal
+        // 장식 슬롯 (DECOR 0~7 순서로 HomeScene과 매칭). 예전 세 칸은 앞에 유지한다.
+        t[2][5] = T.DECOR.ordinal
+        t[2][7] = T.DECOR.ordinal
+        t[5][11] = T.DECOR.ordinal
+        t[5][9] = T.DECOR.ordinal
+        t[4][4] = T.DECOR.ordinal
+        t[4][6] = T.DECOR.ordinal
+        t[6][6] = T.DECOR.ordinal
+        t[6][8] = T.DECOR.ordinal
         val home = Regions.byId["seoul"]!! // 내부맵은 지역 무관 (더미)
         val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         val pave = Array(h) { IntArray(w) }
