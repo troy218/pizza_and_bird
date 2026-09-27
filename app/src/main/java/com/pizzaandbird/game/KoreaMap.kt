@@ -1,6 +1,7 @@
 package com.pizzaandbird.game
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -198,8 +199,13 @@ object KoreaMap {
 
     /**
      * @param detail 0 = 단순(미니맵), 1 = 보통, 2 = 상세(강/산/DMZ)
+     * @param analog true 면 낡은 종이 해도 (수채 육지·잉크 해안선). 큰 지도는 false.
      */
-    fun drawLand(c: Canvas, unit: Float, detail: Int, night: Boolean = false) {
+    fun drawLand(c: Canvas, unit: Float, detail: Int, night: Boolean = false, analog: Boolean = false) {
+        if (analog) {
+            drawAnalogLand(c, unit, detail)
+            return
+        }
         val landCol = if (night) 0xFF5E7B5A.toInt() else 0xFFB9DCA0.toInt()
         val landEdge = if (night) 0xFF3E5540.toInt() else 0xFF7FA96A.toInt()
         val northCol = if (night) 0xFF4A5A55.toInt() else 0xFFCBD9C0.toInt()
@@ -247,6 +253,72 @@ object KoreaMap {
             line.strokeWidth = 1.4f / unit
             val dash = android.graphics.DashPathEffect(floatArrayOf(5f / unit, 4f / unit), 0f)
             line.pathEffect = dash
+            c.drawPath(dmzPath, line)
+            line.pathEffect = null
+        }
+    }
+
+    /** 회중 나침반용 — 종이에 찍힌 잉크 해도. 밤색은 호출측 조명으로 처리한다. */
+    private fun drawAnalogLand(c: Canvas, unit: Float, detail: Int) {
+        line.pathEffect = null
+        fill.color = Color.argb(150, 196, 184, 150)
+        c.drawPath(northPath, fill)
+
+        // 레터프레스처럼 살짝 비낀 잉크 그림자
+        c.save()
+        c.translate(1.7f / unit, 2.0f / unit)
+        fill.color = Color.argb(48, 72, 48, 24)
+        c.drawPath(southPath, fill)
+        c.drawPath(jejuPath, fill)
+        for (p in islandPaths) c.drawPath(p, fill)
+        c.restore()
+
+        fill.color = Color.argb(236, 186, 164, 104)
+        c.drawPath(southPath, fill)
+        c.drawPath(jejuPath, fill)
+        for (p in islandPaths) c.drawPath(p, fill)
+
+        line.color = Color.argb(78, 62, 44, 28)
+        line.strokeWidth = 2.6f / unit
+        c.drawPath(southPath, line)
+        line.strokeWidth = 1.7f / unit
+        c.drawPath(jejuPath, line)
+        for (p in islandPaths) c.drawPath(p, line)
+
+        line.color = 0xFF36261C.toInt()
+        line.strokeWidth = 1.2f / unit
+        c.drawPath(southPath, line)
+        line.strokeWidth = 1.0f / unit
+        c.drawPath(jejuPath, line)
+        for (p in islandPaths) c.drawPath(p, line)
+
+        line.color = Color.argb(150, 128, 112, 86)
+        line.strokeWidth = 0.85f / unit
+        c.drawPath(northPath, line)
+
+        if (detail >= 1) {
+            line.color = Color.argb(70, 86, 138, 164)
+            line.strokeWidth = 2.4f / unit
+            for (p in riverPaths) c.drawPath(p, line)
+            line.color = Color.argb(225, 58, 104, 128)
+            line.strokeWidth = 1.05f / unit
+            for (p in riverPaths) c.drawPath(p, line)
+        }
+
+        if (detail >= 2) {
+            fill.color = 0xFF6E5A3A.toInt()
+            val s = 6f / unit
+            for (pt in peakPoints) {
+                val path = Path()
+                path.moveTo(pt[0], pt[1] - s)
+                path.lineTo(pt[0] + s * 0.85f, pt[1] + s * 0.6f)
+                path.lineTo(pt[0] - s * 0.85f, pt[1] + s * 0.6f)
+                path.close()
+                c.drawPath(path, fill)
+            }
+            line.color = 0xFFB07070.toInt()
+            line.strokeWidth = 1.2f / unit
+            line.pathEffect = android.graphics.DashPathEffect(floatArrayOf(5f / unit, 4f / unit), 0f)
             c.drawPath(dmzPath, line)
             line.pathEffect = null
         }
