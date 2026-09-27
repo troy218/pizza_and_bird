@@ -52,7 +52,9 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        game.onSurfaceChanged(width, height)
+        // SurfaceView may briefly report zero dimensions during freeform/split-screen
+        // transitions. Game keeps the previous valid viewport until the next callback.
+        if (width > 0 && height > 0) game.onSurfaceChanged(width, height)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {

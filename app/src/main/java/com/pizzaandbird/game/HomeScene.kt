@@ -77,17 +77,30 @@ class HomeScene(game: Game) : Scene(game) {
     private val interiorX = 5f * 16f
     private val interiorY = 8.5f * 16f
 
-    /** 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1 */
+    /**
+     * 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1.
+     * 예전 3칸은 0~2로 그대로 남겨 기존 집 배치를 잃지 않는다.
+     */
     private val decorSpots = listOf(
-        Triple(0, 6.5f * 16f, 3f * 16f),
-        Triple(1, 9.5f * 16f, 3f * 16f),
-        Triple(2, 13.5f * 16f, 8f * 16f)
+        Triple(0, 5.5f * 16f, 3f * 16f),
+        Triple(1, 7.5f * 16f, 3f * 16f),
+        Triple(2, 11.5f * 16f, 6f * 16f),
+        Triple(3, 9.5f * 16f, 6f * 16f),
+        Triple(4, 4.5f * 16f, 5f * 16f),
+        Triple(5, 6.5f * 16f, 5f * 16f),
+        Triple(6, 6.5f * 16f, 7f * 16f),
+        Triple(7, 8.5f * 16f, 7f * 16f)
     )
     /** 장식이 놓이는 타일 위치 (월드 px, 좌상단) */
     private val decorTiles = listOf(
-        6f * 16f to 2f * 16f,
-        9f * 16f to 2f * 16f,
-        13f * 16f to 7f * 16f
+        5f * 16f to 2f * 16f,
+        7f * 16f to 2f * 16f,
+        11f * 16f to 5f * 16f,
+        9f * 16f to 5f * 16f,
+        4f * 16f to 4f * 16f,
+        6f * 16f to 4f * 16f,
+        6f * 16f to 6f * 16f,
+        8f * 16f to 6f * 16f
     )
 
     /** 상호작용 대상 (A버튼 반경 / 탭 반경). 화덕과 오븐이 나란히 있으므로 항상 가장 가까운 것을 고른다. */
@@ -302,12 +315,24 @@ class HomeScene(game: Game) : Scene(game) {
                     moveHome(picked)
                 }
             )
-            "interior" -> openOverlay(HouseStyleOverlay(this) { styleId ->
-                state.houseStyleId = styleId
-                SaveManager.save(game.context, state)
-                game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
-                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
-            })
+            "interior" -> openOverlay(
+                DialogOverlay(
+                    this, "우리 집 꾸미기 🎨",
+                    "8칸 배치 보드에서 소품을 한눈에 정리하고,\n서로 어울리는 컬렉션을 완성해 보세요!",
+                    listOf(
+                        DialogOverlay.Choice("배치 보드") { it.scene.openOverlay(HomeDecorOverlay(it.scene)) },
+                        DialogOverlay.Choice("스타일 카탈로그") {
+                            it.scene.openOverlay(HouseStyleOverlay(it.scene) { styleId ->
+                                state.houseStyleId = styleId
+                                SaveManager.save(game.context, state)
+                                game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
+                                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
+                            })
+                        },
+                        DialogOverlay.Choice("나중에")
+                    )
+                )
+            )
             "decor" -> {
                 if (state.decorOwned.isEmpty()) {
                     openOverlay(
@@ -318,13 +343,13 @@ class HomeScene(game: Game) : Scene(game) {
                         )
                     )
                 } else {
-                    val idx = slot.coerceIn(0, 2)
+                    val idx = slot.coerceIn(0, state.decorSlots.lastIndex)
                     openOverlay(
                         DecorPickOverlay(this, idx) { picked ->
-                            state.decorSlots[idx] = picked
+                            state.placeDecor(idx, picked)
                             SaveManager.save(game.context, state)
-                            val name = Decors.of(picked)?.name ?: "장식"
-                            game.toast("장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                            val name = Decors.of(picked)?.name ?: "빈 칸"
+                            game.toast(if (picked < 0) "장식 칸을 비웠어요" else "장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
                             game.sfx(Audio.Sfx.SUCCESS, 0.6f)
                         }
                     )
@@ -385,7 +410,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (input.justEat) {
             val pid = state.eatBest()
             if (pid == null) {
-                game.toast("피자가 없어요! 화덕이나 오븐에서 구워요 🍕")
+                game.toast("피자가 없어요! 🍕")
                 game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val p = Pizzas.of(pid)
@@ -396,11 +421,7 @@ class HomeScene(game: Game) : Scene(game) {
         }
         if (input.justA) {
             val near = nearestInteract()
-            if (near != null) {
-                interact(near.first, near.second)
-            } else {
-                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 육각 메인 버튼을 눌러보세요!")
-            }
+            if (near != null) interact(near.first, near.second)
             return
         }
         val tap = input.consumeTapWorld()
@@ -819,11 +840,5 @@ class HomeScene(game: Game) : Scene(game) {
 
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
-        // 조작 힌트 — 월드 위라 얇은 그림자를 넣어 가독성을 확보
-        val hint = "A: 상호작용 (화덕=화덕피자 · 오븐=일반 피자) · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
-        val w = game.screenW.toFloat()
-        val y = game.screenH - game.density * 10f
-        Type.text(c, hint, w / 2f, y + game.density, Role.CAPTION, 0x66000000, 0.5f)
-        Type.text(c, hint, w / 2f, y, Role.CAPTION, 0xCCF8EFDC.toInt(), 0.5f)
     }
 }

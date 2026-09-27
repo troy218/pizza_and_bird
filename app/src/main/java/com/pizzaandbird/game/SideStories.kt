@@ -1,0 +1,522 @@
+package com.pizzaandbird.game
+
+import android.content.Context
+import org.json.JSONObject
+
+/**
+ * [P08] 지역 사이드 스토리 — 12개 도시 각각 3막(도입→심부름→마무리) 미니 에피소드.
+ *
+ * 진행은 기본 prefs `feat_story_v1` 키(규칙 3)로 저장한다 — P5 백업이 feat_* 키를 자동 수집한다.
+ * 목표 판정은 **대화 시점에만** 검사한다(별도 진행 훅 없음). 메인 퀘스트(Quests.kt)는 무수정이며,
+ * 진행 안내는 메뉴 탭이 아니라 대화로만 이루어진다.
+ *
+ * 막 진행 의미: 0=미시작 / 1=도입 본 상태 / 2=심부름 중 / 4=완료 (완료 후 재방문 시 반복 없음)
+ * 12편 전부 완료하면 숨은 에필로그 「수첩의 뒷장」이 아무 NPC와의 대화에서 1회 열린다.
+ */
+object SideStories {
+    const val SAVE_KEY = "feat_story_v1"
+    private const val PREFS = "pizza_and_bird_save"   // SaveManager와 동일한 기본 prefs (규칙 3)
+
+    data class Episode(
+        val id: String,
+        val regionId: String,
+        val npc: NpcKind,
+        val title: String,
+        val acts: List<Act>,
+        val nudge: String,
+        val reward: Pair<Int, Int>      // (골드 ₩, 행운)
+    )
+
+    data class Act(val goal: Goal, val lines: List<String>)
+
+    sealed class Goal {
+        /** 지정 사진 촬영 — birdId(정확한 종) 또는 서식지/철새 구분/등급 조건 중 하나 이상. */
+        data class Photo(
+            val birdId: String? = null,
+            val tierMin: Int = 1,
+            val habitat: String? = null,     // water/forest/coast/mountain/wetland…
+            val migration: String? = null    // "텃새"/"겨울철새"/"여름철새"/"나그네새" (migrationLabel 포함 검사)
+        ) : Goal()
+
+        /** 특산 피자 납품 — 특산 피자(id≥12, 품질 무관) 1개 소모. [P07] 머지 시에만 자동 사용. */
+        data class Deliver(val pizzaIdMin: Int) : Goal()
+
+        /** 장소 없이 대화만으로 완수. */
+        object Talk : Goal()
+    }
+
+    // -------------------------------------------------------------------
+    // 에피소드 카탈로그 (12편 — docs/STORY.md §7과 정합)
+    // -------------------------------------------------------------------
+
+    /** [P07] 특산 피자(id≥12)가 존재하면 납품형, 아니면 숲새 사진형으로 자동 대체된다. */
+    private val gangneungGoal: Goal =
+        if (Pizzas.ALL.any { it.id >= 12 }) Goal.Deliver(12) else Goal.Photo(habitat = "forest")
+
+    private fun gangneungActs(): Triple<List<String>, List<String>, List<String>> =
+        if (gangneungGoal is Goal.Deliver) Triple(
+            listOf(
+                "허허, 소나무 숲 그늘이 제일 오래가는 걸 아나? 첫 장사날도 이 그늘에서 손님 기다렸지.",
+                "그날 온 손님이 카메라를 들고 있었네. 숲새 한 마리 찍고 피자 한 판 시키던 소년이었어.",
+                "마침 오븐이 뜨거울 때다. 갓 구운 특산 피자 한 판 가지고 와 보게. 옛 손님 면회라나 볼까."
+            ),
+            listOf(
+                "특산 피자면 더 좋고. 식어도 정은 뜨거우니 천천히 와도 돼.",
+                "장사는 결국 그 손님 한 명에서 시작된 거니까. 단, 새한테는 못 준다? 못 줘, 못 줘. 손님은 사람뿐이야."
+            ),
+            listOf(
+                "잘 왔네, 그 판. 장사는 사진에서 시작됐어 — 이제 피자로 이어지는군, 허허.",
+                "마음이 담긴 판 한 장이 광고 백 장이야. 잘 부탁하네, 젊은 사장님."
+            )
+        ) else Triple(
+            listOf(
+                "허허, 소나무 숲 그늘이 제일 오래가는 걸 아나? 첫 장사날도 이 그늘에서 손님 기다렸지.",
+                "그날 온 손님이 카메라를 들고 있었네. 숲새 한 마리 찍고 피자 한 판 시키던 소년이었어.",
+                "숲새 한 마리 기록만 가져다 줘요. 그 소년이 찍던 것처럼, 그늘에서."
+            ),
+            listOf(
+                "숲이 조용하면 딱딱구리 소리부터 들리지. 그 소리를 따라가면 손님도 보여.",
+                "숲새 한 마리 기록이면 돼요. 소나무 숲이 기다린다니까."
+            ),
+            listOf(
+                "보기 좋군, 허허. 장사는 사진에서 시작됐다니까, 정말로.",
+                "마음이 담긴 기록 한 장이 광고 백 장이야. 잘 부탁하네, 젊은 사장님."
+            )
+        )
+
+    private val gangneungLines = gangneungActs()
+
+    private fun birdIdOf(name: String): String? =
+        Birds.byId.values.firstOrNull { it.name == name }?.id
+
+    val EPISODES: List<Episode> = listOf(
+        Episode("seoul_first_window", "seoul", NpcKind.VILLAGER, "창밖의 첫 수업",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "아, 수첩 주인 아니었나? 그때 이 동네서 처음 배운 게 뭐였는지 기억나요?",
+                    "저도 참새부터 시작이었어요. 창밖에 오는 이웃부터 이름을 붙이니까 동네가 달라 보이더라고요.",
+                    "부탁 하나 해도 될까요… 기록된 새 아무나 한 마리. 그 첫 배움의 증거를 보여주시면 좋겠어요."
+                )),
+                Act(Goal.Photo(), listOf(
+                    "참새든 까치든 좋아요. 오래 바라본 새라면 충분해요.",
+                    "처음엔 다들 흔한 새부터 배우더라고요. 멀리 가기 전에 창밖부터… 그게 이 동네 약속이에요."
+                )),
+                Act(Goal.Talk, listOf(
+                    "이 기록… 창밖 수업의 성적표 같네요. 저도 요즘 창가에 이름표를 붙였어요. 내가 아는 이웃들 자리에요.",
+                    "가르쳐 줘서 고마워요. 배움은 남에게 쓸 때 제일 빛나는 것 같아요."
+                ))
+            ),
+            "기록된 새 아무나 한 마리면 돼요. 참새도, 까치도 좋아요. 천천히 오세요.",
+            20000 to 5
+        ),
+        Episode("incheon_mudflat_road", "incheon", NpcKind.ELDER, "갯뻘이 걸어온 길",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "썰물이 진다네. 이 갯벌이 젊을 땐 그저 진흙탕이었지… 굶던 해엔 이 진흙이 우리를 살렸어.",
+                    "갯벌은 겉보단 속이 두둑한 곳이라네. 사람도 새도 같이 걸어온 길이야.",
+                    "물가의 새 한 마리 기록을 보여주게. 식탁이 아직 살아 있다는 걸 확인하고 싶어."
+                )),
+                Act(Goal.Photo(habitat = "wetland"), listOf(
+                    "도요새든 갈매기든 좋아. 갯벌에 내려앉은 새는 멀리서 보는 게 예의란다.",
+                    "만조 두 시간 전후가 절기라네. 서두르지 말게, 갯벌은 기다려 주는 법이니까."
+                )),
+                Act(Goal.Talk, listOf(
+                    "이 사진을 보니 그 시절 식탁이 생각나네… 고맙네, 젊은이.",
+                    "갯벌은 사람도 새도 같이 살게 해 주는 길이야. 이 길을 아는 사람이 한 명 늘었으니 됐다."
+                ))
+            ),
+            "물가의 새 한 마리 기록만 보면 된다네. 급할 것 없어, 썰물은 기다려 주는 법이지.",
+            35000 to 7
+        ),
+        Episode("chuncheon_lake_me", "chuncheon", NpcKind.KID, "호수에 비친 나",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "저기요! 할머니들이 호수에서 가만히 앉아 있으면 새가 온대요. 진짜예요?",
+                    "저도 해 보고 싶은데요, 3분도 안 지나면 심심해져요. 꼼짝 않는 법을 알려주세요!",
+                    "대신 약속할게요. 물새 한 마리 기록되면, 그게 제가 기다렸다는 증거예요!"
+                )),
+                Act(Goal.Photo(habitat = "water"), listOf(
+                    "물새라면 뭐든 좋아요! 오리, 갈매기… 뭐든요!",
+                    "기다리는 동안에는 숨소리만 줄이기! 저 벌써 연습 중이에요."
+                )),
+                Act(Goal.Talk, listOf(
+                    "우와… 진짜 왔네요. 저 조용했던 시간이 이 사진 속에 다 들어 있어요!",
+                    "기다리면 오는구나. 다음엔 저도 할머니처럼 아무렇지 않게 앉아 있을 거예요!"
+                ))
+            ),
+            "물새 한 마리 기록이요! 호수는 도망 안 가니까 천천히 하셔도 돼요.",
+            30000 to 6
+        ),
+        Episode("gangneung_pine_guest", "gangneung", NpcKind.SHOP, "소나무 아래 손님",
+            listOf(
+                Act(Goal.Talk, gangneungLines.first),
+                Act(gangneungGoal, gangneungLines.second),
+                Act(Goal.Talk, gangneungLines.third)
+            ),
+            if (gangneungGoal is Goal.Deliver) "갓 구운 특산 피자 한 판이면 돼요. 식어도 정은 뜨겁지."
+            else "숲새 한 마리 기록이면 돼요. 소나무 숲이 기다린다니까.",
+            45000 to 8
+        ),
+        Episode("sokcho_snow_window", "sokcho", NpcKind.ELDER, "눈 내리는 창",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "첫눈 오던 날 기억나네. 창가에서 봤는데, 들녘에 두루미가 내려앉아 있었지.",
+                    "눈은 오는 것도 조용하고 가는 것도 조용해. 그 사이에 손님이 왔다 가더라.",
+                    "겨울손님 한 마리 기록을 보여주게. 눈 내리는 창의 풍경이란다."
+                )),
+                Act(Goal.Photo(migration = "겨울"), listOf(
+                    "겨울철새면 좋아. 멀리서 온 손님은 발자국도 조심스럽지.",
+                    "무리 쪽으로 걷지 말게. 그건 이 동네의 예의이자 손님의 쉼표란다."
+                )),
+                Act(Goal.Talk, listOf(
+                    "고마워… 눈은 찾아오는 것도 보내주는 것도 조용하다니까, 손님도 그렇고.",
+                    "내년 겨울에도 이 창에서 손님을 기다리겠네. 그때도 자네 기록이 곁에 있길."
+                ))
+            ),
+            "겨울손님 한 마리면 돼. 눈이 기다려 주지는 않지만, 마음은 느긋하게.",
+            50000 to 9
+        ),
+        Episode("daejeon_crossroad", "daejeon", NpcKind.VILLAGER, "사거리의 나침반",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "우리 동네 사거리는 길이 다섯으로 갈리는데, 옛날에 길 잃은 탐조인을 데려다 준 적이 있어요.",
+                    "밤새 한 마리 보겠다고 소문 없는 길로 들어선 걸 보고는, 가슴이 얼얼했죠.",
+                    "그래서 약속 하나 했어요. 다시 만나면 이야기를 끝까지 듣기로요."
+                )),
+                Act(Goal.Talk, listOf(
+                    "다시 만나서 이야기를 듣는 것 — 그게 오늘의 심부름이에요. 웃기죠, 심부름이 대화라니.",
+                    "길 잃은 사람의 나침반이 되는 건 멀리 갈 필요 없어요. 자리에서 한마디면 되죠."
+                )),
+                Act(Goal.Talk, listOf(
+                    "들어 줘서 고마워요. 아, 그 탐조인은 지금 훌륭한 안내자가 됐어요.",
+                    "길이 모이는 곳엔 사람도 모이는 법이죠. 우리 동네 별명이 사거리의 나침반이랍니다."
+                ))
+            ),
+            "편하게 앉아만 계세요. 오늘의 심부름은 대화, 거의 다 끝났어요.",
+            25000 to 5
+        ),
+        Episode("jeonju_eaves", "jeonju", NpcKind.ELDER, "한옥의 처마 끝",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "한옥 살 때는 처마 끝이 최고의 자리였지. 참새도 직박구리도 거기서 하루를 시작하니까.",
+                    "천천히 오래 보는 집이 한옥이었어. 서두르면 처마 밑 물방울도 못 보지.",
+                    "떠나지 않는 이웃, 텃새 한 마리 기록을 보여주게."
+                )),
+                Act(Goal.Photo(migration = "텃새"), listOf(
+                    "텃새라면 좋아. 사계절 내내 이웃인 셈이지.",
+                    "먹이는 내밀지 말게. 거리를 지키는 게 진짜 반갑다는 뜻이란다."
+                )),
+                Act(Goal.Talk, listOf(
+                    "기와 위에 해바라기 씨앗 두 알이 있었다네. 한 알은 참새가, 한 알은 다음 해 꽃이 됐지.",
+                    "오래 볼수록 처마는 넓어진다네. 자네 덕에 오늘도 좀 더 넓어졌어."
+                ))
+            ),
+            "텃새 한 마리 기록이면 된다네. 떠나지 않는 이웃이니 천천히 찾아도 돼.",
+            35000 to 7
+        ),
+        Episode("daegu_mountain_real", "daegu", NpcKind.KID, "팔공산 코알라?",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "저기요, 큰일 났어요! 친구가 팔공산에 코알라가 산대요! 코알라요, 한국에서요!",
+                    "저는 그게 새는 아니지만 새처럼 나무에 산다는… 아무튼 이상하다고 생각했어요.",
+                    "산새 한 마리 기록해 주세요! 진짜 팔공산엔 뭐가 사는지 증명해 줘요!"
+                )),
+                Act(Goal.Photo(habitat = "mountain"), listOf(
+                    "산새면 좋아요! 이름도 기억할게요. 코알라 말고 진짜 이름으로요!",
+                    "산은 조용해서 소리가 멀리 가요. 그래서 귀가 더 중요하대요."
+                )),
+                Act(Goal.Talk, listOf(
+                    "역시 코알라는 없었고, 진짜가 훨씬 멋졌어요! 소문은 소문, 기록은 기록!",
+                    "다음엔 제가 친구를 직접 데려올 거예요. 이제 저도 안내자예요!"
+                ))
+            ),
+            "산새 한 마리 기록이면 돼요! 코알라 말고요, 진짜 이름으로 부탁해요!",
+            30000 to 6
+        ),
+        Episode("gwangju_mudeung_wind", "gwangju", NpcKind.VILLAGER, "무등의 바람",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "무등산 숲엔 보석이 살아요. 여름 숲의 세 보석이라고, 웬만하면 얼굴을 안 보여줘요.",
+                    "보석이니까 주머니에 넣는 게 아니라 기록에 넣는 거예요.",
+                    "웬만해선 안 보이는 희귀새 한 마리 기록을 보여주시면, 오늘 바람의 기운을 드릴게요."
+                )),
+                Act(Goal.Photo(tierMin = 3), listOf(
+                    "희귀새는 인내의 상대예요. 가까이 가는 게 아니라 오래 기다리는 걸로 이기는 거죠.",
+                    "번식철엔 자리를 비켜가는 것도 보석 예절이에요."
+                )),
+                Act(Goal.Talk, listOf(
+                    "이 기록… 주머니에 넣은 게 아니라 기록에 넣었군요. 제대로 보셨네요.",
+                    "무등의 바람이 아무래도 오늘 기분이 좋아 보여요. 고마워요."
+                ))
+            ),
+            "희귀새 한 마리면 돼요. 도망가는 게 아니라 기다리는 새니까, 마음은 느긋하게.",
+            60000 to 10
+        ),
+        Episode("ulsan_ganjeon_boat", "ulsan", NpcKind.SHOP, "간절곶 첫 배",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "간절곶에선 해가 우리나라에서 제일 먼저 뜬다지. 날도 맨 먼저 밝지.",
+                    "근데 첫 배는 아무나 타는 게 아니야. 기다린 사람이 타는 거지.",
+                    "바닷새 한 마리 기록을 가져다 줘요. 그게 오늘의 항해 일지다."
+                )),
+                Act(Goal.Photo(habitat = "coast"), listOf(
+                    "바닷새는 날씨랑 친해. 바람 부는 날이 오히려 큰 날갯짓엔 기회란다.",
+                    "갯바위는 함부로 밟지 말게. 손님들 현관이니까."
+                )),
+                Act(Goal.Talk, listOf(
+                    "기다린 사람이 첫 기록을 얻는 법이지. 보기 좋소.",
+                    "해는 맨날 뜨니까 기회도 맨날 있어. 다음 일지도 기대하네."
+                ))
+            ),
+            "바닷새 한 마리 기록이면 돼요. 바다는 매일 아침 새 손님을 모십니다.",
+            40000 to 8
+        ),
+        Episode("busan_gull_dance", "busan", NpcKind.KID, "갈매기 따라 춤을",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "저저저, 큰일 났어요! 시장에서 괭이갈매기한테 춤을 춰 봤거든요…",
+                    "갈매기가 팔짝팔짝 걸어서 저도 따라 했는데, 삼촌들이 다 웃었어요.",
+                    "괭이갈매기 기록 부탁해요! 그 새가 웃으면서 걷는지 진지하게 걷는지 확인하고 싶어요!"
+                )),
+                Act(Goal.Photo(birdId = birdIdOf("괭이갈매기"), habitat = "coast"), listOf(
+                    "괭이갈매기는 발이 물갈퀴라며요? 그럼 헤엄도 잘하겠네요!",
+                    "먹이로 부르기는 절대 안 돼요. 춤은 제 몸으로만 춰요!"
+                )),
+                Act(Goal.Talk, listOf(
+                    "헐, 진짜 멋있게 날아요. 저게 춤이 아니라 날갯짓이었구나… 제가 뭘 따라 했던 거지?",
+                    "다음부턴 새 따라 하지 않고 새 따라가 볼게요. 기록은 기록대로!"
+                ))
+            ),
+            "괭이갈매기 한 마리 기록이요! 춤추는 게 아니라 걷는 거예요, 아마도!",
+            35000 to 7
+        ),
+        Episode("jeju_stone_wall_winter", "jeju", NpcKind.ELDER, "돌담의 겨울 손님",
+            listOf(
+                Act(Goal.Talk, listOf(
+                    "돌담이 낮아서 손님 얼굴이 바로 보이지. 겨울엔 낯선 날갯소리가 섬에 와 닿아.",
+                    "겨울손님은 예의 바르게 왔다네. 가까이 가지 않아도 목례가 오간단다.",
+                    "겨울손님 중 얼굴이 또렷한 한 마리 기록을 보여주게."
+                )),
+                Act(Goal.Photo(migration = "겨울", tierMin = 2), listOf(
+                    "섬을 나는 손님은 배고프면 힘들어. 그래서 더 가까이 가지 않는 게 예의란다.",
+                    "겨울을 나는 손님 중 좋은 얼굴 한 마리면 된다네."
+                )),
+                Act(Goal.Talk, listOf(
+                    "떠나지 않는 새와 사람이 섬을 만든다네. 오늘 자네가 그 문장에 한 사람 늘었어.",
+                    "고맙네. 내년 겨울에도 돌담에서 손님을 맞겠어."
+                ))
+            ),
+            "겨울손님 중 좋은 얼굴 한 마리면 된다네. 돌담은 기다리는 법을 아는지라.",
+            55000 to 9
+        )
+    )
+
+    // -------------------------------------------------------------------
+    // 진행 저장/조회 (feat_story_v1)
+    // -------------------------------------------------------------------
+
+    private var cache: JSONObject? = null
+
+    private fun read(ctx: Context): JSONObject {
+        cache?.let { return it }
+        val o = try {
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(SAVE_KEY, null)?.let { JSONObject(it) } ?: JSONObject()
+        } catch (_: Exception) {
+            JSONObject()
+        }
+        cache = o
+        return o
+    }
+
+    private fun write(ctx: Context, o: JSONObject) {
+        cache = o
+        try {
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString(SAVE_KEY, o.toString()).apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun progressOf(s: JSONObject, regionId: String): Int = s.optJSONObject("p")?.optInt(regionId, 0) ?: 0
+
+    /** 0=미시작, 1=도입 본 상태, 2=심부름 중, 4=완료 */
+    fun progress(ctx: Context, regionId: String): Int = progressOf(read(ctx), regionId)
+
+    /** 이 지역에서 아직 진행 중(완료 아님)인 에피소드. 없으면 null. */
+    fun current(ctx: Context, regionId: String): Episode? {
+        val ep = EPISODES.firstOrNull { it.regionId == regionId } ?: return null
+        return if (progressOf(read(ctx), regionId) >= 4) null else ep
+    }
+
+    /** 월드 그리기 경로용 💬 마커 조회 — 매 프레임 호출되므로 메모리 캐시만 건드린다. */
+    fun hasMarker(ctx: Context, regionId: String, kind: NpcKind): Boolean =
+        current(ctx, regionId)?.npc == kind
+
+    private fun allComplete(s: JSONObject): Boolean =
+        EPISODES.all { progressOf(s, it.regionId) >= 4 }
+
+    private fun epilogueSeen(s: JSONObject): Boolean = s.optBoolean("epi", false)
+
+    // -------------------------------------------------------------------
+    // WorldScene 연결
+    // -------------------------------------------------------------------
+
+    /** WorldScene의 현재 문맥으로 [Dialogues.Ctx]를 만든다. */
+    fun ctx(ws: WorldScene): Dialogues.Ctx = Dialogues.Ctx(
+        ws.map.region.id,
+        ws.game.state.mainQuestStage,
+        ws.game.state.season(),      // [P01] Season.kt
+        ws.game.state.weather(),
+        ws.game.state.isNight(),
+        ws.game.state.day
+    )
+
+    /**
+     * WorldScene.talkTo 맨 앞에서 호출 — 사이드 스토리 진행 중이면 대사를 표시하고 소비(기존 대사 스킵).
+     * 순서: ① 숨은 에필로그(12편 완료, 1회) ② 이 지역 에피소드의 현재 막 ③ 해당 없으면 false(기존 대사).
+     */
+    fun intercept(scene: Scene, npc: Npc): Boolean {
+        val ws = scene as? WorldScene ?: return false
+        val app = ws.game.context
+        val state = ws.game.state
+        val regionId = ws.map.region.id
+        val s = read(app)
+
+        // ① 숨은 에필로그 — 12편 완료 후 아무 NPC와의 첫 대화에서 1회
+        if (allComplete(s) && !epilogueSeen(s)) {
+            val done = JSONObject(s.toString())
+            done.put("epi", true)
+            write(app, done)
+            ws.openOverlay(
+                DialogOverlay(
+                    ws, "수첩의 뒷장",
+                    "\"수고 많았네. …수첩 뒷장을 펼쳐 보게.\n12개 동네 이야기가 다 적혀 있지.\n" +
+                        "이제 자네 이름도 한 줄 적어 두게 — 새를 아는 법을 배운 사람의 자리라네.\"",
+                    listOf(
+                        DialogOverlay.Choice("제 이름으로 채워 주세요") {
+                            state.money += 30000
+                            state.luck = (state.luck + 5f).coerceAtMost(100f)
+                            SaveManager.save(ws.game.context, state)
+                            ws.game.toast("📖 수첩의 뒷장에 이름이 적혔어요 ${won(30000)} · ☘️+5")
+                            ws.game.sfx(Audio.Sfx.SPARKLE, 0.6f)
+                        }
+                    )
+                )
+            )
+            return true
+        }
+
+        // ② 이 지역의 에피소드 — 담당 NPC에게만 열린다
+        val ep = EPISODES.firstOrNull { it.regionId == regionId } ?: return false
+        if (ep.npc != npc.kind) return false
+        val p = progressOf(s, regionId)
+        if (p >= 4) return false
+
+        if (p == 0) {
+            // 도입 — acts[0].goal은 항상 Talk(대화 자체가 첫 막)
+            showBeat(ws, ep, 0)
+            advance(app, regionId, 1)
+            return true
+        }
+
+        // 1..2: 이전 막의 목표를 대화 시점에만 검사
+        val prev = ep.acts[p - 1]
+        if (!goalMet(state, prev.goal)) {
+            showNudge(ws, ep)
+            return true
+        }
+        consumeDeliverable(state, prev.goal)   // 납품형이면 여기서 1개 소모
+        if (p == 2) {
+            // 마무리 + 보상 + 완료 (재방문 시 반복 없음)
+            showBeat(ws, ep, 2) {
+                state.money += ep.reward.first
+                state.luck = (state.luck + ep.reward.second).coerceAtMost(100f)
+                SaveManager.save(ws.game.context, state)
+                ws.game.toast("📖 ${ep.title} 완결! ${won(ep.reward.first)} · ☘️+${ep.reward.second}")
+                ws.game.sfx(Audio.Sfx.SPARKLE, 0.6f)
+            }
+            advance(app, regionId, 4)
+        } else {
+            showBeat(ws, ep, p)
+            advance(app, regionId, p + 1)
+        }
+        return true
+    }
+
+    // -------------------------------------------------------------------
+    // 목표 판정 (대화 시점에만)
+    // -------------------------------------------------------------------
+
+    private fun goalMet(s: GameState, g: Goal): Boolean = when (g) {
+        is Goal.Photo -> s.birdCounts.any { (id, n) -> n > 0 && photoMatch(id, g) }
+        is Goal.Deliver -> findDeliverable(s, g) >= 0
+        Goal.Talk -> true
+    }
+
+    private fun photoMatch(id: String, g: Goal.Photo): Boolean {
+        val def = Birds.byId[id] ?: return false
+        if (g.birdId != null && id != g.birdId) return false
+        if (g.habitat != null && g.habitat !in def.habitats) return false
+        if (g.migration != null && !def.migrationLabel.contains(g.migration)) return false
+        if (def.tier.star < g.tierMin) return false
+        return true
+    }
+
+    /** 납품 가능한 특산 피자 슬롯(id≥12)의 인덱스. 없으면 -1. */
+    private fun findDeliverable(s: GameState, g: Goal.Deliver): Int {
+        val min = maxOf(12, g.pizzaIdMin)
+        for (def in Pizzas.ALL) {
+            if (def.id < min) continue
+            for (q in 0..2) {
+                val idx = def.id * 3 + q
+                if (idx < s.pizzas.size && s.pizzas[idx] > 0) return idx
+            }
+        }
+        return -1
+    }
+
+    private fun consumeDeliverable(s: GameState, g: Goal) {
+        if (g !is Goal.Deliver) return
+        val idx = findDeliverable(s, g)
+        if (idx >= 0) s.pizzas[idx] = s.pizzas[idx] - 1
+    }
+
+    // -------------------------------------------------------------------
+    // 대사 표시
+    // -------------------------------------------------------------------
+
+    private fun showBeat(ws: WorldScene, ep: Episode, actIdx: Int, onDone: () -> Unit = {}) {
+        val act = ep.acts[actIdx]
+        val choiceLabel = when (actIdx) {
+            0 -> "네, 이야기 들려주세요"
+            1 -> "잘 다녀오겠습니다"
+            else -> "감사합니다"
+        }
+        ws.openOverlay(
+            DialogOverlay(
+                ws, ep.title,
+                "\"${act.lines.joinToString("\n")}\"",
+                listOf(DialogOverlay.Choice(choiceLabel) { onDone() })
+            )
+        )
+    }
+
+    private fun showNudge(ws: WorldScene, ep: Episode) {
+        ws.openOverlay(
+            DialogOverlay(
+                ws, ep.title,
+                "\"${ep.nudge}\"",
+                listOf(DialogOverlay.Choice("다시 올게요"))
+            )
+        )
+    }
+
+    private fun advance(app: Context, regionId: String, value: Int) {
+        val s = read(app)
+        val done = JSONObject(s.toString())
+        val p = done.optJSONObject("p") ?: JSONObject().also { done.put("p", it) }
+        p.put(regionId, value)
+        write(app, done)
+    }
+}
