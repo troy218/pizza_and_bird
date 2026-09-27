@@ -83,6 +83,10 @@ class Hud(private val game: Game) {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
     }
+    // 컨트롤 레이블용 텍스트 페인트 (본문 타이포그래피는 Type이 담당)
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        isFakeBoldText = true
+    }
     // ----- 조이스틱 애니메이션 상태 (게임 스레드 전용) -----
     private var stickVX = 0f             // 부드러운 캡 벡터 (-1..1)
     private var stickVY = 0f
