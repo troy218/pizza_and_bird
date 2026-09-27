@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 자동 생성: tools/build_art.py (원본: art/svg/tiles_nature.svg) — 직접 수정하지 말 것 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFF2E1B0"
+        android:pathData="M0,0L64,0L64,64L0,64Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M8,10L13,10L13,12.4L8,12.4Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M28,20L33,20L33,22.4L28,22.4Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M48,8L53,8L53,10.4L48,10.4Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M14,38L19,38L19,40.4L14,40.4Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M38,50L43,50L43,52.4L38,52.4Z"/>
+    <path
+        android:fillColor="#FFF8ECC8"
+        android:pathData="M22,6L26,6L26,8L22,8Z"/>
+    <path
+        android:fillColor="#FFF8ECC8"
+        android:pathData="M52,28L56,28L56,30L52,30Z"/>
+    <path
+        android:fillColor="#FFF8ECC8"
+        android:pathData="M18,26L22,26L22,28L18,28Z"/>
+    <path
+        android:fillColor="#FFF8ECC8"
+        android:pathData="M44,40L48,40L48,42L44,42Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M6,54C12,52,18,52,24,54C18,55.4,12,55.4,6,54Z"/>
+    <path
+        android:fillColor="#FFE4CF96"
+        android:pathData="M34,32C40,30,46,30,52,32C46,33.4,40,33.4,34,32Z"/>
+</vector>

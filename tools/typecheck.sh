@@ -22,6 +22,12 @@ mkdir -p "$STUB"
     echo "        const val $n = $i"; i=$((i+1))
   done
   echo "    }"
+  echo "    object drawable {"
+  for f in app/src/main/res/drawable/*.xml; do
+    n=$(basename "$f" .xml)
+    echo "        const val $n = $i"; i=$((i+1))
+  done
+  echo "    }"
   echo "}"
 } > "$STUB/R.kt"
 

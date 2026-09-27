@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 자동 생성: tools/build_art.py (원본: art/svg/items.svg) — 직접 수정하지 말 것 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <path
+        android:fillColor="#FFF2B63C"
+        android:pathData="M16,1L18.2,6.2L16,8.4L13.8,6.2Z"/>
+    <path
+        android:fillColor="#FFF2B63C"
+        android:pathData="M31,16L25.8,13.8L23.6,16L25.8,18.2Z"/>
+    <path
+        android:fillColor="#FFF2B63C"
+        android:pathData="M16,31L13.8,25.8L16,23.6L18.2,25.8Z"/>
+    <path
+        android:fillColor="#FFF2B63C"
+        android:pathData="M1,16L6.2,18.2L8.4,16L6.2,13.8Z"/>
+    <path
+        android:fillColor="#FFF7CE5B"
+        android:pathData="M25.1,6.9L23.9,10.9L21.1,8.1Z"/>
+    <path
+        android:fillColor="#FFF7CE5B"
+        android:pathData="M25.1,25.1L21.1,23.9L23.9,21.1Z"/>
+    <path
+        android:fillColor="#FFF7CE5B"
+        android:pathData="M6.9,25.1L8.1,21.1L10.9,23.9Z"/>
+    <path
+        android:fillColor="#FFF7CE5B"
+        android:pathData="M6.9,6.9L10.9,8.1L8.1,10.9Z"/>
+    <path
+        android:fillColor="#FFF2B63C"
+        android:pathData="M16,8.6C20.087,8.6,23.4,11.913,23.4,16C23.4,20.087,20.087,23.4,16,23.4C11.913,23.4,8.6,20.087,8.6,16C8.6,11.913,11.913,8.6,16,8.6Z"/>
+    <path
+        android:fillColor="#FFF7CE5B"
+        android:pathData="M16,9.4C19.645,9.4,22.6,12.355,22.6,16C22.6,19.645,19.645,22.6,16,22.6C12.355,22.6,9.4,19.645,9.4,16C9.4,12.355,12.355,9.4,16,9.4Z"/>
+    <path
+        android:fillColor="#FFFBE9A8"
+        android:pathData="M13.9,9.9C15.999,9.9,17.7,11.601,17.7,13.7C17.7,15.799,15.999,17.5,13.9,17.5C11.801,17.5,10.1,15.799,10.1,13.7C10.1,11.601,11.801,9.9,13.9,9.9Z"/>
+    <path
+        android:fillColor="#FFFDF6E0"
+        android:pathData="M12.8,11.1C13.794,11.1,14.6,11.906,14.6,12.9C14.6,13.894,13.794,14.7,12.8,14.7C11.806,14.7,11,13.894,11,12.9C11,11.906,11.806,11.1,12.8,11.1Z"/>
+</vector>
