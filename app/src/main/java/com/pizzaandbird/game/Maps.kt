@@ -35,13 +35,15 @@ enum class T(val solid: Boolean) {
     FLOOR(false),
     WALL_IN(true),
     WALL_WIN(true),
-    OVEN(true),             // 화덕
+    OVEN(true),             // 화덕 (화덕피자)
     BED(true),
     BOX(true),
     DECOR(false),           // 장식 슬롯
     SIGN(true),             // 터널 이정표
     BENCH(true),            // 벤치
-    LAMP(true);             // 가로등 (밤에 빛남)
+    LAMP(true),             // 가로등 (밤에 빛남)
+    RANGE_TOP(true),        // 가정용 오븐 윗부분 (후드·선반)
+    RANGE(true);            // 가정용 오븐 (일반 피자) — 2프레임 불빛
 
     companion object {
         val ALL = values()
@@ -88,7 +90,7 @@ class GameMap(
 
     /**
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
-     * 물/화덕은 애니메이션, 물가에는 거품이 인다.
+     * 물/화덕/오븐은 애니메이션, 물가에는 거품이 인다.
      */
     fun draw(c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float) {
         val x0 = (camX / 32f).toInt().coerceAtLeast(0)
@@ -103,7 +105,7 @@ class GameMap(
                 val tile = T.ALL[tv]
                 val bmp = when (tile) {
                     T.WATER -> a.tiles[tv][minOf(waterFrame, a.tiles[tv].size - 1)]
-                    T.OVEN -> a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
+                    T.OVEN, T.RANGE -> a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
                     else -> a.tiles[tv][a.tileVariant(tv, x, y)]
                 }
                 c.drawBitmap(bmp, x * 32f - camX, y * 32f - camY, a.sprPaint)
@@ -354,9 +356,12 @@ object MapBuilder {
         t[1][2] = T.WALL_WIN.ordinal
         t[1][5] = T.WALL_WIN.ordinal
         t[1][8] = T.WALL_WIN.ordinal
-        // 화덕 (기본 제공!)
+        // 화덕 (기본 제공!) — 화덕피자
         t[2][9] = T.OVEN.ordinal; t[2][10] = T.OVEN.ordinal
         t[3][9] = T.OVEN.ordinal; t[3][10] = T.OVEN.ordinal
+        // 가정용 오븐 (화덕 옆 주방 코너) — 일반 피자
+        t[2][11] = T.RANGE_TOP.ordinal
+        t[3][11] = T.RANGE.ordinal
         // 침대
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
         // 이사 박스

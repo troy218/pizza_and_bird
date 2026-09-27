@@ -60,6 +60,7 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
     lateinit var pizzaIconBig: Bitmap
+    lateinit var pizzaArts: Array<Bitmap>       // Pizzas.ALL 순서(id) — 피자 종류별 아이콘
     lateinit var cloverIcon: Bitmap
     lateinit var cameraIcon: Bitmap
     lateinit var houseIcon: Bitmap
@@ -1104,10 +1105,14 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
         fun add(vararg bmps: Bitmap) {
             list.add(if (bmps.size == 1) arrayOf(bmps[0]) else bmps.toList().toTypedArray())
         }
+        /** 변형/프레임 n개를 하나의 타일 항목으로 묶는다 (T enum 순서와 1:1) */
+        fun group(n: Int, make: (Int) -> Bitmap) {
+            list.add(Array(n) { make(it) })
+        }
 
         // GRASS (6종 변형 — 더 다채로운 초원 디테일)
-        for (i in 0 until 6) {
-            add(tilePainter { c, p, r ->
+        group(6) { i ->
+            tilePainter { c, p, r ->
                 grassBase(c, p, r)
                 when (i) {
                     1 -> {   // 넝쿨
@@ -1153,11 +1158,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                         c.drawRect(24.6f, 21.6f, 25.2f, 22.2f, p)
                     }
                 }
-            })
+            }
         }
         // TALLGRASS (3종 — 잎끝 하이라이트 + 살짝 휘어진 형태로 자연스러움 강화)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
+        group(3) { i ->
+            tilePainter { c, p, r ->
                 grassBase(c, p, r, c(0xFF8CC46C))
                 // 뒤쪽 어두운 긴 풀 (기울어진 줄기)
                 p.color = c(0xFF5D8A4A)
@@ -1185,12 +1190,12 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                 p.color = c(0xFF8CC46C)
                 c.drawRect(6f, 8f, 7f, 10f, p)
                 c.drawRect(22f, 6f, 22.8f, 8f, p)
-            })
+            }
         }
         // FLOWER (4색 — 둥근 4장 꽃잎 + 잎사귀로 훨씬 화사하게)
         val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8), c(0xFFC9A8E8))
-        for (i in 0 until 4) {
-            add(tilePainter { c, p, r ->
+        group(4) { i ->
+            tilePainter { c, p, r ->
                 grassBase(c, p, r)
                 repeat(4) {
                     val x = 4f + r.nextInt(21)
@@ -1213,11 +1218,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                     p.color = c(0xFFE8B14E)
                     c.drawCircle(x + 2.1f, y + 1.1f, 0.6f, p)
                 }
-            })
+            }
         }
         // PATH (3종)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
+        group(3) { i ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFFE5D3A0))
                 specks(c, p, r, c(0xFFD6BF87), 9)
                 specks(c, p, r, c(0xFFF0E2B8), 6)
@@ -1231,11 +1236,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                     c.drawRect(9f, 14f, 12f, 15.4f, p)
                     c.drawRect(11f, 13.4f, 10f, 16f, p)
                 }
-            })
+            }
         }
         // PLAZA (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { i ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFFD9C9A7))
                 p.color = c(0xFFC6B58F)
                 c.drawRect(0f, 0f, 32f, 1.6f, p)
@@ -1250,11 +1255,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                     c.drawRect(18.2f, 8f, 28f, 9.4f, p)
                     c.drawRect(6f, 20f, 9f, 21.2f, p)
                 }
-            })
+            }
         }
         // SAND (3종)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
+        group(3) { i ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFFF2E1B0))
                 specks(c, p, r, c(0xFFE4CF96), 9)
                 specks(c, p, r, c(0xFFF8ECC8), 7)
@@ -1269,11 +1274,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                     c.drawRect(3f, 12f, 12f, 13.2f, p)
                     c.drawRect(18f, 24f, 28f, 25.2f, p)
                 }
-            })
+            }
         }
         // WATER (4프레임 애니메이션)
-        for (f in 0 until 4) {
-            add(tilePainter { c, p, r ->
+        group(4) { f ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFF4FA8D8))
                 p.color = c(0xFF63B8E4)
                 c.drawRect(0f, 3f, 32f, 6f, p)
@@ -1287,11 +1292,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                 p.color = c(0xFFC9ECF8)
                 c.drawRect((3f + off) % 28f, 4.6f, (3f + off) % 28f + 2.4f, 5.6f, p)
                 c.drawRect((19f + off) % 26f, 15.2f, (19f + off) % 26f + 2.4f, 16.2f, p)
-            })
+            }
         }
         // REED (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { i ->
+            tilePainter { c, p, r ->
                 grassBase(c, p, r, c(0xFF8CC46C))
                 val xs = if (i == 0) intArrayOf(5, 12, 20, 27) else intArrayOf(8, 15, 24)
                 for (x in xs) {
@@ -1305,10 +1310,10 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                 }
                 p.color = c(0xFF6FAE57)
                 c.drawRect(10f, 22f, 14f, 23.2f, p)
-            })
+            }
         }
-        // TREE (2종: 활엽수 + 침엽수)
-        add(tilePainter { c, p, r ->
+        // TREE (2종: 활엽수 + 침엽수 — 한 항목에 2변형)
+        val treeLeafy = tilePainter { c, p, r ->
             grassBase(c, p, r)
             p.color = c(0xFF5D3A20)
             c.drawRect(14f, 18f, 18f, 31f, p)
@@ -1325,8 +1330,8 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             c.drawCircle(12.4f, 7f, 3.4f, p)
             p.color = c(0xFF2C5429)
             c.drawRect(9f, 17.4f, 24f, 18.6f, p)
-        })
-        add(tilePainter { c, p, r ->
+        }
+        val treePine = tilePainter { c, p, r ->
             grassBase(c, p, r)
             p.color = c(0xFF5D3A20)
             c.drawRect(14.6f, 24f, 17.4f, 31f, p)
@@ -1345,10 +1350,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             p.color = c(0xFF4F9E57)
             c.drawRect(12.4f, 9f, 15f, 10.4f, p)
             c.drawRect(8f, 22f, 10.6f, 23.4f, p)
-        })
+        }
+        add(treeLeafy, treePine)
         // ROCK (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { i ->
+            tilePainter { c, p, r ->
                 grassBase(c, p, r)
                 if (i == 0) {
                     p.color = c(0xFF5A626C)
@@ -1371,11 +1377,11 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                     p.color = c(0xFF6FAE57)
                     c.drawRect(10f, 24f, 13f, 26f, p)
                 }
-            })
+            }
         }
         // MOUNTAIN (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { i ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFF77848F))
                 p.color = c(0xFF8D9AA8)
                 c.drawRect(0f, 0f, 32f, 6f, p)
@@ -1394,7 +1400,7 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                     c.drawRect(2f, 9f, 8f, 11f, p)
                     c.drawRect(24f, 23f, 29f, 25f, p)
                 }
-            })
+            }
         }
         // BLDG_WALL
         add(tilePainter { c, p, r ->
@@ -1411,8 +1417,8 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
         })
         // BLDG_WIN (2종)
         val curtains = intArrayOf(c(0xFFF2D06B), c(0xFFC3A3E8))
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { i ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFFE9E2D3))
                 p.color = c(0xFFD8CFBA)
                 c.drawRect(0f, 30f, 32f, 32f, p)
@@ -1428,7 +1434,7 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                 p.color = curtains[i]
                 c.drawRect(7.4f, 7.4f, 10f, 22.6f, p)
                 c.drawRect(22f, 7.4f, 24.6f, 22.6f, p)
-            })
+            }
         }
         // BLDG_ROOF
         add(tilePainter { c, p, r ->
@@ -1539,8 +1545,8 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             c.drawRect(8f, 28f, 24f, 32f, p)
         })
         // FLOOR (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { i ->
+            tilePainter { c, p, r ->
                 val base = if (i == 0) c(0xFFCDA775) else c(0xFFC49E6C)
                 fill(c, p, base)
                 p.color = c(0xFFB98F5E)
@@ -1556,7 +1562,7 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                 p.color = c(0xFFA87B4F)
                 c.drawRect(3f, 4f, 4f, 5f, p)
                 c.drawRect(27f, 25f, 28f, 26f, p)
-            })
+            }
         }
         // WALL_IN
         add(tilePainter { c, p, r ->
@@ -1593,8 +1599,8 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             c.drawRect(0f, 27.4f, 32f, 32f, p)
         })
         // OVEN (2프레임 — 불꽃 애니메이션)
-        for (f in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        group(2) { f ->
+            tilePainter { c, p, r ->
                 fill(c, p, c(0xFF8F8F99))
                 p.color = c(0xFF7A7A85)
                 c.drawRect(0f, 0f, 32f, 2.4f, p)
@@ -1620,7 +1626,7 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
                 c.drawRect(15f, 18f + (if (f == 0) 0f else 1.4f), 17f, 21f, p)
                 p.color = c(0xFF6B6B78)
                 c.drawRect(9f, 29f, 23f, 30.6f, p)
-            })
+            }
         }
         // BED
         add(tilePainter { c, p, r ->
@@ -1755,8 +1761,111 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             c.drawRect(15.4f, 7f, 16.6f, 8.4f, p)
         })
 
+        // RANGE_TOP (가정용 오븐 윗부분 — 레인지 후드 + 백스플래시 + 조리도구 선반)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFCDA775))
+            p.color = c(0xFF9A9AA6)
+            c.drawRect(1f, 0f, 31f, 32f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(2.4f, 0f, 29.6f, 32f, p)
+            // 레인지 후드 (스틸)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(2.4f, 0f, 29.6f, 7.4f, p)
+            p.color = c(0xFF8C919C)
+            c.drawRect(2.4f, 5.6f, 29.6f, 7.4f, p)
+            p.color = c(0xFFD5D8DF)
+            c.drawRect(4f, 1.2f, 28f, 2.4f, p)
+            p.color = c(0xFFF7E9A8)
+            c.drawRect(13f, 6f, 19f, 7.4f, p)
+            // 백스플래시 타일
+            p.color = c(0xFFDCE8E6)
+            c.drawRect(4f, 9f, 28f, 24f, p)
+            p.color = c(0xFFC4D3D0)
+            c.drawRect(4f, 13.8f, 28f, 14.6f, p)
+            c.drawRect(4f, 18.8f, 28f, 19.6f, p)
+            c.drawRect(9.6f, 9f, 10.4f, 24f, p)
+            c.drawRect(15.6f, 9f, 16.4f, 24f, p)
+            c.drawRect(21.6f, 9f, 22.4f, 24f, p)
+            // 걸어 둔 나무 주걱 / 스틸 뒤집개
+            p.color = c(0xFFB98F5E)
+            c.drawRect(8f, 9.5f, 9.6f, 21f, p)
+            p.color = c(0xFFC9A87B)
+            c.drawRect(7f, 19f, 10.6f, 23f, p)
+            p.color = c(0xFF6B6B78)
+            c.drawRect(23f, 9.5f, 24.6f, 20f, p)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(21.6f, 19f, 26f, 23f, p)
+            // 선반 + 토마토 소스·바질 병
+            p.color = c(0xFFB98F5E)
+            c.drawRect(3.4f, 25f, 28.6f, 26.6f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(6f, 26.6f, 26f, 32f, p)
+            p.color = c(0xFFE2574C)
+            c.drawRect(11f, 21.5f, 14.4f, 25f, p)
+            p.color = c(0xFF6B4F35)
+            c.drawRect(11.8f, 20.4f, 13.6f, 21.6f, p)
+            p.color = c(0xFF6FAE57)
+            c.drawRect(15.6f, 22f, 18.6f, 25f, p)
+            p.color = c(0xFF3F7D46)
+            c.drawRect(16.2f, 21f, 18f, 22.2f, p)
+        })
+        // RANGE (가정용 오븐 — 쿡탑 + 오븐 창, 2프레임 불빛)
+        group(2) { f ->
+            tilePainter { c, p, r ->
+                fill(c, p, c(0xFFCDA775))
+                p.color = c(0xFF9A9AA6)
+                c.drawRect(1f, 0f, 31f, 31f, p)
+                p.color = c(0xFFEFEDE6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 29.6f, p)
+                // 쿡탑 (윗면, 스틸) + 화구 2개
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 10f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(2.4f, 9f, 29.6f, 10.4f, p)
+                p.color = c(0xFFD5D8DF)
+                c.drawRect(3.6f, 2f, 28.4f, 2.8f, p)
+                p.color = c(0xFF3A3F4A)
+                c.drawCircle(10f, 5.8f, 3.2f, p)
+                c.drawCircle(22f, 5.8f, 3.2f, p)
+                p.color = c(0xFF5A626C)
+                c.drawCircle(10f, 5.8f, 2f, p)
+                c.drawCircle(22f, 5.8f, 2f, p)
+                p.color = if (f == 0) c(0xFFF2913C) else c(0xFFE2574C)
+                c.drawCircle(10f, 5.8f, 1.2f, p)
+                // 노브 3개 + 오븐 손잡이
+                p.color = c(0xFF4A4A55)
+                c.drawRect(6.6f, 11.6f, 9.4f, 13.6f, p)
+                c.drawRect(14.6f, 11.6f, 17.4f, 13.6f, p)
+                c.drawRect(22.6f, 11.6f, 25.4f, 13.6f, p)
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(4f, 15f, 28f, 16.6f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(4f, 16.6f, 28f, 17.2f, p)
+                // 오븐 창 (안에서 피자가 익는 중 — 프레임마다 불빛 밝기가 다름)
+                p.color = c(0xFF23232B)
+                c.drawRect(6f, 18.4f, 26f, 27.4f, p)
+                p.color = c(0xFF3A2A28)
+                c.drawRect(7.4f, 19.6f, 24.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFE07A2C) else c(0xFFF2913C)
+                c.drawRect(8.4f, 21f, 23.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFF2B63C) else c(0xFFF7CE5B)
+                c.drawRect(9.6f, 22f, 22.4f, 24.4f, p)
+                p.color = c(0xFFE2574C)
+                c.drawRect(11f, 22.6f, 13f, 23.6f, p)
+                c.drawRect(17f, 23f, 19f, 24f, p)
+                p.color = c(0xFF5A5A66)
+                c.drawRect(8.4f, 19.6f, 24.6f, 20.4f, p)
+                // 하단 받침
+                p.color = c(0xFF6B6B78)
+                c.drawRect(3f, 29.6f, 29f, 31.4f, p)
+            }
+        }
+
         tiles = list.toTypedArray()
     }
+
+    /** 피자 종류별 아이콘 (id = Pizzas.ALL 인덱스) */
+    fun pizzaArt(pizzaId: Int): Bitmap = pizzaArts[pizzaId.coerceIn(0, pizzaArts.size - 1)]
 
     /** 타일 좌표 기반 변형 선택 */
     fun tileVariant(tileOrdinal: Int, x: Int, y: Int): Int {
@@ -1794,6 +1903,44 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
         val pizzaBmp = sprite(pizza, pal + ('A' to c(0xFF7D9C4F)))
         pizzaIcon = pizzaBmp
         pizzaIconBig = Bitmap.createScaledBitmap(pizzaBmp, pizzaBmp.width * 4, pizzaBmp.height * 4, false)
+
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
+        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        val pizzaOven = listOf(
+            "......................",
+            ".....cckccccckc.....",
+            "...ckCCCCCCCCCCkc...",
+            "..cCCRRCCCCCRRCCCc..",
+            "..kCCRRCCACCRRCCd...",
+            ".cCCCCCCCCCCCCCCCd..",
+            ".cCRRCCCACCCRRCCk...",
+            ".kCRRCCCCCCCRRCCd...",
+            ".cCCCCCRRCCACCCCd...",
+            ".cCCACCRRCCCCCCd....",
+            ".cCCCCCCCCCRRCCk....",
+            ".dCCCCCCCCCRRCCd....",
+            "..dkddddddkdd......",
+            "...ddddkddddd......",
+            "......................"
+        )
+        pizzaArts = Array(Pizzas.ALL.size) { i ->
+            val def = Pizzas.ALL[i]
+            if (def.kind == PizzaKind.OVEN) {
+                sprite(
+                    pizzaOven, mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            } else {
+                sprite(
+                    pizza, mapOf(
+                        'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            }
+        }
 
         cloverIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
             val cv = Canvas(this)
