@@ -36,6 +36,7 @@ class GameState {
     val bestStars = LinkedHashMap<String, Int>()    // 도감: 새별 최고 별점
     val photoAlbum = ArrayList<BirdPhotoRecord>()   // 사진집: 실제 지형+방향+자세가 남은 촬영본
     val visited = LinkedHashSet<String>()           // 방문한 지역
+    val landmarksSeen = LinkedHashSet<String>()     // 관람을 마친 지역 랜드마크
     val ownedHomes = LinkedHashSet<String>()        // 매입한 지역별 집
     val ownedHouseStyles = LinkedHashSet<String>()  // 구매한 인테리어 스타일
 
@@ -495,6 +496,7 @@ class GameState {
         bestStars.clear()
         photoAlbum.clear()
         visited.clear()
+        landmarksSeen.clear()
         homeRegion = START_REGION_ID
         region = START_REGION_ID
         visited.add(START_REGION_ID)
@@ -583,6 +585,7 @@ class GameState {
         put("bestStars", JSONObject(bestStars as Map<*, *>))
         put("photoAlbum", JSONArray().apply { photoAlbum.forEach { put(it.toJSON()) } })
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
+        put("landmarksSeen", JSONArray().apply { landmarksSeen.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
         put("ownedBikes", JSONArray().apply { ownedBikes.forEach { put(it) } })
@@ -740,6 +743,10 @@ class GameState {
             val vs = j.optJSONArray("visited")
             if (vs != null) {
                 for (i in 0 until vs.length()) s.visited.add(vs.optString(i))
+            }
+            val lms = j.optJSONArray("landmarksSeen")
+            if (lms != null) {
+                for (i in 0 until lms.length()) s.landmarksSeen.add(lms.optString(i))
             }
             val ds = j.optJSONArray("decorSlots")
             if (ds != null) {
