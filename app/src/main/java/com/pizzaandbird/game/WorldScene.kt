@@ -780,7 +780,8 @@ class WorldScene(
             Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
                     luckBoost(it) *
                     weatherBirdMultiplier(it, currentWeather) *
-                    seasonBirdMultiplier(it, currentSeason, currentWeather)
+                    seasonBirdMultiplier(it, currentSeason, currentWeather) *
+                    SpawnTables.weight(it, map.region.id, map.region.habitats, currentSeason, state.isNight()) // [P02] 계절×지역×시간대
         }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
