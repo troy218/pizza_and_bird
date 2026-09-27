@@ -27,6 +27,24 @@ object UiKit {
      * 이 표는 저장 데이터에 남아 있는 옛 토큰도 자연스럽게 받아들인다.
      */
     private val iconAliases = mapOf(
+        // SVG 에셋 이름 그대로도 쓸 수 있다 (이모지 별칭 없는 키의 자기 매핑)
+        "arrow_down" to "arrow_down",
+        "arrow_left" to "arrow_left",
+        "arrow_right" to "arrow_right",
+        "arrow_up" to "arrow_up",
+        "chair" to "chair",
+        "cheese" to "cheese",
+        "cloud" to "cloud",
+        "fire" to "fire",
+        "minus" to "minus",
+        "mushroom" to "mushroom",
+        "photo" to "photo",
+        "plant" to "plant",
+        "plus" to "plus",
+        "star" to "star",
+        "star_empty" to "star_empty",
+        "sun" to "sun",
+
         "☀" to "sun", "☀️" to "sun", "sunny" to "sun",
         "☁" to "cloud", "cloudy" to "cloud",
         "☂" to "rain", "☔" to "rain", "rain" to "rain",
