@@ -39,6 +39,8 @@ class GameState {
     var playSeconds = 0f
     var photos = 0                 // 누적 촬영 장수
     var worldTime = 8.5f           // 게임 내 시각 (0.0~24.0, 8.5=오전 8시반)
+    var weatherId = Weather.SUNNY.id // 게임 전체 날씨
+    var weatherSeconds = 55f         // 다음 날씨 변화까지 남은 시간
 
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
@@ -159,6 +161,8 @@ class GameState {
         playSeconds = 0f
         photos = 0
         worldTime = 8.5f
+        weatherId = Weather.SUNNY.id
+        weatherSeconds = 55f
         for (i in decorSlots.indices) decorSlots[i] = -1
         decorOwned.clear()
     }
@@ -189,6 +193,8 @@ class GameState {
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("weatherId", weatherId)
+        put("weatherSeconds", weatherSeconds.toDouble())
         put("pizzas", JSONArray().apply { pizzas.forEach { put(it) } })
         put("birdCounts", JSONObject(birdCounts as Map<*, *>))
         put("bestStars", JSONObject(bestStars as Map<*, *>))
@@ -237,6 +243,8 @@ class GameState {
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.weatherId = j.optString("weatherId", Weather.SUNNY.id)
+            s.weatherSeconds = j.optDouble("weatherSeconds", 55.0).toFloat().coerceIn(0f, 120f)
 
             val pz = j.optJSONArray("pizzas")
             if (pz != null) {
