@@ -3,6 +3,7 @@ package com.pizzaandbird.game
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import kotlin.math.hypot
 import kotlin.math.sin
@@ -18,6 +19,7 @@ class HomeScene(game: Game) : Scene(game) {
 
     private var camX = 0f
     private var camY = 0f
+    override fun cameraOffset(): PointF = PointF(camX, camY)
 
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         isFakeBoldText = true
