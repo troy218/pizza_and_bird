@@ -11,8 +11,8 @@ android {
         applicationId = "com.pizzaandbird.game"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.4.1-beta01"
+        versionCode = 9
+        versionName = "0.4.2-beta01"
     }
 
     // ---------------------------------------------------------------

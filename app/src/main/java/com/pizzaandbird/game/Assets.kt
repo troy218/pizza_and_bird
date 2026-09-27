@@ -2937,4 +2937,16 @@ begin(T.LAMP)
 
     fun birdW(id: String): Float = bird(id).width.toFloat()
     fun birdH(id: String): Float = bird(id).height.toFloat()
+
+    // 아트 빌더는 모든 데이터 필드(artIds 등) 선언 이후에 실행돼야 한다 —
+    // 클래스 끝에 두어 초기화 순서 문제(Kotlin 프로퍼티 선언 순서)를 원천 차단한다.
+    init {
+        buildCat()
+        buildBirds()
+        buildGrassRig()
+        buildTiles()
+        buildIcons()
+        buildDecorArt()
+    }
+
 }
