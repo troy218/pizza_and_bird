@@ -474,13 +474,13 @@ class Hud(private val game: Game) {
     }
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(170f) + dp(22f)
+    private fun questChipY(): Float = dp(12f) + dp(190f) + dp(22f)
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(170f)
+        val h = dp(190f)
 
         // 프리미엄 패널
         val r = RectF(left, top, left + w, top + h)
@@ -544,17 +544,22 @@ class Hud(private val game: Game) {
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
 
-        // 계절/날씨 아이콘도 글꼴이 아닌 SVG로 고정한다.
+        // 계절 다이얼: 원형 사계절 판 위를 바늘이 가리킨다 (main 브랜치 최신 버전 유지)
         val weather = s.weather()
-        val season = s.season()
-        UiKit.icon(c, game, season.icon, RectF(left + dp(11f), iy2 + dp(82f), left + dp(25f), iy2 + dp(96f)))
-        Type.text(c, season.label, left + dp(29f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
-        UiKit.icon(c, game, weather.icon, RectF(left + dp(61f), iy2 + dp(82f), left + dp(75f), iy2 + dp(96f)))
-        Type.text(c, weather.label, left + dp(79f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
+        val dialSize = dp(36f)
+        val dialX = left + dp(12f)
+        val dialY = top + dp(118f)
+        drawSeasonDial(c, s, dialX, dialY, dialSize)
+        val dialCy = dialY + dialSize / 2f
+        val tx = dialX + dialSize + dp(9f)
+        Type.textCentered(
+            c, "${s.season().icon} ${s.season().label} ${Season.dayInSeason(s.day)}일째",
+            tx, dialCy - dp(8f), Role.LABEL, Type.INK
+        )
+        Type.textCentered(c, "${weather.icon} ${weather.label}", tx, dialCy + dp(8.5f), Role.LABEL, 0xFF587083.toInt())
 
-        // 레벨 + 경험치 바
-        // 날씨 줄과 겹치지 않도록 그 아래에 배치
-        val ly = iy2 + dp(100f)
+        // 레벨 + 경험치 바 — 계절 다이얼 아래에 배치
+        val ly = top + dp(158f)
         Type.text(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK)
         Type.text(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT)
 
@@ -569,6 +574,77 @@ class Hud(private val game: Game) {
             UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
         }
 
+    }
+
+    /**
+     * 사계절 다이얼 — assets/season_dial.svg 원판(봄 12시에서 시계 방향 여름/가을/겨울) 위에
+     * 계절 진행을 가리키는 바늘을 코드로 그린다. 바늘은 1년(4계절)에 한 바퀴를 천천히 돌며,
+     * 계절이 바뀌는 순간에도 360°=0°라 끊김 없이 이어진다.
+     */
+    private fun drawSeasonDial(c: Canvas, s: GameState, x: Float, y: Float, size: Float) {
+        val cx = x + size / 2f
+        val cy = y + size / 2f
+        val R = size / 2f
+
+        // 부드러운 그림자 + 원판 (SVG는 래스터 캐시됨)
+        softShadow.color = Color.argb(46, 36, 24, 12)
+        c.drawCircle(cx + dp(0.7f), cy + dp(1.4f), R * 0.97f, softShadow)
+        tmpRect.set(x, y, x + size, y + size)
+        game.illustrations.draw(c, "season_dial.svg", tmpRect)
+
+        // 바늘 각도: 하루+시간 진행만큼 현재 계절 안에서 서서히 움직인다
+        val ord = s.season().ordinal
+        val frac = ((Season.dayInSeason(s.day) - 1) + s.worldTime / 24f) / Season.DAYS_PER_SEASON
+        val deg = (ord + frac.coerceIn(0f, 1f)) * 90f
+
+        // 현재 계절 부채꼴을 금색 호로 강조 (원판의 날짜 점 링 안쪽)
+        arcPaint.color = Color.argb(88, 242, 182, 60)
+        arcPaint.strokeWidth = size * 0.045f
+        tmpRect.set(cx - R * 0.75f, cy - R * 0.75f, cx + R * 0.75f, cy + R * 0.75f)
+        c.drawArc(tmpRect, ord * 90f - 86f, 82f, false, arcPaint)
+
+        // 바늘 — 크림 투톤 연 모양 (돌려서 그린다)
+        val tipR = R * 0.74f
+        val shoulder = R * 0.055f
+        val tailR = R * 0.22f
+        c.save()
+        c.rotate(deg, cx, cy)
+        tmpPath.reset()
+        tmpPath.moveTo(cx, cy - tipR)
+        tmpPath.lineTo(cx - shoulder, cy - R * 0.16f)
+        tmpPath.lineTo(cx, cy + tailR)
+        tmpPath.close()
+        fill.color = 0xFFE9CF9E.toInt()
+        c.drawPath(tmpPath, fill)
+        tmpPath.reset()
+        tmpPath.moveTo(cx, cy - tipR)
+        tmpPath.lineTo(cx + shoulder, cy - R * 0.16f)
+        tmpPath.lineTo(cx, cy + tailR)
+        tmpPath.close()
+        fill.color = 0xFFFDF1D3.toInt()
+        c.drawPath(tmpPath, fill)
+        tmpPath.reset()
+        tmpPath.moveTo(cx, cy - tipR)
+        tmpPath.lineTo(cx - shoulder, cy - R * 0.16f)
+        tmpPath.lineTo(cx, cy + tailR)
+        tmpPath.lineTo(cx + shoulder, cy - R * 0.16f)
+        tmpPath.close()
+        stroke.color = 0xFF5F4526.toInt()
+        stroke.strokeWidth = dp(1.1f)
+        c.drawPath(tmpPath, stroke)
+        // 바늘 끝 금빛 구슬 (현재 위치 표시)
+        fill.color = Color.argb(210, 242, 182, 60)
+        c.drawCircle(cx, cy - tipR, R * 0.055f, fill)
+        c.restore()
+
+        // 중앙 캡 (황동 핀)
+        fill.color = 0xFFD9A83E.toInt()
+        c.drawCircle(cx, cy, R * 0.115f, fill)
+        stroke.color = 0xFF6B4F35.toInt()
+        stroke.strokeWidth = dp(1f)
+        c.drawCircle(cx, cy, R * 0.115f, stroke)
+        fill.color = Color.argb(230, 255, 233, 184)
+        c.drawCircle(cx - R * 0.035f, cy - R * 0.045f, R * 0.035f, fill)
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {

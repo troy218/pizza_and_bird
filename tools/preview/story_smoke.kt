@@ -206,6 +206,14 @@ object StorySmoke {
                 g.state.birdCounts[match.id] = 1
                 tempBird = match.id
             }
+            // [P7] 피자 확장 — Deliver형 목표: 전달용 특산 피자를 미리 구워 둔다.
+            // (에피소드 완료 처리가 피자를 1판 소비하므로 별도 정리는 불필요)
+            if (goal is SideStories.Goal.Deliver) {
+                val min = maxOf(12, goal.pizzaIdMin)
+                val deliverable = Pizzas.ALL.firstOrNull { it.id >= min }
+                    ?: error("${ep.id} 전달 가능한 피자(>=$min)가 정의에 없다")
+                check(g.state.addPizza(deliverable.id, 2)) { "피자 보관 한도 초과로 전달 피자를 못 넣었다" }
+            }
 
             // 마무리 + 보상 (막 3)
             val money0 = g.state.money

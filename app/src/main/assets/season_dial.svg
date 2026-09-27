@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- 사계절 다이얼: 봄(12시)에서 시작해 시계 방향으로 여름/가을/겨울. -->
+  <!-- 바늘은 계절 진행에 따라 Hud.kt가 코드 그린다. -->
+  <circle cx="128.00" cy="130.50" r="123.50" fill="#2e2118" opacity="0.26"/>
+  <circle cx="128.00" cy="128.00" r="124.00" fill="#5c3d1e"/>
+  <circle cx="128.00" cy="128.00" r="120.50" fill="#c89648"/>
+  <circle cx="128.00" cy="128.00" r="117.00" fill="#e9c476"/>
+  <circle cx="128.00" cy="128.00" r="113.50" fill="#8a5e2a"/>
+  <circle cx="128.00" cy="128.00" r="110.00" fill="#fbf2dc"/>
+  <circle cx="210.73" cy="45.27" r="2.60" fill="#7a5426" stroke="#4a2f14" stroke-width="0.80"/>
+  <circle cx="210.03" cy="44.47" r="0.80" fill="#f2dca4"/>
+  <circle cx="210.73" cy="210.73" r="2.60" fill="#7a5426" stroke="#4a2f14" stroke-width="0.80"/>
+  <circle cx="210.03" cy="209.93" r="0.80" fill="#f2dca4"/>
+  <circle cx="45.27" cy="210.73" r="2.60" fill="#7a5426" stroke="#4a2f14" stroke-width="0.80"/>
+  <circle cx="44.57" cy="209.93" r="0.80" fill="#f2dca4"/>
+  <circle cx="45.27" cy="45.27" r="2.60" fill="#7a5426" stroke="#4a2f14" stroke-width="0.80"/>
+  <circle cx="44.57" cy="44.47" r="0.80" fill="#f2dca4"/>
+  <polygon points="128.00,128.00 128.00,32.00 134.70,32.23 141.36,32.93 147.96,34.10 154.46,35.72 160.83,37.79 167.05,40.30 173.07,43.24 178.87,46.59 184.43,50.33 189.71,54.46 194.69,58.94 199.34,63.76 203.65,68.90 207.59,74.32 211.14,80.00 214.28,85.92 217.01,92.04 219.30,98.33 221.15,104.78 222.54,111.33 223.47,117.97 223.94,124.65 224.00,128.00" fill="#f8cfdd" stroke="#e29ab6" stroke-width="1.60"/>
+  <polygon points="128.00,128.00 224.00,128.00 223.77,134.70 223.07,141.36 221.90,147.96 220.28,154.46 218.21,160.83 215.70,167.05 212.76,173.07 209.41,178.87 205.67,184.43 201.54,189.71 197.06,194.69 192.24,199.34 187.10,203.65 181.68,207.59 176.00,211.14 170.08,214.28 163.96,217.01 157.67,219.30 151.22,221.15 144.67,222.54 138.03,223.47 131.35,223.94 128.00,224.00" fill="#c4e5a9" stroke="#8fbf6f" stroke-width="1.60"/>
+  <polygon points="128.00,128.00 128.00,224.00 121.30,223.77 114.64,223.07 108.04,221.90 101.54,220.28 95.17,218.21 88.95,215.70 82.93,212.76 77.13,209.41 71.57,205.67 66.29,201.54 61.31,197.06 56.66,192.24 52.35,187.10 48.41,181.68 44.86,176.00 41.72,170.08 38.99,163.96 36.70,157.67 34.85,151.22 33.46,144.67 32.53,138.03 32.06,131.35 32.00,128.00" fill="#f2c083" stroke="#d98a3c" stroke-width="1.60"/>
+  <polygon points="128.00,128.00 32.00,128.00 32.23,121.30 32.93,114.64 34.10,108.04 35.72,101.54 37.79,95.17 40.30,88.95 43.24,82.93 46.59,77.13 50.33,71.57 54.46,66.29 58.94,61.31 63.76,56.66 68.90,52.35 74.32,48.41 80.00,44.86 85.92,41.72 92.04,38.99 98.33,36.70 104.78,34.85 111.33,33.46 117.97,32.53 124.65,32.06 128.00,32.00" fill="#cbdef1" stroke="#8fb6de" stroke-width="1.60"/>
+  <line x1="128.00" y1="114.00" x2="128.00" y2="32.00" fill="none" stroke="#fbf2dc" stroke-width="4.00"/>
+  <line x1="142.00" y1="128.00" x2="224.00" y2="128.00" fill="none" stroke="#fbf2dc" stroke-width="4.00"/>
+  <line x1="128.00" y1="142.00" x2="128.00" y2="224.00" fill="none" stroke="#fbf2dc" stroke-width="4.00"/>
+  <line x1="114.00" y1="128.00" x2="32.00" y2="128.00" fill="none" stroke="#fbf2dc" stroke-width="4.00"/>
+  <circle cx="177.78" cy="78.22" r="7.40" fill="#f4a0be" stroke="#db7fa5" stroke-width="1.00"/>
+  <circle cx="179.33" cy="87.97" r="7.40" fill="#f4a0be" stroke="#db7fa5" stroke-width="1.00"/>
+  <circle cx="170.53" cy="92.46" r="7.40" fill="#f4a0be" stroke="#db7fa5" stroke-width="1.00"/>
+  <circle cx="163.54" cy="85.47" r="7.40" fill="#f4a0be" stroke="#db7fa5" stroke-width="1.00"/>
+  <circle cx="168.03" cy="76.67" r="7.40" fill="#f4a0be" stroke="#db7fa5" stroke-width="1.00"/>
+  <circle cx="171.84" cy="84.16" r="5.00" fill="#ffd35c" stroke="#dfa335" stroke-width="1.20"/>
+  <circle cx="170.04" cy="82.26" r="1.50" fill="#fff3c9" opacity="0.90"/>
+  <line x1="171.84" y1="158.34" x2="171.84" y2="152.34" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="181.39" y1="162.29" x2="185.63" y2="158.05" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="185.34" y1="171.84" x2="191.34" y2="171.84" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="181.39" y1="181.39" x2="185.63" y2="185.63" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="171.84" y1="185.34" x2="171.84" y2="191.34" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="162.29" y1="181.39" x2="158.05" y2="185.63" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="158.34" y1="171.84" x2="152.34" y2="171.84" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <line x1="162.29" y1="162.29" x2="158.05" y2="158.05" fill="none" stroke="#efa22c" stroke-width="3.40"/>
+  <circle cx="171.84" cy="171.84" r="9.80" fill="#ffc63e" stroke="#e0952a" stroke-width="1.60"/>
+  <circle cx="169.24" cy="169.04" r="2.20" fill="#ffe9a8" opacity="0.90"/>
+  <polygon points="77.45,156.77 82.15,160.69 86.30,156.00 86.98,161.94 94.04,161.09 91.50,166.93 96.34,171.67 89.92,173.22 90.17,179.68 87.17,178.60 85.96,181.55 81.33,177.04 75.88,180.78 75.60,174.01 69.56,171.99 74.92,167.31 70.95,162.83 77.22,162.89 77.45,156.77" fill="#dd7430" stroke="#a85420" stroke-width="1.50"/>
+  <line x1="-5.37" y1="-12.06" x2="2.68" y2="6.03" fill="none" stroke="#b05a20" stroke-width="1.30" opacity="0.75"/>
+  <line x1="-1.42" y1="-3.20" x2="2.02" y2="-9.22" fill="none" stroke="#b05a20" stroke-width="1.10" opacity="0.60"/>
+  <line x1="-1.42" y1="-3.20" x2="-8.21" y2="-4.67" fill="none" stroke="#b05a20" stroke-width="1.10" opacity="0.60"/>
+  <line x1="87.17" y1="178.60" x2="91.91" y2="184.59" fill="none" stroke="#8f4a1e" stroke-width="2.40"/>
+  <line x1="84.16" y1="98.66" x2="84.16" y2="69.66" fill="none" stroke="#6e9fd4" stroke-width="3.20"/>
+  <line x1="71.60" y1="91.41" x2="96.72" y2="76.91" fill="none" stroke="#6e9fd4" stroke-width="3.20"/>
+  <line x1="71.60" y1="76.91" x2="96.72" y2="91.41" fill="none" stroke="#6e9fd4" stroke-width="3.20"/>
+  <line x1="84.16" y1="69.66" x2="80.09" y2="75.02" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="84.16" y1="69.66" x2="88.23" y2="75.02" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="96.72" y1="76.91" x2="90.04" y2="76.07" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="96.72" y1="76.91" x2="94.10" y2="83.11" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="96.72" y1="91.41" x2="94.10" y2="85.20" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="96.72" y1="91.41" x2="90.04" y2="92.25" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="84.16" y1="98.66" x2="88.23" y2="93.29" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="84.16" y1="98.66" x2="80.09" y2="93.29" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="71.60" y1="91.41" x2="78.28" y2="92.25" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="71.60" y1="91.41" x2="74.21" y2="85.20" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="71.60" y1="76.91" x2="74.21" y2="83.11" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <line x1="71.60" y1="76.91" x2="78.28" y2="76.07" fill="none" stroke="#6e9fd4" stroke-width="2.20"/>
+  <circle cx="84.16" cy="84.16" r="2.80" fill="#a9cbee" stroke="#6e9fd4" stroke-width="1.20"/>
+  <circle cx="94.49" cy="67.62" r="1.30" fill="#ffffff" opacity="0.85"/>
+  <circle cx="76.34" cy="100.93" r="1.10" fill="#ffffff" opacity="0.70"/>
+  <ellipse cx="128.00" cy="64.00" rx="86.00" ry="34.00" fill="#ffffff" opacity="0.09"/>
+  <circle cx="128.00" cy="25.00" r="3.20" fill="#b5822e" stroke="#8a5e2a" stroke-width="1.00"/>
+  <circle cx="127.40" cy="24.30" r="1.10" fill="#f6dfac"/>
+  <circle cx="150.92" cy="27.58" r="1.90" fill="#c4a269"/>
+  <circle cx="172.69" cy="35.20" r="1.90" fill="#c4a269"/>
+  <circle cx="192.22" cy="47.47" r="1.90" fill="#c4a269"/>
+  <circle cx="208.53" cy="63.78" r="1.90" fill="#c4a269"/>
+  <circle cx="220.80" cy="83.31" r="1.90" fill="#c4a269"/>
+  <circle cx="228.42" cy="105.08" r="1.90" fill="#c4a269"/>
+  <circle cx="231.00" cy="128.00" r="3.20" fill="#b5822e" stroke="#8a5e2a" stroke-width="1.00"/>
+  <circle cx="230.40" cy="127.30" r="1.10" fill="#f6dfac"/>
+  <circle cx="228.42" cy="150.92" r="1.90" fill="#c4a269"/>
+  <circle cx="220.80" cy="172.69" r="1.90" fill="#c4a269"/>
+  <circle cx="208.53" cy="192.22" r="1.90" fill="#c4a269"/>
+  <circle cx="192.22" cy="208.53" r="1.90" fill="#c4a269"/>
+  <circle cx="172.69" cy="220.80" r="1.90" fill="#c4a269"/>
+  <circle cx="150.92" cy="228.42" r="1.90" fill="#c4a269"/>
+  <circle cx="128.00" cy="231.00" r="3.20" fill="#b5822e" stroke="#8a5e2a" stroke-width="1.00"/>
+  <circle cx="127.40" cy="230.30" r="1.10" fill="#f6dfac"/>
+  <circle cx="105.08" cy="228.42" r="1.90" fill="#c4a269"/>
+  <circle cx="83.31" cy="220.80" r="1.90" fill="#c4a269"/>
+  <circle cx="63.78" cy="208.53" r="1.90" fill="#c4a269"/>
+  <circle cx="47.47" cy="192.22" r="1.90" fill="#c4a269"/>
+  <circle cx="35.20" cy="172.69" r="1.90" fill="#c4a269"/>
+  <circle cx="27.58" cy="150.92" r="1.90" fill="#c4a269"/>
+  <circle cx="25.00" cy="128.00" r="3.20" fill="#b5822e" stroke="#8a5e2a" stroke-width="1.00"/>
+  <circle cx="24.40" cy="127.30" r="1.10" fill="#f6dfac"/>
+  <circle cx="27.58" cy="105.08" r="1.90" fill="#c4a269"/>
+  <circle cx="35.20" cy="83.31" r="1.90" fill="#c4a269"/>
+  <circle cx="47.47" cy="63.78" r="1.90" fill="#c4a269"/>
+  <circle cx="63.78" cy="47.47" r="1.90" fill="#c4a269"/>
+  <circle cx="83.31" cy="35.20" r="1.90" fill="#c4a269"/>
+  <circle cx="105.08" cy="27.58" r="1.90" fill="#c4a269"/>
+  <circle cx="128.00" cy="128.00" r="34.00" fill="none" stroke="#e7d4aa" stroke-width="1.60"/>
+  <circle cx="128.00" cy="128.00" r="17.00" fill="#dcbe8c" stroke="#8a5e2a" stroke-width="1.60"/>
+  <circle cx="128.00" cy="128.00" r="12.50" fill="#fbf2dc"/>
+</svg>

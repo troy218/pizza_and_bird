@@ -145,6 +145,32 @@ java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 > 게임 동작의 기준은 어디까지나 Kotlin 쪽 코드다. 이 파이프라인은 실제 코드를
 > 실행하므로 화면은 실기기와 동일한 알고리즘으로 그려진다.
 
+### 대화상자 배치 감사 (dialog audit)
+
+"글자 양에 비해 상자가 무식하게 큰 놈"을 눈이 아니라 **수치**로 찾는 도구.
+`android_stubs_graphics.kt` 의 Canvas 스텁에 기본 꺼진(non-null일 때만 동작)
+기록 훅을 달아 두고, 대화상자·장비 선택·가방·인테리어 창 등을 실제 상태
+(장비 0~5개, 글자 배율 1.3×, 800×400 화면 …)로 띄워 모든 상자/글자 draw를
+TSV로 남긴다. 분석 스크립트가 프레임별로 **패널 크기(dp) · 세로 밴드 사용률 ·
+내부 최대 빈 띠(dp) · 글자 면적 비율**을 계산해 낮은 순으로 랭킹한다.
+
+```bash
+# 1) 컴파일 + 감사 렌더 (PNG + events.tsv → tools/preview/out/audit)
+kotlinc tools/preview/src/*.kt $SRCS -d tools/preview/out/classes-audit -jvm-target 17
+java -cp "tools/preview/out/classes-audit:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.DialogAuditMain tools/preview/out/audit
+
+# 2) 수치 랭킹
+python3 tools/preview/dialog_audit_analyze.py tools/preview/out/audit/events.tsv
+
+# 3) (선택) 개선 전/후 디렉터리를 넣어 한 장 비교 시트 만들기
+python3 tools/preview/dialog_audit_compare.py \
+  tools/preview/out/audit_before tools/preview/out/audit docs/img/ui-fit-before-after.png
+```
+
+기준치: 세로 사용률 60% 미만이거나 내부 빈 띠 40dp 이상이면 "상자가 글자보다
+크다"는 신호. `preview/16_dialog.png` 같은 스크린샷과 함께 보면 배치 확인이 빠르다.
+
 ---
 
 ## 2) 파이썬 맵 미리보기 (길 디자인)
