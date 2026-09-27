@@ -76,7 +76,7 @@ object UiKit {
         "📦" to "box", "box" to "box",
         "✨" to "sparkle", "sparkle" to "sparkle",
         "🌿" to "leaf", "🌱" to "leaf", "🌸" to "sparkle", "🍁" to "leaf", "leaf" to "leaf", "🪴" to "plant", "🧴" to "plant", "🌅" to "sun", "🏔" to "leaf", "🌊" to "rain", "🏖" to "sun", "🌾" to "leaf", "🏙" to "house", "🌲" to "leaf",
-        "💬" to "note", "🪧" to "map", "☕" to "coffee", "coffee" to "coffee", "🐈" to "bird", "🚪" to "house", "🛏" to "house", "🎨" to "sparkle", "👊" to "check",
+        "💬" to "note", "🪧" to "map", "☕" to "coffee", "coffee" to "coffee", "🐈" to "bird", "🚪" to "house", "🛏" to "house", "🎨" to "sparkle", "👊" to "fist", "fist" to "fist",
         "+" to "plus", "＋" to "plus", "-" to "minus", "−" to "minus",
         "◀" to "arrow_left", "‹" to "arrow_left", "←" to "arrow_left",
         "▶" to "arrow_right", "›" to "arrow_right", "→" to "arrow_right",

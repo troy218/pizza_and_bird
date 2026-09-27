@@ -370,7 +370,8 @@ class Assets(private val context: Context) {
 
     /** 플레이어 동작 세트 (한 성별 x 한 등급) */
     class PlayerSet(
-        val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip
+        val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip,
+        val punch: Clip
     ) {
         fun clip(anim: Anim): Clip = when (anim) {
             Anim.IDLE -> idle
@@ -408,7 +409,8 @@ class Assets(private val context: Context) {
             walk = buildClip(lk, Anim.WALK.frames) { CharacterArt.walkPose(it, CharacterArt.WALK) },
             run = buildClip(lk, Anim.RUN.frames) { CharacterArt.walkPose(it, CharacterArt.RUN) },
             sneak = buildClip(lk, Anim.SNEAK.frames) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
-            aim = buildClip(lk, Anim.AIM.frames) { CharacterArt.aimPose(it) }
+            aim = buildClip(lk, Anim.AIM.frames) { CharacterArt.aimPose(it) },
+            punch = buildClip(lk, 4) { CharacterArt.punchPose(it) }
         )
         playerCache[key] = set
         return set
