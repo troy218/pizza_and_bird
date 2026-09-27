@@ -1,0 +1,1120 @@
+한반도 조류 전체 목록 (한국조류학회 조류목록 개정판 2025 v2.1)
+======================================================================
+기준: 2025년 5월 말까지 한국에서 기록된 조류. IOC World Bird List v15.1 분류체계.
+공식 기록종 24목 85과 598종, 아종 383개. 보류종은 제외.
+범주: 가-1 = 공식 기록종, 가-2 = 공식 기록종(세부 범주).
+
+
+[목] 기러기목
+  [과] 오리과
+    - 흑기러기 | Branta bernicla | Brant Goose | 가-1
+      · 아종: Branta bernicla nigricans
+    - 붉은가슴기러기 | Branta ruficollis | Red-breasted Goose | 가-1
+    - 흰얼굴기러기 | Branta leucopsis | Barnacle Goose | 가-1
+    - 캐나다기러기 | Branta hutchinsii | Cackling Goose | 가-1
+      · 아종: Branta hutchinsii leucopareia
+      · 아종: Branta hutchinsii minima
+      · 아종: Branta hutchinsii taverneri
+    - 줄기러기 | Anser indicus | Bar-headed Goose | 가-1
+    - 흰머리기러기 | Anser canagicus | Emperor Goose | 가-1
+    - 흰기러기 | Anser caerulescens | Snow Goose | 가-1
+      · 아종: Anser caerulescens caerulescens
+    - 회색기러기 | Anser anser | Greylag Goose | 가-1
+      · 아종: Anser anser rubrirostris
+    - 개리 | Anser cygnoides | Swan Goose | 가-1
+    - 큰부리큰기러기 | Anser fabalis | Taiga Bean Goose | 가-1
+      · 아종: Anser fabalis middendorffii
+    - 큰기러기 | Anser serrirostris | Tundra Bean Goose | 가-1
+      · 아종: Anser serrirostris serrirostris
+    - 쇠기러기 | Anser albifrons | Greater White-fronted Goose | 가-1
+      · 아종: Anser albifrons albifrons
+    - 흰이마기러기 | Anser erythropus | Lesser White-fronted Goose | 가-1
+    - 혹고니 | Cygnus olor | Mute Swan | 가-1
+    - 고니 | Cygnus columbianus | Tundra Swan | 가-1
+      · 아종: Cygnus columbianus columbianus
+    - 큰고니 | Cygnus cygnus | Whooper Swan | 가-1
+    - 혹부리오리 | Tadorna tadorna | Common Shelduck | 가-1
+    - 황오리 | Tadorna ferruginea | Ruddy Shelduck | 가-1
+    - 원앙사촌 | Tadorna cristata | Crested Shelduck | 가-1
+    - 원앙 | Aix galericulata | Mandarin Duck | 가-1
+    - 흰얼굴아기오리 | Nettapus coromandelianus | Cotton Pygmy Goose | 가-1
+      · 아종: Nettapus coromandelianus coromandelianus
+    - 가창오리 | Sibirionetta formosa | Baikal Teal | 가-1
+    - 발구지 | Spatula querquedula | Garganey | 가-1
+    - 넓적부리 | Spatula clypeata | Northern Shoveler | 가-1
+    - 알락오리 | Mareca strepera | Gadwall | 가-1
+      · 아종: Mareca strepera strepera
+    - 청머리오리 | Mareca falcata | Falcated Duck | 가-1
+    - 홍머리오리 | Mareca penelope | Eurasian Wigeon | 가-1
+    - 아메리카홍머리오리 | Mareca americana | American Wigeon | 가-1
+    - 흰뺨검둥오리 | Anas zonorhyncha | Eastern Spot-billed Duck | 가-1
+    - 청둥오리 | Anas platyrhynchos | Mallard | 가-1
+      · 아종: Anas platyrhynchos platyrhynchos
+    - 미국오리 | Anas rubripes | American Black Duck | 가-1
+    - 고방오리 | Anas acuta | Northern Pintail | 가-1
+    - 쇠오리 | Anas crecca | Eurasian Teal | 가-1
+    - 미국쇠오리 | Anas carolinensis | Green-winged Teal | 가-1
+    - 붉은부리흰죽지 | Netta rufina | Red-crested Pochard | 가-1
+    - 큰흰죽지 | Aythya valisineria | Canvasback | 가-1
+    - 흰죽지 | Aythya ferina | Common Pochard | 가-1
+    - 붉은가슴흰죽지 | Aythya baeri | Baer's Pochard | 가-1
+    - 적갈색흰죽지 | Aythya nyroca | Ferruginous Duck | 가-1
+    - 북미댕기흰죽지 | Aythya collaris | Ring-necked Duck | 가-1
+    - 댕기흰죽지 | Aythya fuligula | Tufted Duck | 가-1
+    - 검은머리흰죽지 | Aythya marila | Greater Scaup | 가-1
+      · 아종: Aythya marila nearctica
+    - 쇠검은머리흰죽지 | Aythya affinis | Lesser Scaup | 가-1
+    - 호사북방오리 | Somateria spectabilis | King Eider | 가-1
+    - 흰줄박이오리 | Histrionicus histrionicus | Harlequin Duck | 가-1
+    - 흰이마검둥오리 | Melanitta perspicillata | Surf Scoter | 가-1
+    - 노랑부리검둥오리사촌 | Melanitta fusca | Velvet Scoter | 가-1
+    - 검둥오리사촌 | Melanitta stejnegeri | Stejneger's Scoter | 가-1
+    - 검둥오리 | Melanitta americana | Black Scoter | 가-1
+    - 바다꿩 | Clangula hyemalis | Long-tailed Duck | 가-1
+    - 꼬마오리 | Bucephala albeola | Bufflehead | 가-1
+    - 흰뺨오리 | Bucephala clangula | Common Goldeneye | 가-1
+      · 아종: Bucephala clangula clangula
+    - 북방흰뺨오리 | Bucephala islandica | Barrow's Goldeneye | 가-1
+    - 흰비오리 | Mergellus albellus | Smew | 가-1
+    - 비오리 | Mergus merganser | Common Merganser | 가-1
+      · 아종: Mergus merganser merganser
+    - 바다비오리 | Mergus serrator | Red-breasted Merganser | 가-1
+    - 호사비오리 | Mergus squamatus | Scaly-sided Merganser | 가-1
+
+[목] 닭목
+  [과] 꿩과
+    - 들꿩 | Tetrastes bonasia | Hazel Grouse | 가-1
+      · 아종: Tetrastes bonasia amurensis
+    - 멧닭 | Lyrurus tetrix | Black Grouse | 가-2
+      · 아종: Lyrurus tetrix ussuriensis
+    - 꿩 | Phasianus colchicus | Common Pheasant | 가-1
+      · 아종: Phasianus colchicus karpowi
+      · 아종: Phasianus colchicus pallasi
+    - 메추라기 | Coturnix japonica | Japanese Quail | 가-1
+
+[목] 쏙독새목
+  [과] 쏙독새과
+    - 쏙독새 | Caprimulgus jotaka | Grey Nightjar | 가-1
+      · 아종: Caprimulgus jotaka jotaka
+
+[목] 칼새목
+  [과] 칼새과
+    - 작은칼새 | Aerodramus brevirostris | Himalayan Swiftlet | 가-1
+      · 아종: Aerodramus brevirostris innominatus
+    - 바늘꼬리칼새 | Hirundapus caudacutus | White-throated Needletail | 가-1
+      · 아종: Hirundapus caudacutus caudacutus
+    - 흰배칼새 | Tachymarptis melba | Alpine Swift | 가-1
+      · 아종: Tachymarptis melba nubifugus
+    - 검은등칼새 | Apus apus | Common Swift | 가-1
+      · 아종: Apus apus pekinensis
+    - 칼새 | Apus pacificus | Pacific Swift | 가-1
+      · 아종: Apus pacificus pacificus
+    - 쇠칼새 | Apus nipalensis | House Swift | 가-1
+      · 아종: Apus nipalensis nipalensis
+
+[목] 느시목
+  [과] 느시과
+    - 느시 | Otis tarda | Great Bustard | 가-1
+      · 아종: Otis tarda dybowskii
+
+[목] 두견이목
+  [과] 두견이과
+    - 작은뻐꾸기사촌 | Centropus bengalensis | Lesser Coucal | 가-1
+      · 아종: Centropus bengalensis lignator
+    - 밤색날개뻐꾸기 | Clamator coromandus | Chestnut-winged Cuckoo | 가-1
+    - 검은뻐꾸기 | Eudynamys scolopaceus | Asian Koel | 가-1
+      · 아종: Eudynamys scolopaceus chinensis
+    - 우는뻐꾸기 | Cacomantis merulinus | Plaintive Cuckoo | 가-1
+      · 아종: Cacomantis merulinus querulus
+    - 검은두견이 | Surniculus lugubris | Square-tailed Drongo-Cuckoo | 가-1
+      · 아종: Surniculus lugubris barussarum
+    - 큰매사촌 | Hierococcyx sparverioides | Large Hawk-Cuckoo | 가-1
+    - 매사촌 | Hierococcyx hyperythrus | Northern Hawk-Cuckoo | 가-1
+    - 작은매사촌 | Hierococcyx nisicolor | Hodgson's Hawk-Cuckoo | 가-1
+    - 두견이 | Cuculus poliocephalus | Lesser Cuckoo | 가-1
+    - 검은등뻐꾸기 | Cuculus micropterus | Indian Cuckoo | 가-1
+      · 아종: Cuculus micropterus micropterus
+    - 벙어리뻐꾸기 | Cuculus optatus | Oriental Cuckoo | 가-1
+    - 뻐꾸기 | Cuculus canorus | Common Cuckoo | 가-1
+      · 아종: Cuculus canorus canorus
+
+[목] 사막꿩목
+  [과] 사막꿩과
+    - 사막꿩 | Syrrhaptes paradoxus | Pallas's Sandgrouse | 가-1
+
+[목] 비둘기목
+  [과] 비둘기과
+    - 낭비둘기 | Columba rupestris | Hill Pigeon | 가-1
+      · 아종: Columba rupestris rupestris
+    - 분홍가슴비둘기 | Columba oenas | Stock Dove | 가-1
+      · 아종: Columba oenas yarkandensis
+    - 흑비둘기 | Columba janthina | Black Wood Pigeon | 가-1
+      · 아종: Columba janthina janthina
+    - 멧비둘기 | Streptopelia orientalis | Oriental Turtle Dove | 가-1
+      · 아종: Streptopelia orientalis orientalis
+    - 염주비둘기 | Streptopelia decaocto | Eurasian Collared Dove | 가-1
+    - 홍비둘기 | Streptopelia tranquebarica | Red Collared Dove | 가-1
+      · 아종: Streptopelia tranquebarica humilis
+    - 목점박이비둘기 | Spilopelia chinensis | Spotted Dove | 가-1
+      · 아종: Spilopelia chinensis chinensis
+    - 녹색비둘기 | Treron sieboldii | White-bellied Green Pigeon | 가-1
+      · 아종: Treron sieboldii sieboldii
+
+[목] 두루미목
+  [과] 뜸부기과
+    - 회색가슴뜸부기 | Rallus aquaticus | Water Rail | 가-1
+      · 아종: Rallus aquaticus korejewi
+    - 흰눈썹뜸부기 | Rallus indicus | Brown-cheeked Rail | 가-1
+    - 쇠물닭 | Gallinula chloropus | Common Moorhen | 가-1
+      · 아종: Gallinula chloropus chloropus
+    - 물닭 | Fulica atra | Eurasian Coot | 가-1
+      · 아종: Fulica atra atra
+    - 알락뜸부기 | Coturnicops exquisitus | Swinhoe's Rail | 가-1
+    - 쇠뜸부기사촌 | Zapornia fusca | Ruddy-breasted Crake | 가-1
+      · 아종: Zapornia fusca erythrothorax
+    - 한국뜸부기 | Zapornia paykullii | Band-bellied Crake | 가-1
+    - 쇠뜸부기 | Zapornia pusilla | Baillon's Crake | 가-1
+      · 아종: Zapornia pusilla pusilla
+    - 뜸부기 | Gallicrex cinerea | Watercock | 가-1
+    - 흰배뜸부기 | Amaurornis phoenicurus | White-breasted Waterhen | 가-1
+      · 아종: Amaurornis phoenicurus phoenicurus
+  [과] 두루미과
+    - 시베리아흰두루미 | Leucogeranus leucogeranus | Siberian Crane | 가-1
+    - 캐나다두루미 | Antigone canadensis | Sandhill Crane | 가-1
+      · 아종: Antigone canadensis canadensis
+    - 재두루미 | Antigone vipio | White-naped Crane | 가-1
+    - 쇠재두루미 | Grus virgo | Demoiselle Crane | 가-1
+    - 두루미 | Grus japonensis | Red-crowned Crane | 가-1
+    - 검은목두루미 | Grus grus | Common Crane | 가-1
+    - 흑두루미 | Grus monacha | Hooded Crane | 가-1
+
+[목] 논병아리목
+  [과] 논병아리과
+    - 논병아리 | Tachybaptus ruficollis | Little Grebe | 가-1
+      · 아종: Tachybaptus ruficollis poggei
+    - 큰논병아리 | Podiceps grisegena | Red-necked Grebe | 가-1
+      · 아종: Podiceps grisegena holbollii
+    - 뿔논병아리 | Podiceps cristatus | Great Crested Grebe | 가-1
+      · 아종: Podiceps cristatus cristatus
+    - 귀뿔논병아리 | Podiceps auritus | Horned Grebe | 가-1
+      · 아종: Podiceps auritus auritus
+    - 검은목논병아리 | Podiceps nigricollis | Black-necked Grebe | 가-1
+      · 아종: Podiceps nigricollis nigricollis
+
+[목] 홍학목
+  [과] 홍학과
+    - 큰홍학 | Phoenicopterus roseus | Greater Flamingo | 가-1
+
+[목] 도요목
+  [과] 세가락메추라기과
+    - 세가락메추라기 | Turnix tanki | Yellow-legged Buttonquail | 가-1
+      · 아종: Turnix tanki blanfordii
+  [과] 검은머리물떼새과
+    - 검은머리물떼새 | Haematopus ostralegus | Eurasian Oystercatcher | 가-1
+      · 아종: Haematopus ostralegus osculans
+  [과] 장다리물떼새과
+    - 장다리물떼새 | Himantopus himantopus | Black-winged Stilt | 가-1
+    - 뒷부리장다리물떼새 | Recurvirostra avosetta | Pied Avocet | 가-1
+  [과] 물떼새과
+    - 개꿩 | Pluvialis squatarola | Grey Plover | 가-1
+      · 아종: Pluvialis squatarola squatarola
+    - 검은가슴물떼새 | Pluvialis fulva | Pacific Golden Plover | 가-1
+    - 흰눈썹물떼새 | Eudromias morinellus | Eurasian Dotterel | 가-1
+    - 흰죽지꼬마물떼새 | Charadrius hiaticula | Common Ringed Plover | 가-1
+      · 아종: Charadrius hiaticula tundrae
+    - 꼬마물떼새 | Charadrius dubius | Little Ringed Plover | 가-1
+      · 아종: Charadrius dubius curonicus
+    - 흰목물떼새 | Charadrius placidus | Long-billed Plover | 가-1
+    - 댕기물떼새 | Vanellus vanellus | Northern Lapwing | 가-1
+    - 민댕기물떼새 | Vanellus cinereus | Grey-headed Lapwing | 가-1
+    - 큰물떼새 | Anarhynchus veredus | Oriental Plover | 가-1
+    - 검은이마왕눈물떼새 | Anarhynchus atrifrons | Tibetan Sand Plover | 가-1
+      · 아종: Anarhynchus atrifrons atrifrons
+    - 왕눈물떼새 | Anarhynchus mongolus | Siberian Sand Plover | 가-1
+      · 아종: Anarhynchus mongolus mongolus
+      · 아종: Anarhynchus mongolus stegmanni
+    - 큰왕눈물떼새 | Anarhynchus leschenaultii | Greater Sand Plover | 가-1
+      · 아종: Anarhynchus leschenaultii leschenaultii
+    - 흰물떼새 | Anarhynchus alexandrinus | Kentish Plover | 가-1
+      · 아종: Anarhynchus alexandrinus alexandrinus
+      · 아종: Anarhynchus alexandrinus nihonensis
+  [과] 호사도요과
+    - 호사도요 | Rostratula benghalensis | Greater Painted-snipe | 가-1
+  [과] 물꿩과
+    - 물꿩 | Hydrophasianus chirurgus | Pheasant-tailed Jacana | 가-1
+  [과] 도요과
+    - 중부리도요 | Numenius phaeopus | Eurasian Whimbrel | 가-1
+      · 아종: Numenius phaeopus variegatus
+    - 쇠부리도요 | Numenius minutus | Little Curlew | 가-1
+    - 알락꼬리마도요 | Numenius madagascariensis | Far Eastern Curlew | 가-1
+    - 마도요 | Numenius arquata | Eurasian Curlew | 가-1
+      · 아종: Numenius arquata orientalis
+    - 큰뒷부리도요 | Limosa lapponica | Bar-tailed Godwit | 가-1
+      · 아종: Limosa lapponica menzbieri
+      · 아종: Limosa lapponica baueri
+    - 흑꼬리도요 | Limosa limosa | Black-tailed Godwit | 가-1
+      · 아종: Limosa limosa melanuroides
+      · 아종: Limosa limosa bohaii
+    - 큰부리도요 | Limnodromus semipalmatus | Asian Dowitcher | 가-1
+    - 긴부리도요 | Limnodromus scolopaceus | Long-billed Dowitcher | 가-1
+    - 꼬마도요 | Lymnocryptes minimus | Jack Snipe | 가-1
+    - 멧도요 | Scolopax rusticola | Eurasian Woodcock | 가-1
+    - 청도요 | Gallinago solitaria | Solitary Snipe | 가-1
+      · 아종: Gallinago solitaria japonica
+    - 꺅도요사촌 | Gallinago megala | Swinhoe's Snipe | 가-1
+    - 바늘꼬리도요 | Gallinago stenura | Pin-tailed Snipe | 가-1
+    - 큰꺅도요 | Gallinago hardwickii | Latham's Snipe | 가-1
+    - 꺅도요 | Gallinago gallinago | Common Snipe | 가-1
+      · 아종: Gallinago gallinago gallinago
+    - 큰지느러미발도요 | Phalaropus tricolor | Wilson's Phalarope | 가-1
+    - 붉은배지느러미발도요 | Phalaropus fulicarius | Red Phalarope | 가-1
+    - 지느러미발도요 | Phalaropus lobatus | Red-necked Phalarope | 가-1
+    - 뒷부리도요 | Xenus cinereus | Terek Sandpiper | 가-1
+    - 깝작도요 | Actitis hypoleucos | Common Sandpiper | 가-1
+    - 삑삑도요 | Tringa ochropus | Green Sandpiper | 가-1
+    - 노랑발도요 | Tringa brevipes | Grey-tailed Tattler | 가-1
+    - 쇠청다리도요 | Tringa stagnatilis | Marsh Sandpiper | 가-1
+    - 알락도요 | Tringa glareola | Wood Sandpiper | 가-1
+    - 붉은발도요 | Tringa totanus | Common Redshank | 가-1
+      · 아종: Tringa totanus ussuriensis
+    - 청다리도요사촌 | Tringa guttifer | Nordmann's Greenshank | 가-1
+    - 	학도요 | Tringa erythropus | Spotted Redshank | 가-1
+    - 청다리도요 | Tringa nebularia | Common Greenshank | 가-1
+    - 꼬까도요 | Arenaria interpres | Ruddy Turnstone | 가-1
+      · 아종: Arenaria interpres interpres
+    - 붉은어깨도요 | Calidris tenuirostris | Great Knot | 가-1
+    - 붉은가슴도요 | Calidris canutus | Red Knot | 가-1
+      · 아종: Calidris canutus piersmai
+      · 아종: Calidris canutus rogersi
+    - 목도리도요 | Calidris pugnax | Ruff | 가-1
+    - 송곳부리도요 | Calidris falcinellus | Broad-billed Sandpiper | 가-1
+      · 아종: Calidris falcinellus sibirica
+    - 메추라기도요 | Calidris acuminata | Sharp-tailed Sandpiper | 가-1
+    - 붉은갯도요 | Calidris ferruginea | Curlew Sandpiper | 가-1
+    - 흰꼬리좀도요 | Calidris temminckii | Temminck's Stint | 가-1
+    - 종달도요 | Calidris subminuta | Long-toed Stint | 가-1
+    - 좀도요 | Calidris ruficollis | Red-necked Stint | 가-1
+    - 넓적부리도요 | Calidris pygmaea | Spoon-billed Sandpiper | 가-1
+    - 누른도요 | Calidris subruficollis | Buff-breasted Sandpiper | 가-1
+    - 세가락도요 | Calidris alba | Sanderling | 가-1
+    - 민물도요 | Calidris alpina | Dunlin | 가-1
+      · 아종: Calidris alpina sakhalina
+      · 아종: Calidris alpina actites
+      · 아종: Calidris alpina kistchinski
+      · 아종: Calidris alpina arcticola
+      · 아종: Calidris alpina pacifica
+    - 작은도요 | Calidris minuta | Little Stint | 가-1
+    - 아메리카메추라기도요 | Calidris melanotos | Pectoral Sandpiper | 가-1
+  [과] 제비물떼새과
+    - 제비물떼새 | Glareola maldivarum | Oriental Pratincole | 가-1
+  [과] 갈매기과
+    - 흰제비갈매기 | Gygis alba | White Tern | 가-1
+      · 아종: Gygis alba candida
+    - 알류샨제비갈매기 | Onychoprion aleuticus | Aleutian Tern | 가-1
+    - 검은등제비갈매기 | Onychoprion fuscatus | Sooty Tern | 가-1
+      · 아종: Onychoprion fuscatus nubilosus
+    - 에위니아제비갈매기 | Onychoprion anaethetus | Bridled Tern | 가-1
+      · 아종: Onychoprion anaethetus anaethetus
+    - 쇠제비갈매기 | Sternula albifrons | Little Tern | 가-1
+      · 아종: Sternula albifrons sinensis
+    - 큰부리제비갈매기 | Gelochelidon nilotica | Gull-billed Tern | 가-1
+      · 아종: Gelochelidon nilotica affinis
+    - 붉은부리큰제비갈매기 | Hydroprogne caspia | Caspian Tern | 가-1
+    - 구레나룻제비갈매기 | Chlidonias hybrida | Whiskered Tern | 가-1
+      · 아종: Chlidonias hybrida hybrida
+    - 검은제비갈매기 | Chlidonias niger | Black Tern | 가-1
+      · 아종: Chlidonias niger niger
+    - 흰죽지제비갈매기 | Chlidonias leucopterus | White-winged Tern | 가-1
+    - 제비갈매기 | Sterna hirundo | Common Tern | 가-1
+      · 아종: Sterna hirundo minussensis
+      · 아종: Sterna hirundo longipennis
+    - 긴꼬리제비갈매기 | Sterna dougallii | Roseate Tern | 가-1
+      · 아종: Sterna dougallii bangsi
+    - 큰제비갈매기 | Thalasseus bergii | Greater Crested Tern | 가-1
+      · 아종: Thalasseus bergii cristatus
+    - 뿔제비갈매기 | Thalasseus bernsteini | Chinese Crested Tern | 가-1
+    - 꼬마갈매기 | Hydrocoloeus minutus | Little Gull | 가-1
+    - 세가락갈매기 | Rissa tridactyla | Black-legged Kittiwake | 가-1
+      · 아종: Rissa tridactyla pollicaris
+    - 북극흰갈매기 | Pagophila eburnea | Ivory Gull | 가-1
+    - 목테갈매기 | Xema sabini | Sabine's Gull | 가-1
+    - 검은머리갈매기 | Saundersilarus saundersi | Saunders's Gull | 가-1
+    - 긴목갈매기 | Chroicocephalus genei | Slender-billed Gull | 가-1
+    - 붉은부리갈매기 | Chroicocephalus ridibundus | Black-headed Gull | 가-1
+    - 갈색머리갈매기 | Chroicocephalus brunnicephalus | Brown-headed Gull | 가-1
+    - 큰검은머리갈매기 | Ichthyaetus ichthyaetus | Pallas's Gull | 가-1
+    - 고대갈매기 | Ichthyaetus relictus | Relict Gull | 가-1
+    - 괭이갈매기 | Larus crassirostris | Black-tailed Gull | 가-1
+    - 갈매기 | Larus canus | Common Gull | 가-1
+      · 아종: Larus canus heinei
+      · 아종: Larus canus kamtschatschensis
+    - 재갈매기 | Larus vegae | Vega Gull | 가-1
+    - 한국재갈매기 | Larus mongolicus | Mongolian Gull | 가-1
+    - 흰갈매기 | Larus hyperboreus | Glaucous Gull | 가-1
+      · 아종: Larus hyperboreus pallidissimus
+      · 아종: Larus hyperboreus barrovianus
+    - 작은노랑발갈매기 | Larus fuscus | Lesser Black-backed Gull | 가-1
+      · 아종: Larus fuscus heuglini
+    - 옅은재갈매기 | Larus smithsonianus | American Herring Gull | 가-1
+    - 수리갈매기 | Larus glaucescens | Glaucous-winged Gull | 가-1
+    - 큰재갈매기 | Larus schistisagus | Slaty-backed Gull | 가-1
+    - 작은흰갈매기 | Larus glaucoides | Iceland Gull | 가-1
+      · 아종: Larus glaucoides glaucoides
+      · 아종: Larus glaucoides thayeri
+  [과] 도둑갈매기과
+    - 긴꼬리도둑갈매기 | Stercorarius longicaudus | Long-tailed Jaeger | 가-1
+      · 아종: Stercorarius longicaudus pallescens
+    - 북극도둑갈매기 | Stercorarius parasiticus | Parasitic Jaeger | 가-1
+    - 넓적꼬리도둑갈매기 | Stercorarius pomarinus | Pomarine Jaeger | 가-1
+    - 큰도둑갈매기 | Stercorarius maccormicki | South Polar Skua | 가-1
+  [과] 바다오리과
+    - 흰수염바다오리 | Cerorhinca monocerata | Rhinoceros Auklet | 가-1
+    - 댕기바다오리 | Fratercula cirrhata | Tufted Puffin | 가-1
+    - 작은바다오리 | Aethia pusilla | Least Auklet | 가-1
+    - 뿔바다오리 | Aethia cristatella | Crested Auklet | 가-1
+    - 알락쇠오리 | Brachyramphus perdix | Long-billed Murrelet | 가-1
+    - 흰눈썹바다오리 | Cepphus carbo | Spectacled Guillemot | 가-1
+    - 큰부리바다오리 | Uria lomvia | Thick-billed Murre | 가-1
+      · 아종: Uria lomvia arra
+    - 바다오리 | Uria aalge | Common Murre | 가-1
+      · 아종: Uria aalge inornata
+    - 바다쇠오리 | Synthliboramphus antiquus | Ancient Murrelet | 가-1
+      · 아종: Synthliboramphus antiquus antiquus
+    - 뿔쇠오리 | Synthliboramphus wumizusume | Japanese Murrelet | 가-1
+
+[목] 아비목
+  [과] 아비과
+    - 아비 | Gavia stellata | Red-throated Loon | 가-1
+    - 큰회색머리아비 | Gavia arctica | Black-throated Loon | 가-1
+      · 아종: Gavia arctica viridigularis
+    - 회색머리아비 | Gavia pacifica | Pacific Loon | 가-1
+    - 흰부리아비 | Gavia adamsii | Yellow-billed Loon | 가-1
+
+[목] 슴새목
+  [과] 알바트로스과
+    - 검은등알바트로스 | Phoebastria immutabilis | Laysan Albatross | 가-1
+    - 검은발알바트로스 | Phoebastria nigripes | Black-footed Albatross | 가-1
+    - 알바트로스 | Phoebastria albatrus | Short-tailed Albatross | 가-1
+  [과] 바다제비과
+    - 바다제비 | Hydrobates monorhis | Swinhoe's Storm Petrel | 가-1
+  [과] 슴새과
+    - 흰배슴새 | Pterodroma hypoleuca | Bonin Petrel | 가-1
+    - 슴새 | Calonectris leucomelas | Streaked Shearwater | 가-1
+    - 쇠부리슴새 | Ardenna tenuirostris | Short-tailed Shearwater | 가-1
+    - 붉은발슴새 | Ardenna carneipes | Flesh-footed Shearwater | 가-1
+    - 검은슴새 | Bulweria bulwerii | Bulwer's Petrel | 가-1
+
+[목] 황새목
+  [과] 황새과
+    - 먹황새 | Ciconia nigra | Black Stork | 가-1
+    - 황새 | Ciconia boyciana | Oriental Stork | 가-1
+
+[목] 얼가니새목
+  [과] 군함조과
+    - 군함조 | Fregata ariel | Lesser Frigatebird | 가-1
+      · 아종: Fregata ariel ariel
+    - 큰군함조 | Fregata minor | Great Frigatebird | 가-1
+      · 아종: Fregata minor minor
+  [과] 얼가니새과
+    - 붉은발얼가니새 | Sula sula | Red-footed Booby | 가-1
+      · 아종: Sula sula rubripes
+    - 갈색얼가니새 | Sula leucogaster | Brown Booby | 가-1
+      · 아종: Sula leucogaster plotus
+    - 푸른얼굴얼가니새 | Sula dactylatra | Masked Booby | 가-1
+      · 아종: Sula dactylatra personata
+  [과] 가마우지과
+    - 쇠가마우지 | Urile pelagicus | Pelagic Cormorant | 가-1
+      · 아종: Urile pelagicus pelagicus
+    - 가마우지 | Phalacrocorax capillatus | Japanese Cormorant | 가-1
+    - 민물가마우지 | Phalacrocorax carbo | Great Cormorant | 가-1
+      · 아종: Phalacrocorax carbo sinensis
+
+[목] 사다새목
+  [과] 저어새과
+    - 검은머리흰따오기 | Threskiornis melanocephalus | Black-headed Ibis | 가-1
+    - 따오기 | Nipponia nippon | Crested Ibis | 가-1
+    - 적갈색따오기 | Plegadis falcinellus | Glossy Ibis | 가-1
+    - 노랑부리저어새 | Platalea leucorodia | Eurasian Spoonbill | 가-1
+      · 아종: Platalea leucorodia leucorodia
+    - 저어새 | Platalea minor | Black-faced Spoonbill | 가-1
+  [과] 백로과
+    - 알락해오라기 | Botaurus stellaris | Eurasian Bittern | 가-1
+      · 아종: Botaurus stellaris stellaris
+    - 검은해오라기 | Botaurus flavicollis | Black Bittern | 가-1
+      · 아종: Botaurus flavicollis flavicollis
+    - 열대붉은해오라기 | Botaurus cinnamomeus | Cinnamon Bittern | 가-1
+    - 큰덤불해오라기 | Botaurus eurhythmus | Von Schrenck's Bittern | 가-1
+    - 덤불해오라기 | Botaurus sinensis | Yellow Bittern | 가-1
+    - 해오라기 | Nycticorax nycticorax | Black-crowned Night Heron | 가-1
+      · 아종: Nycticorax nycticorax nycticorax
+    - 푸른눈테해오라기 | Gorsachius melanolophus | Malayan Night Heron | 가-1
+    - 붉은해오라기 | Gorsachius goisagi | Japanese Night Heron | 가-1
+    - 흑로 | Egretta sacra | Pacific Reef Heron | 가-1
+      · 아종: Egretta sacra sacra
+    - 노랑부리백로 | Egretta eulophotes | Chinese Egret | 가-1
+    - 쇠백로 | Egretta garzetta | Little Egret | 가-1
+      · 아종: Egretta garzetta garzetta
+    - 검은댕기해오라기 | Butorides atricapilla | Little Heron | 가-1
+      · 아종: Butorides atricapilla amurensis
+    - 흰날개해오라기 | Ardeola bacchus | Chinese Pond Heron | 가-1
+    - 중대백로 | Ardea alba | Great Egret | 가-1
+      · 아종: Ardea alba alba
+      · 아종: Ardea alba modesta
+    - 중백로 | Ardea intermedia | Medium Egret | 가-1
+    - 황로 | Ardea coromanda | Eastern Cattle Egret | 가-1
+    - 왜가리 | Ardea cinerea | Grey Heron | 가-1
+      · 아종: Ardea cinerea jouyi
+    - 붉은왜가리 | Ardea purpurea | Purple Heron | 가-1
+      · 아종: Ardea purpurea manilensis
+  [과] 사다새과
+    - 큰사다새 | Pelecanus onocrotalus | Great White Pelican | 가-1
+    - 사다새 | Pelecanus crispus | Dalmatian Pelican | 가-1
+
+[목] 수리목
+  [과] 물수리과
+    - 물수리 | Pandion haliaetus | Osprey | 가-1
+      · 아종: Pandion haliaetus haliaetus
+  [과] 수리과
+    - 검은어깨매 | Elanus caeruleus | Black-winged Kite | 가-1
+      · 아종: Elanus caeruleus vociferus
+    - 수염수리 | Gypaetus barbatus | Bearded Vulture | 가-1
+      · 아종: Gypaetus barbatus barbatus
+    - 벌매 | Pernis ptilorhynchus | Crested Honey Buzzard | 가-1
+      · 아종: Pernis ptilorhynchus orientalis
+    - 검은댕기수리 | Aviceda leuphotes | Black Baza | 가-1
+      · 아종: Aviceda leuphotes syama
+    - 고산대머리수리 | Gyps himalayensis | Himalayan Vulture | 가-1
+    - 독수리 | Aegypius monachus | Cinereous Vulture | 가-1
+    - 관수리 | Spilornis cheela | Crested Serpent Eagle | 가-1
+      · 아종: Spilornis cheela ricketti
+    - 뿔매 | Nisaetus nipalensis | Mountain Hawk-Eagle | 가-1
+      · 아종: Nisaetus nipalensis orientalis
+    - 항라머리검독수리 | Clanga clanga | Greater Spotted Eagle | 가-1
+    - 흰점어깨수리 | Hieraaetus pennatus | Booted Eagle | 가-1
+    - 초원수리 | Aquila nipalensis | Steppe Eagle | 가-1
+      · 아종: Aquila nipalensis nipalensis
+    - 흰죽지수리 | Aquila heliaca | Eastern Imperial Eagle | 가-1
+    - 검독수리 | Aquila chrysaetos | Golden Eagle | 가-1
+      · 아종: Aquila chrysaetos japonica
+    - 흰배줄무늬수리 | Aquila fasciata | Bonelli's Eagle | 가-1
+      · 아종: Aquila fasciata fasciata
+    - 붉은배새매 | Tachyspiza soloensis | Chinese Sparrowhawk | 가-1
+    - 조롱이 | Tachyspiza gularis | Japanese Sparrowhawk | 가-1
+      · 아종: Tachyspiza gularis gularis
+    - 작은새매 | Tachyspiza virgata | Besra | 가-1
+      · 아종: Tachyspiza virgata affinis
+    - 새매 | Accipiter nisus | Eurasian Sparrowhawk | 가-1
+      · 아종: Accipiter nisus nisosimilis
+    - 참매 | Astur gentilis | Eurasian Goshawk | 가-1
+      · 아종: Astur gentilis albidus
+      · 아종: Astur gentilis schvedowi
+    - 개구리매 | Circus spilonotus | Eastern Marsh Harrier | 가-1
+    - 잿빛개구리매 | Circus cyaneus | Hen Harrier | 가-1
+    - 알락개구리매 | Circus melanoleucos | Pied Harrier | 가-1
+    - 솔개 | Milvus migrans | Black Kite | 가-1
+      · 아종: Milvus migrans lineatus
+    - 참수리 | Haliaeetus pelagicus | Steller's Sea Eagle | 가-1
+    - 흰꼬리수리 | Haliaeetus albicilla | White-tailed Eagle | 가-1
+      · 아종: Haliaeetus albicilla albicilla
+    - 왕새매 | Butastur indicus | Grey-faced Buzzard | 가-1
+    - 털발말똥가리 | Buteo lagopus | Rough-legged Buzzard | 가-1
+      · 아종: Buteo lagopus menzbieri
+      · 아종: Buteo lagopus kamtschatkensis
+    - 큰말똥가리 | Buteo hemilasius | Upland Buzzard | 가-1
+    - 말똥가리 | Buteo japonicus | Eastern Buzzard | 가-1
+      · 아종: Buteo japonicus burmanicus
+      · 아종: Buteo japonicus japonicus
+    - 히말라야말똥가리 | Buteo refectus | Himalayan Buzzard | 가-1
+    - 대륙말똥가리 | Buteo buteo | Common Buzzard | 가-1
+      · 아종: Buteo buteo buteo
+      · 아종: Buteo buteo vulpinus
+
+[목] 올빼미목
+  [과] 가면올빼미과
+    - 가면올빼미 | Tyto longimembris | Eastern Grass Owl | 가-1
+      · 아종: Tyto longimembris chinensis
+  [과] 올빼미과
+    - 솔부엉이 | Ninox japonica | Northern Boobook | 가-1
+      · 아종: Ninox japonica florensis
+      · 아종: Ninox japonica japonica
+    - 금눈쇠올빼미 | Athene noctua | Little Owl | 가-1
+      · 아종: Athene noctua plumipes
+    - 긴꼬리올빼미 | Surnia ulula | Northern Hawk-Owl | 가-2
+      · 아종: Surnia ulula ulula
+    - 소쩍새 | Otus sunia | Oriental Scops Owl | 가-1
+      · 아종: Otus sunia japonicus
+      · 아종: Otus sunia stictonotus
+    - 큰소쩍새 | Otus semitorques | Japanese Scops Owl | 가-1
+      · 아종: Otus semitorques ussuriensis
+      · 아종: Otus semitorques semitorques
+    - 칡부엉이 | Asio otus | Long-eared Owl | 가-1
+      · 아종: Asio otus otus
+    - 쇠부엉이 | Asio flammeus | Short-eared Owl | 가-1
+      · 아종: Asio flammeus flammeus
+    - 흰올빼미 | Bubo scandiacus | Snowy Owl | 가-1
+    - 수리부엉이 | Bubo bubo | Eurasian Eagle-Owl | 가-1
+      · 아종: Bubo bubo kiautschensis
+    - 올빼미 | Strix nivicolum | Himalayan Owl | 가-1
+      · 아종: Strix nivicolum ma
+    - 긴점박이올빼미 | Strix uralensis | Ural Owl | 가-1
+      · 아종: Strix uralensis nikolskii
+
+[목] 코뿔새목
+  [과] 후투티과
+    - 후투티 | Upupa epops | Eurasian Hoopoe | 가-1
+      · 아종: Upupa epops saturata
+
+[목] 파랑새목
+  [과] 파랑새과
+    - 파랑새 | Eurystomus orientalis | Oriental Dollarbird | 가-1
+      · 아종: Eurystomus orientalis cyanocollis
+  [과] 물총새과
+    - 호반새 | Halcyon coromanda | Ruddy Kingfisher | 가-1
+      · 아종: Halcyon coromanda major
+    - 청호반새 | Halcyon pileata | Black-capped Kingfisher | 가-1
+    - 물총새 | Alcedo atthis | Common Kingfisher | 가-1
+      · 아종: Alcedo atthis bengalensis
+    - 뿔호반새 | Megaceryle lugubris | Crested Kingfisher | 가-1
+      · 아종: Megaceryle lugubris lugubris
+
+[목] 딱다구리목
+  [과] 딱다구리과
+    - 개미잡이 | Jynx torquilla | Eurasian Wryneck | 가-1
+      · 아종: Jynx torquilla chinensis
+    - 아물쇠딱다구리 | Yungipicus canicapillus | Grey-capped Pygmy Woodpecker | 가-1
+      · 아종: Yungipicus canicapillus doerriesi
+    - 쇠딱다구리 | Yungipicus kizuki | Japanese Pygmy Woodpecker | 가-1
+      · 아종: Yungipicus kizuki permutatus
+      · 아종: Yungipicus kizuki nippon
+    - 세가락딱다구리 | Picoides tridactylus | Eurasian Three-toed Woodpecker | 가-2
+      · 아종: Picoides tridactylus kurodai
+    - 쇠오색딱다구리 | Dryobates minor | Lesser Spotted Woodpecker | 가-2
+      · 아종: Dryobates minor amurensis
+    - 붉은배오색딱다구리 | Dendrocopos hyperythrus | Rufous-bellied Woodpecker | 가-1
+      · 아종: Dendrocopos hyperythrus subrufinus
+    - 오색딱다구리 | Dendrocopos major | Great Spotted Woodpecker | 가-1
+      · 아종: Dendrocopos major brevirostris
+      · 아종: Dendrocopos major japonicus
+    - 큰오색딱다구리 | Dendrocopos leucotos | White-backed Woodpecker | 가-1
+      · 아종: Dendrocopos leucotos takahashii
+      · 아종: Dendrocopos leucotos quelpartensis
+      · 아종: Dendrocopos leucotos leucotos
+    - 크낙새 | Dryocopus javensis | White-bellied Woodpecker | 가-1
+      · 아종: Dryocopus javensis richardsi
+    - 까막딱다구리 | Dryocopus martius | Black Woodpecker | 가-1
+      · 아종: Dryocopus martius martius
+    - 청딱다구리 | Picus canus | Grey-headed Woodpecker | 가-1
+      · 아종: Picus canus jessoensis
+
+[목] 매목
+  [과] 매과
+    - 황조롱이 | Falco tinnunculus | Common Kestrel | 가-1
+      · 아종: Falco tinnunculus tinnunculus
+      · 아종: Falco tinnunculus interstinctus
+    - 비둘기조롱이 | Falco amurensis | Amur Falcon | 가-1
+    - 쇠황조롱이 | Falco columbarius | Merlin | 가-1
+      · 아종: Falco columbarius insignis
+    - 새호리기 | Falco subbuteo | Eurasian Hobby | 가-1
+      · 아종: Falco subbuteo subbuteo
+    - 헨다손매 | Falco cherrug | Saker Falcon | 가-1
+      · 아종: Falco cherrug milvipes
+    - 흰매 | Falco rusticolus | Gyrfalcon | 가-1
+    - 매 | Falco peregrinus | Peregrine Falcon | 가-1
+      · 아종: Falco peregrinus pealei
+      · 아종: Falco peregrinus calidus
+      · 아종: Falco peregrinus japonensis
+
+[목] 참새목
+  [과] 팔색조과
+    - 푸른날개팔색조 | Pitta moluccensis | Blue-winged Pitta | 가-1
+    - 팔색조 | Pitta nympha | Fairy Pitta | 가-1
+  [과] 숲제비과
+    - 회색숲제비 | Artamus fuscus | Ashy Woodswallow | 가-1
+  [과] 할미새사촌과
+    - 할미새사촌 | Pericrocotus divaricatus | Ashy Minivet | 가-1
+    - 검은가슴할미새사촌 | Pericrocotus tegimae | Ryukyu Minivet | 가-1
+    - 갈색할미새사촌 | Pericrocotus cantonensis | Swinhoe's Minivet | 가-1
+    - 검은할미새사촌 | Lalage melaschistos | Black-winged Cuckooshrike | 가-1
+      · 아종: Lalage melaschistos intermedia
+  [과] 꾀꼬리과
+    - 꾀꼬리 | Oriolus chinensis | Black-naped Oriole | 가-1
+      · 아종: Oriolus chinensis diffusus
+  [과] 바람까마귀과
+    - 큰부리바람까마귀 | Dicrurus annectens | Crow-billed Drongo | 가-1
+    - 바람까마귀 | Dicrurus hottentottus | Hair-crested Drongo | 가-1
+      · 아종: Dicrurus hottentottus brevirostris
+    - 회색바람까마귀 | Dicrurus leucophaeus | Ashy Drongo | 가-1
+      · 아종: Dicrurus leucophaeus leucogenis
+    - 검은바람까마귀 | Dicrurus macrocercus | Black Drongo | 가-1
+      · 아종: Dicrurus macrocercus cathoecus
+  [과] 긴꼬리딱새과
+    - 북방긴꼬리딱새 | Terpsiphone incei | Amur Paradise Flycatcher | 가-1
+    - 긴꼬리딱새 | Terpsiphone atrocaudata | Black Paradise Flycatcher | 가-1
+      · 아종: Terpsiphone atrocaudata atrocaudata
+  [과] 때까치과
+    - 물때까치 | Lanius sphenocercus | Chinese Grey Shrike | 가-1
+    - 재때까치 | Lanius borealis | Northern Shrike | 가-1
+      · 아종: Lanius borealis sibiricus
+      · 아종: Lanius borealis bianchii
+      · 아종: Lanius borealis mollis
+    - 칡때까치 | Lanius tigrinus | Tiger Shrike | 가-1
+    - 덤불때까치 | Lanius isabellinus | Isabelline Shrike | 가-1
+      · 아종: Lanius isabellinus isabellinus
+    - 붉은등때까치 | Lanius collurio | Red-backed Shrike | 가-1
+    - 붉은꼬리때까치 | Lanius phoenicuroides | Red-tailed Shrike | 가-1
+    - 노랑때까치 | Lanius cristatus | Brown Shrike | 가-1
+      · 아종: Lanius cristatus cristatus
+      · 아종: Lanius cristatus confusus
+      · 아종: Lanius cristatus lucionensis
+      · 아종: Lanius cristatus superciliosus
+    - 때까치 | Lanius bucephalus | Bull-headed Shrike | 가-1
+      · 아종: Lanius bucephalus bucephalus
+    - 긴꼬리때까치 | Lanius schach | Long-tailed Shrike | 가-1
+      · 아종: Lanius schach schach
+    - 회색등때까치 | Lanius tephronotus | Grey-backed Shrike | 가-1
+      · 아종: Lanius tephronotus tephronotus
+  [과] 까마귀과
+    - 어치 | Garrulus glandarius | Eurasian Jay | 가-1
+      · 아종: Garrulus glandarius brandtii
+    - 물까치 | Cyanopica cyanus | Azure-winged Magpie | 가-1
+      · 아종: Cyanopica cyanus cyanus
+    - 까치 | Pica serica | Oriental Magpie | 가-1
+      · 아종: Pica serica anderssoni
+    - 잣까마귀 | Nucifraga caryocatactes | Northern Nutcracker | 가-1
+      · 아종: Nucifraga caryocatactes macrorhynchos
+    - 붉은부리까마귀 | Pyrrhocorax pyrrhocorax | Red-billed Chough | 가-1
+      · 아종: Pyrrhocorax pyrrhocorax brachypus
+    - 갈까마귀 | Coloeus dauuricus | Daurian Jackdaw | 가-1
+    - 집까마귀 | Corvus splendens | House Crow | 가-1
+      · 아종: Corvus splendens insolens
+    - 떼까마귀 | Corvus frugilegus | Rook | 가-1
+      · 아종: Corvus frugilegus pastinator
+    - 까마귀 | Corvus corone | Carrion Crow | 가-1
+      · 아종: Corvus corone orientalis
+    - 큰부리까마귀 | Corvus macrorhynchos | Large-billed Crow | 가-1
+      · 아종: Corvus macrorhynchos mandshuricus
+    - 큰까마귀 | Corvus corax | Northern Raven | 가-1
+      · 아종: Corvus corax kamtschaticus
+  [과] 여새과
+    - 황여새 | Bombycilla garrulus | Bohemian Waxwing | 가-1
+      · 아종: Bombycilla garrulus garrulus
+    - 홍여새 | Bombycilla japonica | Japanese Waxwing | 가-1
+  [과] 요정딱새과
+    - 회색머리노랑딱새 | Culicicapa ceylonensis | Grey-headed Canary-flycatcher | 가-1
+      · 아종: Culicicapa ceylonensis calochrysea
+  [과] 박새과
+    - 진박새 | Periparus ater | Coal Tit | 가-1
+      · 아종: Periparus ater ater
+      · 아종: Periparus ater insularis
+    - 노랑배진박새 | Pardaliparus venustulus | Yellow-bellied Tit | 가-1
+    - 곤줄박이 | Sittiparus varius | Varied Tit | 가-1
+      · 아종: Sittiparus varius varius
+    - 쇠박새 | Poecile palustris | Marsh Tit | 가-1
+      · 아종: Poecile palustris brevirostris
+      · 아종: Poecile palustris jeholicus 
+      · 아종: Poecile palustris hellmayri
+    - 북방쇠박새 | Poecile montanus | Willow Tit | 가-1
+      · 아종: Poecile montanus baicalensis
+    - 노랑배박새 | Parus major | Great Tit | 가-1
+      · 아종: Parus major kapustini
+    - 박새 | Parus cinereus | Cinereous Tit | 가-1
+      · 아종: Parus cinereus minor
+      · 아종: Parus cinereus dageletensis
+    - 작은노랑배박새 | Parus monticolus | Green-backed Tit | 가-1
+      · 아종: Parus monticolus yunnanensis
+  [과] 스윈호오목눈이과
+    - 스윈호오목눈이 | Remiz consobrinus | Chinese Penduline Tit | 가-1
+  [과] 수염오목눈이과
+    - 수염오목눈이 | Panurus biarmicus | Bearded Reedling | 가-1
+      · 아종: Panurus biarmicus russicus
+  [과] 종다리과
+    - 종다리 | Alauda arvensis | Eurasian Skylark | 가-1
+      · 아종: Alauda arvensis intermedia
+      · 아종: Alauda arvensis pekinensis
+      · 아종: Alauda arvensis lonnbergi
+      · 아종: Alauda arvensis japonica
+    - 뿔종다리 | Galerida cristata | Crested Lark | 가-1
+      · 아종: Galerida cristata coreensis
+    - 해변종다리 | Eremophila alpestris | Horned Lark | 가-1
+      · 아종: Eremophila alpestris flava
+      · 아종: Eremophila alpestris brandti
+    - 쇠종다리 | Calandrella dukhunensis | Mongolian Short-toed Lark | 가-1
+    - 흰날개종다리 | Melanocorypha mongolica | Mongolian Lark | 가-1
+    - 북방쇠종다리 | Alaudala cheleensis | Asian Short-toed Lark | 가-1
+      · 아종: Alaudala cheleensis cheleensis
+  [과] 직박구리과
+    - 직박구리 | Hypsipetes amaurotis | Brown-eared Bulbul | 가-1
+      · 아종: Hypsipetes amaurotis amaurotis
+    - 흰머리검은직박구리 | Hypsipetes leucocephalus | Black Bulbul | 가-1
+      · 아종: Hypsipetes leucocephalus leucocephalus
+    - 검은이마직박구리 | Pycnonotus sinensis | Light-vented Bulbul | 가-1
+      · 아종: Pycnonotus sinensis sinensis
+  [과] 제비과
+    - 갈색제비 | Riparia riparia | Sand Martin | 가-1
+      · 아종: Riparia riparia riparia
+      · 아종: Riparia riparia ijimae
+    - 바위산제비 | Ptyonoprogne rupestris | Eurasian Crag Martin | 가-1
+    - 제비 | Hirundo rustica | Barn Swallow | 가-1
+      · 아종: Hirundo rustica gutturalis
+      · 아종: Hirundo rustica mandschurica
+    - 흰턱제비 | Delichon lagopodum | Siberian House Martin | 가-1
+    - 흰털발제비 | Delichon dasypus | Asian House Martin | 가-1
+      · 아종: Delichon dasypus dasypus
+    - 귀제비 | Cecropis daurica | Eastern Red-rumped Swallow | 가-1
+      · 아종: Cecropis daurica japonica
+  [과] 휘파람새과
+    - 섬휘파람새 | Horornis diphone | Japanese Bush Warbler | 가-1
+      · 아종: Horornis diphone cantans
+    - 휘파람새 | Horornis canturians | Manchurian Bush Warbler | 가-1
+      · 아종: Horornis canturians borealis
+    - 숲새 | Urosphena squameiceps | Asian Stubtail | 가-1
+  [과] 오목눈이과
+    - 오목눈이 | Aegithalos caudatus | Long-tailed Tit | 가-1
+      · 아종: Aegithalos caudatus caudatus
+      · 아종: Aegithalos caudatus trivirgatus
+      · 아종: Aegithalos caudatus magnus
+    - 검은턱오목눈이 | Aegithalos glaucogularis | Silver-throated Bushtit | 가-1
+      · 아종: Aegithalos glaucogularis vinaceus
+  [과] 솔새과
+    - 노랑가슴솔새 | Phylloscopus sibilatrix | Wood Warbler | 가-1
+    - 연노랑눈썹솔새 | Phylloscopus humei | Hume's Leaf Warbler | 가-1
+      · 아종: Phylloscopus humei mandellii
+    - 노랑눈썹솔새 | Phylloscopus inornatus | Yellow-browed Warbler | 가-1
+    - 연노랑허리솔새 | Phylloscopus yunnanensis | Chinese Leaf Warbler | 가-1
+    - 노랑허리솔새 | Phylloscopus proregulus | Pallas's Leaf Warbler | 가-1
+    - 쇠긴다리솔새사촌 | Phylloscopus armandii | Yellow-streaked Warbler | 가-1
+      · 아종: Phylloscopus armandii armandii
+    - 긴다리솔새사촌 | Phylloscopus schwarzi | Radde's Warbler | 가-1
+    - 노랑배솔새사촌 | Phylloscopus affinis | Tickell's Leaf Warbler | 가-1
+      · 아종: Phylloscopus affinis occisinensis
+    - 솔새사촌 | Phylloscopus fuscatus | Dusky Warbler | 가-1
+      · 아종: Phylloscopus fuscatus fuscatus
+    - 담황턱솔새 | Phylloscopus subaffinis | Buff-throated Warbler | 가-1
+    - 연노랑솔새 | Phylloscopus trochilus | Willow Warbler | 가-1
+      · 아종: Phylloscopus trochilus yakutensis
+    - 검은다리솔새 | Phylloscopus collybita | Common Chiffchaff | 가-1
+      · 아종: Phylloscopus collybita tristis
+    - 산솔새 | Phylloscopus coronatus | Eastern Crowned Warbler | 가-1
+    - 회색머리노랑솔새 | Phylloscopus tephrocephalus | Grey-crowned Warbler | 가-1
+    - 회색정수리노랑솔새 | Phylloscopus omeiensis | Martens's Warbler | 가-1
+    - 버들솔새 | Phylloscopus plumbeitarsus | Two-barred Warbler | 가-1
+    - 사할린되솔새 | Phylloscopus borealoides | Sakhalin Leaf Warbler | 가-1
+    - 되솔새 | Phylloscopus tenellipes | Pale-legged Leaf Warbler | 가-1
+    - 솔새 | Phylloscopus xanthodryas | Japanese Leaf Warbler | 가-1
+    - 큰솔새 | Phylloscopus examinandus | Kamchatka Leaf Warbler | 가-1
+    - 쇠솔새 | Phylloscopus borealis | Arctic Warbler | 가-1
+    - 노랑배솔새 | Phylloscopus ricketti | Sulphur-breasted Warbler | 가-1
+    - 히말라야산솔새 | Phylloscopus claudiae | Claudia's Leaf Warbler | 가-1
+  [과] 개개비과
+    - 개개비 | Acrocephalus orientalis | Oriental Reed Warbler | 가-1
+    - 쇠개개비 | Acrocephalus bistrigiceps | Black-browed Reed Warbler | 가-1
+    - 풀쇠개개비 | Acrocephalus schoenobaenus | Sedge Warbler | 가-1
+    - 우수리개개비 | Acrocephalus tangorum | Manchurian Reed Warbler | 가-1
+    - 북방쇠개개비 | Acrocephalus agricola | Paddyfield Warbler | 가-1
+    - 덤불개개비 | Acrocephalus dumetorum | Blyth's Reed Warbler | 가-1
+    - 큰부리개개비 | Arundinax aedon | Thick-billed Warbler | 가-1
+      · 아종: Arundinax aedon rufescens
+    - 쇠덤불개개비 | Iduna caligata | Booted Warbler | 가-1
+  [과] 섬개개비과
+    - 붉은허리개개비 | Helopsaltes fasciolatus | Gray's Grasshopper Warbler | 가-1
+    - 큰개개비 | Helopsaltes pryeri | Marsh Grassbird | 가-1
+      · 아종: Helopsaltes pryeri sinensis
+    - 북방개개비 | Helopsaltes certhiola | Pallas's Grasshopper Warbler | 가-1
+      · 아종: Helopsaltes certhiola certhiola
+    - 알락꼬리쥐발귀 | Helopsaltes ochotensis | Middendorff's Grasshopper Warbler | 가-1
+    - 섬개개비 | Helopsaltes pleskei | Styan's Grasshopper Warbler | 가-1
+    - 쥐발귀개개비 | Locustella lanceolata | Lanceolated Warbler | 가-1
+      · 아종: Locustella lanceolata lanceolata
+    - 땅개개비 | Locustella tacsanowskia | Chinese Bush Warbler | 가-1
+    - 점무늬가슴쥐발귀 | Locustella davidi | Baikal Bush Warbler | 가-1
+      · 아종: Locustella davidi davidi
+  [과] 개개비사촌과
+    - 개개비사촌 | Cisticola juncidis | Zitting Cisticola | 가-1
+      · 아종: Cisticola juncidis brunniceps
+  [과] 흰턱딱새과
+    - 비늘무늬덤불개개비 | Curruca nisoria | Barred Warbler | 가-1
+      · 아종: Curruca nisoria merzbacheri
+    - 쇠흰턱딱새 | Curruca curruca | Lesser Whitethroat | 가-1
+      · 아종: Curruca curruca blythi
+  [과] 붉은머리오목눈이과
+    - 꼬리치레 | Rhopophilus pekinensis | Beijing Babbler | 가-1
+    - 붉은머리오목눈이 | Suthora webbiana | Vinous-throated Parrotbill | 가-1
+      · 아종: Suthora webbiana fulvicauda
+  [과] 동박새과
+    - 한국동박새 | Zosterops erythropleurus | Chestnut-flanked White-eye | 가-1
+    - 작은동박새 | Zosterops simplex | Swinhoe's White-eye | 가-1
+      · 아종: Zosterops simplex simplex
+    - 동박새 | Zosterops japonicus | Warbling White-eye | 가-1
+      · 아종: Zosterops japonicus japonicus
+  [과] 웃음지빠귀과
+    - 눈썹웃음지빠귀 | Garrulax canorus | Chinese Hwamei | 가-1
+      · 아종: Garrulax canorus canorus
+  [과] 상모솔새과
+    - 상모솔새 | Regulus regulus | Goldcrest | 가-1
+      · 아종: Regulus regulus japonensis
+  [과] 굴뚝새과
+    - 굴뚝새 | Troglodytes troglodytes | Eurasian Wren | 가-1
+      · 아종: Troglodytes troglodytes dauricus
+  [과] 동고비과
+    - 쇠동고비 | Sitta villosa | Chinese Nuthatch | 가-1
+      · 아종: Sitta villosa corea
+    - 동고비 | Sitta europaea | Eurasian Nuthatch | 가-1
+      · 아종: Sitta europaea asiatica
+      · 아종: Sitta europaea amurensis
+      · 아종: Sitta europaea bedfordi
+  [과] 나무발발이과
+    - 나무발발이 | Certhia familiaris | Eurasian Treecreeper | 가-1
+      · 아종: Certhia familiaris daurica
+  [과] 찌르레기과
+    - 검은뿔찌르레기 | Acridotheres cristatellus | Crested Myna | 가-1
+      · 아종: Acridotheres cristatellus cristatellus
+    - 자바뿔찌르레기 | Acridotheres javanicus | Javan Myna | 가-1
+    - 검은머리갈색찌르레기 | Acridotheres tristis | Common Myna | 가-1
+      · 아종: Acridotheres tristis tristis
+    - 붉은부리찌르레기 | Spodiopsar sericeus | Red-billed Starling | 가-1
+    - 찌르레기 | Spodiopsar cineraceus | White-cheeked Starling | 가-1
+    - 북방쇠찌르레기 | Agropsar sturninus | Daurian Starling | 가-1
+    - 쇠찌르레기 | Agropsar philippensis | Chestnut-cheeked Starling | 가-1
+    - 잿빛쇠찌르레기 | Sturnia sinensis | White-shouldered Starling | 가-1
+    - 분홍찌르레기 | Pastor roseus | Rosy Starling | 가-1
+    - 흰점찌르레기 | Sturnus vulgaris | Common Starling | 가-1
+      · 아종: Sturnus vulgaris poltaratskyi
+  [과] 지빠귀과
+    - 호랑지빠귀 | Zoothera aurea | White's Thrush | 가-1
+      · 아종: Zoothera aurea aurea
+      · 아종: Zoothera aurea toratugumi
+    - 흰눈썹지빠귀 | Geokichla sibirica | Siberian Thrush | 가-1
+      · 아종: Geokichla sibirica sibirica
+      · 아종: Geokichla sibirica davisoni
+    - 귤빛지빠귀 | Geokichla citrina | Orange-headed Thrush | 가-1
+      · 아종: Geokichla citrina courtoisi
+    - 큰점지빠귀 | Turdus mupinensis | Chinese Thrush | 가-1
+    - 대륙점지빠귀 | Turdus viscivorus | Mistle Thrush | 가-1
+      · 아종: Turdus viscivorus bonapartei
+    - 대륙검은지빠귀 | Turdus mandarinus | Chinese Blackbird | 가-1
+      · 아종: Turdus mandarinus mandarinus
+    - 붉은날개지빠귀 | Turdus iliacus | Redwing | 가-1
+      · 아종: Turdus iliacus iliacus
+    - 검은지빠귀 | Turdus cardis | Japanese Thrush | 가-1
+    - 되지빠귀 | Turdus hortulorum | Grey-backed Thrush | 가-1
+    - 흰눈썹붉은배지빠귀 | Turdus obscurus | Eyebrowed Thrush | 가-1
+    - 흰배지빠귀 | Turdus pallidus | Pale Thrush | 가-1
+    - 갈색지빠귀 | Turdus feae | Grey-sided Thrush | 가-1
+    - 붉은배지빠귀 | Turdus chrysolaus | Brown-headed Thrush | 가-1
+      · 아종: Turdus chrysolaus chrysolaus
+    - 회색머리지빠귀 | Turdus pilaris | Fieldfare | 가-1
+    - 검은목지빠귀 | Turdus atrogularis | Black-throated Thrush | 가-1
+    - 붉은목지빠귀 | Turdus ruficollis | Red-throated Thrush | 가-1
+    - 개똥지빠귀 | Turdus eunomus | Dusky Thrush | 가-1
+    - 노랑지빠귀 | Turdus naumanni | Naumann's Thrush | 가-1
+  [과] 솔딱새과
+    - 까치딱새 | Copsychus saularis | Oriental Magpie-Robin | 가-1
+      · 아종: Copsychus saularis saularis
+    - 제비딱새 | Muscicapa griseisticta | Grey-streaked Flycatcher | 가-1
+    - 솔딱새 | Muscicapa sibirica | Dark-sided Flycatcher | 가-1
+      · 아종: Muscicapa sibirica sibirica
+    - 회색머리딱새 | Muscicapa ferruginea | Ferruginous Flycatcher | 가-1
+    - 갈색솔딱새 | Muscicapa muttui | Brown-breasted Flycatcher | 가-1
+    - 쇠솔딱새 | Muscicapa dauurica | Asian Brown Flycatcher | 가-1
+      · 아종: Muscicapa dauurica dauurica
+    - 붉은가슴딱새 | Niltava davidi | Fujian Niltava | 가-1
+    - 큰유리새 | Cyanoptila cyanomelana | Blue-and-white Flycatcher | 가-1
+      · 아종: Cyanoptila cyanomelana intermedia
+      · 아종: Cyanoptila cyanomelana cyanomelana
+    - 대륙큰유리새 | Cyanoptila cumatilis | Zappey's Flycatcher | 가-1
+    - 파랑딱새 | Eumyias thalassinus | Verditer Flycatcher | 가-1
+      · 아종: Eumyias thalassinus thalassinus
+    - 꼬까울새 | Erithacus rubecula | European Robin | 가-1
+      · 아종: Erithacus rubecula tataricus
+    - 흰눈썹울새 | Luscinia svecica | Bluethroat | 가-1
+      · 아종: Luscinia svecica svecica
+    - 흰꼬리유리딱새 | Myiomela leucura | White-tailed Robin | 가-1
+      · 아종: Myiomela leucura leucura
+    - 진홍가슴 | Calliope calliope | Siberian Rubythroat | 가-1
+      · 아종: Calliope calliope calliope
+      · 아종: Calliope calliope camtschatkensis
+    - 쇠유리새 | Larvivora cyane | Siberian Blue Robin | 가-1
+      · 아종: Larvivora cyane bochaiensis
+      · 아종: Larvivora cyane cyane
+    - 붉은가슴울새 | Larvivora akahige | Japanese Robin | 가-1
+    - 울새 | Larvivora sibilans | Rufous-tailed Robin | 가-1
+    - 흰눈썹황금새 | Ficedula zanthopygia | Yellow-rumped Flycatcher | 가-1
+    - 북방황금새 | Ficedula elisae | Green-backed Flycatcher | 가-1
+    - 황금새 | Ficedula narcissina | Narcissus Flycatcher | 가-1
+    - 남방황금새 | Ficedula owstoni | Ryukyu Flycatcher | 가-1
+    - 노랑딱새 | Ficedula mugimaki | Mugimaki Flycatcher | 가-1
+    - 붉은가슴흰꼬리딱새 | Ficedula parva | Red-breasted Flycatcher | 가-1
+    - 흰꼬리딱새 | Ficedula albicilla | Taiga Flycatcher | 가-1
+    - 유리딱새 | Tarsiger cyanurus | Red-flanked Bluetail | 가-1
+    - 부채꼬리바위딱새 | Phoenicurus fuliginosus | Plumbeous Water Redstart | 가-1
+      · 아종: Phoenicurus fuliginosus fuliginosus
+    - 흰머리바위딱새 | Phoenicurus leucocephalus | White-capped Redstart | 가-1
+    - 검은머리딱새 | Phoenicurus ochruros | Black Redstart | 가-1
+      · 아종: Phoenicurus ochruros rufiventris
+    - 흰이마딱새 | Phoenicurus phoenicurus | Common Redstart | 가-1
+      · 아종: Phoenicurus phoenicurus phoenicurus
+    - 딱새 | Phoenicurus auroreus | Daurian Redstart | 가-1
+      · 아종: Phoenicurus auroreus auroreus
+    - 꼬까직박구리 | Monticola gularis | White-throated Rock Thrush | 가-1
+    - 바다직박구리 | Monticola solitarius | Blue Rock Thrush | 가-1
+      · 아종: Monticola solitarius pandoo
+      · 아종: Monticola solitarius philippensis
+    - 검은뺨딱새 | Saxicola ferreus | Grey Bush Chat | 가-1
+      · 아종: Saxicola ferreus haringtoni
+    - 흰죽지검은딱새 | Saxicola caprata | Pied Bush Chat | 가-1
+      · 아종: Saxicola caprata rossorum
+    - 검은딱새 | Saxicola stejnegeri | Amur Stonechat | 가-1
+    - 사막딱새 | Oenanthe oenanthe | Northern Wheatear | 가-1
+      · 아종: Oenanthe oenanthe libanotica
+    - 긴다리사막딱새 | Oenanthe isabellina | Isabelline Wheatear | 가-1
+    - 검은꼬리사막딱새 | Oenanthe deserti | Desert Wheatear | 가-1
+      · 아종: Oenanthe deserti deserti
+    - 검은등사막딱새 | Oenanthe pleschanka | Pied Wheatear | 가-1
+  [과] 물까마귀과
+    - 물까마귀 | Cinclus pallasii | Brown Dipper | 가-1
+      · 아종: Cinclus pallasii pallasii
+  [과] 참새과
+    - 섬참새 | Passer cinnamomeus | Russet Sparrow | 가-1
+      · 아종: Passer cinnamomeus rutilans
+    - 참새 | Passer montanus | Eurasian Tree Sparrow | 가-1
+      · 아종: Passer montanus dybowskii
+      · 아종: Passer montanus saturatus
+    - 집참새 | Passer domesticus | House Sparrow | 가-1
+      · 아종: Passer domesticus domesticus
+  [과] 납부리새과
+    - 얼룩무늬납부리새 | Lonchura punctulata | Scaly-breasted Munia | 가-1
+      · 아종: Lonchura punctulata topela
+  [과] 바위종다리과
+    - 바위종다리 | Prunella collaris | Alpine Accentor | 가-1
+      · 아종: Prunella collaris erythropygia
+    - 멧종다리 | Prunella montanella | Siberian Accentor | 가-1
+      · 아종: Prunella montanella montanella
+    - 쇠바위종다리 | Prunella rubida | Japanese Accentor | 가-1
+  [과] 할미새과
+    - 물레새 | Dendronanthus indicus | Forest Wagtail | 가-1
+    - 긴발톱할미새 | Motacilla tschutschensis | Eastern Yellow Wagtail | 가-1
+      · 아종: Motacilla tschutschensis plexa
+      · 아종: Motacilla tschutschensis tschutschensis
+      · 아종: Motacilla tschutschensis macronyx
+      · 아종: Motacilla tschutschensis taivana
+    - 노랑머리할미새 | Motacilla citreola | Citrine Wagtail | 가-1
+      · 아종: Motacilla citreola citreola
+    - 노랑할미새 | Motacilla cinerea | Grey Wagtail | 가-1
+      · 아종: Motacilla cinerea cinerea
+    - 알락할미새 | Motacilla alba | White Wagtail | 가-1
+      · 아종: Motacilla alba alba
+      · 아종: Motacilla alba personata
+      · 아종: Motacilla alba baicalensis
+      · 아종: Motacilla alba ocularis
+      · 아종: Motacilla alba lugens
+      · 아종: Motacilla alba leucopsis
+      · 아종: Motacilla alba alboides
+    - 검은등할미새 | Motacilla grandis | Japanese Wagtail | 가-1
+    - 큰밭종다리 | Anthus richardi | Richard's Pipit | 가-1
+    - 쇠밭종다리 | Anthus godlewskii | Blyth's Pipit | 가-1
+    - 풀밭종다리 | Anthus pratensis | Meadow Pipit | 가-1
+    - 나무밭종다리 | Anthus trivialis | Tree Pipit | 가-1
+      · 아종: Anthus trivialis trivialis
+    - 힝둥새 | Anthus hodgsoni | Olive-backed Pipit | 가-1
+      · 아종: Anthus hodgsoni hodgsoni
+      · 아종: Anthus hodgsoni yunnanensis
+    - 흰등밭종다리 | Anthus gustavi | Pechora Pipit | 가-1
+      · 아종: Anthus gustavi gustavi
+      · 아종: Anthus gustavi menzbieri
+    - 한국밭종다리 | Anthus roseatus | Rosy Pipit | 가-1
+    - 붉은가슴밭종다리 | Anthus cervinus | Red-throated Pipit | 가-1
+    - 밭종다리 | Anthus japonicus | Siberian Pipit | 가-1
+    - 옅은밭종다리 | Anthus spinoletta | Water Pipit | 가-1
+      · 아종: Anthus spinoletta blakistoni
+  [과] 되새과
+    - 푸른머리되새 | Fringilla coelebs | Eurasian Chaffinch | 가-1
+      · 아종: Fringilla coelebs coelebs
+    - 되새 | Fringilla montifringilla | Brambling | 가-1
+    - 콩새 | Coccothraustes coccothraustes | Hawfinch | 가-1
+      · 아종: Coccothraustes coccothraustes shulpini
+      · 아종: Coccothraustes coccothraustes japonicus
+    - 밀화부리 | Eophona migratoria | Chinese Grosbeak | 가-1
+      · 아종: Eophona migratoria migratoria
+    - 큰부리밀화부리 | Eophona personata | Japanese Grosbeak | 가-1
+      · 아종: Eophona personata personata
+      · 아종: Eophona personata magnirostris
+    - 솔양진이 | Pinicola enucleator | Pine Grosbeak | 가-1
+      · 아종: Pinicola enucleator sakhalinensis
+    - 멋쟁이새 | Pyrrhula pyrrhula | Eurasian Bullfinch | 가-1
+      · 아종: Pyrrhula pyrrhula cineracea
+      · 아종: Pyrrhula pyrrhula cassinii
+      · 아종: Pyrrhula pyrrhula griseiventris
+      · 아종: Pyrrhula pyrrhula rosacea
+    - 바위양진이 | Bucanetes mongolicus | Mongolian Finch | 가-1
+    - 갈색양진이 | Leucosticte arctoa | Asian Rosy Finch | 가-1
+      · 아종: Leucosticte arctoa brunneonucha
+    - 붉은양진이 | Carpodacus erythrinus | Common Rosefinch | 가-1
+      · 아종: Carpodacus erythrinus grebnitskii
+    - 긴꼬리홍양진이 | Carpodacus sibiricus | Siberian Long-tailed Rosefinch | 가-1
+      · 아종: Carpodacus sibiricus ussuriensis
+    - 양진이 | Carpodacus roseus | Pallas's Rosefinch | 가-1
+      · 아종: Carpodacus roseus roseus
+    - 방울새 | Chloris sinica | Oriental Greenfinch | 가-1
+      · 아종: Chloris sinica ussuriensis
+      · 아종: Chloris sinica kawarahiba
+      · 아종: Chloris sinica minor
+    - 홍방울새 | Acanthis flammea | Redpoll | 가-1
+      · 아종: Acanthis flammea flammea
+      · 아종: Acanthis flammea exilipes
+    - 솔잣새 | Loxia curvirostra | Red Crossbill | 가-1
+      · 아종: Loxia curvirostra japonica
+    - 흰죽지솔잣새 | Loxia leucoptera | Two-barred Crossbill | 가-1
+      · 아종: Loxia leucoptera bifasciata
+    - 검은머리방울새 | Spinus spinus | Eurasian Siskin | 가-1
+  [과] 긴발톱멧새과
+    - 긴발톱멧새 | Calcarius lapponicus | Lapland Longspur | 가-1
+      · 아종: Calcarius lapponicus kamtschaticus
+      · 아종: Calcarius lapponicus alascensis
+    - 흰멧새 | Plectrophenax nivalis | Snow Bunting | 가-1
+      · 아종: Plectrophenax nivalis vlasowae
+  [과] 멧새과
+    - 노랑멧새 | Emberiza citrinella | Yellowhammer | 가-1
+      · 아종: Emberiza citrinella erythrogenys
+    - 흰머리멧새 | Emberiza leucocephalos | Pine Bunting | 가-1
+      · 아종: Emberiza leucocephalos leucocephalos
+    - 바위멧새 | Emberiza godlewskii | Godlewski's Bunting | 가-1
+      · 아종: Emberiza godlewskii godlewskii
+    - 멧새 | Emberiza cioides | Meadow Bunting | 가-1
+      · 아종: Emberiza cioides weigoldi
+      · 아종: Emberiza cioides castaneiceps
+      · 아종: Emberiza cioides ciopsis
+    - 점박이멧새 | Emberiza jankowskii | Jankowski's Bunting | 가-2
+    - 회색머리멧새 | Emberiza hortulana | Ortolan Bunting | 가-1
+    - 흰배멧새 | Emberiza tristrami | Tristram's Bunting | 가-1
+    - 붉은뺨멧새 | Emberiza fucata | Chestnut-eared Bunting | 가-1
+      · 아종: Emberiza fucata fucata
+    - 쇠붉은뺨멧새 | Emberiza pusilla | Little Bunting | 가-1
+    - 노랑눈썹멧새 | Emberiza chrysophrys | Yellow-browed Bunting | 가-1
+    - 쑥새 | Emberiza rustica | Rustic Bunting | 가-1
+    - 노랑턱멧새 | Emberiza elegans | Yellow-throated Bunting | 가-1
+      · 아종: Emberiza elegans elegans
+    - 검은머리촉새 | Emberiza aureola | Yellow-breasted Bunting | 가-1
+      · 아종: Emberiza aureola ornata
+    - 꼬까참새 | Emberiza rutila | Chestnut Bunting | 가-1
+    - 검은머리멧새 | Emberiza melanocephala | Black-headed Bunting | 가-1
+    - 붉은머리멧새 | Emberiza bruniceps | Red-headed Bunting | 가-1
+    - 무당새 | Emberiza sulphurata | Yellow Bunting | 가-1
+    - 촉새 | Emberiza spodocephala | Black-faced Bunting | 가-1
+      · 아종: Emberiza spodocephala spodocephala
+    - 섬촉새 | Emberiza personata | Masked Bunting | 가-1
+    - 검은멧새 | Emberiza variabilis | Grey Bunting | 가-1
+      · 아종: Emberiza variabilis variabilis
+    - 북방검은머리쑥새 | Emberiza pallasi | Pallas's Reed Bunting | 가-1
+      · 아종: Emberiza pallasi pallasi
+      · 아종: Emberiza pallasi polaris
+    - 쇠검은머리쑥새 | Emberiza yessoensis | Ochre-rumped Bunting | 가-1
+      · 아종: Emberiza yessoensis yessoensis
+      · 아종: Emberiza yessoensis continentalis
+    - 검은머리쑥새 | Emberiza schoeniclus | Common Reed Bunting | 가-1
+      · 아종: Emberiza schoeniclus pyrrhulina
+  [과] 신대륙멧새과
+    - 흰정수리북미멧새 | Zonotrichia leucophrys | White-crowned Sparrow | 가-1
+      · 아종: Zonotrichia leucophrys gambelii
+    - 노랑정수리북미멧새 | Zonotrichia atricapilla | Golden-crowned Sparrow | 가-1
+    - 초원멧새 | Passerculus sandwichensis | Savannah Sparrow | 가-1
+      · 아종: Passerculus sandwichensis anthinus
