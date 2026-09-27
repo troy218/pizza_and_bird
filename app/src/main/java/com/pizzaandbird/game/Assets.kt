@@ -750,12 +750,8 @@ class Assets {
 
     private fun grassBase(c: Canvas, p: Paint, r: Random, base: Int = c(0xFF96D07A)) {
         fill(c, p, base)
-        // 은은한 대각 그라데이션 (좌상단 밝음 → 우하단 어두움) — 픽셀 타일에 입체감 부여
-        p.color = shade(base, 1.06f)
-        c.drawRect(0f, 0f, 32f, 9f, p)
-        p.color = shade(base, 0.93f)
-        c.drawRect(0f, 24f, 32f, 32f, p)
         // 체커 디더링 노이즈 — 클래식 픽셀아트 잔디 특유의 잔물결 질감
+        // (방향성 있는 그라데이션 밴드는 타일이 맵 전체에 반복 배치될 때 줄무늬로 보이므로 사용하지 않음)
         p.color = shade(base, 0.88f)
         repeat(20) {
             val x = r.nextInt(32); val y = r.nextInt(32)
