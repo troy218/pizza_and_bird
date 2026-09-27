@@ -578,11 +578,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         c.drawText(mainTitle, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 18f), textP)
         textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFF796653.toInt()
-        val objective = when {
-            s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
-            !s.mainQuestStarted -> "메인과 사진 의뢰는 독립적이며 원하는 순서로 진행할 수 있어요."
-            else -> chapter?.objective(s) ?: ""
-        }
+        val objective = if (s.mainQuestFinished || !s.mainQuestStarted) "" else chapter?.objective(s) ?: ""
         val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
         objectiveLines.forEachIndexed { i, line ->
             c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 13f), textP)
@@ -591,9 +587,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             // 추천 위치 한 줄 — "어디로 가야 하는지"를 카드에 직접 보여준다
             val here = adv.alreadyThere || adv.regionId == s.region
             var rec = if (here) {
-                "📍 ${adv.regionName} · ${adv.reason} · 카드 탭하면 힌트"
+                "📍 ${adv.regionName} · ${adv.reason}"
             } else {
-                "📍 ${adv.regionName} · ${adv.reason} · 카드 탭하면 이동"
+                "📍 ${adv.regionName} · ${adv.reason}"
             }
             textP.textSize = dp(scene, 10f)
             textP.color = if (here) 0xFF397547.toInt() else 0xFFB5651D.toInt()
@@ -603,7 +599,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
-            ?: "서브 사진 의뢰: 없음 · 어느 지역 보리 박사에게서 언제든 수락"
+            ?: "서브 사진 의뢰: 없음"
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
         y = mainR.bottom + dp(scene, 7f)
 
@@ -1260,15 +1256,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             textP.textSize = textDp(scene, 10.5f)
             textP.color = 0xFF6B4F35.toInt()
             c.drawText("🍕 Pizza and Bird v0.4.2-beta01 · 2K", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
-            textP.textSize = textDp(scene, 9.5f)
-            textP.color = 0xFF8A7360.toInt()
-            c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)
-            if (footR.height() > dp(scene, 62f)) {
-                c.drawText("조이스틱은 왼쪽 아래 어디든 잡으면 그 자리에 생겨요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
-            }
             // 내장 글꼴 출처 표기 (SIL Open Font License 1.1 — assets/font/OFL.txt)
             if (footR.height() > dp(scene, 76f)) {
                 textP.textSize = dp(scene, 9f)
+                textP.color = 0xFF8A7360.toInt()
                 c.drawText("글꼴: 주아(Jua) · 고운돋움(Gowun Dodum) — SIL Open Font License 1.1",
                     left + dp(scene, 12f), ty + dp(scene, 61f), textP)
             }
@@ -1632,9 +1623,6 @@ class DecorPickOverlay(
         textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("✨ 장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 29f), textP)
-        textP.textSize = dp(scene, 9.5f)
-        textP.color = 0xFF8A7360.toInt()
-        c.drawText("소품 하나는 한 칸에만 배치할 수 있어요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
         UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 52f))
 
         // 소품이 많아져도 6개씩 넘긴다.
@@ -1789,9 +1777,11 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText("${slot + 1}. ${d?.name ?: "비어 있음"}", r.left + dp(scene, 37f), r.centerY() - dp(scene, 1f), textP)
-            textP.textSize = dp(scene, 8.5f)
-            textP.color = 0xFF8A7360.toInt()
-            c.drawText(if (d != null) "행운 +${d.luck}" else "탭해서 소품 놓기", r.left + dp(scene, 37f), r.centerY() + dp(scene, 11f), textP)
+            if (d != null) {
+                textP.textSize = dp(scene, 8.5f)
+                textP.color = 0xFF8A7360.toInt()
+                c.drawText("행운 +${d.luck}", r.left + dp(scene, 37f), r.centerY() + dp(scene, 11f), textP)
+            }
             slotRects.add(r to slot)
         }
 
@@ -1887,7 +1877,6 @@ class HouseStyleOverlay(
         c.drawText("🏠 우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
         textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        c.drawText("구매한 스타일은 이사 후에도 계속 사용할 수 있어요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
         textP.textSize = textDp(scene, 10.5f)
         val moneyTxt = "💰 ${won(s.money)}"
         val moneyW = textP.measureText(moneyTxt) + dp(scene, 18f)
@@ -2187,10 +2176,6 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
         textP.textSize = textDp(scene, 12.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText(s.bike().name, px + pv + dp(scene, 16f), py + dp(scene, 26f), textP)
-        textP.textSize = textDp(scene, 9.5f)
-        textP.color = 0xFF8A7360.toInt()
-        c.drawText("도색은 언제든 무료예요.", px + pv + dp(scene, 16f), py + dp(scene, 44f), textP)
-        c.drawText("색을 누르면 바로 바뀌어요!", px + pv + dp(scene, 16f), py + dp(scene, 58f), textP)
 
         var ty = panelR.top + dp(scene, 206f)
         drawSwatchRow(c, "프레임", 0, BikeColors.FRAME, s.bikeFrameColor, ty)
@@ -2509,13 +2494,6 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                     midTxt, 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 10.5f
                 )
 
-                val hint = "초록 칸에서 멈춰보세요! (아무 곳이나 탭)"
-                textP.textSize = textDp(scene, 12f)
-                val hintW = textP.measureText(hint) + dp(scene, 24f)
-                UiKit.badge(
-                    c, g, RectF(r.centerX() - hintW / 2f, r.bottom - dp(scene, 34f), r.centerX() + hintW / 2f, r.bottom - dp(scene, 12f)),
-                    hint, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 12f
-                )
             }
             else -> {
                 val q = PizzaQ.of(resultQ)
@@ -2573,10 +2551,6 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                     c, g, RectF(r.centerX() - infoW / 2f, r.bottom - dp(scene, 40f), r.centerX() + infoW / 2f, r.bottom - dp(scene, 18f)),
                     info, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 12f
                 )
-                textP.textSize = textDp(scene, 10.5f)
-                textP.color = 0xFF8A7360.toInt()
-                val hint2 = "탭해서 닫기"
-                c.drawText(hint2, r.centerX() - textP.measureText(hint2) / 2, r.bottom - dp(scene, 5f), textP)
             }
         }
     }
@@ -2847,12 +2821,6 @@ class PhotoResultOverlay(
             }
         }
 
-        // 안내 (깜빡임)
-        val blink = 0.55f + 0.45f * sin(t * 3.4f).coerceIn(0f, 1f)
-        textP.textSize = textDp(scene, 11.5f)
-        textP.color = Color.argb((215 * blink).toInt().coerceIn(0, 255), 240, 236, 226)
-        val hint = if (levelsGained > 0) "화면을 탭해 계속" else "화면을 탭해 탐조를 계속해요"
-        c.drawText(hint, cx - textP.measureText(hint) / 2, h - dp(scene, 18f), textP)
     }
 
     /** 인화지 속 풍경 + 새 */
@@ -3178,8 +3146,6 @@ class LevelUpOverlay(
 
         textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val hint = "탭해서 닫기"
-        c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
 
     }
 }
@@ -3436,8 +3402,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         c.drawText(titleTxt, dp(scene, 22f), dp(scene, 29f), textP)
         textP.textSize = textDp(scene, 10.5f)
         textP.color = 0xFFE9C46A.toInt()
-        var sub = if (w < dp(scene, 620f)) "방문 ${s.visited.size}/${Regions.ALL.size}"
-        else "방문 ${s.visited.size}/${Regions.ALL.size} · 두 손가락 확대 · 드래그 이동 · 지역 탭하면 정보"
+        var sub = "방문 ${s.visited.size}/${Regions.ALL.size}"
         val maxSW = w - dp(scene, 22f) - titleW - dp(scene, 12f) - dp(scene, 108f)
         if (maxSW > dp(scene, 40f)) {
             while (sub.length > 4 && textP.measureText(sub) > maxSW) sub = sub.dropLast(1)
@@ -4160,7 +4125,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
         textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val pg = "${page + 1} / ${maxPage + 1}  ·  항목을 누르면 자세한 성능"
+        val pg = "${page + 1} / ${maxPage + 1}"
         c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
     }
 }
