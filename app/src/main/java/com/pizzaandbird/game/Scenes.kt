@@ -31,6 +31,9 @@ abstract class Scene(val game: Game) {
     fun closeOverlay() {
         overlay = null
     }
+
+    /** 천단위 콤마 금액(₩ 기호 없음) — "＋₩${won(n)}"처럼 기호는 부르는 쪽에서 붙인다 */
+    fun won(n: Int): String = java.text.NumberFormat.getIntegerInstance().format(n)
 }
 
 /**

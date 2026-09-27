@@ -723,9 +723,6 @@ class Hud(private val game: Game) {
             stroke.color = Color.argb((alpha * 0.85f).toInt(), 233, 196, 106)
             stroke.strokeWidth = dp(1.5f)
             c.drawRoundRect(r, dp(13f), dp(13f), stroke)
-            // 왼쪽 골드 도트
-            fill.color = Color.argb(alpha, 242, 182, 60)
-            c.drawCircle(r.left + dp(10f), yy + dp(0.5f), dp(3f), fill)
             c.drawText(msg, cx - tw / 2, Type.midBaseline(tp, yy), tp)
             y += step
         }

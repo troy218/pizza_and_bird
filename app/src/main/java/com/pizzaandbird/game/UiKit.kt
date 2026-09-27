@@ -546,9 +546,22 @@ object UiKit {
     fun darkChip(c: Canvas, game: Game, cx: Float, cy: Float, txt: String, textSizeDp: Float = 12f) {
         val d = game.density
         val tp = Type.paintAt(textSizeDp, true, 0.02f, CREAM)
-        val tw = tp.measureText(txt)
+        var msg = txt
+        var tw = tp.measureText(msg)
         val pad = 9f * d
-        val r = RectF(cx - tw / 2f - pad, cy - 12f * d, cx + tw / 2f + pad, cy + 12f * d)
+        // 칩이 화면 밖으로 삐져나오지 않게 — 폭이 모자라면 말줄임, 그래도 좌우 끝에 붙인다.
+        val margin = 6f * d
+        val maxW = (game.screenW - margin * 2f).coerceAtLeast(60f * d)
+        if (tw + pad * 2f > maxW) {
+            var t = txt
+            while (t.length > 1 && tp.measureText("$t…") + pad * 2f > maxW) t = t.dropLast(1)
+            msg = "$t…"
+            tw = tp.measureText(msg)
+        }
+        var left = cx - (tw + pad * 2f) / 2f
+        val maxLeft = (game.screenW - margin - tw - pad * 2f).coerceAtLeast(margin)
+        left = left.coerceIn(margin, maxLeft)
+        val r = RectF(left, cy - 12f * d, left + tw + pad * 2f, cy + 12f * d)
         fill.shader = null
         fill.color = Color.argb(70, 20, 14, 26)
         c.drawRoundRect(tmpRect(r.left, r.top + 2f * d, r.right, r.bottom + 2f * d), 12f * d, 12f * d, fill)
@@ -559,7 +572,7 @@ object UiKit {
         stroke.color = Color.argb(170, 233, 196, 106)
         stroke.strokeWidth = 1.4f * d
         c.drawRoundRect(r, 12f * d, 12f * d, stroke)
-        c.drawText(txt, cx - tw / 2f, Type.midBaseline(tp, cy), tp)
+        c.drawText(msg, left + pad, Type.midBaseline(tp, cy), tp)
     }
 
     // ------------------------------------------------------------------
