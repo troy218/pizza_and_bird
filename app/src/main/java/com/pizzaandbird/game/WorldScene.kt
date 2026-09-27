@@ -876,17 +876,31 @@ class WorldScene(
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
             is FieldBird -> {
-                val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
+                val flying = e.state == 2
+                val bmp = if (flying) {
+                    val wingFrame = ((e.fleeT * 11f).toInt() and 1)
+                    a.birdFlight(e.def.id, wingFrame, e.faceLeft)
+                } else if (e.faceLeft) {
+                    a.bird(e.def.id)
+                } else {
+                    a.birdFlipped(e.def.id)
+                }
                 val bx = (e.x - camX) * WORLD_SCALE
                 val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
-                c.drawOval(
-                    RectF(
-                        bx + bmp.width * 0.1f, (e.cy - camY) * WORLD_SCALE + 6f,
-                        bx + bmp.width * 0.9f, (e.cy - camY) * WORLD_SCALE + 13f
-                    ),
-                    a.shadowPaint
-                )
-                if (e.state == 2) {
+                // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
+                if (!flying || e.fleeT < 0.32f) {
+                    val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
+                    val shadowCx = bx + bmp.width * 0.5f
+                    val shadowHalf = bmp.width * 0.4f * shadowK
+                    c.drawOval(
+                        RectF(
+                            shadowCx - shadowHalf, (e.cy - camY) * WORLD_SCALE + 7f,
+                            shadowCx + shadowHalf, (e.cy - camY) * WORLD_SCALE + 12f
+                        ),
+                        a.shadowPaint
+                    )
+                }
+                if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
                     a.sprPaint.alpha = alpha
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
