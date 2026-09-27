@@ -158,83 +158,192 @@ object RegionMapStyles {
         seaDepth = 4, shoreDepth = 3
     )
 
-    // Each family is deliberately made from visibly different silhouettes, not just a tint.
-    private val urbanParkNature = NatureArtSet(
-        grass = listOf(0, 1, 3, 4), tallGrass = listOf(0, 2), flowers = listOf(0, 2, 3),
-        reeds = listOf(0, 1), rocks = listOf(0, 6, 8), mountains = listOf(0, 2), trees = listOf(0, 2, 9, 10)
+    // ── 바위 묶음 ─────────────────────────────────────────────────────────
+    // 번호는 PropLooks.ROCKS(바위 28종) 의 인덱스다. 묶음마다 **암종·크기·비율**이
+    // 달라서, 지역마다 다른 돌무더기가 서야 한다. (갯벌엔 사구돌, 제주엔 현무암 기둥,
+    // 전주엔 한옥 돌담, 속초엔 설악의 화강암 첨탑.)
+    //   0 화강암노두 · 1 설악암괴 · 2 노두자갈 · 3 이끼화강암
+    //   4 현무암기둥 · 5 용암성벽 · 6 현무암자갈 · 7 방패바위
+    //   8 동해층리 · 9 해식절벽 · 10 사암블록 · 11 갯바위선반
+    //   12 석회암 · 13 석회암절벽 · 14 석회암자갈
+    //   15 사암단층 · 16 사암절벽 · 17 사암조각돌
+    //   18 방파제블록 · 19 옹벽돌담 · 20 화단석 · 21 가비온
+    //   22 강자갈 · 23 숲이끼바위 · 24 갯벌사구돌 · 25 조개자갈 · 26 대왕암첨탑 · 27 도라돌
+    private val graniteNature = NatureArtSet(
+        grass = listOf(0, 1, 2, 4), tallGrass = listOf(0, 1), flowers = listOf(2, 3, 5),
+        reeds = listOf(0, 1), rocks = listOf(0, 1, 2, 3, 23), mountains = listOf(0, 2), trees = listOf(1, 11, 16, 18)
     )
+    private val basaltNature = NatureArtSet(
+        grass = listOf(0, 2, 4, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(3, 5),
+        reeds = listOf(2, 3), rocks = listOf(4, 5, 6, 7), mountains = listOf(3, 2), trees = listOf(6, 7, 17, 11)
+    )
+    /** 동해 절벽 — 층리암과 갯바위가 주를 이룬다. */
+    private val seaStackNature = NatureArtSet(
+        grass = listOf(0, 2, 3, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(0, 3, 5),
+        reeds = listOf(0, 2), rocks = listOf(8, 9, 11, 26, 10), mountains = listOf(0, 2), trees = listOf(1, 7, 8)
+    )
+    /** 서해 갯벌 — 사구돌과 조개자갈, 물러난 물길의 도라돌. */
     private val tidalFlatNature = NatureArtSet(
         grass = listOf(0, 2, 3, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(1, 4, 5),
-        reeds = listOf(1, 2, 3), rocks = listOf(5, 8, 3), mountains = listOf(0, 2), trees = listOf(1, 7, 8)
+        reeds = listOf(1, 2, 3), rocks = listOf(24, 25, 11, 27, 10), mountains = listOf(0, 2), trees = listOf(1, 7, 10)
     )
-    private val lakeShoreNature = NatureArtSet(
-        grass = listOf(0, 1, 2, 4), tallGrass = listOf(0, 2), flowers = listOf(0, 1, 5),
-        reeds = listOf(0, 3), rocks = listOf(3, 6, 1), mountains = listOf(0, 2), trees = listOf(1, 4, 8, 11)
-    )
-    private val alpineNature = NatureArtSet(
-        grass = listOf(0, 1, 2, 4), tallGrass = listOf(0, 1), flowers = listOf(2, 3, 5),
-        reeds = listOf(0, 1), rocks = listOf(2, 0, 6), mountains = listOf(1, 2), trees = listOf(1, 8, 11)
-    )
-    private val coastalPineNature = NatureArtSet(
-        grass = listOf(0, 2, 3, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(0, 3, 5),
-        reeds = listOf(0, 2), rocks = listOf(5, 2, 7), mountains = listOf(0, 2), trees = listOf(1, 7, 8)
-    )
-    private val riverNature = NatureArtSet(
-        grass = listOf(0, 1, 2, 4), tallGrass = listOf(0, 2, 3), flowers = listOf(0, 1, 5),
-        reeds = listOf(0, 1, 3), rocks = listOf(3, 6, 1), mountains = listOf(0, 2), trees = listOf(0, 4, 8, 11)
-    )
+    /** 갈대습지 — 도라돌과 사구돌, 제방의 가비온. */
     private val reedMarshNature = NatureArtSet(
         grass = listOf(0, 2, 3, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(1, 4, 5),
-        reeds = listOf(1, 2, 3), rocks = listOf(3, 5, 8), mountains = listOf(0, 2), trees = listOf(4, 8, 10)
+        reeds = listOf(1, 2, 3), rocks = listOf(27, 24, 22, 21, 11), mountains = listOf(0, 2), trees = listOf(4, 8, 10)
     )
+    /** 하천 — 물속에 둥글게 닳은 자갈과 여울의 도라돌. */
+    private val riverNature = NatureArtSet(
+        grass = listOf(0, 1, 2, 4), tallGrass = listOf(0, 2, 3), flowers = listOf(0, 1, 5),
+        reeds = listOf(0, 1, 3), rocks = listOf(22, 27, 23, 10), mountains = listOf(0, 2), trees = listOf(0, 4, 8, 11)
+    )
+    /** 들판·논둑 — 따뜻한 사암과 돌담. */
     private val fieldNature = NatureArtSet(
         grass = listOf(0, 1, 3, 4), tallGrass = listOf(0, 2, 3), flowers = listOf(1, 3, 4),
-        reeds = listOf(0, 2), rocks = listOf(7, 3, 0), mountains = listOf(0, 2), trees = listOf(0, 9, 10)
+        reeds = listOf(0, 2), rocks = listOf(15, 17, 19, 0), mountains = listOf(0, 2), trees = listOf(0, 9, 10)
     )
-    private val volcanicNature = NatureArtSet(
-        grass = listOf(0, 2, 4, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(3, 5),
-        reeds = listOf(2, 3), rocks = listOf(4, 5, 2), mountains = listOf(3, 2), trees = listOf(6, 7, 11)
+    /** 도시 — 다듬은 화단석과 옹벽. */
+    private val urbanParkNature = NatureArtSet(
+        grass = listOf(0, 1, 3, 4), tallGrass = listOf(0, 2), flowers = listOf(0, 2, 3),
+        reeds = listOf(0, 1), rocks = listOf(20, 19, 0, 22), mountains = listOf(0, 2), trees = listOf(0, 2, 9, 15)
+    )
+    /** 항구 — 방파제 블록과 바다에서 올라온 사암. */
+    private val harbourNature = NatureArtSet(
+        grass = listOf(0, 2, 3, 5), tallGrass = listOf(1, 2, 3), flowers = listOf(0, 3, 5),
+        reeds = listOf(0, 2), rocks = listOf(18, 22, 8, 11), mountains = listOf(0, 2), trees = listOf(1, 7, 4)
+    )
+    /** 서안 석회암 지대 — 전주의 담과 영치면의 갯바위. */
+    private val limestoneNature = NatureArtSet(
+        grass = listOf(0, 1, 3, 4), tallGrass = listOf(0, 2, 3), flowers = listOf(1, 3, 5),
+        reeds = listOf(0, 1), rocks = listOf(12, 13, 14, 19), mountains = listOf(0, 2), trees = listOf(0, 2, 9, 10)
+    )
+    /** 호수 — 물가 자갈과 이끼 낀 바위. */
+    private val lakeShoreNature = NatureArtSet(
+        grass = listOf(0, 1, 2, 4), tallGrass = listOf(0, 2), flowers = listOf(0, 1, 5),
+        reeds = listOf(0, 3), rocks = listOf(22, 23, 27, 7), mountains = listOf(0, 2), trees = listOf(1, 4, 8, 11)
     )
 
     /** Per-place accents on top of its broader habitat, so nearby wetlands don't all look alike. */
+    /**
+     * 지역마다 실제 지질에 맞는 돌무더기와 나무를 고른다.
+     *
+     * 묶음(위 `graniteNature` 등)만으로는 한눈에 구분되지 않으므로, 도시 12곳과
+     * 명소 20곳은 **그 장소의 바위 번호**로 직접 지정한다. (예: 부산은 방파제 블록,
+     * 인천은 갯벌 사구돌, 대구는 팔공산의 화강암, 부산·인천이 같은 돌을 쓰면 안 된다.)
+     */
     private fun natureArtFor(region: RegionDef): NatureArtSet = when (region.id) {
-        "seoul" -> urbanParkNature
-        "incheon" -> tidalFlatNature.copy(rocks = listOf(5, 8, 1), trees = listOf(1, 7, 10))
-        "chuncheon" -> lakeShoreNature
-        "gangneung" -> coastalPineNature.copy(rocks = listOf(5, 2, 6), trees = listOf(1, 7, 11))
-        "sokcho" -> alpineNature.copy(rocks = listOf(2, 6, 0), mountains = listOf(2, 1))
-        "daejeon" -> riverNature.copy(trees = listOf(0, 4, 9, 10), flowers = listOf(0, 1, 4))
-        "jeonju" -> fieldNature.copy(rocks = listOf(7, 3, 8), trees = listOf(0, 2, 9, 10))
-        "daegu" -> fieldNature.copy(grass = listOf(0, 2, 3, 5), rocks = listOf(7, 2, 0), trees = listOf(1, 7, 10))
-        "gwangju" -> riverNature.copy(rocks = listOf(6, 0, 2), trees = listOf(0, 4, 6, 11), flowers = listOf(0, 3, 5))
-        "ulsan" -> coastalPineNature.copy(rocks = listOf(5, 3, 2), trees = listOf(1, 5, 7))
-        "busan" -> coastalPineNature.copy(rocks = listOf(5, 3, 8), trees = listOf(1, 7, 4))
-        "jeju" -> volcanicNature
-        "hadori" -> volcanicNature.copy(
-            rocks = listOf(4, 5, 8), trees = listOf(6, 7, 4), reeds = listOf(2, 3), flowers = listOf(3, 5)
+        // ── 도시 12곳 ────────────────────────────────────────────────────
+        // 서울 — 한강 자갈, 도심 화단석, 한복판 옹벽
+        "seoul" -> urbanParkNature.copy(rocks = listOf(22, 20, 19, 0, 27), trees = listOf(0, 2, 9, 15, 10))
+        // 인천 — 갯벌의 사구돌과 조개자갈, 월미호 선사장 바깥의 갯바위
+        "incheon" -> tidalFlatNature.copy(rocks = listOf(24, 25, 11, 10), trees = listOf(1, 7, 10))
+        // 춘천 — 의암호·소양강 물에 닳은 자갈과 이끼 낀 바위
+        "chuncheon" -> lakeShoreNature.copy(rocks = listOf(22, 23, 27, 7), trees = listOf(1, 4, 8, 11))
+        // 강릉 — 경포호 자갈, 동해 층리 바위, 해안선반과 첨탑 바위
+        "gangneung" -> seaStackNature.copy(
+            rocks = listOf(8, 11, 26, 10, 22), trees = listOf(1, 7, 11, 18)
         )
-        "ganghwa" -> tidalFlatNature.copy(rocks = listOf(5, 3, 8), trees = listOf(1, 7, 4))
-        "cheorwon" -> fieldNature.copy(grass = listOf(0, 1, 3, 4, 5), flowers = listOf(1, 4, 5), trees = listOf(0, 8, 10))
-        "eulsukdo" -> reedMarshNature.copy(reeds = listOf(1, 2, 3), rocks = listOf(3, 5, 8))
-        "gongneung" -> riverNature.copy(rocks = listOf(3, 1, 6), trees = listOf(0, 4, 8))
-        "gwangneung" -> alpineNature.copy(rocks = listOf(6, 0, 2), trees = listOf(0, 8, 11), flowers = listOf(2, 3, 5))
-        "songdo" -> tidalFlatNature.copy(rocks = listOf(5, 8, 4), trees = listOf(1, 7, 10))
-        "sihwa" -> reedMarshNature.copy(rocks = listOf(5, 3, 8), trees = listOf(4, 7, 8))
-        "hwaseong" -> tidalFlatNature.copy(grass = listOf(0, 2, 3, 5), rocks = listOf(5, 8, 7))
-        "ansan" -> reedMarshNature.copy(rocks = listOf(3, 6, 8), trees = listOf(4, 8, 10))
-        "maehyang" -> coastalPineNature.copy(rocks = listOf(5, 8, 7), flowers = listOf(0, 3, 5))
-        "junam" -> lakeShoreNature.copy(grass = listOf(0, 1, 3, 4), trees = listOf(0, 4, 10), reeds = listOf(0, 2, 3))
-        "suncheon" -> reedMarshNature.copy(rocks = listOf(5, 3, 8), trees = listOf(4, 7, 10))
-        "geumgang" -> riverNature.copy(rocks = listOf(3, 5, 1), trees = listOf(0, 4, 8))
-        "gochang" -> tidalFlatNature.copy(rocks = listOf(5, 8, 3), flowers = listOf(1, 3, 5))
-        "taean" -> coastalPineNature.copy(rocks = listOf(7, 5, 2), trees = listOf(1, 7, 11))
-        "upo" -> reedMarshNature.copy(rocks = listOf(6, 3, 8), trees = listOf(4, 8, 11))
-        "hallasan" -> volcanicNature.copy(rocks = listOf(4, 2, 6), mountains = listOf(3, 2), trees = listOf(6, 11, 8))
-        "imjin" -> riverNature.copy(rocks = listOf(3, 2, 6), trees = listOf(1, 0, 4))
-        "wangpi" -> riverNature.copy(rocks = listOf(3, 6, 2), trees = listOf(11, 1, 0))
+        // 속초 — 설악산의 화강암 첨탑과 노두 자갈이 곧 이 지역의 표상
+        "sokcho" -> graniteNature.copy(
+            rocks = listOf(1, 0, 2, 3), mountains = listOf(2, 1), trees = listOf(1, 8, 11, 18)
+        )
+        // 대전 — 갑천 자갈, 유등산 화강암, 도심 화단석
+        "daejeon" -> riverNature.copy(
+            rocks = listOf(22, 0, 20, 27), trees = listOf(0, 4, 9, 15, 10)
+        )
+        // 전주 — 한옥마을 돌담과 따뜻한 사암, 서안 석회암
+        "jeonju" -> limestoneNature.copy(
+            rocks = listOf(19, 15, 12, 17, 13), trees = listOf(0, 2, 9, 15, 10)
+        )
+        // 대구 — 팔공산 암괴와 분지 바닥의 사암
+        "daegu" -> fieldNature.copy(
+            grass = listOf(0, 2, 3, 5), rocks = listOf(0, 1, 15, 2), trees = listOf(1, 7, 10, 15)
+        )
+        // 광주 — 무등산 이끼 바위와 광주천 자갈
+        "gwangju" -> riverNature.copy(
+            rocks = listOf(23, 0, 22, 27), trees = listOf(0, 4, 6, 11, 18), flowers = listOf(0, 3, 5)
+        )
+        // 울산 — 대왕암의 바위 첨탑과 태화강 십리대숲
+        "ulsan" -> harbourNature.copy(
+            rocks = listOf(26, 9, 8, 22), trees = listOf(1, 5, 7, 17)
+        )
+        // 부산 — 방파제 계기초 블록, 낙동강 자갈, 해운대 갯바위
+        "busan" -> harbourNature.copy(
+            rocks = listOf(18, 22, 11, 8, 26), trees = listOf(1, 7, 4, 15)
+        )
+        // 제주 — 현무암 기둥과 용암 성벽
+        "jeju" -> basaltNature.copy(trees = listOf(6, 7, 17, 11))
+        // ── 갯벌·습지·강 명소 ─────────────────────────────────────────────
+        // 강화도 갯벌 — 사구돌과 조개자갈이 깔린 거대한 썰물 길
+        "ganghwa" -> tidalFlatNature.copy(rocks = listOf(24, 25, 11, 27), trees = listOf(1, 7, 4, 15))
+        // 철원 평야 — 논둑의 사암 조각돌과 흙담
+        "cheorwon" -> fieldNature.copy(
+            grass = listOf(0, 1, 3, 4, 5), flowers = listOf(1, 4, 5), rocks = listOf(17, 15, 22, 19),
+            trees = listOf(0, 8, 10, 15)
+        )
+        // 을숙도 하구 — 도라돌이 자갈밭처럼 흩어지고 갯벌 사구돌이 섞인다
+        "eulsukdo" -> reedMarshNature.copy(
+            reeds = listOf(1, 2, 3), rocks = listOf(27, 22, 24, 11), trees = listOf(4, 8, 10, 15)
+        )
+        // 공릉천 — 수제 백로가 서는 여울의 자갈
+        "gongneung" -> riverNature.copy(
+            rocks = listOf(22, 27, 23, 10), trees = listOf(0, 4, 8, 15)
+        )
+        // 광릉숲 — 수 голос지 화강암과 이끼 낀 바위, 향나무 숲
+        "gwangneung" -> graniteNature.copy(
+            rocks = listOf(0, 3, 23, 2, 1), trees = listOf(0, 8, 11, 16, 18), flowers = listOf(2, 3, 5)
+        )
+        // 송도 갯벌 — 인공 방파제 옆 갯벌의 사구돌
+        "songdo" -> tidalFlatNature.copy(rocks = listOf(24, 25, 18, 11), trees = listOf(1, 7, 10))
+        // 시화호 — 제방에 세워 둔 호안석 가비온
+        "sihwa" -> reedMarshNature.copy(
+            rocks = listOf(21, 27, 22, 24), trees = listOf(4, 7, 8, 15)
+        )
+        // 화성 습지 — 갯벌과 논이 맞닿는 물길
+        "hwaseong" -> tidalFlatNature.copy(
+            grass = listOf(0, 2, 3, 5), rocks = listOf(24, 25, 27, 11), trees = listOf(4, 8, 15)
+        )
+        // 안산 갈대습지 — 도라돌과 갯벌 사구돌
+        "ansan" -> reedMarshNature.copy(rocks = listOf(27, 22, 21, 24), trees = listOf(4, 8, 10, 15))
+        // 매향리 해안 — 갯바위 선반 위에 하얗게 마른 이끼
+        "maehyang" -> seaStackNature.copy(rocks = listOf(11, 10, 8, 26), flowers = listOf(0, 3, 5))
+        // 주남저수지 — 물가 자갈과 이끼 낀 바위
+        "junam" -> lakeShoreNature.copy(
+            grass = listOf(0, 1, 3, 4), rocks = listOf(22, 27, 23, 17), trees = listOf(0, 4, 10, 15)
+        )
+        // 순천만 — 갈대밭에 섞인 갯벌 사구돌과 도라돌
+        "suncheon" -> reedMarshNature.copy(
+            reeds = listOf(1, 2, 3), rocks = listOf(24, 27, 25, 11), trees = listOf(4, 7, 10, 15)
+        )
+        // 금강 하구 — 하굿물이 사암을 갈아 만든 자갈
+        "geumgang" -> riverNature.copy(rocks = listOf(22, 10, 27, 8), trees = listOf(0, 4, 8, 15))
+        // 고창 갯벌 — 사구돌과 조개자갈, 제방의 가비온
+        "gochang" -> tidalFlatNature.copy(
+            rocks = listOf(24, 25, 21, 11), flowers = listOf(1, 3, 5)
+        )
+        // 태안 천수만 — 방포 갯벌과 소나무 방파제
+        "taean" -> seaStackNature.copy(
+            rocks = listOf(24, 11, 18, 25), trees = listOf(1, 7, 11)
+        )
+        // 우포늪 — 내륙습지의 도라돌과 갈대 뿌리
+        "upo" -> reedMarshNature.copy(rocks = listOf(27, 22, 24, 23), trees = listOf(4, 8, 11, 15))
+        // 제주 하도리 — 현무암과 갯벌의 만남
+        "hadori" -> basaltNature.copy(
+            rocks = listOf(4, 5, 6, 7), trees = listOf(6, 7, 17, 4), reeds = listOf(2, 3), flowers = listOf(3, 5)
+        )
+        // 한라산 국립공원 — 현무암 성벽 위로 화강암이 어우러진다
+        "hallasan" -> basaltNature.copy(
+            rocks = listOf(5, 4, 1, 0), mountains = listOf(3, 2), trees = listOf(6, 11, 16, 18)
+        )
+        // 임진강 — 강가 도라돌과 이끼 낀 바위
+        "imjin" -> riverNature.copy(rocks = listOf(22, 27, 10, 23), trees = listOf(1, 0, 4, 15))
+        // 왕피천 — 계곡의 화강암 노두와 물밑 자갈
+        "wangpi" -> graniteNature.copy(
+            rocks = listOf(0, 3, 2, 22), trees = listOf(11, 1, 0, 18)
+        )
         else -> when {
-            region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats -> alpineNature
-            region.kind == RegionKind.COAST || "coast" in region.habitats -> coastalPineNature
+            region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats -> graniteNature
+            region.kind == RegionKind.COAST || "coast" in region.habitats -> seaStackNature
             region.kind == RegionKind.WETLAND || "wetland" in region.habitats -> reedMarshNature
             region.kind == RegionKind.RIVER || "water" in region.habitats -> riverNature
             "field" in region.habitats -> fieldNature
