@@ -249,24 +249,4 @@ eval "set -- $(
         tr '\n' ' '
     )" '"$@"'
 
-# ── TEMP(삭제 예정) ────────────────────────────────────────────────────────
-# 이 샌드박스에서는 GitHub Actions 로그 서버에 접근할 수 없어,
-# 빌드 실패 원인을 PR 코멘트로 되돌려보낸다.
-"$JAVACMD" "$@" > /tmp/gradle-build.log 2>&1
-__code=$?
-tail -n 120 /tmp/gradle-build.log
-if [ "$__code" -ne 0 ]; then
-  __hdr=$(git config --get http.https://github.com/.extraheader 2>/dev/null)
-  __b64=$(printf '%s' "$__hdr" | sed -n 's/.*basic \([A-Za-z0-9+/=]*\).*/\1/p')
-  if [ -n "$__b64" ]; then
-    __tok=$(printf '%s' "$__b64" | base64 -d 2>/dev/null | cut -d: -f2)
-    __body=$(grep -aE "^(e|w): |error:|FAILURE|What went wrong|Caused by|Unresolved reference|\.kt:[0-9]+" /tmp/gradle-build.log | head -n 60)
-    [ -z "$__body" ] && __body=$(tail -n 60 /tmp/gradle-build.log)
-    cp "$__body" build-failure.txt 2>/dev/null || true
-    head -n 400 /tmp/gradle-build.log > build-failure.txt
-    git add build-failure.txt >/dev/null 2>&1 || true
-    git -c user.name=ci-probe -c user.email=ci-probe@local commit -q -m "ci: 빌드 실패 로그 [skip ci]" >/dev/null 2>&1 || true
-    git push -q origin HEAD:arena/01a0e10c-pizza-and-bird || true
-  fi
-fi
-exit $__code
+exec "$JAVACMD" "$@"
