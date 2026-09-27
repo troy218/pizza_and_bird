@@ -25,6 +25,7 @@ fun reach(map: GameMap, sx: Int, sy: Int, tx: Int, ty: Int): Boolean {
             val k = nx.toLong() * 1000 + ny
             if (k in seen) continue
             if (map.solidTile(nx, ny)) continue
+            if (map.t(nx, ny) == T.TUNNEL) continue
             seen.add(k)
             q.add(nx to ny)
         }
@@ -54,6 +55,11 @@ fun main() {
         for ((_, t) in Regions.exits(cur)) if (t !in seen) { seen.add(t); q.add(t) }
     }
     check(seen.size == Regions.ALL.size, "연결 안 된 지역: ${Regions.ALL.map { it.id }.filter { it !in seen }}")
+
+    // 2.5 새 데이터: 낮 풀/밤 풀 기본 조건
+    check(Birds.ALL.isNotEmpty(), "새 데이터 없음")
+    check(Birds.ALL.any { it.active == "night" }, "밤새(active=night) 정의 없음")
+    check(Birds.ALL.all { it.habitats.isNotEmpty() }, "서식지 없는 새 존재")
 
     // 3. 모든 (지역, 홈) 조합에 대한 맵 검증
     for (home in Regions.ALL) {
@@ -100,6 +106,18 @@ fun main() {
                     Dir.E -> (map.w - 2) to 15
                 }
                 check(reach(map, start.first, start.second, 20, 15), "터널->플라자 경로 없음 ${r.id} $d")
+
+                // 이정표: 타일 존재 + 4방향 중 하나 이상 걸을 수 있어야
+                val (sx, sy) = when (d) {
+                    Dir.N -> 22 to 1
+                    Dir.S -> 22 to (map.h - 4)
+                    Dir.W -> 2 to 13
+                    Dir.E -> (map.w - 3) to 13
+                }
+                check(map.t(sx, sy) == T.SIGN, "이정표 없음 ${r.id} $d ($sx,$sy)=${map.t(sx, sy)}")
+                check(!map.solidTile(sx + 1, sy) || !map.solidTile(sx - 1, sy) ||
+                        !map.solidTile(sx, sy + 1) || !map.solidTile(sx, sy - 1),
+                    "이정표가 완전히 막힘 ${r.id} $d ($sx,$sy)")
             }
 
             // 홈 지역: 집 문 & 경로
@@ -113,11 +131,10 @@ fun main() {
                 check(!map.hasHouse, "집 있으면 안 됨 ${r.id} (홈=${home.id})")
             }
 
-            // 새 풀
+            // 새 풀 (낮 기준 — 밤 풀이 비면 WorldScene이 낮 풀로 폴백)
             check(Birds.poolFor(r).isNotEmpty(), "새 풀 빈음 ${r.id}")
 
             // 지도 가장자리: 밖으로 나갈 수 없어야 함
-            // (SAND/WATER 가장자리는 맵 밖(out-of-bounds)이 solid로 처리되어 안전)
             for (x in 0 until map.w) {
                 check(map.solidTile(x, 0) || map.t(x, 0) == T.TUNNEL || map.t(x, 0) == T.SAND,
                     "상단 경계 뚫림 ${r.id} ($x,0)=${map.t(x, 0)}")
@@ -143,22 +160,49 @@ fun main() {
     check(!hm.solidTile(2, 5), "박스 앞 막힘")
     check(hm.t(9, 2) == T.OVEN, "화덕 위치 오류")
     check(hm.t(2, 2) == T.BED, "침대 위치 오류")
+    check(hm.t(5, 2) == T.DECOR && hm.t(7, 2) == T.DECOR && hm.t(11, 5) == T.DECOR, "장식 칸 오류")
+    check(hm.t(2, 1) == T.WALL_WIN && hm.t(5, 1) == T.WALL_WIN && hm.t(8, 1) == T.WALL_WIN, "창문 위치 오류")
 
-    // 5. 게임 상태 로직
+    // 5. 게임 상태 로직 (v0.2: 토핑×품질)
     val gs = GameState()
     gs.reset("jeju")
     check(gs.started && gs.homeRegion == "jeju" && "jeju" in gs.visited, "reset 오류")
-    check(gs.addPizza(2) && gs.addPizza(1) && gs.addPizza(0), "피자 추가 오류")
+    check(gs.worldTime == 8.5f && !gs.isNight(), "초기 시각 오류")
+    check(gs.decorSlots.all { it == -1 } && gs.decorLuck() == 0, "장식 초기화 오류")
+
+    check(gs.addPizza(0, 2) && gs.addPizza(1, 1) && gs.addPizza(2, 0), "피자 추가 오류")
+    check(gs.pizzaCountOf(0) == 1 && gs.pizzaCountOf(0, 2) == 1 && gs.pizzaCountOf(2, 0) == 1, "피자 개수 집계 오류")
+    check(gs.pizzaCount == 3, "피자 총합 오류: ${gs.pizzaCount}")
+
     var capOk = true
-    for (i in 0 until 10) if (!gs.addPizza(1)) capOk = false
+    for (i in 0 until 10) if (!gs.addPizza(1, 0)) capOk = false
     check(!capOk, "피자 상한 작동 안 함 (항상 추가됨)")
     check(gs.pizzaCount == PIZZA_CAP, "피자 상한 개수 오류: ${gs.pizzaCount}")
-    val eaten = gs.eat(2)
-    check(eaten != null && eaten.hunger == 60, "피자 먹기 오류")
+
+    // 가장 좋은 품질부터 먹히는지 (버섯엔 품질1 + 품질0 재고 → '맛있는 피자' 먼저)
+    val before = gs.pizzaCountOf(1)
+    val eaten = gs.eat(1)
+    check(eaten != null && eaten.label == "맛있는 피자", "토핑별 먹기 오류: ${eaten?.label}")
+    check(gs.pizzaCountOf(1) == before - 1, "먹은 후 개수 오류: ${gs.pizzaCountOf(1)} != ${before - 1}")
+    val anyEaten = gs.eatBest()
+    check(anyEaten != null, "eatBest 실패 (재고 있는데 null)")
+    check(gs.pizzaCount == PIZZA_CAP - 2, "eatBest 후 총 개수 오류: ${gs.pizzaCount}")
+
+    // 시간 흐름: 24시간 순환
+    gs.worldTime = 23.9f
+    check(gs.isNight(), "23:54 밤 판정 오류")
+    gs.worldTime = 12f
+    check(!gs.isNight(), "낮 판정 오류")
+
+    // 장식 행운
+    gs.decorOwned.add(0); gs.decorOwned.add(4)
+    gs.decorSlots[0] = 0; gs.decorSlots[1] = 4
+    check(gs.decorLuck() == 4, "장식 행운 합산 오류: ${gs.decorLuck()}")
+
     check(gs.money == 0, "초기 돈 오류")
 
     // 6. JSON 직렬화 왕복 (org.json은 Android 런타임 필요 — 여기선 미실행)
 
-    println(if (fails == 0) "OK: 모든 맵/로직 테스트 통과! (지역 9 x 홈 9 = 81개 맵 조합)" else "FAILURES: ${fails}건")
+    println(if (fails == 0) "OK: 모든 맵/로직 테스트 통과! (지역 ${Regions.ALL.size} x 홈 ${Regions.ALL.size} = ${Regions.ALL.size * Regions.ALL.size}개 맵 조합)" else "FAILURES: ${fails}건")
     if (fails > 0) kotlin.system.exitProcess(1)
 }

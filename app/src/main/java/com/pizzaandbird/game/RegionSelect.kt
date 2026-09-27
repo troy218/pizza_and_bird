@@ -50,8 +50,9 @@ object RegionCards {
             var y = r.top + dp * 16
             tp.textSize = dp * 14f
             tp.color = 0xFF4A3728.toInt()
-            c.drawText(reg.name, x, y, tp)
-            val nameW = tp.measureText(reg.name)
+            val nameLine = "${reg.emoji} ${reg.name}"
+            c.drawText(nameLine, x, y, tp)
+            val nameW = tp.measureText(nameLine)
             tp.textSize = dp * 8.5f
             tp.color = 0xFF8A7360.toInt()
             c.drawText(reg.english, x + nameW + dp * 6f, y, tp)
@@ -108,22 +109,41 @@ class RegionSelectScene(game: Game) : Scene(game) {
 
     override fun drawWorld(c: Canvas) {
         val p = Paint()
-        p.color = 0xFFBCE0DC.toInt()
-        c.drawRect(0f, 0f, 480f, 270f, p)
-        p.color = 0xFFD8ECDC.toInt()
-        c.drawCircle(90f, 290f, 120f, p)
-        c.drawCircle(390f, 300f, 140f, p)
-        val t = game.time
         val a = game.assets
-        val birds = listOf("sparrow", "gull", "greattit")
-        for (i in 0 until 3) {
-            val bx = (t * (14f + i * 5f) + i * 160f) % 560f - 40f
-            val by = 30f + i * 26f + sin(t * 1.8f + i * 2f) * 8f
+        // 하늘
+        p.color = 0xFFA4E4EE.toInt()
+        c.drawRect(0f, 0f, 960f, 540f, p)
+        p.color = 0xFFBCEAF0.toInt()
+        c.drawRect(0f, 180f, 960f, 540f, p)
+        // 구름
+        p.color = Color.argb(200, 255, 255, 255)
+        c.drawCircle(120f, 60f, 16f, p); c.drawCircle(146f, 52f, 20f, p); c.drawCircle(174f, 62f, 15f, p)
+        c.drawRect(104f, 60f, 190f, 78f, p)
+        c.drawCircle(760f, 90f, 14f, p); c.drawCircle(784f, 82f, 18f, p); c.drawCircle(808f, 92f, 13f, p)
+        c.drawRect(748f, 90f, 822f, 106f, p)
+        // 언덕
+        p.color = 0xFF8CCB8C.toInt()
+        c.drawCircle(180f, 600f, 260f, p)
+        c.drawCircle(780f, 630f, 300f, p)
+        p.color = 0xFF7ABC7A.toInt()
+        c.drawCircle(470f, 620f, 240f, p)
+        // 풀 타일 바닥
+        val grass = a.tiles[T.GRASS.ordinal]
+        for (row in 13..16) for (col in 0 until 30) {
+            val variant = a.tileVariant(T.GRASS.ordinal, col, row)
+            c.drawBitmap(grass[variant], col * 32f, row * 32f, a.sprPaint)
+        }
+        val t = game.time
+        // 날아가는 새들
+        val birds = listOf("sparrow", "gull", "greattit", "egret")
+        for (i in 0 until 4) {
+            val bx = (t * (16f + i * 6f) + i * 240f) % 1120f - 80f
+            val by = 60f + i * 34f + sin(t * 1.8f + i * 2f) * 9f
             c.drawBitmap(a.bird(birds[i]), bx, by, a.sprPaint)
         }
-        val pz = a.pizzaIcon
-        c.drawBitmap(pz, 20f, 240f + sin(t * 2f) * 2f, a.sprPaint)
-        c.drawBitmap(a.bird("magpie"), 450f, 236f + sin(t * 2.4f) * 2f, a.sprPaint)
+        c.drawBitmap(a.pizzaIcon, 34f, 474f + sin(t * 2f) * 3f, a.sprPaint)
+        c.drawBitmap(a.birdFlipped("magpie"), 894f, 470f + sin(t * 2.4f) * 3f, a.sprPaint)
+        c.drawBitmap(a.bird("crane"), 26f, 428f + sin(t * 1.6f) * 3f, a.sprPaint)
     }
 
     override fun drawHud(c: Canvas) {

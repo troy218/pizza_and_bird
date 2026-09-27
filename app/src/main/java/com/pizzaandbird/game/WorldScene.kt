@@ -13,7 +13,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * 지역 월드 씬: 걷기/자전거, 터널 이동, 새 스폰/촬영, NPC.
+ * 지역 월드 씬: 걷기/자전거/달리기, 터널 이동, 새 스폰/촬영, 낮밤, 파티클, NPC/고양이.
  */
 class WorldScene(
     game: Game,
@@ -27,6 +27,7 @@ class WorldScene(
     val map: GameMap = MapBuilder.build(region, state.homeRegion)
     private val player = Player()
     private val birds = ArrayList<FieldBird>()
+    private val cats = ArrayList<Cat>()
     private val rnd = Random(region.id.hashCode().toLong() + 7L)
 
     var photoMode = false
@@ -39,24 +40,38 @@ class WorldScene(
     private var luckAcc = 0f
     private var hungerWarnT = 0f
     private var saveT = 20f
+    private var dustT = 0f
+    private var ambientT = 0f
+
+    // 파티클
+    private class Pt(
+        var x: Float, var y: Float, var vx: Float, var vy: Float,
+        var life: Float, var max: Float, var col: Int, var size: Float, var sway: Boolean
+    )
+
+    private val particles = ArrayList<Pt>()
 
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         isFakeBoldText = true
         color = 0xFF4A3728.toInt()
-        textSize = 9f
+        textSize = 13f
     }
     private val bubbleFill = Paint()
     private val bubbleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         color = 0xFF6B4F35.toInt()
-        strokeWidth = 1.2f
+        strokeWidth = 1.6f
     }
     private val dashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         color = Color.argb(200, 255, 250, 235)
-        strokeWidth = 2f
-        pathEffect = DashPathEffect(floatArrayOf(5f, 5f), 0f)
+        strokeWidth = 2.4f
+        pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
     }
+    private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
+    private val uiFill = Paint()
+    private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
 
     init {
         state.region = region.id
@@ -85,12 +100,17 @@ class WorldScene(
         }
 
         repeat(2) { trySpawnBird() }
+        spawnCats()
+
+        // 카메라 초기 스냅
+        updateCamera(snap = true)
 
         game.hud.showControls = true
         game.hud.showStats = true
         game.hud.showMinimap = true
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
+        game.banner("${region.emoji}  ${region.name}")
     }
 
     // -------------------------------------------------------------------
@@ -101,6 +121,7 @@ class WorldScene(
         game.hud.update(dt)
         if (overlay != null) return   // 대화상자/메뉴 중에는 세계 정지
         state.playSeconds += dt
+        state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
 
         updatePlayer(dt)
         updateStats(dt)
@@ -115,17 +136,29 @@ class WorldScene(
             if (b.gone) it.remove()
         }
 
+        // 고양이
+        for (cat in cats) cat.update(dt, map)
+
+        // 새 스폰
         spawnTimer -= dt
         if (spawnTimer <= 0f) {
             trySpawnBird()
-            spawnTimer = 2.5f + rnd.nextFloat() * 3.5f
+            spawnTimer = (if (state.isNight()) 2f else 2.5f) + rnd.nextFloat() * 3.5f
+        }
+
+        // 파티클
+        updateParticles(dt)
+        spawnAmbient(dt)
+        if (player.bike && player.moving) {
+            dustT -= dt
+            if (dustT <= 0f) {
+                dustT = 0.16f
+                addParticle(player.x + 8f, player.y + 14f, (rnd.nextFloat() - 0.5f) * 10f, -6f, 0.5f, Color.argb(120, 148, 128, 96), 3f, false)
+            }
         }
 
         // 카메라
-        val mapW = map.w * 16f
-        val mapH = map.h * 16f
-        camX = (player.cx - game.virtW / 2f).coerceIn(0f, (mapW - game.virtW).coerceAtLeast(0f))
-        camY = (player.cy - game.virtH / 2f).coerceIn(0f, (mapH - game.virtH).coerceAtLeast(0f))
+        updateCamera(snap = false, dt = dt)
 
         // 상태 동기화 & 주기 저장
         state.px = player.x
@@ -137,6 +170,22 @@ class WorldScene(
         if (saveT <= 0f) {
             saveT = 25f
             SaveManager.save(game.context, state)
+        }
+    }
+
+    private fun updateCamera(snap: Boolean, dt: Float = 0f) {
+        val halfW = game.virtW / (2f * WORLD_SCALE)
+        val halfH = game.virtH / (2f * WORLD_SCALE)
+        val mapW = map.w * 16f
+        val mapH = map.h * 16f
+        val tx = (player.cx - halfW).coerceIn(0f, (mapW - halfW * 2f).coerceAtLeast(0f))
+        val ty = (player.cy - halfH).coerceIn(0f, (mapH - halfH * 2f).coerceAtLeast(0f))
+        if (snap) {
+            camX = tx; camY = ty
+        } else {
+            val k = (dt * 8f).coerceIn(0f, 1f)
+            camX += (tx - camX) * k
+            camY += (ty - camY) * k
         }
     }
 
@@ -155,11 +204,13 @@ class WorldScene(
             var vy = dy
             val len = sqrt(vx * vx + vy * vy)
             if (len > 0.01f) { vx /= len; vy /= len }
+            val sprint = input.isRun && !player.bike
             var speed = if (player.bike) 97f else 55f
+            if (sprint) speed *= 1.45f
             if (state.hunger <= 0f) speed *= 0.55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt
+            player.animT += dt * (if (sprint) 1.4f else 1f)
         } else {
             player.animT = 0f
         }
@@ -176,7 +227,9 @@ class WorldScene(
 
     private fun updateStats(dt: Float) {
         val moving = player.moving
+        val sprinting = game.input.isRun && !player.bike && moving
         val hungerRate = when {
+            sprinting -> 0.24f
             player.bike && moving -> 0.22f
             moving -> 0.14f
             else -> 0.035f
@@ -206,9 +259,9 @@ class WorldScene(
         when (ft) {
             T.TUNNEL -> {
                 val edge = when {
-                    (player.py().toInt()) <= 1 -> Dir.N
-                    (player.py().toInt()) >= map.h - 2 -> Dir.S
-                    (player.px().toInt()) <= 1 -> Dir.W
+                    (player.y.toInt() / 16) <= 1 -> Dir.N
+                    (player.y.toInt() / 16) >= map.h - 2 -> Dir.S
+                    (player.x.toInt() / 16) <= 1 -> Dir.W
                     else -> Dir.E
                 }
                 goThroughTunnel(edge)
@@ -217,9 +270,6 @@ class WorldScene(
             else -> {}
         }
     }
-
-    private fun Player.px(): Float = x / 16f
-    private fun Player.py(): Float = y / 16f
 
     // -------------------------------------------------------------------
     // 지역/집 이동
@@ -252,9 +302,13 @@ class WorldScene(
     // -------------------------------------------------------------------
 
     private fun luckBoost(def: BirdDef): Double =
-        1.0 + (state.luck / 100.0) * (def.tier.star - 1) * 1.4
+        1.0 + (state.effectiveLuck() / 100.0) * (def.tier.star - 1) * 1.4
 
-    private fun regionPool(): List<BirdDef> = Birds.poolFor(map.region)
+    private fun regionPool(): List<BirdDef> {
+        val n = state.isNight()
+        val pool = Birds.poolFor(map.region, n)
+        return if (pool.isEmpty()) Birds.poolFor(map.region, !n) else pool
+    }
 
     private fun trySpawnBird() {
         if (birds.size >= 3) return
@@ -300,11 +354,14 @@ class WorldScene(
         }
         val cam = CameraDefs.LEVELS[(state.cameraLevel - 1).coerceIn(0, CameraDefs.LEVELS.size - 1)]
         if (stars < 3 && rnd.nextDouble() < 0.13 * cam.qualityBonus) stars++
-        if (stars < 3 && rnd.nextDouble() < state.luck / 520.0) stars++
+        if (stars < 3 && rnd.nextDouble() < state.effectiveLuck() / 520.0) stars++
 
         val prev = state.birdCounts[b.def.id] ?: 0
         val isNew = prev == 0
         state.birdCounts[b.def.id] = prev + 1
+        val prevBest = state.bestStars[b.def.id] ?: 0
+        if (stars > prevBest) state.bestStars[b.def.id] = stars
+        state.photos += 1
         if (isNew) state.luck = (state.luck + 4f).coerceAtMost(100f)
 
         var questLine: String? = null
@@ -315,6 +372,15 @@ class WorldScene(
             questLine = "의뢰 완료! +₩${fmtMoney(total)}" + if (bonus > 0) " (3성 보너스)" else ""
             state.questBird = null
             state.questReward = 0
+        }
+
+        // 깃털 파티클
+        for (i in 0 until 4) {
+            addParticle(
+                b.cx, b.cy,
+                (rnd.nextFloat() - 0.5f) * 24f, -18f - rnd.nextFloat() * 14f,
+                0.7f, Color.argb(210, 250, 248, 240), 3f, true
+            )
         }
 
         b.state = 2
@@ -349,6 +415,142 @@ class WorldScene(
     }
 
     // -------------------------------------------------------------------
+    // 파티클
+    // -------------------------------------------------------------------
+
+    private fun addParticle(x: Float, y: Float, vx: Float, vy: Float, life: Float, col: Int, size: Float, sway: Boolean) {
+        if (particles.size > 60) return
+        particles.add(Pt(x, y, vx, vy, life, life, col, size, sway))
+    }
+
+    private fun updateParticles(dt: Float) {
+        val it = particles.iterator()
+        while (it.hasNext()) {
+            val p = it.next()
+            p.x += p.vx * dt
+            p.y += p.vy * dt
+            if (p.sway) p.x += sin((p.max - p.life) * 3f) * 4f * dt
+            p.life -= dt
+            if (p.life <= 0f) it.remove()
+        }
+    }
+
+    private fun ambientKind(): String = when {
+        region.id == "sokcho" || region.id == "jeju" -> "snow"
+        "coast" in region.habitats -> "sparkle"
+        "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
+        "forest" in region.habitats -> "leaf"
+        else -> "petal"
+    }
+
+    private fun spawnAmbient(dt: Float) {
+        ambientT -= dt
+        if (ambientT > 0f) return
+        ambientT = 0.28f
+        val ambientCount = particles.count { it.max > 1.5f }
+        if (ambientCount >= 22) return
+        val halfW = game.virtW / (2f * WORLD_SCALE)
+        val halfH = game.virtH / (2f * WORLD_SCALE)
+        when (ambientKind()) {
+            "leaf" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,
+                if (rnd.nextBoolean()) Color.argb(170, 111, 174, 87) else Color.argb(170, 200, 140, 70), 3f, true
+            )
+            "petal" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
+                Color.argb(150, 242, 163, 179), 3f, true
+            )
+            "snow" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                (rnd.nextFloat() - 0.5f) * 6f, 8f + rnd.nextFloat() * 5f, 5f,
+                Color.argb(190, 240, 246, 252), 2.6f, true
+            )
+            "sparkle" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY + rnd.nextFloat() * halfH * 2f,
+                0f, -3f, 1.8f, Color.argb(160, 250, 250, 255), 2.2f, false
+            )
+            "firefly" -> addParticle(
+                camX + rnd.nextFloat() * halfW * 2f, camY + rnd.nextFloat() * halfH * 2f,
+                (rnd.nextFloat() - 0.5f) * 8f, (rnd.nextFloat() - 0.5f) * 6f, 3f,
+                Color.argb(220, 247, 222, 96), 2.6f, true
+            )
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 고양이
+    // -------------------------------------------------------------------
+
+    private fun spawnCats() {
+        val n = 1 + (rnd.nextInt(2))
+        repeat(n) {
+            for (i in 0 until 24) {
+                val tx = 2 + rnd.nextInt(map.w - 4)
+                val ty = 2 + rnd.nextInt(map.h - 4)
+                if (!map.walkableTile(tx, ty)) continue
+                val x0 = tx * 16f
+                val y0 = ty * 16f
+                if (hypot(x0 - player.cx, y0 - player.cy) < 56f) continue
+                cats.add(Cat(x0, y0))
+                break
+            }
+        }
+    }
+
+    private fun nearestCat(rangePx: Float = 28f): Cat? {
+        var best: Cat? = null
+        var bestD = Float.MAX_VALUE
+        for (cat in cats) {
+            val d = hypot(cat.cx - player.cx, cat.cy - player.cy)
+            if (d < rangePx && d < bestD) { best = cat; bestD = d }
+        }
+        return best
+    }
+
+    // -------------------------------------------------------------------
+    // 이정표 / 벤치
+    // -------------------------------------------------------------------
+
+    /** 플레이어 주변 3x3 타일에서 특정 타일 찾기 */
+    private fun nearTile(type: T): Pair<Int, Int>? {
+        val ptx = (player.cx / 16f).toInt()
+        val pty = ((player.y + 13f) / 16f).toInt()
+        for (dy in -1..1) for (dx in -1..1) {
+            val x = ptx + dx
+            val y = pty + dy
+            if (map.t(x, y) == type) return x to y
+        }
+        return null
+    }
+
+    private fun signTarget(sx: Int, sy: Int): RegionDef? {
+        val dir = when {
+            sy <= 2 -> Dir.N
+            sy >= map.h - 5 -> Dir.S
+            sx <= 3 -> Dir.W
+            else -> Dir.E
+        }
+        val targetId = Regions.exits(map.region.id)[dir] ?: return null
+        return Regions.byId[targetId]
+    }
+
+    private fun tapSign(vx: Float, vy: Float) {
+        val tx = (vx / 16f).toInt()
+        val ty = (vy / 16f).toInt()
+        if (map.t(tx, ty) == T.SIGN) {
+            val target = signTarget(tx, ty)
+            if (target != null) game.toast("🪧 이 터널 → ${target.name}")
+        }
+    }
+
+    private fun restAtBench() {
+        state.luck = (state.luck + 2f).coerceAtMost(100f)
+        game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
+    }
+
+    // -------------------------------------------------------------------
     // NPC 상호작용
     // -------------------------------------------------------------------
 
@@ -372,13 +574,41 @@ class WorldScene(
                     listOf(DialogOverlay.Choice("안녕하세요!"))
                 )
             )
+            NpcKind.KID -> {
+                val lines = listOf(
+                    "우와, 카메라 멋져요! 저도 크면 탐조할 거예요!",
+                    "저기요, 저 새 이름 알아요? 어… 까먹었어요.",
+                    "자전거 타면 빨리 가지만 금방 배고파져요!",
+                    "박사님이 뭔가 찾고 있었어요. 가보실래요?"
+                )
+                openOverlay(
+                    DialogOverlay(
+                        this, npc.name, "\"${lines[rnd.nextInt(lines.size)]}\"",
+                        listOf(DialogOverlay.Choice("ㅎㅎ 귀엽다"))
+                    )
+                )
+            }
+            NpcKind.ELDER -> {
+                val lines = listOf(
+                    "요즘 젊은이들은 참 부지런해요.",
+                    "옛날엔 이 동네에 두루미가 많이 왔었지…",
+                    "피자도 잘 먹고 다니게. 몸이 자본이야.",
+                    "해 지기 전에 들어가게. 밤엔 부엉이가 나온다네."
+                )
+                openOverlay(
+                    DialogOverlay(
+                        this, npc.name, "\"${lines[rnd.nextInt(lines.size)]}\"",
+                        listOf(DialogOverlay.Choice("다녀오겠습니다"))
+                    )
+                )
+            }
         }
     }
 
     private fun talkProfessor() {
         val cur = state.questBird
         if (cur == null) {
-            val pool = regionPool()
+            val pool = Birds.poolFor(map.region, false)   // 의뢰는 언제든 찍을 수 있는 낮새 위주
             if (pool.isEmpty()) return
             val unphoto = pool.filter { (state.birdCounts[it.id] ?: 0) == 0 && it.tier.star <= 2 }
             val candidates = if (unphoto.isNotEmpty() && rnd.nextDouble() < 0.55) unphoto else pool
@@ -419,34 +649,37 @@ class WorldScene(
 
     private fun talkShop() {
         val lvl = state.cameraLevel
-        if (lvl >= CameraDefs.LEVELS.size) {
-            openOverlay(
-                DialogOverlay(
-                    this, "사진용품점",
-                    "\"이미 최고의 장비를 갖췄구먼! 부럽다니까.\"",
-                    listOf(DialogOverlay.Choice("그럼 이만!"))
-                )
-            )
-            return
-        }
-        val next = CameraDefs.LEVELS[lvl]
         openOverlay(
             DialogOverlay(
                 this, "사진용품점",
-                "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ₩${fmtMoney(next.cost)}야.\"",
-                listOf(
-                    DialogOverlay.Choice("업그레이드하기 (₩${fmtMoney(next.cost)})") {
-                        if (game.state.money >= next.cost) {
-                            game.state.money -= next.cost
-                            game.state.cameraLevel = lvl + 1
-                            SaveManager.save(game.context, game.state)
-                            game.toast("카메라가 ${next.name}(으)로 업그레이드됐어요! 📷✨")
-                        } else {
-                            game.toast("돈이 부족해요… 박사 의뢰를 해볼까요?")
-                        }
-                    },
-                    DialogOverlay.Choice("그냥 볼게요")
-                )
+                if (lvl >= CameraDefs.LEVELS.size)
+                    "\"이미 최고의 장비를 갖췄구먼! 부럽다니까.\""
+                else {
+                    val next = CameraDefs.LEVELS[lvl]
+                    "\"요즘 장비 어때? ${next.name}(으)로 바꾸면\n더 멀리서 새를 찍을 수 있을걸?\n가격은 ₩${fmtMoney(next.cost)}야.\""
+                },
+                buildList {
+                    if (lvl < CameraDefs.LEVELS.size) {
+                        val next = CameraDefs.LEVELS[lvl]
+                        add(
+                            DialogOverlay.Choice("업그레이드 (₩${fmtMoney(next.cost)})") {
+                                if (game.state.money >= next.cost) {
+                                    game.state.money -= next.cost
+                                    game.state.cameraLevel = lvl + 1
+                                    SaveManager.save(game.context, game.state)
+                                    game.toast("카메라가 ${next.name}(으)로 업그레이드됐어요! 📷✨")
+                                } else {
+                                    game.toast("돈이 부족해요… 박사 의뢰를 해볼까요?")
+                                }
+                            }
+                        )
+                    }
+                    add(DialogOverlay.Choice("장식 코너 보기") {
+                        it.finished = true
+                        it.scene.openOverlay(DecorShopOverlay(it.scene))
+                    })
+                    add(DialogOverlay.Choice("그냥 볼게요"))
+                }
             )
         )
     }
@@ -475,6 +708,14 @@ class WorldScene(
             if (photoMode) game.toast("카메라 모드! 새를 탭해서 찍어요 📷")
             return
         }
+        if (input.justMap) {
+            openOverlay(MapOverlay(this))
+            return
+        }
+        if (input.justEat) {
+            quickEat()
+            return
+        }
         if (input.justB) {
             player.bike = !player.bike
             state.onBike = player.bike
@@ -487,6 +728,29 @@ class WorldScene(
                 talkTo(npc)
                 return
             }
+            nearTile(T.SIGN)?.let { (sx, sy) ->
+                val target = signTarget(sx, sy)
+                if (target != null) {
+                    game.toast("🪧 이 터널 → ${target.name}")
+                    return
+                }
+            }
+            if (nearTile(T.BENCH) != null) {
+                restAtBench()
+                return
+            }
+            nearestCat()?.let { cat ->
+                state.luck = (state.luck + 1f).coerceAtMost(100f)
+                for (i in 0 until 3) {
+                    addParticle(
+                        cat.cx, cat.cy - 6f,
+                        (rnd.nextFloat() - 0.5f) * 10f, -12f, 1f,
+                        Color.argb(220, 242, 130, 160), 3.4f, true
+                    )
+                }
+                game.toast("야옹~ 🐈 좋은 기운이 든다 (행운+1)")
+                return
+            }
             if (map.hasHouse) {
                 val ddx = (map.houseDoorX * 16f + 16f) - player.cx
                 val ddy = (map.houseDoorY * 16f + 8f) - player.cy
@@ -495,7 +759,7 @@ class WorldScene(
                     return
                 }
             }
-            game.toast("주민들에게 말을 걸어보세요! (가까이 가서 A)")
+            game.toast("주민·이정표·벤치·고양이에게 다가가 A를 눌러보세요!")
             return
         }
         val tap = input.consumeTapWorld()
@@ -504,11 +768,20 @@ class WorldScene(
                 trySnapAt(tap.x, tap.y)
                 return
             }
+            // 이정표 탭
+            tapSign(tap.x, tap.y)
             // NPC 탭
             val npc = nearestNpc(46f)
             if (npc != null && hypot(npc.cx - tap.x, npc.cy - tap.y) < 18f) {
                 talkTo(npc)
                 return
+            }
+            // 고양이 탭
+            for (cat in cats) {
+                if (hypot(cat.cx - tap.x, cat.cy - tap.y) < 14f) {
+                    game.toast("야옹~ 🐈")
+                    return
+                }
             }
             // 새 탭 (힌트)
             for (b in birds) {
@@ -520,28 +793,46 @@ class WorldScene(
         }
     }
 
+    private fun quickEat() {
+        val tId = state.eatBest()
+        if (tId == null) {
+            game.toast("피자가 없어요! 집의 화덕에서 구워요 🍕")
+        } else {
+            val t = Toppings.of(tId)
+            game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+        }
+    }
+
     // -------------------------------------------------------------------
     // 그리기
     // -------------------------------------------------------------------
 
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFF3A3040.toInt())
-        map.draw(c, game.assets, camX, camY, game.virtW, game.virtH, game.time)
+        val camXv = camX * WORLD_SCALE
+        val camYv = camY * WORLD_SCALE
+        map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
+        drawCloudShadows(c, camXv, camYv)
 
         // 엔티티 (y 정렬)
-        val ents = ArrayList<Any>(map.npcs.size + birds.size + 1)
+        val ents = ArrayList<Any>(map.npcs.size + birds.size + cats.size + 1)
         ents.addAll(map.npcs)
+        ents.addAll(cats)
         ents.addAll(birds)
         ents.add(player)
         ents.sortBy { sortY(it) }
         for (e in ents) drawEntity(c, e)
 
+        drawParticles(c, camXv, camYv)
+        drawDayNight(c)
+        drawNightGlow(c, camXv, camYv)
         if (photoMode) drawPhotoOverlay(c)
     }
 
     private fun sortY(e: Any): Float = when (e) {
         is Npc -> e.y + 14f
-        is FieldBird -> e.y + game.assets.bird(e.def.id).height
+        is Cat -> e.y + 12f
+        is FieldBird -> e.y + game.assets.bird(e.def.id).height / WORLD_SCALE
         is Player -> e.y + 14f
         else -> 0f
     }
@@ -554,27 +845,45 @@ class WorldScene(
                     NpcKind.PROFESSOR -> a.npcProfessor
                     NpcKind.SHOP -> a.npcShop
                     NpcKind.VILLAGER -> a.npcVillager
+                    NpcKind.KID -> a.npcKid
+                    NpcKind.ELDER -> a.npcElder
                 }
-                val bob = if ((sin(game.time * 2.4f + e.tileX).toInt() % 2) == 0) -1f else 0f
-                c.drawBitmap(bmp, e.x - camX, e.y - camY + bob, a.sprPaint)
+                val bob = if ((sin(game.time * 2.4f + e.tileX).toInt() % 2) == 0) -1.5f else 0f
+                val sx = (e.x - camX) * WORLD_SCALE
+                val sy = (e.y - camY) * WORLD_SCALE + bob
+                c.drawOval(
+                    RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f),
+                    a.shadowPaint
+                )
+                c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 의뢰 가능 표시
                 if (e.kind == NpcKind.PROFESSOR && state.questBird == null) {
-                    val bx = e.cx - camX
-                    val by = e.y - camY - 8f + bob
+                    val bx = sx + 16f
+                    val by = sy - 12f
                     bubbleFill.color = 0xFFF2D06B.toInt()
-                    c.drawCircle(bx, by, 5.5f, bubbleFill)
-                    c.drawCircle(bx, by, 5.5f, bubbleStroke)
-                    tinyPaint.textSize = 9f
+                    c.drawCircle(bx, by, 9f, bubbleFill)
+                    c.drawCircle(bx, by, 9f, bubbleStroke)
+                    tinyPaint.textSize = 14f
                     val tw = tinyPaint.measureText("!")
-                    c.drawText("!", bx - tw / 2, by + 3f, tinyPaint)
+                    c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
                 }
+            }
+            is Cat -> {
+                val bmp = if (e.faceLeft) a.catFrames[e.frame] else a.catFramesL[e.frame]
+                val sx = (e.x - camX) * WORLD_SCALE
+                val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
+                c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
+                c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
             is FieldBird -> {
                 val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
-                val bx = e.x - camX
-                val by = e.y - camY - e.hopLift
+                val bx = (e.x - camX) * WORLD_SCALE
+                val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
                 c.drawOval(
-                    RectF(e.x - camX + 1f, e.cy - camY + 3f, e.x - camX + 13f, e.cy - camY + 7f),
+                    RectF(
+                        bx + bmp.width * 0.1f, (e.cy - camY) * WORLD_SCALE + 6f,
+                        bx + bmp.width * 0.9f, (e.cy - camY) * WORLD_SCALE + 13f
+                    ),
                     a.shadowPaint
                 )
                 if (e.state == 2) {
@@ -587,7 +896,7 @@ class WorldScene(
                 }
             }
             is Player -> {
-                val frame = if (player.moving) ((player.animT / 0.16f).toInt() % 2) else 0
+                val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
                 val bmp: android.graphics.Bitmap = when {
                     player.bike && player.facing == Dir.E -> a.bikeSide
                     player.bike && player.facing == Dir.W -> a.bikeSideL
@@ -598,41 +907,164 @@ class WorldScene(
                     player.facing == Dir.N -> a.playerUp[frame]
                     else -> a.playerDown[frame]
                 }
-                c.drawOval(
-                    RectF(player.x - camX + 3f, player.y - camY + 12f, player.x - camX + 13f, player.y - camY + 16f),
-                    a.shadowPaint
-                )
-                c.drawBitmap(bmp, player.x - camX, player.y - camY, a.sprPaint)
+                val sx = (player.x - camX) * WORLD_SCALE
+                val sy = (player.y - camY) * WORLD_SCALE
+                c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+                c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
         }
     }
 
+    private fun drawCloudShadows(c: Canvas, camXv: Float, camYv: Float) {
+        for (i in 0 until 3) {
+            val speed = 7f + i * 3.5f
+            val w = 250f + i * 70f
+            val span = map.w * 32f + 800f
+            val cxw = ((game.time * speed + i * 430f) % span) - 400f
+            val cyw = 110f + i * 200f + sin(game.time * 0.13f + i * 2f) * 50f
+            c.drawOval(RectF(cxw - camXv - w / 2f, cyw - camYv - 60f, cxw - camXv + w / 2f, cyw - camYv + 60f), cloudPaint)
+        }
+    }
+
+    private fun drawParticles(c: Canvas, camXv: Float, camYv: Float) {
+        for (p in particles) {
+            val k = (p.life / p.max).coerceIn(0f, 1f)
+            uiFill.color = Color.argb(
+                (Color.alpha(p.col) * k).toInt().coerceIn(0, 255),
+                Color.red(p.col), Color.green(p.col), Color.blue(p.col)
+            )
+            val sx = p.x * WORLD_SCALE - camXv
+            val sy = p.y * WORLD_SCALE - camYv
+            c.drawRect(sx, sy, sx + p.size, sy + p.size, uiFill)
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 낮/밤
+    // -------------------------------------------------------------------
+
+    private fun lerpC(c0: Int, c1: Int, t: Float): Int {
+        val tt = t.coerceIn(0f, 1f)
+        return Color.argb(
+            (Color.alpha(c0) + (Color.alpha(c1) - Color.alpha(c0)) * tt).toInt(),
+            (Color.red(c0) + (Color.red(c1) - Color.red(c0)) * tt).toInt(),
+            (Color.green(c0) + (Color.green(c1) - Color.green(c0)) * tt).toInt(),
+            (Color.blue(c0) + (Color.blue(c1) - Color.blue(c0)) * tt).toInt()
+        )
+    }
+
+    private fun ambientColor(): Int {
+        val h = state.worldTime
+        val night = Color.argb(96, 24, 28, 66)
+        val dawn = Color.argb(64, 255, 166, 92)
+        val dusk = Color.argb(80, 240, 120, 60)
+        val day = Color.argb(0, 0, 0, 0)
+        return when {
+            h < 4f -> night
+            h < 6f -> lerpC(night, dawn, (h - 4f) / 2f)
+            h < 7.5f -> lerpC(dawn, day, (h - 6f) / 1.5f)
+            h < 17f -> day
+            h < 18.5f -> lerpC(day, dusk, (h - 17f) / 1.5f)
+            h < 20f -> lerpC(dusk, night, (h - 18.5f) / 1.5f)
+            else -> night
+        }
+    }
+
+    private fun drawDayNight(c: Canvas) {
+        val col = ambientColor()
+        if (Color.alpha(col) == 0) return
+        uiFill.color = col
+        c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiFill)
+    }
+
+    /** 밤 — 가로등/창문 은은한 빛 */
+    private fun drawNightGlow(c: Canvas, camXv: Float, camYv: Float) {
+        val twilight = state.worldTime >= 17.5f || state.worldTime < 5.5f
+        if (!twilight) return
+        val x0 = (camXv / 32f).toInt().coerceAtLeast(0)
+        val y0 = (camYv / 32f).toInt().coerceAtLeast(0)
+        val x1 = ((camXv + game.virtW) / 32f).toInt().coerceAtMost(map.w - 1)
+        val y1 = ((camYv + game.virtH) / 32f).toInt().coerceAtMost(map.h - 1)
+        for (y in y0..y1) {
+            for (x in x0..x1) {
+                val tile = map.t(x, y)
+                val sx = x * 32f - camXv
+                val sy = y * 32f - camYv
+                if (tile == T.LAMP) {
+                    uiFill.color = Color.argb(46, 255, 214, 120)
+                    c.drawCircle(sx + 16f, sy + 8f, 15f, uiFill)
+                    uiFill.color = Color.argb(30, 255, 214, 120)
+                    c.drawCircle(sx + 16f, sy + 10f, 26f, uiFill)
+                    uiFill.color = Color.argb(16, 255, 214, 120)
+                    c.drawCircle(sx + 16f, sy + 12f, 38f, uiFill)
+                } else if (tile == T.HOUSE_WIN || tile == T.BLDG_WIN || tile == T.WALL_WIN) {
+                    uiFill.color = Color.argb(80, 255, 200, 110)
+                    c.drawRect(sx + 8f, sy + 8f, sx + 24f, sy + 24f, uiFill)
+                    uiFill.color = Color.argb(34, 255, 200, 110)
+                    c.drawRect(sx + 2f, sy + 2f, sx + 30f, sy + 30f, uiFill)
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 카메라 모드 UI
+    // -------------------------------------------------------------------
+
     private fun drawPhotoOverlay(c: Canvas) {
-        val p = Paint()
-        p.color = Color.argb(80, 20, 16, 28)
-        c.drawRect(0f, 0f, 480f, 22f, p)
-        c.drawRect(0f, 248f, 480f, 270f, p)
-        c.drawRect(0f, 0f, 18f, 270f, p)
-        c.drawRect(462f, 0f, 480f, 270f, p)
+        val vw = game.virtW.toFloat()
+        val vh = game.virtH.toFloat()
+        uiFill.color = Color.argb(88, 20, 16, 28)
+        c.drawRect(0f, 0f, vw, 42f, uiFill)
+        c.drawRect(0f, vh - 48f, vw, vh, uiFill)
+        c.drawRect(0f, 0f, 34f, vh, uiFill)
+        c.drawRect(vw - 34f, 0f, vw, vh, uiFill)
+
+        // 비네트
+        uiFill.color = Color.argb(36, 16, 12, 24)
+        c.drawRect(0f, 0f, vw, 14f, uiFill)
+        c.drawRect(0f, vh - 14f, vw, vh, uiFill)
+        c.drawRect(0f, 0f, 12f, vh, uiFill)
+        c.drawRect(vw - 12f, 0f, vw, vh, uiFill)
 
         // 뷰파인더 코너
-        val s = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 2.5f
-            color = Color.argb(220, 255, 250, 235)
-        }
-        val m = 34f
-        val l = 14f
+        uiStroke.strokeWidth = 3f
+        uiStroke.color = Color.argb(220, 255, 250, 235)
+        val m = 64f
+        val l = 26f
         val path = Path()
         path.moveTo(m, m + l); path.lineTo(m, m); path.lineTo(m + l, m)
-        path.moveTo(480f - m - l, m); path.lineTo(480f - m, m); path.lineTo(480f - m, m + l)
-        path.moveTo(480f - m, 270f - m - l); path.lineTo(480f - m, 270f - m); path.lineTo(480f - m - l, 270f - m)
-        path.moveTo(m + l, 270f - m); path.lineTo(m, 270f - m); path.lineTo(m, 270f - m - l)
-        c.drawPath(path, s)
+        path.moveTo(vw - m - l, m); path.lineTo(vw - m, m); path.lineTo(vw - m, m + l)
+        path.moveTo(vw - m, vh - m - l); path.lineTo(vw - m, vh - m); path.lineTo(vw - m - l, vh - m)
+        path.moveTo(m + l, vh - m); path.lineTo(m, vh - m); path.lineTo(m, vh - m - l)
+        c.drawPath(path, uiStroke)
 
         // 촬영 반경
-        val range = CameraDefs.range(state.cameraLevel) * 16f
-        c.drawCircle(player.cx - camX, player.cy - camY, range, dashPaint)
+        val range = CameraDefs.range(state.cameraLevel) * 16f * WORLD_SCALE
+        c.drawCircle((player.cx - camX) * WORLD_SCALE, (player.cy - camY) * WORLD_SCALE, range, dashPaint)
+
+        // 새별 거리 힌트
+        uiText.isFakeBoldText = true
+        for (b in birds) {
+            if (b.state == 2) continue
+            val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
+            val r = CameraDefs.range(state.cameraLevel)
+            if (distPx > r * 16f) continue
+            val ratio = (distPx / 16f) / r
+            val (label, col) = when {
+                ratio < 0.34f -> "가까움" to 0xFF6FBA6B.toInt()
+                ratio < 0.67f -> "좋음" to 0xFFF2B63C.toInt()
+                else -> "멀어요" to 0xFFE2574C.toInt()
+            }
+            val bx = (b.cx - camX) * WORLD_SCALE
+            val by = (b.y - camY) * WORLD_SCALE - 16f
+            uiText.textSize = 12f
+            uiText.color = 0xFFF8EFDC.toInt()
+            val tw = uiText.measureText(label)
+            uiFill.color = Color.argb(190, Color.red(col), Color.green(col), Color.blue(col))
+            c.drawRoundRect(RectF(bx - tw / 2 - 6f, by - 10f, bx + tw / 2 + 6f, by + 5f), 5f, 5f, uiFill)
+            c.drawText(label, bx - tw / 2, by + 2f, uiText)
+        }
     }
 
     override fun drawHud(c: Canvas) {

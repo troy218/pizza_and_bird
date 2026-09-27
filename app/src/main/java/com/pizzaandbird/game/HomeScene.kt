@@ -1,12 +1,14 @@
 package com.pizzaandbird.game
 
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * 우리 집 내부: 화덕(피자 굽기), 침대(수면), 이사 박스, 장식 슬롯.
+ * 우리 집 내부: 화덕(피자 굽기), 침대(수면), 이사 박스, 장식 칸.
  */
 class HomeScene(game: Game) : Scene(game) {
 
@@ -20,13 +22,9 @@ class HomeScene(game: Game) : Scene(game) {
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         isFakeBoldText = true
         color = 0xFF4A3728.toInt()
-        textSize = 9f
+        textSize = 14f
     }
-    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
-        color = 0xFFF2D06B.toInt()
-        textSize = 8f
-    }
+    private val uiFill = Paint()
 
     // 상호작용 대상 위치 (월드 px)
     private val ovenX = 10f * 16f
@@ -35,10 +33,18 @@ class HomeScene(game: Game) : Scene(game) {
     private val bedY = 3f * 16f
     private val boxX = 2.5f * 16f
     private val boxY = 6.5f * 16f
+
+    /** 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1 */
     private val decorSpots = listOf(
-        5.5f * 16f to 3f * 16f,
-        7.5f * 16f to 3f * 16f,
-        11.5f * 16f to 6f * 16f
+        Triple(0, 5.5f * 16f, 3f * 16f),
+        Triple(1, 7.5f * 16f, 3f * 16f),
+        Triple(2, 11.5f * 16f, 6f * 16f)
+    )
+    /** 장식이 놓이는 타일 위치 (월드 px, 좌상단) */
+    private val decorTiles = listOf(
+        5f * 16f to 2f * 16f,
+        7f * 16f to 2f * 16f,
+        11f * 16f to 5f * 16f
     )
 
     init {
@@ -51,12 +57,14 @@ class HomeScene(game: Game) : Scene(game) {
         game.hud.regionLabel = "우리 집"
         game.hud.photoModeHint = false
         game.hud.questLabel = null
+        game.banner("🏠 우리 집")
     }
 
     override fun update(dt: Float) {
         game.hud.update(dt)
         if (overlay != null) return   // 대화상자/메뉴 중에는 정지
         state.playSeconds += dt * 0.4f
+        state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
 
         // 이동 (자전거 금지!)
         player.bike = false
@@ -69,8 +77,8 @@ class HomeScene(game: Game) : Scene(game) {
             if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
             else if (dy != 0f) player.facing = if (dy > 0) Dir.S else Dir.N
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
-            val vx = dx / len
-            val vy = dy / len
+            val vx = if (len > 0.01f) dx / len else 0f
+            val vy = if (len > 0.01f) dy / len else 0f
             val speed = if (state.hunger <= 0f) 34f else 55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
@@ -86,8 +94,8 @@ class HomeScene(game: Game) : Scene(game) {
         }
 
         // 카메라 (작은 맵 중앙 고정)
-        camX = (map.w * 16f - game.virtW) / 2f
-        camY = (map.h * 16f - game.virtH) / 2f
+        camX = (map.w * 16f - game.virtW / WORLD_SCALE) / 2f
+        camY = (map.h * 16f - game.virtH / WORLD_SCALE) / 2f
 
         state.px = player.x
         state.py = player.y
@@ -113,22 +121,23 @@ class HomeScene(game: Game) : Scene(game) {
     // 상호작용
     // -------------------------------------------------------------------
 
-    private fun nearestInteract(): String? {
-        if (hypot(ovenX - player.cx, ovenY - player.cy) < 30f) return "oven"
-        if (hypot(bedX - player.cx, bedY - player.cy) < 28f) return "bed"
-        if (hypot(boxX - player.cx, boxY - player.cy) < 26f) return "box"
-        for ((dx0, dy0) in decorSpots) {
-            if (hypot(dx0 - player.cx, dy0 - player.cy) < 20f) return "decor"
+    /** (대상, 장식 칸 인덱스) */
+    private fun nearestInteract(): Pair<String, Int>? {
+        if (hypot(ovenX - player.cx, ovenY - player.cy) < 34f) return "oven" to -1
+        if (hypot(bedX - player.cx, bedY - player.cy) < 30f) return "bed" to -1
+        if (hypot(boxX - player.cx, boxY - player.cy) < 26f) return "box" to -1
+        for ((idx, dx0, dy0) in decorSpots) {
+            if (hypot(dx0 - player.cx, dy0 - player.cy) < 22f) return "decor" to idx
         }
         return null
     }
 
-    private fun interact(target: String) {
+    private fun interact(target: String, slot: Int) {
         when (target) {
             "oven" -> openOverlay(
                 DialogOverlay(
                     this, "화덕 🔥",
-                    "따끈한 화덕이 준비됐어요. 피자를 구워볼까요? (도우는 무한! 힐링게임이니까요)",
+                    "따끈한 화덕이 준비됐어요. 어떤 피자를 구워볼까요?\n(도우는 무한! 힐링게임이니까요)",
                     listOf(
                         DialogOverlay.Choice("피자 굽기!") {
                             it.finished = true
@@ -141,12 +150,13 @@ class HomeScene(game: Game) : Scene(game) {
             "bed" -> openOverlay(
                 DialogOverlay(
                     this, "침대 🛏",
-                    "포근한 침대예요. 잠들면 행운이 조금 오르고 진행 상황이 저장돼요.",
+                    "포근한 침대예요. 잠들면 아침이 되고\n행운이 오르며 진행 상황이 저장돼요.",
                     listOf(
                         DialogOverlay.Choice("쿨쿨…") {
                             game.state.luck = (game.state.luck + 5f).coerceAtMost(100f)
+                            game.state.worldTime = 7.2f
                             SaveManager.save(game.context, game.state)
-                            game.toast("좋은 꿈을 꿨어요! 행운 +5 (저장 완료) ☘️")
+                            game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 ☀️ (행운 +5)")
                         },
                         DialogOverlay.Choice("아직 안 졸려요")
                     )
@@ -157,13 +167,27 @@ class HomeScene(game: Game) : Scene(game) {
                     moveHome(picked)
                 }
             )
-            "decor" -> openOverlay(
-                DialogOverlay(
-                    this, "장식 칸",
-                    "아직 꾸밀 소품이 없어요.\n여행지에서 얻는 소품으로 집을 꾸미는 기능은 곧 추가될 예정이에요! 🧳",
-                    listOf(DialogOverlay.Choice("기대되는걸!"))
-                )
-            )
+            "decor" -> {
+                if (state.decorOwned.isEmpty()) {
+                    openOverlay(
+                        DialogOverlay(
+                            this, "장식 칸",
+                            "아직 소유한 장식이 없어요.\n사진용품점의 '장식 코너'에서 소품을 구경해 보세요! 🧳",
+                            listOf(DialogOverlay.Choice("다녀올게요!"))
+                        )
+                    )
+                } else {
+                    val idx = slot.coerceIn(0, 2)
+                    openOverlay(
+                        DecorPickOverlay(this, idx) { picked ->
+                            state.decorSlots[idx] = picked
+                            SaveManager.save(game.context, state)
+                            val name = Decors.of(picked)?.name ?: "장식"
+                            game.toast("장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                        }
+                    )
+                }
+            }
         }
     }
 
@@ -206,17 +230,38 @@ class HomeScene(game: Game) : Scene(game) {
             game.toast("집 안에서 자전거는 위험해요!")
             return
         }
+        if (input.justEat) {
+            val tId = state.eatBest()
+            if (tId == null) {
+                game.toast("피자가 없어요! 화덕에서 구워요 🍕")
+            } else {
+                val t = Toppings.of(tId)
+                game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+            }
+            return
+        }
         if (input.justA) {
-            val t = nearestInteract()
-            if (t != null) interact(t)
-            else game.toast("화덕·침대·이사박스에 다가가서 A를 눌러보세요!")
+            val near = nearestInteract()
+            if (near != null) {
+                interact(near.first, near.second)
+            } else {
+                game.toast("화덕·침대·이사박스·장식칸에 다가가서 A를 눌러보세요!")
+            }
             return
         }
         val tap = input.consumeTapWorld()
         if (tap != null) {
-            if (hypot(ovenX - tap.x, ovenY - tap.y) < 24f) interact("oven")
-            else if (hypot(bedX - tap.x, bedY - tap.y) < 22f) interact("bed")
-            else if (hypot(boxX - tap.x, boxY - tap.y) < 20f) interact("box")
+            if (hypot(ovenX - tap.x, ovenY - tap.y) < 26f) interact("oven", -1)
+            else if (hypot(bedX - tap.x, bedY - tap.y) < 24f) interact("bed", -1)
+            else if (hypot(boxX - tap.x, boxY - tap.y) < 22f) interact("box", -1)
+            else {
+                for ((idx, dx0, dy0) in decorSpots) {
+                    if (hypot(dx0 - tap.x, dy0 - tap.y) < 18f) {
+                        interact("decor", idx)
+                        break
+                    }
+                }
+            }
         }
     }
 
@@ -226,40 +271,82 @@ class HomeScene(game: Game) : Scene(game) {
 
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFF3A3040.toInt())
-        map.draw(c, game.assets, camX, camY, game.virtW, game.virtH, game.time)
+        val camXv = camX * WORLD_SCALE
+        val camYv = camY * WORLD_SCALE
+        map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
 
         val a = game.assets
-        c.drawOval(
-            android.graphics.RectF(player.x - camX + 3f, player.y - camY + 12f, player.x - camX + 13f, player.y - camY + 16f),
-            a.shadowPaint
-        )
-        val frame = if (player.moving) ((player.animT / 0.16f).toInt() % 2) else 0
+
+        // 장식 그리기
+        for (i in decorTiles.indices) {
+            val decorId = state.decorSlots[i]
+            if (decorId < 0) continue
+            val art = if (decorId < a.decorArt.size) a.decorArt[decorId] else continue
+            val (tx, ty) = decorTiles[i]
+            c.drawBitmap(art, (tx - camX) * WORLD_SCALE, (ty - camY) * WORLD_SCALE, a.sprPaint)
+        }
+
+        // 플레이어
+        val sx = (player.x - camX) * WORLD_SCALE
+        val sy = (player.y - camY) * WORLD_SCALE
+        c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+        val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
         val bmp = when (player.facing) {
             Dir.E -> a.playerSide[frame]
             Dir.W -> a.playerSideL[frame]
             Dir.N -> a.playerUp[frame]
             else -> a.playerDown[frame]
         }
-        c.drawBitmap(bmp, player.x - camX, player.y - camY, a.sprPaint)
+        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+
+        // 밤: 창문 틴트 + 스탠드 조명 빛
+        if (state.worldTime >= 18.5f || state.worldTime < 5f) {
+            uiFill.color = Color.argb(30, 20, 26, 60)
+            c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiFill)
+            for (wx in listOf(2, 5, 8)) {
+                val wxx = (wx * 16f - camX) * WORLD_SCALE
+                val wyy = (1 * 16f - camY) * WORLD_SCALE
+                uiFill.color = Color.argb(90, 24, 32, 80)
+                c.drawRect(wxx + 8f, wyy + 14f, wxx + 26f, wyy + 44f, uiFill)
+                uiFill.color = Color.argb(160, 250, 250, 255)
+                c.drawRect(wxx + 12f, wyy + 20f, wxx + 14f, wyy + 22f, uiFill)
+                c.drawRect(wxx + 20f, wyy + 30f, wxx + 22f, wyy + 32f, uiFill)
+            }
+        }
+        // 스탠드 조명 배치 시 따뜻한 빛
+        for (i in decorTiles.indices) {
+            if (state.decorSlots[i] == 3) {
+                val (tx, ty) = decorTiles[i]
+                val lx = (tx - camX) * WORLD_SCALE + 16f
+                val ly = (ty - camY) * WORLD_SCALE + 10f
+                uiFill.color = Color.argb(46, 255, 214, 120)
+                c.drawCircle(lx, ly, 26f, uiFill)
+                uiFill.color = Color.argb(28, 255, 214, 120)
+                c.drawCircle(lx, ly, 44f, uiFill)
+            }
+        }
 
         // 가까운 상호작용 대상 힌트
-        val t = nearestInteract()
-        if (t != null) {
-            val pos = when (t) {
+        val near = nearestInteract()
+        if (near != null) {
+            val pos = when (near.first) {
                 "oven" -> ovenX to ovenY
                 "bed" -> bedX to bedY
                 "box" -> boxX to boxY
-                else -> decorSpots[0]
+                else -> {
+                    val s = decorSpots[near.second.coerceIn(0, decorSpots.size - 1)]
+                    s.second to s.third
+                }
             }
-            val bob = sin(game.time * 3f) * 2f
-            val bx = pos.first - camX
-            val by = pos.second - camY - 18f + bob
+            val bob = sin(game.time * 3f) * 2.5f
+            val bx = (pos.first - camX) * WORLD_SCALE
+            val by = (pos.second - camY) * WORLD_SCALE - 30f + bob
             val p = Paint()
             p.color = 0xFFF2D06B.toInt()
-            c.drawCircle(bx, by, 5.5f, p)
-            tinyPaint.textSize = 9f
+            c.drawCircle(bx, by, 9f, p)
+            tinyPaint.textSize = 14f
             val tw = tinyPaint.measureText("!")
-            c.drawText("!", bx - tw / 2, by + 3f, tinyPaint)
+            c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
         }
     }
 
@@ -269,7 +356,7 @@ class HomeScene(game: Game) : Scene(game) {
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
         tp.textSize = 11f * game.density
         tp.color = 0x99F8EFDC.toInt()
-        val hint = "A: 상호작용 · 메뉴(≡): 피자 먹기/도감"
+        val hint = "A: 상호작용 · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
         val w = game.screenW.toFloat()
         c.drawText(hint, w / 2f - tp.measureText(hint) / 2, game.screenH - game.density * 10f, tp)
     }
