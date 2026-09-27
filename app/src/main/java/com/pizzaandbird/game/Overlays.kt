@@ -2468,7 +2468,7 @@ class PhotoResultOverlay(
             Tier.LEGEND -> 0xFFB65342.toInt()
         }
         val numPrefix = if (def.birdNum > 0) "No. ${String.format("%03d", def.birdNum)} · " else ""
-        val sub = "$numPrefix${def.tier.label} · ${def.activeLabel}" +
+        val sub = "$numPrefix${def.tier.label} · ${def.seasonLabel} · ${def.timeWindowLabel}" +
                 (if (def.englishName.isNotBlank()) " · ${def.englishName}" else "")
         c.drawText(sub, card.centerX() - textP.measureText(sub) / 2, capTop + dp(scene, 28f), textP)
         fillP.color = tierColor

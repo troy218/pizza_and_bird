@@ -728,7 +728,7 @@ class WorldScene(
 
     private fun regionPool(): List<BirdDef> {
         val n = state.isNight()
-        val pool = Birds.poolFor(map.region, n)
+        val pool = Birds.poolFor(map.region, n, state.day, state.worldTime)
         return if (pool.isEmpty()) Birds.poolFor(map.region, !n) else pool
     }
 
@@ -739,7 +739,12 @@ class WorldScene(
 
         val currentWeather = state.weather()
         val currentSeason = state.season()
-        val weights = pool.map { it.weight * luckBoost(it) * weatherBirdMultiplier(it, currentWeather) * seasonBirdMultiplier(it, currentSeason, currentWeather) }
+        val weights = pool.map {
+            Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
+                    luckBoost(it) *
+                    weatherBirdMultiplier(it, currentWeather) *
+                    seasonBirdMultiplier(it, currentSeason, currentWeather)
+        }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
         for (i in pool.indices) {
@@ -1249,7 +1254,8 @@ class WorldScene(
     private fun showSideQuest() {
         val cur = state.questBird
         if (cur == null) {
-            val pool = Birds.poolFor(map.region, false)
+            val n = state.isNight()
+            val pool = Birds.poolFor(map.region, n, state.day, state.worldTime).ifEmpty { Birds.poolFor(map.region, !n) }
             if (pool.isEmpty()) return
             val unphoto = pool.filter { (state.birdCounts[it.id] ?: 0) == 0 && it.tier.star <= 2 }
             val candidates = if (unphoto.isNotEmpty() && rnd.nextDouble() < 0.55) unphoto else pool
