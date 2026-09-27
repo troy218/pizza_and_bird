@@ -82,7 +82,9 @@ class Assets(private val context: Context) {
     lateinit var catFramesL: Array<Bitmap>
 
     // 새 ---------------------------------------------------------------------
-    lateinit var birds: Map<String, Bitmap>                  // 앉은 자세
+    // 앉은 자세 스프라이트는 종별로 *처음 필요할 때* 만들어 캐시한다.
+    // (예전엔 시작 시 598종을 전부 만들어 앱이 켜질 때까지 한참 걸렸다)
+    private val birdCache = LinkedHashMap<String, Bitmap>()
     private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
     private var birdsFlipped: Map<String, Bitmap> = emptyMap()
     private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
@@ -229,15 +231,6 @@ class Assets(private val context: Context) {
         "tile_water_2" to Triple(R.drawable.art_tile_water_2, 64, 64),
         "tile_water_3" to Triple(R.drawable.art_tile_water_3, 64, 64),
     )
-
-    init {
-        buildCat()
-        buildBirds()
-        buildGrassRig()
-        buildTiles()
-        buildIcons()
-        buildDecorArt()
-    }
 
     // -----------------------------------------------------------------------
     // 공용 헬퍼
@@ -617,8 +610,8 @@ class Assets(private val context: Context) {
         val eyeX: Float, val eyeY: Float
     )
 
-    private fun buildBirds() {
-        // 모든 스프라이트는 왼쪽을 바라본다. h=머리, a=포인트 컬러.
+    /** 13종 체형 도트맵 — 스프라이트는 전부 왼쪽을 바라본다. h=머리, a=포인트 컬러. */
+    private val birdTemplates: Array<List<String>> by lazy {
         val songbird = listOf(
             "..........................",
             "...cc.....................",
@@ -875,34 +868,34 @@ class Assets(private val context: Context) {
             "........lll...lll.........t....."
         )
 
-        val templates = arrayOf(
+        arrayOf(
             songbird, waterfowl, wader, raptor, owl, shorebird, seabird,
             woodpecker, dove, kingfisher, pitta, gamebird, aerial
         )
-        val perched = LinkedHashMap<String, Bitmap>()
-        for (d in Birds.ALL) {
-            val pal = mapOf(
-                'B' to d.art.body, 'b' to shade(d.art.body, 0.72f), 'H' to shade(d.art.body, 1.18f),
-                'h' to d.art.head, 'a' to d.art.accent,
-                'W' to d.art.belly, 'w' to shade(d.art.belly, 0.82f),
-                't' to d.art.wing, 'T' to shade(d.art.wing, 0.72f),
-                'k' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
-                'e' to c(0xFFFDFDF8), 'E' to c(0xFF17151A),
-                'v' to c(0xFF8FD4EA)
+    }
+
+    /** 새 한 종의 스프라이트 생성 — [bird] 에서 처음 필요해진 종만 만든다 */
+    private fun buildBird(d: BirdDef): Bitmap {
+        val pal = mapOf(
+            'B' to d.art.body, 'b' to shade(d.art.body, 0.72f), 'H' to shade(d.art.body, 1.18f),
+            'h' to d.art.head, 'a' to d.art.accent,
+            'W' to d.art.belly, 'w' to shade(d.art.belly, 0.82f),
+            't' to d.art.wing, 'T' to shade(d.art.wing, 0.72f),
+            'k' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
+            'e' to c(0xFFFDFDF8), 'E' to c(0xFF17151A),
+            'v' to c(0xFF8FD4EA)
+        )
+        val rows = birdTemplates[d.art.template.coerceIn(0, birdTemplates.lastIndex)]
+        var bmp = decorateBird(sprite(rows, pal), d)
+        if (d.art.scale != 1f) {
+            bmp = Bitmap.createScaledBitmap(
+                bmp,
+                (bmp.width * d.art.scale).toInt().coerceAtLeast(1),
+                (bmp.height * d.art.scale).toInt().coerceAtLeast(1),
+                false
             )
-            val rows = templates[d.art.template.coerceIn(0, templates.lastIndex)]
-            var bmp = decorateBird(sprite(rows, pal), d)
-            if (d.art.scale != 1f) {
-                bmp = Bitmap.createScaledBitmap(
-                    bmp,
-                    (bmp.width * d.art.scale).toInt().coerceAtLeast(1),
-                    (bmp.height * d.art.scale).toInt().coerceAtLeast(1),
-                    false
-                )
-            }
-            perched[d.id] = bmp
         }
-        birds = perched
+        return bmp
     }
 
     /** 체형마다 안전한 앵커에 1px 깃무늬를 더해 작은 화면에서도 종을 구분한다. */
@@ -2909,8 +2902,22 @@ begin(T.LAMP)
 
     // -----------------------------------------------------------------------
 
-    /** 새 비트맵 (안전 접근) */
-    fun bird(id: String): Bitmap = birds[id] ?: birds.values.first()
+    /** 새 비트맵 (안전 접근) — 처음 보는 종은 그 자리에서 만들어 캐시한다.
+     * 게임 스레드에서만 호출할 것 (생성 비용 1ms 안팎이라 스폰/도감 페이징 때 부담 없음) */
+    fun bird(id: String): Bitmap {
+        birdCache[id]?.let { return it }
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        val bmp = buildBird(def)
+        birdCache[def.id] = bmp
+        return bmp
+    }
+
+    /** 이 목록의 종을 미리 만들어 둔다 (장면 전환 뒤 스폰 렉을 막고 싶을 때) */
+    fun prewarmBirds(defs: Collection<BirdDef>) {
+        for (d in defs) {
+            if (d.id !in birdCache) birdCache[d.id] = buildBird(d)
+        }
+    }
 
     /** 오른쪽을 바라보는 새 (플립, 지연 생성) */
     fun birdFlipped(id: String): Bitmap {
@@ -2940,9 +2947,9 @@ begin(T.LAMP)
 
     // 아트 빌더는 모든 데이터 필드(artIds 등) 선언 이후에 실행돼야 한다 —
     // 클래스 끝에 두어 초기화 순서 문제(Kotlin 프로퍼티 선언 순서)를 원천 차단한다.
+    // 새는 여기서 만들지 않는다 — bird(id) 가 종별 지연 생성 (시작 시간 단축)
     init {
         buildCat()
-        buildBirds()
         buildGrassRig()
         buildTiles()
         buildIcons()
