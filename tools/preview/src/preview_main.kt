@@ -31,6 +31,8 @@ import com.pizzaandbird.game.HomeScene
 import com.pizzaandbird.game.MapOverlay
 import com.pizzaandbird.game.MenuOverlay
 import com.pizzaandbird.game.PhotoResultOverlay
+import com.pizzaandbird.game.PizzaKind
+import com.pizzaandbird.game.Pizzas
 import com.pizzaandbird.game.Player
 import com.pizzaandbird.game.RegionSelectScene
 import com.pizzaandbird.game.Scene
@@ -339,18 +341,18 @@ object PreviewMain {
             renderScreen(game, "17_menu_tab${i + 1}")
         }
 
-        // 피자 굽기
+        // 피자 굽기 (v0.4: 피자 12종 — 화덕/일반 계열)
         scene.closeOverlay()
         val bake = BakeOverlay(scene)
         scene.openOverlay(bake)
         renderScreen(game, "21_bake_topping")
-        setField(bake, "topping", 1)
+        setField(bake, "pizzaId", Pizzas.representative(PizzaKind.OVEN).id)
         setField(bake, "step", 1)
         setField(bake, "t", 1.15f)
         renderScreen(game, "22_bake_gauge")
         setField(bake, "step", 2)
         setField(bake, "resultQ", 2)
-        setField(bake, "topping", 2)
+        setField(bake, "pizzaId", Pizzas.representative(PizzaKind.REGULAR).id)
         setField(bake, "stopped", true)
         setField(bake, "lostPizza", false)
         simulate(game, 0.6f)
