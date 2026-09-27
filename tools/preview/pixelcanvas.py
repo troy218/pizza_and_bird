@@ -158,6 +158,19 @@ class Canvas:
         region[..., 3] = np.where(m, region[..., 3] * (1 - al) + 255.0 * al, region[..., 3])
         self.buf[np.ix_(ys, xs)] = region
 
+    def drawRoundRect(self, rect, rx, ry, paint: Paint):
+        """Canvas.drawRoundRect 근사 — 가운데 두 사각형 + 네 모서리 타원."""
+        l, t, r, b = rect
+        rx = min(rx, (r - l) / 2)
+        ry = min(ry, (b - t) / 2)
+        if rx <= 0 or ry <= 0:
+            self.drawRect(l, t, r, b, paint)
+            return
+        self.drawRect(l + rx, t, r - rx, b, paint)
+        self.drawRect(l, t + ry, r, b - ry, paint)
+        for cx, cy in ((l + rx, t + ry), (r - rx, t + ry), (l + rx, b - ry), (r - rx, b - ry)):
+            self.drawOval((cx - rx, cy - ry, cx + rx, cy + ry), paint)
+
     def drawPath(self, path: Path, paint: Paint):
         pts = path.pts
         if len(pts) < 3:
