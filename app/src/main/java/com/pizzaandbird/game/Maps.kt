@@ -219,6 +219,32 @@ class GameMap(
 
     fun walkableTile(x: Int, y: Int): Boolean = !t(x, y).solid && t(x, y) != T.TUNNEL
 
+    /**
+     * 시야를 가리는 키 큰 지형지물인가 — 바위·나무·산·건물 등.
+     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하다.
+     */
+    fun occludesSight(x: Int, y: Int): Boolean {
+        val tile = t(x, y)
+        return tile.bulk || tile == T.TREE || tile == T.ROCK
+    }
+
+    /**
+     * 두 월드 좌표(16px 논리 좌표) 사이에 시야를 가리는 지형지물이 있는지 확인한다.
+     * 새 → 플레이어 사이에 바위·나무 같은 지형지물이 있으면 플레이어는 '숨은' 상태가 된다.
+     */
+    fun isOccluded(x0: Float, y0: Float, x1: Float, y1: Float): Boolean {
+        val dx = x1 - x0
+        val dy = y1 - y0
+        val dist = sqrt(dx * dx + dy * dy)
+        if (dist < 12f) return false
+        val steps = (dist / 5f).toInt().coerceAtLeast(2)
+        for (i in 1 until steps) {
+            val f = i.toFloat() / steps
+            if (occludesSight(((x0 + dx * f) / 16f).toInt(), ((y0 + dy * f) / 16f).toInt())) return true
+        }
+        return false
+    }
+
     /** 발(스프라이트 좌상단+13px)이 밟고 있는 타일 */
     fun feetTile(px: Float, py: Float): T = t(((px + 8f) / 16f).toInt(), ((py + 13f) / 16f).toInt())
 
@@ -2376,6 +2402,8 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
+    /** 지형지물에 시야가 가려져 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
+    var hiddenFromPlayer = false
     var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
     var renderPose = BirdPose.PERCHED
     /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
@@ -2404,10 +2432,16 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
             Tier.LEGEND -> 3.8f
         } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
+        val fleeR = fleeTiles * 16f
+        val dToPlayer = sqrt((playerCx - cx) * (playerCx - cx) + (playerCy - cy) * (playerCy - cy))
+        // 지형지물 뒤 — 새와 플레이어 사이에 바위·나무·건물이 있어 시야가 막히면
+        // 새는 플레이어를 알아채지 못해 훨씬 가까이 다가가도 도망가지 않는다.
+        hiddenFromPlayer = dToPlayer < fleeR && map.isOccluded(playerCx, playerCy, cx, cy)
+        val effFleeR = if (hiddenFromPlayer) (fleeR * HIDDEN_FLEE_K).coerceAtLeast(9f) else fleeR
+
         when (state) {
             0 -> {
-                val d = sqrt((playerCx - cx) * (playerCx - cx) + (playerCy - cy) * (playerCy - cy))
-                if (d < fleeTiles * 16f) {
+                if (dToPlayer < effFleeR) {
                     state = 2
                     val dx = if (cx - playerCx == 0f) 0.01f else cx - playerCx
                     val dy = if (cy - playerCy == 0f) -0.01f else cy - playerCy
@@ -2423,6 +2457,8 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     fleeT = 0f
                     return
                 }
+                // 숨어 있어도 평소 도망 반경 안에선 뭔가 낌새를 느끼고 주위를 두리번거린다
+                if (hiddenFromPlayer && dToPlayer < fleeR) renderPose = BirdPose.ALERT
                 idleT -= dt
                 if (idleT <= 0f) {
                     // 무작위 방향으로 폴짝
@@ -2479,4 +2515,9 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     /** 점프 중 살짝 들리는 높이 */
     val hopLift: Float
         get() = if (state == 1) (kotlin.math.sin((hopT * Math.PI).toFloat()) * 5f) else 0f
+
+    companion object {
+        /** 지형지물 뒤에 숨었을 때의 도망 반경 배율 — 평소보다 훨씬 가까이 다가갈 수 있다. */
+        const val HIDDEN_FLEE_K = 0.45f
+    }
 }

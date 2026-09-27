@@ -462,7 +462,11 @@ class Viewfinder(private val game: Game) {
         // 라벨: 이름(찍은 적 있으면 공개) + 별점 예상 + 거리
         val seen = (state.birdCounts[b.def.id] ?: 0) > 0
         val name = if (seen) b.def.name else "??? 미확인"
-        val info = if (inRange) "·  ${fmt(dTiles)}칸" else "더 가까이!  ·  ${fmt(dTiles)}칸"
+        val info = when {
+            b.hiddenFromPlayer -> "🌿 숨어있음  ·  ${fmt(dTiles)}칸"
+            inRange -> "·  ${fmt(dTiles)}칸"
+            else -> "더 가까이!  ·  ${fmt(dTiles)}칸"
+        }
 
         text.textSize = 13.5f
         val nameW = text.measureText(name)
@@ -495,8 +499,11 @@ class Viewfinder(private val game: Game) {
         text.color = if (seen) Color.argb(240, 250, 246, 236) else Color.argb(210, 200, 195, 210)
         c.drawText(name, plate.left + 20f, plate.top + 14.5f, text)
         text.textSize = 11.5f
-        text.color = if (inRange) Color.argb(232, Color.red(col), Color.green(col), Color.blue(col))
-        else Color.argb(205, 246, 240, 224)
+        text.color = when {
+            b.hiddenFromPlayer -> Color.argb(235, 148, 222, 138)   // 지형지물 뒤 — 은은한 초록
+            inRange -> Color.argb(232, Color.red(col), Color.green(col), Color.blue(col))
+            else -> Color.argb(205, 246, 240, 224)
+        }
         if (inRange) {
             drawStars(c, plate.left + 20f, plate.top + 31f, stars, 10f)
             c.drawText(info, plate.left + 20f + 3f * 11.5f, plate.top + 28f, text)
