@@ -6,27 +6,6 @@
     android:viewportWidth="64"
     android:viewportHeight="64">
     <path
-        android:fillColor="#FFC6B58F"
-        android:pathData="M0,0L64,0L64,64L0,64Z"/>
-    <path
-        android:fillColor="#FFC4B28C"
-        android:pathData="M1,1L31,1L31,31L1,31Z"/>
-    <path
-        android:fillColor="#FFD9C9A7"
-        android:pathData="M33,1L63,1L63,31L33,31Z"/>
-    <path
-        android:fillColor="#FFD9C9A7"
-        android:pathData="M1,33L31,33L31,63L1,63Z"/>
-    <path
-        android:fillColor="#FFC4B28C"
-        android:pathData="M33,33L63,33L63,63L33,63Z"/>
-    <path
-        android:fillColor="#FFB5A37C"
-        android:pathData="M0,31L64,31L64,33L0,33Z"/>
-    <path
-        android:fillColor="#FFB5A37C"
-        android:pathData="M31,0L33,0L33,64L31,64Z"/>
-    <path
         android:fillColor="#47F7E9A8"
         android:pathData="M32,3C38.075,3,43,7.925,43,14C43,20.075,38.075,25,32,25C25.925,25,21,20.075,21,14C21,7.925,25.925,3,32,3Z"/>
     <path

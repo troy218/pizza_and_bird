@@ -24,6 +24,11 @@ class Game(val context: Context) {
 
     val state: GameState = SaveManager.load(context)
     val assets = Assets(context)
+    val illustrations = SvgIllustrations(context.assets)
+    val audio = Audio(context).apply {
+        musicOn = state.musicOn
+        sfxOn = state.sfxOn
+    }
     val hud = Hud(this)
     val input = Input(this)
 
@@ -53,7 +58,7 @@ class Game(val context: Context) {
     fun screenToWorld(p: PointF): PointF =
         PointF((p.x - viewOffX) / viewScale / WORLD_SCALE, (p.y - viewOffY) / viewScale / WORLD_SCALE)
 
-    /** 짧은 햅틱 피드백 (버튼 누름 등) */
+    /** 짧은 햅틱 피드백 (버튼 누름 등) — 탭 효과음도 함께 */
     @Suppress("DEPRECATION")
     fun haptic() {
         try {
@@ -61,12 +66,17 @@ class Game(val context: Context) {
             v?.vibrate(10L)
         } catch (_: Exception) {
         }
+        audio.play(Audio.Sfx.TAP, 0.5f)
     }
+
+    /** 효과음 재생 (편의 함수) */
+    fun sfx(s: Audio.Sfx, vol: Float = 1f, rate: Float = 1f) = audio.play(s, vol, rate)
 
     // ---------------------------------------------------------------------
 
     fun update(dt: Float) {
         time += dt
+        audio.update(dt)   // BGM/환경음 페이드 진행
         input.process()
         val tr = transition
         if (tr != null) {
@@ -76,9 +86,13 @@ class Game(val context: Context) {
             return
         }
         val ov = scene.overlay
+        if (ov == null && input.rawMode) input.rawMode = false
         if (ov != null) {
             ov.handleInput(input)
             ov.update(dt)
+            // 오버레이가 스스로 닫힘을 요청하면 다음 프레임부터 씬 입력을 받는다.
+            // 대화에서 새 오버레이를 연 경우(오버레이 체이닝)에는 새 오버레이를 보존한다.
+            if (ov.finished && scene.overlay === ov) scene.closeOverlay()
         } else {
             scene.handleInput(input)
         }

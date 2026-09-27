@@ -120,6 +120,51 @@ fun main() {
                     "이정표가 완전히 막힘 ${r.id} $d ($sx,$sy)")
             }
 
+            // 길(포장면) 검증 ------------------------------------------------
+            // (1) 포장면은 전부 하나로 이어져 있어야 한다 (섬처럼 떨어진 길 금지)
+            val paved = ArrayList<Pair<Int, Int>>()
+            for (y in 0 until map.h) for (x in 0 until map.w) {
+                if (map.paveAt(x, y) != Pave.NONE) paved.add(x to y)
+            }
+            check(paved.isNotEmpty(), "길이 하나도 없음 ${r.id}")
+            if (paved.isNotEmpty()) {
+                val seenRoad = HashSet<Long>()
+                val rq = ArrayDeque<Pair<Int, Int>>()
+                rq.add(paved[0])
+                seenRoad.add(paved[0].first.toLong() * 1000 + paved[0].second)
+                while (rq.isNotEmpty()) {
+                    val (x, y) = rq.removeFirst()
+                    for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                        val nx = x + dx
+                        val ny = y + dy
+                        if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue
+                        if (map.paveAt(nx, ny) == Pave.NONE) continue
+                        val k = nx.toLong() * 1000 + ny
+                        if (k in seenRoad) continue
+                        seenRoad.add(k)
+                        rq.add(nx to ny)
+                    }
+                }
+                check(seenRoad.size == paved.size,
+                    "길이 끊겨 있음 ${r.id}: ${paved.size}칸 중 ${seenRoad.size}칸만 연결")
+            }
+            // (2) 구조물 위에는 길이 깔리면 안 된다
+            for ((x, y) in paved) {
+                check(!map.t(x, y).bulk, "구조물 위에 길 ${r.id} ($x,$y)=${map.t(x, y)}")
+            }
+            // (3) 터널 앞 진입로는 반드시 포장되어 있어야 한다 (길이 끊긴 채 터널만 뚫림 방지)
+            for (d in Regions.exits(r.id).keys) {
+                val foot = when (d) {
+                    Dir.N -> listOf(19 to 1, 20 to 1)
+                    Dir.S -> listOf(19 to map.h - 2, 20 to map.h - 2)
+                    Dir.W -> listOf(1 to 15, 1 to 16)
+                    Dir.E -> listOf(map.w - 2 to 15, map.w - 2 to 16)
+                }
+                for ((x, y) in foot) {
+                    check(map.paveAt(x, y) != Pave.NONE, "터널 진입로가 길이 아님 ${r.id} $d ($x,$y)")
+                }
+            }
+
             // 홈 지역: 집 문 & 경로
             if (home.id == r.id) {
                 check(map.hasHouse, "집 없음 ${r.id}")
@@ -165,8 +210,11 @@ fun main() {
 
     // 5. 게임 상태 로직 (v0.2: 토핑×품질)
     val gs = GameState()
-    gs.reset("jeju")
-    check(gs.started && gs.homeRegion == "jeju" && "jeju" in gs.visited, "reset 오류")
+    gs.reset("jeju") // 인자로 무엇을 넘겨도 새 게임은 서울에서 시작
+    check(gs.started && gs.homeRegion == START_REGION_ID && START_REGION_ID in gs.visited, "서울 고정 시작 오류")
+    check(gs.ownedHomes == linkedSetOf(START_REGION_ID), "초기 서울 집 소유 오류")
+    check(HouseStyles.ALL.size == 4 && gs.houseStyleId == "cozy", "인테리어 초기화 오류")
+    check(HousePrices.forRegion("seoul") > HousePrices.forRegion("jeonju"), "지역별 집값 데이터 오류")
     check(gs.worldTime == 8.5f && !gs.isNight(), "초기 시각 오류")
     check(gs.decorSlots.all { it == -1 } && gs.decorLuck() == 0, "장식 초기화 오류")
 
@@ -199,7 +247,7 @@ fun main() {
     gs.decorSlots[0] = 0; gs.decorSlots[1] = 4
     check(gs.decorLuck() == 4, "장식 행운 합산 오류: ${gs.decorLuck()}")
 
-    check(gs.money == 0, "초기 돈 오류")
+    check(gs.money == 30000 && won(gs.money) == "₩30,000", "초기 원화 오류")
 
     // 6. JSON 직렬화 왕복 (org.json은 Android 런타임 필요 — 여기선 미실행)
 
