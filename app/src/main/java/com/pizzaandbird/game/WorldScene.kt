@@ -900,8 +900,9 @@ class WorldScene(
             if (tooClose) continue
             val fieldBird = FieldBird(def, bx, by)
             val firstPose = game.assets.birdPose(def.id, fieldBird.facing, fieldBird.renderPose)
-            fieldBird.sprW = (firstPose.width / WORLD_SCALE).toInt().coerceAtLeast(12)
-            fieldBird.sprH = (firstPose.height / WORLD_SCALE).toInt().coerceAtLeast(12)
+            // 필드의 새는 사진용 고해상도 원본보다 작게 그린다 (BIRD_SPRITE_K) — 플레이어보다 확실히 작아야 한다
+            fieldBird.sprW = (firstPose.width * BIRD_SPRITE_K / WORLD_SCALE).toInt().coerceAtLeast(8)
+            fieldBird.sprH = (firstPose.height * BIRD_SPRITE_K / WORLD_SCALE).toInt().coerceAtLeast(8)
             // 커진 정밀 스프라이트도 기존 타일의 발 위치/중심에 정확히 착지시킨다.
             fieldBird.x = bx + 8f - fieldBird.sprW / 2f
             fieldBird.y = by + 9f - fieldBird.sprH
@@ -966,7 +967,8 @@ class WorldScene(
         val dark = state.darkness()
         val wet = state.weather() == Weather.RAIN || state.weather() == Weather.SNOW
         val movingShot = player.moving
-        val fastShot = player.bike || (game.input.isRun && player.moving)
+        // 촬영 모드 진입 시 자전거에서는 무조건 내리므로, 달리기 촬영만 빠른 촬영으로 친다
+        val fastShot = game.input.isRun && player.moving
 
         // 화질 — 센서/화소/렌즈 해상력
         if (stars < 3 && rnd.nextFloat() < rig.iqChance()) {
@@ -1977,6 +1979,11 @@ class WorldScene(
             return
         }
         if (input.justB) {
+            if (photoMode) {
+                // 촬영 중에는 자전거에 오를 수 없다 — 카메라를 먼저 낮춰야 한다
+                game.toast("촬영 중에는 자전거를 탈 수 없어요")
+                return
+            }
             player.bike = !player.bike
             state.onBike = player.bike
             // 올라타고 내릴 때의 체중 이동
@@ -2106,6 +2113,14 @@ class WorldScene(
         game.hud.showStats = !on
         game.hud.showMinimap = !on
         if (on) {
+            // 🚲📷 새 촬영은 두 손으로 — 카메라를 꺼낼 때는 무조건 자전거에서 내린다
+            if (player.bike) {
+                player.bike = false
+                state.onBike = false
+                viewRig.kick(0f, 1f, 1.2f)
+                game.sfx(Audio.Sfx.BIKE_BRAKE, 0.8f)
+                game.toast("자전거에서 내리고 카메라를 들었어요")
+            }
             game.hud.questLabel = null
             viewfinder.onEnter()
             game.haptic()
@@ -2379,13 +2394,16 @@ class WorldScene(
                 }
                 // 자세마다 투명 여백/크기가 달라도 몸 중심과 발 위치는 고정한다.
                 // 덕분에 정면↔옆면 전환 때 새가 순간이동하거나 땅에 파묻히지 않는다.
-                val bx = (e.cx - camX) * WORLD_SCALE - bmp.width / 2f
-                val by = (e.y + e.sprH - camY) * WORLD_SCALE - bmp.height - e.hopLift * WORLD_SCALE
+                // 화면에 보이는 새는 원본의 BIRD_SPRITE_K 배로 작게 — 고해상도 원본은 사진 결과물용으로 남긴다.
+                val dw = bmp.width * BIRD_SPRITE_K
+                val dh = bmp.height * BIRD_SPRITE_K
+                val bx = (e.cx - camX) * WORLD_SCALE - dw / 2f
+                val by = (e.y + e.sprH - camY) * WORLD_SCALE - dh - e.hopLift * WORLD_SCALE
                 // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
                 if (!flying || e.fleeT < 0.32f) {
                     val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
-                    val shadowCx = bx + bmp.width * 0.5f
-                    val shadowHalf = bmp.width * 0.4f * shadowK
+                    val shadowCx = bx + dw * 0.5f
+                    val shadowHalf = dw * 0.4f * shadowK
                     val groundY = (e.y + e.sprH - camY) * WORLD_SCALE
                     scratchRect.set(
                         shadowCx - shadowHalf, groundY - 2f,
@@ -2393,13 +2411,14 @@ class WorldScene(
                     )
                     c.drawOval(scratchRect, a.shadowPaint)
                 }
+                scratchRect.set(bx, by, bx + dw, by + dh)
                 if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
                     a.sprPaint.alpha = alpha
-                    c.drawBitmap(bmp, bx, by, a.sprPaint)
+                    c.drawBitmap(bmp, null, scratchRect, a.sprPaint)
                     a.sprPaint.alpha = 255
                 } else {
-                    c.drawBitmap(bmp, bx, by, a.sprPaint)
+                    c.drawBitmap(bmp, null, scratchRect, a.sprPaint)
                 }
             }
             is Player -> {
@@ -2966,6 +2985,12 @@ class WorldScene(
     companion object {
         /** 흔들림·기울기로 화면 가장자리가 비지 않도록 한 타일만큼 더 그리는 여유분(가상 px) */
         private const val PAD = 32f
+
+        /**
+         * 필드에서 보이는 새의 크기 배율. 촬영 인화·도감용 고해상도 원본(76px 리그)을
+         * 그대로 쓰면 플레이어(32px)보다 새가 더 커 보여서, 월드에 그릴 때만 절반으로 줄인다.
+         */
+        private const val BIRD_SPRITE_K = 0.5f
 
         /** 잔상용 위치 링버퍼 길이 */
         private const val GHOSTS = 6
