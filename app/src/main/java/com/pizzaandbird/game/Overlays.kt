@@ -4121,8 +4121,6 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val showAllNames = scale > fitScale * 1.5f
         // 메인 퀘스트 자동 진행 — 추천 지역 위에 금색 ★ 표시
         val mainAdv = MainQuestAdvisor.advise(s)
-        // 현재 지역 출구 번호 — 지도에서 지하철 출입구처럼 표시
-        val currentExits = Regions.exitNumbered(s.region)
         for (reg in Regions.ALL) {
             val x = sx(reg.mmX)
             val y = sy(reg.mmY)
@@ -4167,39 +4165,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 UiKit.iconCenter(c, g, "star", x, y - r - dp(scene, 10f), dp(scene, 18f))
             }
 
-            // 현재 위치에서는 각 방향 출구 번호를 주변에 표시 — 지하철 출입구처럼
-            if (isCurrent) {
-                for (exit in currentExits) {
-                    val dirX = when (exit.dir) {
-                        Dir.N -> 0f
-                        Dir.S -> 0f
-                        Dir.E -> 1f
-                        Dir.W -> -1f
-                    }
-                    val dirY = when (exit.dir) {
-                        Dir.N -> -1f
-                        Dir.S -> 1f
-                        Dir.E -> 0f
-                        Dir.W -> 0f
-                    }
-                    val bx = x + dirX * dp(scene, 28f)
-                    val by = y + dirY * dp(scene, 28f)
-
-                    // 번호 원
-                    fillP.color = Color.argb(40, 20, 14, 10)
-                    c.drawCircle(bx, by + dp(scene, 1f), dp(scene, 9f), fillP)
-                    fillP.color = 0xFFF2B63C.toInt()
-                    c.drawCircle(bx, by, dp(scene, 8f), fillP)
-                    strokeP.color = 0xFF4A2E12.toInt()
-                    strokeP.strokeWidth = dp(scene, 1.2f)
-                    c.drawCircle(bx, by, dp(scene, 8f), strokeP)
-
-                    textP.textSize = textDp(scene, 9f)
-                    textP.color = 0xFF4A2E12.toInt()
-                    val numTxt = exit.number.toString()
-                    c.drawText(numTxt, bx - textP.measureText(numTxt) / 2, by - (textP.descent() + textP.ascent()) / 2, textP)
-                }
-            }
+            // 출구 번호 뱃지는 링크(터널) 위에만 표시 — 현재 지역 점 주변(마을 중앙)에는 그리지 않는다
 
             if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
                 val nm = if (visited) reg.name else "? ${reg.name}"

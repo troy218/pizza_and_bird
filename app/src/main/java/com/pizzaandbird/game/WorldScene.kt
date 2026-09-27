@@ -2210,7 +2210,6 @@ class WorldScene(
         drawCatOverlays(c)
         drawImpact(c)
         drawTunnelOverlays(c)
-        drawExitHints(c)
         c.restore()
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
@@ -2911,38 +2910,6 @@ class WorldScene(
                 scratchRect.set(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f)
                 c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
                 c.drawText(label, badgeCx - lw / 2, scratchRect.centerY() - (lp.descent() + lp.ascent()) / 2f, lp)
-            }
-        }
-    }
-
-    /** 광장 근처에서만 전체 출구 안내판 표시 (캐릭터 옆 터널 방향 힌트는 띄우지 않는다) */
-    private fun drawExitHints(c: Canvas) {
-        if (map.tunnels.isEmpty()) return
-        // 광장 근처에서는 전체 출구 안내판 (지하철 출입구 종합 안내처럼)
-        val plazaCx = 21f * 16f + 8f
-        val plazaCy = 15f * 16f + 8f
-        val distPlaza = hypot(player.cx - plazaCx, player.cy - plazaCy)
-        if (distPlaza < 140f) {
-            val sx = (plazaCx - camX) * WORLD_SCALE + 16f
-            val sy = (plazaCy - camY) * WORLD_SCALE - 42f
-            var curY = sy
-            for (tunnel in map.tunnels) {
-                val target = Regions.byId[tunnel.targetId] ?: continue
-                val dirArrow = Regions.dirArrow(tunnel.dir)
-                val dirLabel = Regions.dirLabel(tunnel.dir)
-                val line = "${tunnel.number} $dirArrow $dirLabel -> ${target.name}"
-                val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
-                val lw = lp.measureText(line)
-                uiFill.color = Color.argb(210, 58, 52, 74)
-                scratchRect.set(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f)
-                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
-                bubbleFill.color = 0xFFF2B63C.toInt()
-                c.drawCircle(sx - lw / 2 - 4f, curY - 5f, 8f, bubbleFill)
-                val np = Type.paintPx(9f, true, 0.02f, 0xFF4A2E12.toInt())
-                val nt = tunnel.number.toString()
-                c.drawText(nt, sx - lw / 2 - 4f - np.measureText(nt) / 2, curY - 1.5f, np)
-                c.drawText(line, sx - lw / 2 + 10f, curY, lp)
-                curY += 18f
             }
         }
     }
