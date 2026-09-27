@@ -9,8 +9,9 @@
  */
 package android.util
 
-class LruCache<K, V>(private val maxSize: Int) {
+open class LruCache<K, V>(private val maxSize: Int) {
     private val map = LinkedHashMap<K, V>()
+    @Synchronized open fun sizeOf(key: K, value: V): Int = 1
     @Synchronized fun get(key: K): V? = map[key]
     @Synchronized fun put(key: K, value: V): V? = map.put(key, value)
     @Synchronized fun remove(key: K): V? = map.remove(key)

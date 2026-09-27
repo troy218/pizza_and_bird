@@ -588,10 +588,25 @@ class Paint {
 
 class Bitmap private constructor(val image: BufferedImage) {
     enum class Config { ARGB_8888 }
+    enum class CompressFormat { JPEG, PNG, WEBP }
 
     val width: Int get() = image.width
     val height: Int get() = image.height
     val isRecycled: Boolean = false
+
+    /** Android과 동일하게 픽셀 수 기준으로 근사 반환 (헤드리스 프리뷰용). */
+    val byteCount: Int get() = width * height * 4
+
+    /** 헤드리스 프리뷰에서는 파일 쓰기를 생략한다 — 반환값만 true 로 둔다. */
+    fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean {
+        try {
+            javax.imageio.ImageIO.write(image, if (format == CompressFormat.PNG) "png" else "jpg", stream)
+        } catch (_: Exception) {
+        }
+        return true
+    }
+
+    fun recycle() {}
 
     fun setPixel(x: Int, y: Int, c: Int) {
         if (x in 0 until width && y in 0 until height) image.setRGB(x, y, c)
@@ -634,9 +649,14 @@ class Bitmap private constructor(val image: BufferedImage) {
             val base = src.image.getSubimage(x, y, max(width, 1), max(height, 1))
             val at = m?.tx ?: AffineTransform()
             val bounds = at.createTransformedShape(Rectangle2D.Float(0f, 0f, base.width.toFloat(), base.height.toFloat())).bounds2D
+            // 음의 스케일(좌우 반전)이면 변환 결과가 음수 영역에 놓이므로 (0,0) 기준으로 끌어온다.
+            // 그대로 두면 출력이 1px 투명 비트맵이 돼서 반전 스프라이트가 사라진다.
+            val offX = if (bounds.x < 0) -bounds.x else 0.0
+            val offY = if (bounds.y < 0) -bounds.y else 0.0
             val out = BufferedImage(max(bounds.width.toInt() + 2, 1), max(bounds.height.toInt() + 2, 1), BufferedImage.TYPE_INT_ARGB)
             val g = out.createGraphics()
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+            g.translate(offX, offY)
             g.transform(at)
             g.drawImage(base, 0, 0, null)
             g.dispose()
