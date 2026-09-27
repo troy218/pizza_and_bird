@@ -127,6 +127,9 @@ class WorldScene(
             SpawnKind.SAVED -> state.px to state.py
             SpawnKind.HOME -> 376f to 12.2f * 16f
             SpawnKind.FAST -> 18f * 16f to 14f * 16f   // 중앙 광장 — 보리 박사 바로 옆
+            SpawnKind.LANDMARK ->                      // 랜드마크에서 나오면 정문 바로 앞
+                if (map.landmarkDoorX >= 0) map.landmarkDoorX * 16f to (map.landmarkDoorY + 1) * 16f
+                else 18f * 16f to 14f * 16f
             SpawnKind.TUNNEL -> when (spawnDir) {
                 Dir.N -> 312f to 3f * 16f
                 Dir.S -> 312f to (map.h - 4f) * 16f
@@ -364,6 +367,7 @@ class WorldScene(
             nearTile(T.BENCH) != null -> "☕"
             nearestCat() != null -> "🐈"
             map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "🚪"
+            nearLandmarkDoor() -> "🏛"
             else -> null
         }
 
@@ -708,6 +712,7 @@ class WorldScene(
                 goThroughTunnel(edge)
             }
             T.HOUSE_DOOR -> if (map.hasHouse) enterHome()
+            T.LANDMARK_DOOR -> if (map.hasLandmark) enterLandmark()
             else -> {}
         }
     }
@@ -741,6 +746,26 @@ class WorldScene(
         game.audio.stopSteps()
         game.fadeTo {
             game.scene = HomeScene(game)
+        }
+    }
+
+    /** 랜드마크 정문 앞에 서 있는지 */
+    private fun nearLandmarkDoor(): Boolean {
+        if (!map.hasLandmark) return false
+        val ddx = (map.landmarkDoorX * 16f + 16f) - player.cx
+        val ddy = (map.landmarkDoorY * 16f + 8f) - player.cy
+        return hypot(ddx, ddy) < 30f
+    }
+
+    private fun enterLandmark() {
+        if (!map.hasLandmark) return
+        state.px = player.x
+        state.py = player.y
+        SaveManager.save(game.context, state)
+        game.audio.stopSteps()
+        game.sfx(Audio.Sfx.TAP, 0.6f)
+        game.fadeTo {
+            game.scene = LandmarkScene(game, map.region)
         }
     }
 
@@ -1418,6 +1443,10 @@ class WorldScene(
                     return
                 }
             }
+            if (nearLandmarkDoor()) {
+                enterLandmark()
+                return
+            }
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -1877,7 +1906,8 @@ class WorldScene(
                         lm.light(sx + 16f, sy + 10f, 70f, (255 * k).toInt())
                         lm.light(sx + 16f, sy + 34f, 60f, 26f, (220 * k).toInt())      // 바닥 빛 웅덩이
                     }
-                    T.HOUSE_WIN, T.BLDG_WIN, T.WALL_WIN -> lm.light(sx + 16f, sy + 20f, 40f, 34f, (205 * k).toInt())
+                    T.HOUSE_WIN, T.BLDG_WIN, T.WALL_WIN, T.LM_WIN -> lm.light(sx + 16f, sy + 20f, 40f, 34f, (205 * k).toInt())
+                    T.LANDMARK_DOOR -> lm.light(sx + 16f, sy + 18f, 26f, 30f, (180 * k).toInt())
                     T.TUNNEL -> lm.light(sx + 16f, sy + 6f, 30f, (170 * k).toInt())
                     else -> {}
                 }
@@ -1901,11 +1931,12 @@ class WorldScene(
                         Glow.draw(c, Glow.warm, sx + 16f, sy + 6f, 26f, 26f, (170 * k * flicker).toInt())
                         Glow.draw(c, Glow.warm, sx + 16f, sy + 36f, 40f, 16f, (70 * k).toInt())
                     }
-                    T.HOUSE_WIN, T.BLDG_WIN, T.WALL_WIN -> {
+                    T.HOUSE_WIN, T.BLDG_WIN, T.WALL_WIN, T.LM_WIN -> {
                         uiFill.color = Color.argb((110 * k).toInt(), 255, 206, 120)
                         c.drawRect(sx + 8f, sy + 8f, sx + 24f, sy + 22f, uiFill)
                         Glow.draw(c, Glow.warm, sx + 16f, sy + 16f, 24f, 20f, (90 * k).toInt())
                     }
+                    T.LANDMARK_DOOR -> Glow.draw(c, Glow.warm, sx + 16f, sy + 16f, 18f, 22f, (120 * k * flicker).toInt())
                     T.TUNNEL -> Glow.draw(c, Glow.warm, sx + 16f, sy + 4f, 12f, 12f, (150 * k * flicker).toInt())
                     else -> {}
                 }

@@ -48,6 +48,10 @@ enum class T(
     HOUSE_WALL(true, bulk = true),
     HOUSE_WIN(true, bulk = true),
     HOUSE_DOOR(false),      // 우리 집 현관 (들어가기)
+    LM_ROOF(true, bulk = true),          // 지역 랜드마크 지붕
+    LM_WALL(true, bulk = true),          // 지역 랜드마크 외벽
+    LM_WIN(true, bulk = true),           // 지역 랜드마크 창(아치)
+    LANDMARK_DOOR(false),   // 지역 랜드마크 입구 (들어가기)
     TUNNEL(false, bulk = true),          // 지역 이동 터널!
     FLOOR(false, ground = true),
     WALL_IN(true, bulk = true),
@@ -94,7 +98,10 @@ class GameMap(
     val houseDoorX: Int,
     val houseDoorY: Int,
     val mapStyle: RegionMapStyle = RegionMapStyles.forRegion(region),
-    val tunnels: List<TunnelInfo> = emptyList()
+    val tunnels: List<TunnelInfo> = emptyList(),
+    val hasLandmark: Boolean = false,
+    val landmarkDoorX: Int = -1,
+    val landmarkDoorY: Int = -1
 ) {
     private val foliagePaint by lazy { tintedPaint(mapStyle.foliageFilter) }
     private val waterPaint by lazy { tintedPaint(mapStyle.waterFilter) }
@@ -1034,6 +1041,77 @@ object MapBuilder {
             for (x in 23..24) pave[11][x] = Pave.STONE
         }
 
+        // 5.5 지역 랜드마크 ------------------------------------------------------
+        // 지역마다 하나씩, 광장 근처에 들어갈 수 있는 랜드마크 건물을 세운다.
+        // 5칸 폭 × 4줄(지붕 2줄 + 벽 + 문). 문 앞으로 샛길을 이어 준다.
+        var landmarkDoorX = -1
+        var landmarkDoorY = -1
+        val landmarkFronts = ArrayList<Pair<Int, Int>>()
+        if (Landmarks.byRegion.containsKey(region.id)) {
+            // 광장 주변을 우선으로, 지형에 걸리지 않는 첫 자리를 고른다.
+            val candidates = listOf(
+                11 to 8, 26 to 8, 11 to 20, 26 to 20,
+                6 to 9, 29 to 9, 6 to 22, 29 to 22,
+                13 to 8, 24 to 20, 8 to 8, 27 to 8
+            )
+            fun footprintFree(bx: Int, by: Int): Boolean {
+                if (bx < 2 || by < 2 || bx + 4 > w - 3 || by + 4 > h - 3) return false
+                // 중앙 광장(NPC 자리)·간선도로와 겹치면 안 된다.
+                for (x in bx..bx + 4) if (x in AVE_X - 1..AVE_X + 2) return false
+                for (y in by..by + 4) if (y in AVE_Y - 1..AVE_Y + 2) return false
+                for (y in by..by + 3) for (x in bx..bx + 4) {
+                    if (x in PLAZA_X0..PLAZA_X1 && y in PLAZA_Y0..PLAZA_Y1) return false
+                    if (t[y][x] != T.GRASS.ordinal || structure[y][x] || reserved[y][x]) return false
+                    if (base[y][x] == T.WATER.ordinal) return false
+                }
+                // 문 앞(내려가는 방향) 한 칸도 지날 수 있어야 한다.
+                val fx = bx + 2
+                val fy = by + 4
+                if (!inb(fx, fy) || structure[fy][fx] || base[fy][fx] == T.WATER.ordinal) return false
+                return true
+            }
+            var anchor = candidates.firstOrNull { footprintFree(it.first, it.second) }
+            if (anchor == null) {
+                // 미리 정한 자리가 모두 막혔으면 맵 전체를 훑어 광장에서 가장 가까운 빈 자리를 쓴다.
+                var best: Pair<Int, Int>? = null
+                var bestD = Int.MAX_VALUE
+                for (by in 3..(h - 8)) for (bx in 3..(w - 8)) {
+                    if (!footprintFree(bx, by)) continue
+                    val ddx = (bx + 2) - 21
+                    val ddy = (by + 2) - 15
+                    val d = ddx * ddx + ddy * ddy
+                    if (d < bestD) { bestD = d; best = bx to by }
+                }
+                anchor = best
+            }
+            val chosen = anchor
+            if (chosen != null) {
+                val (bx, by) = chosen
+                // 지붕 2줄
+                for (yy in by..by + 1) for (x in bx..bx + 4) {
+                    t[yy][x] = T.LM_ROOF.ordinal; structure[yy][x] = true; reserved[yy][x] = true
+                }
+                // 벽 + 아치 창 (가운데 3칸이 창)
+                for (x in bx..bx + 4) {
+                    t[by + 2][x] = (if (x in bx + 1..bx + 3) T.LM_WIN else T.LM_WALL).ordinal
+                    structure[by + 2][x] = true; reserved[by + 2][x] = true
+                }
+                // 문 줄: 벽 · 벽 · 문 · 벽 · 벽
+                for (x in bx..bx + 4) {
+                    val isDoor = x == bx + 2
+                    t[by + 3][x] = (if (isDoor) T.LANDMARK_DOOR else T.LM_WALL).ordinal
+                    structure[by + 3][x] = !isDoor
+                    reserved[by + 3][x] = true
+                }
+                landmarkDoorX = bx + 2
+                landmarkDoorY = by + 3
+                // 문턱 포장
+                pave[by + 3][bx + 2] = Pave.STONE
+                if (inb(bx + 2, by + 4)) pave[by + 4][bx + 2] = Pave.STONE
+                landmarkFronts.add(bx + 2 to by + 4)
+            }
+        }
+
         // 6. 중앙 광장 (팔각형) ---------------------------------------------------
         for (y in PLAZA_Y0..PLAZA_Y1) for (x in PLAZA_X0..PLAZA_X1) {
             if (structure[y][x]) continue
@@ -1224,6 +1302,13 @@ object MapBuilder {
             val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
             val seq = pathClear(listOf(fx to fy, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty()) ?: continue
             for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
+        }
+        // 랜드마크 정문 앞 샛길 (간선도로까지 이어 준다)
+        for ((fx, fy) in landmarkFronts) {
+            val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
+            val seq = pathClear(listOf(fx to fy, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty())
+                ?: pathClear(listOf(fx to fy, fx to AVE_Y + 1), allowRiverBridge = true)
+            if (seq != null) for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
         }
 
         // 호숫가 전망 데크
@@ -1438,7 +1523,11 @@ object MapBuilder {
             }
         }
 
-        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, mapStyle, tunnelList)
+        return GameMap(
+            region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY,
+            mapStyle, tunnelList,
+            hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY
+        )
     }
 
     /** 집 내부 맵 (13x9) */
@@ -1484,6 +1573,32 @@ object MapBuilder {
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
         return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 7, h - 1)
+    }
+
+    /** 지역 랜드마크 내부 맵 (16x12) — 상호작용(전시/휴식/안내)은 LandmarkScene이 담당한다. */
+    fun buildLandmark(region: RegionDef): GameMap {
+        val w = 16
+        val h = 12
+        val t = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
+        // 벽 (위 2줄 + 좌우 + 아래)
+        for (x in 0 until w) { t[0][x] = T.WALL_IN.ordinal; t[1][x] = T.WALL_IN.ordinal }
+        for (y in 0 until h) { t[y][0] = T.WALL_IN.ordinal; t[y][w - 1] = T.WALL_IN.ordinal }
+        for (x in 0 until w) t[h - 1][x] = T.WALL_IN.ordinal
+        // 출구 (아래쪽 중앙) — 다시 지역으로
+        t[h - 1][7] = T.LANDMARK_DOOR.ordinal
+        t[h - 1][8] = T.LANDMARK_DOOR.ordinal
+        // 큰 아치 창 — 전망을 위해 넉넉하게
+        t[1][3] = T.WALL_WIN.ordinal
+        t[1][6] = T.WALL_WIN.ordinal
+        t[1][9] = T.WALL_WIN.ordinal
+        t[1][12] = T.WALL_WIN.ordinal
+        val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
+        val pave = Array(h) { IntArray(w) }
+        val deco = Array(h) { IntArray(w) }
+        return GameMap(
+            region, w, h, t, base, pave, deco, emptyList(), false, -1, -1,
+            hasLandmark = true, landmarkDoorX = 7, landmarkDoorY = h - 1
+        )
     }
 }
 

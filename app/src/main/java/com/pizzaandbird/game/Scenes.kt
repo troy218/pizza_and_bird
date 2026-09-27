@@ -264,7 +264,7 @@ class TitleScene(game: Game) : Scene(game) {
 }
 
 /** 스폰 위치 종류 */
-enum class SpawnKind { SAVED, TUNNEL, HOME, FAST }
+enum class SpawnKind { SAVED, TUNNEL, HOME, FAST, LANDMARK }
 
 /**
  * 메인 퀘스트 자동 진행 — 지정 지역으로 빨리 이동한다.

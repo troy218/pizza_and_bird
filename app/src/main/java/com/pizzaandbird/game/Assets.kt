@@ -2054,6 +2054,87 @@ begin(T.HOUSE_DOOR)
             noise(c, p, r, 6f, 29f, 26f, 32f, c(0xFF8A2F35), 5, 1f, 1.3f)
         })
 
+        // 랜드마크 지붕 — 청기와(에메랄드) + 금빛 용마루로 격조 있게
+        begin(T.LM_ROOF)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFF2E6E63))
+            for (row in 0 until 4) {
+                val y = row * 8f
+                val off = if (row % 2 == 0) 0f else -6f
+                var x = off
+                while (x < 32f) {
+                    val tt = lerpColor(c(0xFF3E9184), c(0xFF2A6157), r.nextFloat())
+                    px(c, p, x + 0.4f, y + 0.6f, 11.2f, 7f, tt)
+                    px(c, p, x + 0.4f, y + 0.6f, 11.2f, 1.2f, shade(tt, 1.25f))
+                    px(c, p, x + 0.4f, y + 6.4f, 11.2f, 1.2f, shade(tt, 0.72f))
+                    px(c, p, x + 8.4f, y + 2f, 1.2f, 5.6f, shade(tt, 0.85f))
+                    x += 11.6f
+                }
+            }
+            // 금빛 용마루 + 하이라이트
+            px(c, p, 0f, 0f, 32f, 2.4f, c(0xFFE9C56B))
+            px(c, p, 0f, 0f, 32f, 1f, c(0xFFFBEBB0))
+            noise(c, p, r, 0f, 4f, 32f, 32f, c(0xFF6FB4A6), 4, 1f, 1.6f)
+        })
+
+        // 랜드마크 외벽 — 밝은 석재 + 굵은 코너 트림
+        begin(T.LM_WALL)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFEDE3CF))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE1D4B9), 16, 1f, 2f)
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFFAF3E1), 10, 1f, 1.6f)
+            // 석재 줄눈 (가로)
+            for (y in 6 until 32 step 8) px(c, p, 0f, y.toFloat(), 32f, 1f, c(0xFFCDBE9C))
+            // 상단 처마 트림 + 기초
+            px(c, p, 0f, 0f, 32f, 2.6f, c(0xFFB79A6E))
+            px(c, p, 0f, 2.6f, 32f, 1f, c(0xFFE8D9B6))
+            px(c, p, 0f, 28f, 32f, 4f, c(0xFFB79A6E))
+            px(c, p, 0f, 28f, 32f, 1.2f, c(0xFF8A6A4A))
+        })
+
+        // 랜드마크 창 — 아치형 큰 창(전망)
+        begin(T.LM_WIN)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFEDE3CF))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE1D4B9), 12, 1f, 1.9f)
+            px(c, p, 0f, 0f, 32f, 2.6f, c(0xFFB79A6E))
+            // 아치 창틀
+            px(c, p, 4f, 4f, 24f, 24f, c(0xFF9A7B4F))
+            px(c, p, 5.4f, 5.4f, 21.2f, 22f, c(0xFFC7A876))
+            // 유리 (하늘빛 그라데이션)
+            vgrad(c, p, 6.8f, 7f, 25.2f, 26f, c(0xFFCBE8F5), c(0xFF7FB6D9), 5)
+            // 아치 상단 둥근 느낌 + 창살
+            px(c, p, 6.8f, 6.6f, 18.4f, 2f, c(0xFF9A7B4F))
+            px(c, p, 15.2f, 6.6f, 1.6f, 19.4f, c(0xFF9A7B4F))
+            px(c, p, 6.8f, 15.4f, 18.4f, 1.6f, c(0xFF9A7B4F))
+            px(c, p, 7.6f, 8f, 5f, 4f, c(0xFFE6F4FB))
+        })
+
+        // 랜드마크 정문 — 격조 있는 아치 입구 + 현판
+        begin(T.LANDMARK_DOOR)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFEDE3CF))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE1D4B9), 10, 1f, 1.9f)
+            px(c, p, 0f, 0f, 32f, 2.6f, c(0xFFB79A6E))
+            // 현판 (금빛)
+            px(c, p, 6f, 3f, 20f, 3.4f, c(0xFF6B4A1F))
+            px(c, p, 6.8f, 3.6f, 18.4f, 2.2f, c(0xFFE9C56B))
+            // 아치 문틀
+            px(c, p, 4.4f, 6.4f, 23.2f, 25.6f, c(0xFF7A5330))
+            px(c, p, 5.8f, 7.6f, 20.4f, 24.4f, c(0xFF9A6A3E))
+            // 문짝 (양쪽으로 열리는 큰 문)
+            px(c, p, 7f, 9f, 18f, 23f, c(0xFFB98A5C))
+            px(c, p, 15.4f, 9f, 1.2f, 23f, c(0xFF6B431F))
+            px(c, p, 8.2f, 10.4f, 6.6f, 12f, c(0xFFC89B6A))
+            px(c, p, 17.2f, 10.4f, 6.6f, 12f, c(0xFFC89B6A))
+            // 손잡이
+            px(c, p, 13.6f, 19f, 1.6f, 3.2f, c(0xFFF2D06B))
+            px(c, p, 17.8f, 19f, 1.6f, 3.2f, c(0xFFF2D06B))
+            // 붉은 융단
+            px(c, p, 10f, 28f, 12f, 4f, c(0xFFB23F44))
+            noise(c, p, r, 10f, 28f, 22f, 32f, c(0xFF8A2F35), 4, 1f, 1.3f)
+        })
+
 begin(T.TUNNEL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF77848F))
