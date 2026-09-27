@@ -7,9 +7,11 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
+ * 세이브 형식 v4: 메인 스토리 진행도/완료 상태 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
+ *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
+ * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
- * v1·v2 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
+ * v1~v3 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
  */
 class GameState {
 
@@ -19,8 +21,15 @@ class GameState {
     var money = 0                  // 용돈(원)
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
     var luck = 50f                 // 행운 수치 (높을수록 희귀새 출현)
-    val pizzas = IntArray(9)       // [토핑id*3 + 품질] 피자 개수
-    var cameraLevel = 1            // 카메라 등급 (1~5)
+    val pizzas = IntArray(Pizzas.ALL.size * 3)   // [피자id*3 + 품질] 피자 개수
+
+    // 카메라 장비 -------------------------------------------------------
+    val ownedGear = LinkedHashSet<String>()     // 구매한 장비 id 전체
+    var useIlc = false                          // true = 렌즈교환식, false = 컴팩트
+    var compactId = CameraGear.STARTER          // 장착한 컴팩트
+    var bodyId: String? = null                  // 장착한 바디
+    var lensId: String? = null                  // 장착한 렌즈
+    var tcId: String? = null                    // 장착한 텔레컨버터
     val birdCounts = LinkedHashMap<String, Int>()   // 도감: 새별 촬영 횟수
     val bestStars = LinkedHashMap<String, Int>()    // 도감: 새별 최고 별점
     val visited = LinkedHashSet<String>()           // 방문한 지역
@@ -34,12 +43,18 @@ class GameState {
     var py = 0f
     var onBike = false
 
-    var questBird: String? = null  // 박사 의뢰: 촬영할 새
+    var questBird: String? = null  // 박사 사진 의뢰(서브퀘스트): 촬영할 새
     var questReward = 0
+
+    // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
+    var mainQuestStarted = false
+    var mainQuestStage = 0
+    var mainQuestFinished = false
 
     var playSeconds = 0f
     var photos = 0                 // 누적 촬영 장수
     var worldTime = 8.5f           // 게임 내 시각 (0.0~24.0, 8.5=오전 8시반)
+    var day = 1                    // 게임 내 날짜 (자정을 넘기거나 잠들면 +1 — 날씨가 바뀐다)
     var weatherId = Weather.SUNNY.id // 게임 전체 날씨
     var weatherSeconds = 55f         // 다음 날씨 변화까지 남은 시간
 
@@ -65,48 +80,162 @@ class GameState {
 
     val pizzaCount: Int get() = pizzas.sum()
 
-    fun pizzaCountOf(topping: Int): Int {
+    private fun pizzaIdx(pizzaId: Int, quality: Int): Int =
+        pizzaId.coerceIn(0, Pizzas.ALL.size - 1) * 3 + quality.coerceIn(0, 2)
+
+    /** 특정 피자(품질 무관) 개수 */
+    fun pizzaCountOf(pizzaId: Int): Int {
         var n = 0
-        for (q in 0 until 3) n += pizzas[topping.coerceIn(0, 2) * 3 + q]
+        for (q in 0 until 3) n += pizzas[pizzaIdx(pizzaId, q)]
         return n
     }
 
-    fun pizzaCountOf(topping: Int, quality: Int): Int =
-        pizzas[topping.coerceIn(0, 2) * 3 + quality.coerceIn(0, 2)]
+    fun pizzaCountOf(pizzaId: Int, quality: Int): Int = pizzas[pizzaIdx(pizzaId, quality)]
 
-    fun addPizza(topping: Int, quality: Int): Boolean {
+    /** 계열(화덕피자/일반 피자)별 개수 */
+    fun pizzaCountOfKind(kind: PizzaKind): Int {
+        var n = 0
+        for (p in Pizzas.ALL) if (p.kind == kind) n += pizzaCountOf(p.id)
+        return n
+    }
+
+    fun addPizza(pizzaId: Int, quality: Int): Boolean {
         if (pizzaCount >= pizzaCapEff()) return false
-        pizzas[topping.coerceIn(0, 2) * 3 + quality.coerceIn(0, 2)]++
+        pizzas[pizzaIdx(pizzaId, quality)]++
         return true
     }
 
-    /** 특정 토핑의 가장 좋은 피자 먹기 (없으면 null) */
-    fun eat(toppingId: Int): PizzaQ? {
-        val t = Toppings.of(toppingId)
+    /** 특정 피자의 가장 좋은 품질부터 먹기 (없으면 null) */
+    fun eat(pizzaId: Int): PizzaQ? {
+        val p = Pizzas.of(pizzaId)
         for (q in 2 downTo 0) {
-            val idx = t.id * 3 + q
+            val idx = pizzaIdx(p.id, q)
             if (pizzas[idx] > 0) {
                 pizzas[idx]--
                 val def = PizzaQ.of(q)
-                hunger = (hunger + def.hunger + t.hungerBonus).coerceIn(0f, 100f)
-                luck = (luck + def.luck + t.luckBonus).coerceIn(0f, 100f)
+                hunger = (hunger + def.hunger + p.hungerBonus).coerceIn(0f, 100f)
+                luck = (luck + def.luck + p.luckBonus).coerceIn(0f, 100f)
                 return def
             }
         }
         return null
     }
 
-    /** 아무 토핑이나 가장 좋은 피자 먹기 (먹은 토핑 id 반환, 없으면 null) */
+    /**
+     * 아무 피자나 가장 좋은 것부터 먹기 (먹은 피자 id 반환, 없으면 null).
+     * 같은 품질이면 배고픔 회복이 큰 피자를 먼저 먹는다 (간식 버튼용).
+     */
     fun eatBest(): Int? {
         for (q in 2 downTo 0) {
-            for (t in Toppings.ALL) {
-                if (pizzas[t.id * 3 + q] > 0) {
-                    eat(t.id)
-                    return t.id
-                }
+            var best: PizzaDef? = null
+            for (p in Pizzas.ALL) {
+                if (pizzas[pizzaIdx(p.id, q)] > 0 && (best == null || p.hungerBonus > best.hungerBonus)) best = p
+            }
+            if (best != null) {
+                eat(best.id)
+                return best.id
             }
         }
         return null
+    }
+
+    // ------------------ 카메라 장비 ------------------
+
+    private var rigCache: CameraRig? = null
+    private var rigKey: String = ""
+
+    private fun gearKey(): String =
+        "$useIlc|$compactId|$bodyId|$lensId|$tcId|" + ownedGear.filter { it.startsWith("acc_") }.sorted().joinToString(",")
+
+    /** 소유한 액세서리 목록 */
+    fun accessories(): Set<String> =
+        ownedGear.filterTo(LinkedHashSet()) { CameraGear.accessory(it) != null }
+
+    fun ownsGear(id: String): Boolean = id in ownedGear
+
+    fun hasAdapter(): Boolean = CameraGear.ACC_ADAPTER in ownedGear
+
+    /** 현재 장착 중인 카메라(조합)의 종합 성능 */
+    fun rig(): CameraRig {
+        val key = gearKey()
+        val cached = rigCache
+        if (cached != null && key == rigKey) return cached
+        val acc = accessories()
+        val body = CameraGear.body(bodyId)
+        val lens = CameraGear.lens(lensId)
+        var tc = CameraGear.tc(tcId)
+        if (lens != null && !lens.tcOk) tc = null
+        val rig = if (useIlc && body != null && lens != null &&
+            CameraGear.canMount(body, lens, hasAdapter())
+        ) {
+            CameraRigs.fromIlc(body, lens, tc, acc)
+        } else {
+            val cam = CameraGear.compact(compactId) ?: CameraGear.COMPACTS.first()
+            CameraRigs.fromCompact(cam, acc)
+        }
+        rigCache = rig
+        rigKey = key
+        return rig
+    }
+
+    /** 장비 변경 후 캐시 무효화 */
+    fun invalidateRig() {
+        rigCache = null
+        rigKey = ""
+    }
+
+    /** 렌즈교환식 조합이 실제로 성립하는지 */
+    fun ilcReady(): Boolean {
+        val b = CameraGear.body(bodyId) ?: return false
+        val l = CameraGear.lens(lensId) ?: return false
+        return CameraGear.canMount(b, l, hasAdapter())
+    }
+
+    /** 장비 총 무게(g) */
+    fun gearWeight(): Int = rig().weightG
+
+    /** 무게로 인한 이동 속도 배율 (무거울수록 느려진다) */
+    fun gearSpeedMult(): Float {
+        val w = gearWeight()
+        val relief = if (CameraGear.ACC_STRAP in ownedGear) 0.8f else 1f
+        return (1f - ((w - 500).coerceAtLeast(0) / 14000f) * relief).coerceIn(0.78f, 1f)
+    }
+
+    /** 무게로 인한 배고픔 가중치 */
+    fun gearHungerMult(): Float {
+        val w = gearWeight()
+        val relief = if (CameraGear.ACC_STRAP in ownedGear) 0.8f else 1f
+        return (1f + ((w - 500).coerceAtLeast(0) / 7000f) * relief).coerceIn(1f, 1.75f)
+    }
+
+    /** 위장 블라인드 — 새가 덜 도망간다 */
+    fun gearFleeMult(): Float = if (CameraGear.ACC_BLIND in ownedGear) 0.82f else 1f
+
+    /** 장비가 주는 행운 보너스 */
+    fun gearLuck(): Int = rig().luck
+
+    /**
+     * 지금 얼마나 어두운가 (0 = 한낮, 1 = 한밤중).
+     * 저조도 노이즈·셔터 속도 판정과 뷰파인더 EXIF 표시에 함께 쓰인다.
+     */
+    fun darkness(): Float {
+        val h = worldTime
+        var d = when {
+            h >= 7f && h < 16.5f -> 0f
+            h >= 6f && h < 7f -> 0.35f
+            h >= 16.5f && h < 18f -> 0.35f
+            h >= 18f && h < 19.5f -> 0.65f
+            h >= 4.5f && h < 6f -> 0.6f
+            else -> 1f
+        }
+        d += when (weather()) {
+            Weather.RAIN -> 0.32f
+            Weather.SNOW -> 0.26f
+            Weather.CLOUDY -> 0.18f
+            Weather.WIND -> 0.08f
+            else -> 0f
+        }
+        return d.coerceIn(0f, 1f)
     }
 
     // ------------------ 탐조가 성장 ------------------
@@ -159,17 +288,19 @@ class GameState {
     }
 
     // 스킬 효과 --------------------------------------------------------
-    /** 이동 속도 배율 (튼튼한 다리) */
-    fun speedMult(): Float = 1f + 0.06f * skillRank("legs")
+    /** 이동 속도 배율 (튼튼한 다리 + 장비 무게) */
+    fun speedMult(): Float = (1f + 0.06f * skillRank("legs")) * gearSpeedMult()
 
     /** 피자 최대 소지 개수 (넉넉한 배낭) */
     fun pizzaCapEff(): Int = PIZZA_CAP + skillRank("pack")
 
-    /** 새 도망 반경 배율 (고요한 발걸음) — 작을수록 가까이 갈 수 있음 */
-    fun fleeMult(): Float = (1f - 0.08f * skillRank("quiet")).coerceAtLeast(0.5f)
+    /** 새 도망 반경 배율 (고요한 발걸음 + 위장 블라인드) — 작을수록 가까이 갈 수 있음 */
+    fun fleeMult(): Float =
+        ((1f - 0.08f * skillRank("quiet")) * gearFleeMult()).coerceAtLeast(0.42f)
 
-    /** 배고픔 감소 배율 (튼튼한 체력) */
-    fun hungerMult(): Float = (1f - 0.10f * skillRank("stamina")).coerceAtLeast(0.4f)
+    /** 배고픔 감소 배율 (튼튼한 체력 + 장비 무게) */
+    fun hungerMult(): Float =
+        ((1f - 0.10f * skillRank("stamina")).coerceAtLeast(0.4f)) * gearHungerMult()
 
     /** 행운 자연 감소 배율 (타고난 행운) */
     fun luckDecayMult(): Float = (1f - 0.20f * skillRank("lucky")).coerceAtLeast(0.2f)
@@ -187,6 +318,21 @@ class GameState {
     fun trainingCost(): Int = 800 + skillInvested() * 500
 
     // ------------------ 낮/밤 ------------------
+
+    /** 게임 시계를 dt초만큼 진행 (자정을 넘기면 날짜 +1) */
+    fun advanceClock(dt: Float) {
+        worldTime += dt * 24f / DAY_SECONDS
+        while (worldTime >= 24f) {
+            worldTime -= 24f
+            day += 1
+        }
+    }
+
+    /** 침대에서 자고 아침 7:12에 일어남 (자정 전에 잤다면 다음 날) */
+    fun sleepUntilMorning() {
+        if (worldTime > 7.2f) day += 1
+        worldTime = 7.2f
+    }
 
     /** 밤(올빼미 등 밤새 출현) 여부 */
     fun isNight(): Boolean = worldTime >= 19.5f || worldTime < 4.5f
@@ -220,8 +366,8 @@ class GameState {
         return s
     }
 
-    /** 희귀새 출현 계산에 쓰는 실효 행운 */
-    fun effectiveLuck(): Float = (luck + decorLuck()).coerceAtMost(100f)
+    /** 희귀새 출현 계산에 쓰는 실효 행운 (장식 + 감성 장비) */
+    fun effectiveLuck(): Float = (luck + decorLuck() + gearLuck()).coerceAtMost(100f)
 
     // ------------------------------------------------------------------
 
@@ -234,7 +380,15 @@ class GameState {
         hunger = 100f
         luck = 50f
         for (i in pizzas.indices) pizzas[i] = 0
-        cameraLevel = 1
+        // 첫 장비는 물려받은 컴팩트 카메라 한 대
+        ownedGear.clear()
+        ownedGear.add(CameraGear.STARTER)
+        useIlc = false
+        compactId = CameraGear.STARTER
+        bodyId = null
+        lensId = null
+        tcId = null
+        invalidateRig()
         birdCounts.clear()
         bestStars.clear()
         visited.clear()
@@ -251,9 +405,13 @@ class GameState {
         onBike = false
         questBird = null
         questReward = 0
+        mainQuestStarted = false
+        mainQuestStage = 0
+        mainQuestFinished = false
         playSeconds = 0f
         photos = 0
         worldTime = 8.5f
+        day = 1
         weatherId = Weather.SUNNY.id
         weatherSeconds = 55f
         for (i in decorSlots.indices) decorSlots[i] = -1
@@ -269,14 +427,19 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 3)
+        put("v", 4)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
         put("money", money)
         put("hunger", hunger.toDouble())
         put("luck", luck.toDouble())
-        put("cameraLevel", cameraLevel)
+        put("ownedGear", JSONArray().apply { ownedGear.forEach { put(it) } })
+        put("useIlc", useIlc)
+        put("compactId", compactId)
+        put("bodyId", bodyId ?: "")
+        put("lensId", lensId ?: "")
+        put("tcId", tcId ?: "")
         put("homeRegion", homeRegion)
         put("region", region)
         put("houseStyleId", houseStyleId)
@@ -287,9 +450,13 @@ class GameState {
         put("onBike", onBike)
         put("questBird", questBird ?: "")
         put("questReward", questReward)
+        put("mainQuestStarted", mainQuestStarted)
+        put("mainQuestStage", mainQuestStage)
+        put("mainQuestFinished", mainQuestFinished)
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("day", day)
         put("musicOn", musicOn)
         put("sfxOn", sfxOn)
         put("renderScale", renderScale)
@@ -318,7 +485,43 @@ class GameState {
             s.money = j.optInt("money", 0)
             s.hunger = j.optDouble("hunger", 100.0).toFloat()
             s.luck = j.optDouble("luck", 50.0).toFloat()
-            s.cameraLevel = j.optInt("cameraLevel", 1)
+            // ---- 카메라 장비 ----
+            val og = j.optJSONArray("ownedGear")
+            if (og != null) {
+                for (i in 0 until og.length()) {
+                    val id = og.optString(i, "")
+                    if (id in CameraGear.byId) s.ownedGear.add(id)
+                }
+            }
+            if (s.ownedGear.isEmpty()) {
+                // v1~v3 세이브: 카메라 등급(1~5)을 새 장비 시스템으로 옮긴다.
+                for (id in CameraGear.migrateLegacy(j.optInt("cameraLevel", 1))) s.ownedGear.add(id)
+            }
+            s.ownedGear.add(CameraGear.STARTER)
+            s.compactId = j.optString("compactId", CameraGear.STARTER)
+                .let { if (CameraGear.compact(it) != null && it in s.ownedGear) it else CameraGear.STARTER }
+            s.bodyId = j.optString("bodyId", "").ifEmpty { null }
+                ?.let { if (CameraGear.body(it) != null && it in s.ownedGear) it else null }
+            s.lensId = j.optString("lensId", "").ifEmpty { null }
+                ?.let { if (CameraGear.lens(it) != null && it in s.ownedGear) it else null }
+            s.tcId = j.optString("tcId", "").ifEmpty { null }
+                ?.let { if (CameraGear.tc(it) != null && it in s.ownedGear) it else null }
+            s.useIlc = j.optBoolean("useIlc", false) && s.ilcReady()
+            if (!j.has("ownedGear")) {
+                // 마이그레이션: 옮겨온 바디·렌즈가 있으면 그대로 장착해 준다.
+                val b = s.ownedGear.firstOrNull { CameraGear.body(it) != null }
+                val l = s.ownedGear.firstOrNull { CameraGear.lens(it) != null }
+                val t = s.ownedGear.firstOrNull { CameraGear.tc(it) != null }
+                val bestCompact = s.ownedGear.mapNotNull { CameraGear.compact(it) }.maxByOrNull { it.price }
+                if (bestCompact != null) s.compactId = bestCompact.id
+                if (b != null && l != null) {
+                    s.bodyId = b
+                    s.lensId = l
+                    s.tcId = t
+                    s.useIlc = true
+                }
+            }
+            s.invalidateRig()
             s.homeRegion = j.optString("homeRegion", START_REGION_ID)
             s.region = j.optString("region", s.homeRegion)
             s.houseStyleId = j.optString("houseStyleId", "cozy")
@@ -345,9 +548,13 @@ class GameState {
             s.onBike = j.optBoolean("onBike", false)
             s.questBird = j.optString("questBird", "").ifEmpty { null }
             s.questReward = j.optInt("questReward", 0)
+            s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
+            s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
+            s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.day = j.optInt("day", 1).coerceAtLeast(1)
             s.musicOn = j.optBoolean("musicOn", true)
             s.sfxOn = j.optBoolean("sfxOn", true)
             s.renderScale = when (j.optString("renderScale", "auto")) {
@@ -373,11 +580,12 @@ class GameState {
 
             val pz = j.optJSONArray("pizzas")
             if (pz != null) {
-                if (v >= 2 || pz.length() == 9) {
-                    for (i in 0 until minOf(pz.length(), s.pizzas.size)) s.pizzas[i] = pz.optInt(i, 0)
+                if (v >= 2 || pz.length() >= 9) {
+                    // v2/v3: 9칸(치즈·버섯·불고기 × 품질) / v4: 피자 12종 × 품질 — id가 같으므로 앞에서부터 그대로 복사
+                    for (i in 0 until minOf(pz.length(), s.pizzas.size)) s.pizzas[i] = pz.optInt(i, 0).coerceAtLeast(0)
                 } else {
                     // v1: 품질 3칸 배열 -> 치즈 피자로 마이그레이션
-                    for (q in 0 until minOf(pz.length(), 3)) s.pizzas[q] = pz.optInt(q, 0)
+                    for (q in 0 until minOf(pz.length(), 3)) s.pizzas[q] = pz.optInt(q, 0).coerceAtLeast(0)
                 }
             }
             val bc = j.optJSONObject("birdCounts")

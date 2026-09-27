@@ -187,7 +187,12 @@ object PreviewMain {
         s.money = 128400
         s.hunger = 74f
         s.luck = 66f
-        s.cameraLevel = 3
+        // 중급 렌즈교환식 조합(APS-C 바디 + 100-400mm)을 장착한 상태로 프리뷰
+        s.ownedGear.addAll(listOf("b_apsc_mid", "l_100400", CameraGear.ACC_STRAP))
+        s.bodyId = "b_apsc_mid"
+        s.lensId = "l_100400"
+        s.useIlc = true
+        s.invalidateRig()
         s.photos = 42
         s.playSeconds = 3720f
         s.visited.clear()
