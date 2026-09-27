@@ -486,6 +486,7 @@ class WorldScene(
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
         game.hud.contextIcon = when {
+            nearGroundCharm() -> "sparkle"
             nearestNpc() != null -> "note"
             nearTile(T.SIGN) != null -> "map"
             nearTile(T.BENCH) != null -> "coffee"
@@ -744,11 +745,12 @@ class WorldScene(
         // 1) 벽·바위에 부딪힘 — 자전거일수록 크게 '쿵'
         if (blocked && sp > 30f && bumpCd <= 0f) {
             bumpCd = 0.42f
-        .y + 15f,
-                        (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
-                        0.45f, Color.argb(120, 150, 132, 104), 3f, false
-                    )
-                }
+            viewRig.kick(-lastDirX, -lastDirY, if (player.bike) 2.2f else 1.1f)
+            viewRig.shake(if (player.bike) 0.16f else 0.08f)
+            repeat(4) {
+                addParticle(player.x + 8f, player.y + 15f,
+                    (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
+                    0.45f, Color.argb(120, 150, 132, 104), 3f, false)
             }
         }
         // 2) 급정거 — 관성으로 몸이 앞으로 쏠린다
@@ -1823,6 +1825,22 @@ class WorldScene(
     // NPC 상호작용
     // -------------------------------------------------------------------
 
+    private fun groundCharm() = Charms.all[Math.floorMod(region.id.hashCode(), Charms.all.size)]
+    private fun nearGroundCharm(): Boolean {
+        val n = map.npcs.firstOrNull() ?: return false
+        return groundCharm().id !in state.ownedCharms && hypot(player.cx - n.cx, player.cy - n.cy) < 42f
+    }
+    private fun pickGroundCharm(): Boolean {
+        if (!nearGroundCharm()) return false
+        val item = groundCharm()
+        state.ownedCharms.add(item.id)
+        if (Charms.equipped(state) == null) state.charmId = item.id
+        SaveManager.save(game.context, state)
+        game.sfx(Audio.Sfx.SPARKLE, 0.7f)
+        game.toast("${item.name} 발견! ${item.description} · 장비·장신구 가방에서 착용")
+        return true
+    }
+
     private fun nearestNpc(rangePx: Float = 32f): Npc? {
         var best: Npc? = null
         var bestD = Float.MAX_VALUE
@@ -2168,6 +2186,9 @@ class WorldScene(
                     DialogOverlay.Choice("자전거 상점") {
                         it.scene.openOverlay(BikeShopOverlay(it.scene))
                     },
+                    DialogOverlay.Choice("행운 장신구") {
+                        it.scene.openOverlay(CharmOverlay(it.scene, shop = true))
+                    },
                     DialogOverlay.Choice("장식 코너") {
                         it.scene.openOverlay(DecorShopOverlay(it.scene))
                     },
@@ -2233,6 +2254,7 @@ class WorldScene(
             return
         }
         if (input.justA) {
+            if (pickGroundCharm()) return
             val npc = nearestNpc()
             if (npc != null) {
                 talkTo(npc)
@@ -2290,6 +2312,10 @@ class WorldScene(
             // 이정표 탭
             tapSign(tap.x, tap.y)
             // 근처 NPC가 여러 명이어도 실제로 탭한 주민과 대화한다.
+            val dropNpc = map.npcs.firstOrNull()
+            if (dropNpc != null && nearGroundCharm() &&
+                hypot(tap.x - (dropNpc.cx + 17f / WORLD_SCALE), tap.y - (dropNpc.cy + 12f / WORLD_SCALE)) < 14f &&
+                pickGroundCharm()) return
             val npc = map.npcs.filter { hypot(it.cx - player.cx, it.cy - player.cy) < 46f }
                 .minByOrNull { hypot(it.cx - tap.x, it.cy - tap.y) }
             if (npc != null && hypot(npc.cx - tap.x, npc.cy - tap.y) < 18f) {
@@ -2458,6 +2484,19 @@ class WorldScene(
         drawLighting(c, camXv, camYv)
         drawWarmShafts(c)
         drawVignette(c)
+        map.npcs.firstOrNull()?.let { n ->
+            val item = groundCharm()
+            if (item.id !in state.ownedCharms) {
+                val x = (n.cx - camX) * WORLD_SCALE + 17f
+                val y = (n.cy - camY) * WORLD_SCALE + 12f
+                Charms.draw(c, item, x, y, 15f, game.time)
+                if (nearGroundCharm()) {
+                    tinyPaint.textSize = 11f
+                    tinyPaint.color = 0xFFFFEDAD.toInt()
+                    c.drawText("A · 장신구 줍기", x - 30f, y + 21f, tinyPaint)
+                }
+            }
+        }
         drawNpcOverlays(c)
         drawCatOverlays(c)
         drawImpact(c)
@@ -2688,6 +2727,12 @@ class WorldScene(
                 c.drawOval(scratchRect, a.shadowPaint)
                 drawGhosts(c, bmp)
                 a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+                Charms.equipped(state)?.let { item ->
+                    val left = player.facing == Dir.W
+                    val x = sx + if (left) 8f else 24f
+                    val y = sy + if (item.id == "rain") 12f else 22f
+                    Charms.draw(c, item, x, y, 8f, game.time)
+                }
                 if (punchT > 0f) drawPunchFist(c, sx, sy)
 
                 // 장착한 카메라를 몸에 겹쳐 그린다 (촬영 모드면 눈높이로 들어올린다)
@@ -3187,17 +3232,6 @@ class WorldScene(
         private const val BIRD_SPRITE_K = 0.5f
 
         /** 잔상용 위치 링버퍼 길이 */
-        private const val GHOSTS = 6
-
-        /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */
-        const val LIGHT_W = 1130
-        const val LIGHT_H = 664
-    }
-    override fun drawHud(c: Canvas) {
-        game.hud.draw(c)
-    }
-}
-       /** 잔상용 위치 링버퍼 길이 */
         private const val GHOSTS = 6
 
         /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */

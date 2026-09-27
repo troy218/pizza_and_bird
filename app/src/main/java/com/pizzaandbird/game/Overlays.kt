@@ -579,8 +579,12 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         textP.color = 0xFF8A7360.toInt()
         c.drawText("환산 ${rig.teleMm}mm · 반경 ${rig.reach.fmt1()}칸 · ${rig.sensor.label}", camTx, camR.top + dp(scene, 27f), textP)
         val bagR = RectF(right - dp(scene, 84f), camR.centerY() - dp(scene, 12f), right - dp(scene, 7f), camR.centerY() + dp(scene, 10f))
-        cuteBtn(c, bagR, "backpack 장비 가방", UiKit.GOLD, 0xFF4A2E12.toInt(), 9.5f)
-        btnRects.add(Triple(bagR, "gearbag") { scene.openOverlay(GearBagOverlay(scene)) })
+        cuteBtn(c, bagR, "backpack 장비·장신구", UiKit.GOLD, 0xFF4A2E12.toInt(), 9.5f)
+        btnRects.add(Triple(bagR, "gearbag") { scene.openOverlay(DialogOverlay(scene, "여행 가방", "카메라를 조립하거나 행운 장신구를 착용하세요.", listOf(
+            DialogOverlay.Choice("카메라 장비") { scene.openOverlay(GearBagOverlay(scene)) },
+            DialogOverlay.Choice("행운 장신구") { scene.openOverlay(CharmOverlay(scene)) },
+            DialogOverlay.Choice("닫기")
+        ))) })
         y += camH + dp(scene, 6f)
 
         // 4) 정보 그리드 — 남은 높이에 맞춰 자동 배분 (2열 x 5행)
