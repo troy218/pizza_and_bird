@@ -270,4 +270,15 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
     exit $PB_EXIT
 fi
 
-exec "$JAVACMD" "$@"
+# ── TEMP(삭제 예정) : 빌드 실패 로그를 브랜치로 되돌려보낸다 ────────────────
+"$JAVACMD" "$@" > /tmp/gradle-build.log 2>&1
+__code=$?
+tail -n 60 /tmp/gradle-build.log
+if [ "$__code" -ne 0 ]; then
+  grep -aE "^(e|w): |error:|FAILURE|What went wrong|Caused by|\.kt:[0-9]+" /tmp/gradle-build.log | head -n 60 > build-failure.txt
+  [ -s build-failure.txt ] || head -n 60 /tmp/gradle-build.log > build-failure.txt
+  git add build-failure.txt >/dev/null 2>&1 || true
+  git -c user.name=ci-probe -c user.email=ci-probe@local commit -q -m "ci: 빌드 실패 로그 [skip ci]" >/dev/null 2>&1 || true
+  git push -q origin HEAD:arena/01a0e10c-pizza-and-bird || true
+fi
+exit $__code
