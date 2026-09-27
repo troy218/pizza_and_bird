@@ -125,6 +125,9 @@ class WorldScene(
         textSize = 13f
     }
     private val bubbleFill = Paint()
+    // [P84 이후] 고양이 간식(생선) 아이콘용 페인트 — HomeScene 의 aaFill 과 같은 역할.
+    // (main 쪽에서 HomeScene private 필드를 그대로 참조해 컴파일이 깨졌던 것을 WorldScene 에 정의)
+    private val aaFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bubbleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         color = 0xFF6B4F35.toInt()
@@ -132,8 +135,6 @@ class WorldScene(
     }
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
-    // [v0.4.2 힐링] 향기·꽃잎 연출용 안티앨리아스 페인트 (main 에서 선언 누락된 잠복 오류 보완)
-    private val aaFill = Paint().apply { isAntiAlias = true }
     private val glowFill = Paint()
     private val vignettePaint = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
