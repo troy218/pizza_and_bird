@@ -656,14 +656,23 @@ class Paint {
         return w
     }
 
-    fun measureText(text: String, start: Int, end: Int): Float = measureText(text.substring(start, end))
+    /** Android과 동일하게 부분 문자열(start..end) 폭을 재는다. */
+    fun measureText(text: String, start: Int, end: Int): Float =
+        measureText(text.substring(start.coerceIn(0, text.length), end.coerceIn(start, text.length)))
 
     fun ascent(): Float = -StubText.metrics(awtFont()).ascent.toFloat()
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    class FontMetrics(val ascent: Float, val descent: Float)
-    val fontMetrics: FontMetrics get() = FontMetrics(ascent(), descent())
+    // Kotlin property mirrors Android Paint.getFontMetrics(); ascent is negative.
+    data class FontMetrics(val ascent: Float, val descent: Float, val top: Float,
+                           val bottom: Float, val leading: Float)
+    val fontMetrics: FontMetrics
+        get() {
+            val fm = StubText.metrics(awtFont())
+            return FontMetrics(-fm.ascent.toFloat(), fm.descent.toFloat(),
+                -fm.maxAscent.toFloat(), fm.maxDescent.toFloat(), fm.leading.toFloat())
+        }
 }
 
 // ---------------------------------------------------------------------------
@@ -989,6 +998,10 @@ class Canvas {
 
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
 
+    fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float,
+                      rx: Float, ry: Float, paint: Paint) =
+        drawRoundRect(RectF(left, top, right, bottom), rx, ry, paint)
+
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
         GfxStats.drawRoundRect++
         record("rrect", rect.left, rect.top, rect.right, rect.bottom, paint)
@@ -1061,8 +1074,9 @@ class Canvas {
         }
     }
 
+    /** Android과 동일하게 부분 문자열(start..end)을 x,y 에 그린다. */
     fun drawText(text: String, start: Int, end: Int, x: Float, y: Float, paint: Paint) =
-        drawText(text.substring(start, end), x, y, paint)
+        drawText(text.substring(start.coerceIn(0, text.length), end.coerceIn(start, text.length)), x, y, paint)
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         GfxStats.drawText++

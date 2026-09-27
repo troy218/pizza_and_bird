@@ -63,6 +63,9 @@ class Hud(private val game: Game) {
     var showMinimap = false
     var regionLabel = ""
     var questLabel: String? = null
+    var questObjective: String? = null
+    var questProgress: String? = null
+    var questTravelLabel: String? = null
 
     /** 카메라 모드 활성 (뷰파인더가 세계를 덮고 있다) */
     var photoModeHint = false
@@ -243,19 +246,22 @@ class Hud(private val game: Game) {
 
         // Split-screen can leave a very narrow landscape surface. Shrink the compass
         // before it collides with the fixed-width status panel at the opposite corner.
-        mmR = minOf(dp(68f), wf * 0.16f)
+        // 상단 클러스터(가방+시계+계절 ≈ dp(139))가 좌상단 상태창을 침범하지 않게도 줄인다.
+        mmR = minOf(dp(68f), wf * 0.16f, (wf - dp(330f)) / 2f).coerceAtLeast(dp(26f))
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
 
-        // --- 메뉴 클러스터 (시계 왼쪽 상단) ---
+        // --- 메뉴(가방) 클러스터 — 시계 왼쪽, 화면 상단 고정 ---
+        // 시계·계절 나침반·가방은 지도 나침반과 같은 윗변(dp(8))에 붙이고,
+        // 가방은 시계와 간격을 둬 시계 왼쪽에 따로 자리한다(겹침 금지).
         menuR = dp(16f)
         val gap = dp(9f)
         val dialSize = dp(42f)
         val dialCxCalc = mmCx - mmR - gap - dialSize / 2f
         val clockSizeCalc = dp(38f)
         val clockCxCalc = dialCxCalc - dialSize / 2f - gap - clockSizeCalc / 2f
-        menuCx = clockCxCalc - dp(10f) - menuR
-        menuCy = mmCy - dp(4f)
+        menuCx = clockCxCalc - clockSizeCalc / 2f - gap - menuR
+        menuCy = dp(8f) + menuR
 
         // --- 토스트 고정 자리 -------------------------------------------
         // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
@@ -283,7 +289,7 @@ class Hud(private val game: Game) {
         }
         // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 내용을 다시 읽는다
         if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST
-        // 버튼 최우선 (메뉴 클러스터가 조이스틱 구역과 겹치므로 먼저 판정)
+        // 버튼 최우선 판정
         if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
@@ -476,6 +482,7 @@ class Hud(private val game: Game) {
         }
         if (questLabel != null) {
             drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel")
+            drawQuestDetails(c)
         }
         if (showControls) drawControls(c)
         drawBanner(c)
@@ -486,7 +493,7 @@ class Hud(private val game: Game) {
     private val statsPanelH = 80f
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(statsPanelH) + dp(22f)
+    private fun questChipY(): Float = dp(8f) + dp(statsPanelH) + dp(22f)
 
     /** 진행 중 의뢰 칩의 화면 사각형 (탭 판정용) */
     private fun questChipRect(): RectF? {
@@ -514,7 +521,8 @@ class Hud(private val game: Game) {
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
-        val top = dp(12f)
+        // 우상단 클러스터(나침반·시계·계절·가방)와 같은 윗변에 붙여 화면 위에 고정
+        val top = dp(8f)
         val w = dp(162f)
 
         val a = game.assets
@@ -552,17 +560,18 @@ class Hud(private val game: Game) {
     }
 
     /**
-     * 우상단 클러스터 — 왼쪽부터 [시계] [계절 나침반] [지도 나침반] 순.
-     * 계절 나침반은 지도 나침반 바로 왼쪽, 시계는 계절 나침반 왼쪽에 둔다.
+     * 우상단 클러스터 — 왼쪽부터 [가방] [시계] [계절 나침반] [지도 나침반] 순.
+     * 나침반과 같은 윗변(dp(8))에 붙여 화면 위에 고정하고, 가방은 시계와
+     * 간격을 두고 왼쪽에 두어 서로 겹치지 않게 한다.
      */
     private fun drawSeasonClock(c: Canvas) {
         val s = game.state
         val gap = dp(9f)
 
-        // 계절 나침반 — 지도 나침반 왼쪽
+        // 계절 나침반 — 지도 나침반 왼쪽, 윗변을 나침반과 맞춘다
         val dialSize = dp(42f)
         val dialCx = mmCx - mmR - gap - dialSize / 2f
-        val dialCy = mmCy
+        val dialCy = dp(8f) + dialSize / 2f
         drawSeasonDial(c, s, dialCx - dialSize / 2f, dialCy - dialSize / 2f, dialSize)
         val weather = s.weather()
         Type.textCentered(
@@ -570,10 +579,11 @@ class Hud(private val game: Game) {
             dialCx, dialCy + dialSize / 2f + dp(9f), Role.CAPTION, Type.INK, 0.5f
         )
 
-        // 시계 — 계절 나침반 왼쪽
+        // 시계 — 계절 나침반 왼쪽, 윗변을 나침반과 맞춘다
         val clockSize = dp(38f)
         val clockCx = dialCx - dialSize / 2f - gap - clockSize / 2f
-        drawClock(c, s, clockCx, mmCy, clockSize)
+        val clockCy = dp(8f) + clockSize / 2f
+        drawClock(c, s, clockCx, clockCy, clockSize)
     }
 
     /** 회중시계 풍 원형 시계 — 해/달 아이콘 + 아래에 시각 */
@@ -678,6 +688,38 @@ class Hud(private val game: Game) {
 
     private fun drawChip(c: Canvas, cx: Float, cy: Float, txt: String) {
         UiKit.darkChip(c, game, cx, cy, txt, 12f)
+    }
+
+    /** Objectives and live progress stay visible next to the quest chip while roaming. */
+    private fun drawQuestDetails(c: Canvas) {
+        val objective = questObjective ?: return
+        val left = dp(16f)
+        val top = questChipY() + dp(15f)
+        val r = RectF(left, top, left + dp(162f), top + dp(53f))
+        UiKit.panel(c, game, r, 9f)
+        val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
+        val maxW = r.width() - dp(14f)
+        fun fitLine(raw: String): String {
+            var line = raw
+            while (line.length > 2 && p.measureText(line) > maxW) line = line.dropLast(1)
+            return if (line != raw) "$line…" else line
+        }
+        val lines = Type.wrap(objective, p, maxW).take(2)
+        var y = r.top + dp(11f)
+        for (line in lines) {
+            c.drawText(line, r.left + dp(7f), y, p)
+            y += dp(10f)
+        }
+        val progress = questProgress
+        if (progress != null) {
+            p.color = 0xFF795A2B.toInt()
+            val progressY = if (questTravelLabel != null) r.bottom - dp(16f) else r.bottom - dp(5f)
+            c.drawText(fitLine("진행: $progress"), r.left + dp(7f), progressY, p)
+        }
+        questTravelLabel?.let { route ->
+            p.color = 0xFF3E7550.toInt()
+            c.drawText(fitLine(route), r.left + dp(7f), r.bottom - dp(4f), p)
+        }
     }
 
     private fun drawMessages(c: Canvas) {
@@ -901,7 +943,7 @@ class Hud(private val game: Game) {
         }
 
         // ------------------------------------------------------------
-        // 4) 메뉴 클러스터 (왼쪽 아래 구석, 모서리 둥근 사각형)
+        // 4) 메뉴(가방) 클러스터 — 상단, 시계 왼쪽 (모서리 둥근 사각형)
         // ------------------------------------------------------------
         val menuPressed = Ctrl.MENU in active
         val ms = menuR
@@ -1565,26 +1607,23 @@ class Hud(private val game: Game) {
         c.drawCircle(gx, gy, dp(1.7f), fx)
     }
 
-    /** 해 질 녘·밤에는 나침반 유리에 노을/등잔 빛이 돈다. 한낮에는 그리지 않는다. */
+    /**
+     * 해 질 녘·밤에는 나침반 유리에 노을/등잔 빛이 돈다. 한낮에는 그리지 않는다.
+     * 세기·색 모두 DayCycle 의 연속 곡선을 따라가므로 시각이 흐르면 유리 위 색도 같이 흐른다.
+     */
     private fun drawInstrumentLight(c: Canvas, cx: Float, cy: Float, r: Float, glass: Float) {
         val h = game.state.worldTime
-        val night = h >= 19.5f || h < 4.5f
-        val dusk = h >= 17f && h < 19.5f
-        val dawn = h >= 4.5f && h < 7.2f
-        if (!night && !dusk && !dawn) return
+        val dark = DayCycle.darkness(h)
+        val gold = DayCycle.golden(h)
+        val k = maxOf(dark, gold)
+        if (k < 0.05f) return
 
-        val center: Int
-        val rim: Int
-        if (night) {
-            center = Color.argb(42, 255, 188, 112)
-            rim = Color.argb(82, 12, 22, 48)
-        } else if (dusk) {
-            center = Color.argb(22, 255, 160, 80)
-            rim = Color.argb(46, 170, 72, 36)
-        } else {
-            center = Color.argb(20, 255, 176, 110)
-            rim = Color.argb(36, 196, 110, 64)
-        }
+        // 노을빛(금빛)과 밤빛(등잔+남색 테)을 섞는다
+        val sun = DayCycle.sunlightColor(h)
+        val centerA = (16f + 30f * dark + 10f * gold).toInt().coerceIn(0, 60)
+        val center = Color.argb(centerA, Color.red(sun), Color.green(sun), Color.blue(sun))
+        val amb = DayCycle.ambient(h)
+        val rim = Color.argb((84f * k).toInt().coerceIn(0, 96), Color.red(amb), Color.green(amb), Color.blue(amb))
         c.save()
         clipPath.reset()
         clipPath.addCircle(cx, cy, r, Path.Direction.CW)

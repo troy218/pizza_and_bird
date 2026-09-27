@@ -136,14 +136,13 @@ object LightMaps {
     }
 }
 
-/** 시각(0~24) → 햇빛 세기 0..1 (해 뜨고 지는 시간에 부드럽게) */
-fun daylight(hour: Float): Float = when {
-    hour < 5.5f -> 0f
-    hour < 7f -> (hour - 5.5f) / 1.5f
-    hour < 17.5f -> 1f
-    hour < 19f -> 1f - (hour - 17.5f) / 1.5f
-    else -> 0f
-}
+/**
+ * 시각(0~24) → 햇빛 세기 0..1.
+ *
+ * 태양 고도를 기준으로 매 프레임 연속적으로 변한다(계절에 따라 일출·일몰도 이동).
+ * 실제 곡선은 [DayCycle] 이 갖고 있고, 여기서는 기존 호출부를 위한 얇은 창구다.
+ */
+fun daylight(hour: Float): Float = DayCycle.daylight(hour)
 
 /** 좌표 해시 (결정적 난수) */
 fun hash2(x: Int, y: Int, salt: Int = 0): Int {
@@ -159,6 +158,8 @@ fun hash2(x: Int, y: Int, salt: Int = 0): Int {
 class WorldFx(private val map: GameMap, seed: Long) {
 
     var weather = Weather.SUNNY
+    /** 현재 계절 — 겨울 적설 유지·얼음·곤충 출현에 쓴다. WorldScene이 매 프레임 동기화. */
+    var season: Season = Season.SPRING
     private val rnd = Random(seed)
 
     /** 물 깊이 (0 = 물 아님, 1 = 물가, 2, 3 = 깊음) */
@@ -423,9 +424,16 @@ class WorldFx(private val map: GameMap, seed: Long) {
     fun update(dt: Float, t: Float, hourNow: Float, cx: Float, cy: Float, vw: Float, vh: Float, playerCx: Float, playerCy: Float) {
         camX = cx; camY = cy; viewW = vw; viewH = vh; hour = hourNow; time = t
 
-        // 비/눈 누적
+        // 비/눈 누적 — 겨울엔 눈이 오지 않아도 쌓인 눈이 유지된다
         wet = if (weather == Weather.RAIN) (wet + dt / 25f).coerceAtMost(1f) else (wet - dt / 70f).coerceAtLeast(0f)
-        snowCover = if (weather == Weather.SNOW) (snowCover + dt / 40f).coerceAtMost(1f) else (snowCover - dt / 90f).coerceAtLeast(0f)
+        val snowTarget = when {
+            weather == Weather.SNOW -> 1f
+            season == Season.WINTER -> 0.72f
+            else -> 0f
+        }
+        snowCover = if (snowTarget > snowCover) (snowCover + dt / 40f).coerceAtMost(snowTarget)
+        else (snowCover - dt / 90f).coerceAtLeast(snowTarget)
+        if (weather == Weather.RAIN) snowCover = (snowCover - dt / 30f).coerceAtLeast(0f)
 
         // 파티클
         run {
@@ -507,19 +515,27 @@ class WorldFx(private val map: GameMap, seed: Long) {
             val butterflies = critters.count { it.kind == 0 }
             val flies = critters.count { it.kind == 1 }
             if (day > 0.6f && calm) {
-                val maxB = if (weather == Weather.SUNNY) 4 else 2
+                // 나비는 봄·여름에만, 잠자리는 여름(파랑)·가을(빨강 고추잠자리)에만
+                val butterflySeason = season == Season.SPRING || season == Season.SUMMER
+                val dragonflySeason = season == Season.SUMMER || season == Season.AUTUMN
+                val maxB = if (season == Season.SPRING) 5 else if (weather == Weather.SUNNY) 4 else 2
+                val maxF = if (season == Season.AUTUMN) 4 else 2
                 for (i in 0 until 6) {
                     val (tx, ty) = randomVisibleTile()
                     val tile = map.t(tx, ty)
-                    if (butterflies < maxB && (tile == T.FLOWER || (tile == T.GRASS && rnd.nextFloat() < 0.08f))) {
+                    if (butterflySeason && butterflies < maxB && (tile == T.FLOWER || (tile == T.GRASS && rnd.nextFloat() < 0.08f))) {
                         val cols = intArrayOf(0xFFF8F4E8.toInt(), 0xFFF6D860.toInt(), 0xFFF0A046.toInt(), 0xFFA8CCF2.toInt(), 0xFFF2A3B3.toInt())
                         val x = tx * 16f + 8f
                         val y = ty * 16f + 8f
                         critters.add(Critter(0, x, y, x, y, cols[rnd.nextInt(cols.size)], rnd.nextFloat() * 5f, 25f + rnd.nextFloat() * 20f, 0f, 10f))
                         break
                     }
-                    if (flies < 2 && (tile == T.REED || isWater(tx, ty))) {
-                        val cols = intArrayOf(0xFF3FA7B8.toInt(), 0xFFD8553C.toInt(), 0xFF5C8FD6.toInt())
+                    if (dragonflySeason && flies < maxF && (tile == T.REED || isWater(tx, ty))) {
+                        // 여름엔 파란 잠자리, 가을엔 빨간 고추잠자리
+                        val cols = if (season == Season.AUTUMN)
+                            intArrayOf(0xFFD8553C.toInt(), 0xFFE8823C.toInt(), 0xFFD8553C.toInt())
+                        else
+                            intArrayOf(0xFF3FA7B8.toInt(), 0xFF5C8FD6.toInt(), 0xFF3FA7B8.toInt())
                         val x = tx * 16f + 8f
                         val y = ty * 16f + 8f
                         critters.add(Critter(1, x, y, x, y, cols[rnd.nextInt(cols.size)], 0f, 20f + rnd.nextFloat() * 15f, 0.5f, 12f))
@@ -533,8 +549,10 @@ class WorldFx(private val map: GameMap, seed: Long) {
             val c = it.next()
             c.t += dt
             c.life -= dt
-            // 해가 지거나 비가 오면 슬슬 사라진다
-            if (day < 0.4f || !calm) c.life = minOf(c.life, 1.5f)
+            // 해가 지거나 비가 오거나 제철이 아니면 슬슬 사라진다
+            val inSeason = if (c.kind == 0) (season == Season.SPRING || season == Season.SUMMER)
+            else (season == Season.SUMMER || season == Season.AUTUMN)
+            if (day < 0.4f || !calm || !inSeason) c.life = minOf(c.life, 1.5f)
             if (c.life <= 0f) { it.remove(); continue }
             val dp = hypot(c.x - pcx, c.y - pcy)
             if (c.kind == 0) {
@@ -676,25 +694,45 @@ class WorldFx(private val map: GameMap, seed: Long) {
                         fill.color = Color.argb(if (d == 2) 26 else 50, 16, 64, 128)
                         c.drawRect(sx, sy, sx + 32f, sy + 32f, fill)
                     }
-                    // 2) 물가에서 찰랑이는 두 번째 거품 줄
-                    val lap = 4.5f + sin(time * 1.7f + x * 0.9f + y * 0.6f) * 2.2f
-                    fill.color = Color.argb(95, 236, 248, 252)
-                    if (!isWater(x, y - 1) && y > 0) c.drawRect(sx + 2f, sy + lap, sx + 30f, sy + lap + 1.3f, fill)
-                    if (!isWater(x, y + 1) && y < map.h - 1) c.drawRect(sx + 2f, sy + 32f - lap - 1.3f, sx + 30f, sy + 32f - lap, fill)
-                    if (!isWater(x - 1, y) && x > 0) c.drawRect(sx + lap, sy + 2f, sx + lap + 1.3f, sy + 30f, fill)
-                    if (!isWater(x + 1, y) && x < map.w - 1) c.drawRect(sx + 32f - lap - 1.3f, sy + 2f, sx + 32f - lap, sy + 30f, fill)
-                    // 3) 반짝이는 윤슬 (맑은 낮엔 햇빛, 밤엔 달빛)
-                    val h = hash2(x, y, 3)
-                    val tw = sin(time * (1.3f + (h % 7) * 0.12f) + (h % 628) / 100f)
-                    val gate = if (weather == Weather.SUNNY) 0.86f else 0.95f
-                    if (tw > gate) {
-                        val a = ((tw - gate) / (1f - gate) * (if (dayK > 0.3f) 230 else 150)).toInt()
-                        val gx = sx + 5f + (h % 22)
-                        val gy = sy + 5f + ((h / 22) % 22)
-                        fill.color = Color.argb(a, 255, 255, 250)
-                        c.drawRect(gx - 2.4f, gy - 0.6f, gx + 2.4f, gy + 0.6f, fill)
-                        c.drawRect(gx - 0.6f, gy - 2.4f, gx + 0.6f, gy + 2.4f, fill)
+                    // 겨울엔 물이 언다 — 얼음판 + 금 + 가장자리 눈
+                    if (season == Season.WINTER) {
+                        fill.color = Color.argb(168, 208, 230, 242)
+                        c.drawRect(sx, sy, sx + 32f, sy + 32f, fill)
+                        val h = hash2(x, y, 41)
+                        line.strokeWidth = 1f
+                        line.color = Color.argb(150, 255, 255, 255)
+                        c.drawLine(sx + 4f + (h % 18), sy + 5f, sx + 12f + (h % 12), sy + 25f, line)
+                        c.drawLine(sx + 22f, sy + 4f + ((h / 7) % 16), sx + 29f, sy + 21f, line)
+                        line.color = Color.argb(90, 160, 190, 215)
+                        c.drawLine(sx + 6f + (h % 14), sy + 8f, sx + 10f + (h % 10), sy + 27f, line)
+                        if ((h / 13) % 3 == 0) {
+                            aa.color = Color.argb(220, 246, 249, 255)
+                            rect.set(sx + 20f, sy + 22f, sx + 30f, sy + 29f)
+                            c.drawOval(rect, aa)
+                        }
                     }
+                    // 2) 물가에서 찰랑이는 두 번째 거품 줄 (언 물엔 파도가 없다)
+                    val lap = 4.5f + sin(time * 1.7f + x * 0.9f + y * 0.6f) * 2.2f
+                    val frozen = season == Season.WINTER
+                    if (!frozen) {
+                        fill.color = Color.argb(95, 236, 248, 252)
+                        if (!isWater(x, y - 1) && y > 0) c.drawRect(sx + 2f, sy + lap, sx + 30f, sy + lap + 1.3f, fill)
+                        if (!isWater(x, y + 1) && y < map.h - 1) c.drawRect(sx + 2f, sy + 32f - lap - 1.3f, sx + 30f, sy + 32f - lap, fill)
+                        if (!isWater(x - 1, y) && x > 0) c.drawRect(sx + lap, sy + 2f, sx + lap + 1.3f, sy + 30f, fill)
+                        if (!isWater(x + 1, y) && x < map.w - 1) c.drawRect(sx + 32f - lap - 1.3f, sy + 2f, sx + 32f - lap, sy + 30f, fill)
+                        // 3) 반짝이는 윤슬 (맑은 낮엔 햇빛, 밤엔 달빛)
+                        val h = hash2(x, y, 3)
+                        val tw = sin(time * (1.3f + (h % 7) * 0.12f) + (h % 628) / 100f)
+                        val gate = if (weather == Weather.SUNNY) 0.86f else 0.95f
+                        if (tw > gate) {
+                            val a = ((tw - gate) / (1f - gate) * (if (dayK > 0.3f) 230 else 150)).toInt()
+                            val gx = sx + 5f + (h % 22)
+                            val gy = sy + 5f + ((h / 22) % 22)
+                            fill.color = Color.argb(a, 255, 255, 250)
+                            c.drawRect(gx - 2.4f, gy - 0.6f, gx + 2.4f, gy + 0.6f, fill)
+                            c.drawRect(gx - 0.6f, gy - 2.4f, gx + 0.6f, gy + 2.4f, fill)
+                        }
+                    } // if (!frozen)
                 } else {
                     // 4) 물가 흙은 촉촉하게
                     val m = shore[y][x].toInt()
@@ -828,7 +866,7 @@ class WorldFx(private val map: GameMap, seed: Long) {
                     c.drawRect(sx, sy, sx + 32f, sy + 32f, fill)
                 }
             }
-            T.HOUSE_ROOF, T.BLDG_ROOF -> {
+            T.HOUSE_ROOF, T.BLDG_ROOF, T.LM_ROOF -> {
                 fill.color = Color.argb(a, 248, 250, 255)
                 c.drawRect(sx, sy, sx + 32f, sy + 6f + snowCover * 6f, fill)
             }
@@ -1014,6 +1052,8 @@ class WorldFx(private val map: GameMap, seed: Long) {
      */
     fun fireflies(c: Canvas, lm: LightMap?, lightPass: Boolean, camXv: Float, camYv: Float, vw: Int, vh: Int) {
         if (daylight(hour) > 0.2f || weather == Weather.RAIN || weather == Weather.SNOW) return
+        // 반딧불은 여름밤(습지), 봄밤(조금)에만
+        if (season != Season.SUMMER && season != Season.SPRING) return
         val x0 = (camXv / 32f).toInt().coerceAtLeast(0)
         val y0 = (camYv / 32f).toInt().coerceAtLeast(0)
         val x1 = ((camXv + vw) / 32f).toInt().coerceAtMost(map.w - 1)

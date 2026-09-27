@@ -42,7 +42,7 @@ class MiniXmlPullParser : XmlPullParser {
         val body = text
             .replace(Regex("<!--.*?-->"), "")
             .replace(Regex("<\\?[^>]*\\?>"), "")
-        val tag = Regex("""<(/?)([A-Za-z_][\\w.:-]*)((?:\\s+[\\w.:-]+\\s*=\\s*"[^"]*")*)\\s*(/?)>""")
+        val tag = Regex("""<(/?)([A-Za-z_][\w.:-]*)((?:\s+[\w.:-]+\s*=\s*"[^"]*")*)\s*(/?)>""")
         val out = ArrayList<Tok>()
         for (m in tag.findAll(body)) {
             val closing = m.groupValues[1] == "/"
@@ -53,7 +53,7 @@ class MiniXmlPullParser : XmlPullParser {
                 out += Tok(XmlPullParser.END_TAG, tagType, emptyMap())
             } else {
                 val map = LinkedHashMap<String, String>()
-                for (a in Regex("""([\\w.:-]+)\\s*=\\s*"([^"]*)"""").findAll(attrText)) {
+                for (a in Regex("""([\w.:-]+)\s*=\s*"([^"]*)"""").findAll(attrText)) {
                     map[a.groupValues[1]] = a.groupValues[2]
                         .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
                 }

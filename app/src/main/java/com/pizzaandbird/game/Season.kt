@@ -14,10 +14,10 @@ import kotlin.random.Random
  * ③ 화면 연출(꽃잎·낙엽·색감)에 영향을 준다.
  */
 enum class Season(val id: String, val icon: String, val label: String, val description: String) {
-    SPRING("spring", "sparkle", "봄", "여름 철새가 돌아오고 나그네새가 지나가요"),
-    SUMMER("summer", "leaf", "여름", "장마철 — 비가 잦고 여름 철새가 번식해요"),
-    AUTUMN("autumn", "leaf", "가을", "도요·물떼새와 기러기가 남쪽으로 이동해요"),
-    WINTER("winter", "snow", "겨울", "두루미·고니·독수리 같은 겨울 손님이 찾아와요");
+    SPRING("spring", "sparkle", "봄", "벚꽃이 흩날리고 여름 철새가 돌아와요"),
+    SUMMER("summer", "leaf", "여름", "매미가 울고 장마가 지나가요"),
+    AUTUMN("autumn", "leaf", "가을", "단풍이 지고 고추잠자리가 날아요"),
+    WINTER("winter", "snow", "겨울", "눈이 쌓이고 두루미가 찾아와요");
 
     companion object {
         const val DAYS_PER_SEASON = 7
@@ -28,6 +28,28 @@ enum class Season(val id: String, val icon: String, val label: String, val descr
 
 fun GameState.season(): Season = Season.forDay(day)
 fun GameState.seasonLabel(): String = "${season().label} ${Season.dayInSeason(day)}일째"
+
+/**
+ * 벚꽃은 상시 날씨가 아니라 잠깐 지나가는 꽃바람이다.
+ * 봄 3~5일째, 게임 시각 09~10시 / 14~15시에만 보인다 (한 번에 실제 약 12.5초).
+ * 밤·비·눈에는 없고, 시작과 끝은 약 1.9초 동안 부드럽게 나타나고 사라진다.
+ * 날짜/시계만으로 정하므로 씬 이동·저장 복귀로 연출이 다시 시작되지 않는다.
+ */
+fun cherryBlossomIntensity(day: Int, hour: Float, weather: Weather): Float {
+    val season = Season.forDay(day)
+    if (season != Season.SPRING || Season.dayInSeason(day) !in 3..5) return 0f
+    if (weather == Weather.RAIN || weather == Weather.SNOW) return 0f
+    if (DayCycle.sunAltitude(hour, season) <= 0f) return 0f
+    val elapsed = when {
+        hour >= 9f && hour < 10f -> hour - 9f
+        hour >= 14f && hour < 15f -> hour - 14f
+        else -> return 0f
+    }
+    val fadeHours = 0.15f
+    return minOf(elapsed / fadeHours, (1f - elapsed) / fadeHours, 1f).coerceIn(0f, 1f)
+}
+
+fun GameState.cherryBlossomIntensity(): Float = cherryBlossomIntensity(day, worldTime, weather())
 
 /** 계절별 날씨 확률표 (맑음, 흐림, 비, 강풍, 눈). 합은 1. */
 fun seasonWeatherTable(season: Season): List<Pair<Weather, Float>> = when (season) {
@@ -91,69 +113,206 @@ fun seasonBirdMultiplier(def: BirdDef, season: Season, weather: Weather): Double
     return base * craneBonus
 }
 
-/** 계절 화면 연출 — 봄 꽃잎, 가을 낙엽, 여름/겨울 색감. 스크린 좌표로 그린다. */
+/**
+ * 계절별 풀잎 MULTIPLY 틴트 — 지역 틴트와 곱해서 쓴다 (흰색 = 변화 없음).
+ * 봄 연두 새잎 · 여름 원색 · 가을 누렇게 익은 풀 · 겨울 차갑게 바랜 풀.
+ */
+fun seasonFoliageTint(season: Season): Int = when (season) {
+    Season.SPRING -> 0xFFE6FFE0.toInt()
+    Season.SUMMER -> 0xFFFFFFFF.toInt()
+    Season.AUTUMN -> 0xFFFFDF9E.toInt()
+    Season.WINTER -> 0xFFD6E2EC.toInt()
+}
+
+/** 계절별 물 MULTIPLY 틴트 — 겨울엔 얼음빛, 가을엔 낙엽물빛. */
+fun seasonWaterTint(season: Season): Int = when (season) {
+    Season.WINTER -> 0xFFCFE6F5.toInt()
+    Season.AUTUMN -> 0xFFF2E4C8.toInt()
+    else -> 0xFFFFFFFF.toInt()
+}
+
+/** MULTIPLY 틴트 두 장을 하나로 합친다 (채널별 곱). */
+fun multiplyTint(a: Int, b: Int): Int = Color.rgb(
+    Color.red(a) * Color.red(b) / 255,
+    Color.green(a) * Color.green(b) / 255,
+    Color.blue(a) * Color.blue(b) / 255
+)
+
+/**
+ * 계절 화면 연출 — 스크린 좌표로 그린다.
+ * 봄 꽃바람 · 여름 빛 알갱이(낮) · 가을 단풍잎 · 겨울 가루눈 반짝임.
+ * 봄 꽃잎은 [cherryBlossomIntensity]로 제한하고, 다른 계절의 입자는 기존 날씨별 양을 유지한다.
+ */
 class SeasonFx {
-    private class Flake(var x: Float, var y: Float, var vx: Float, var vy: Float, var rot: Float, var size: Float, var color: Int, var phase: Float)
+    private class Flake(var x: Float, var y: Float, var vx: Float, var vy: Float, var rot: Float,
+                        var size: Float, var color: Int, var phase: Float, var shape: Int, var alpha: Int)
+
+    companion object {
+        const val S_PETAL = 0   // 봄 벚꽃잎
+        const val S_LEAF = 1    // 가을 단풍잎
+        const val S_MOTE = 2    // 여름 빛 알갱이
+        const val S_GLINT = 3   // 겨울 눈 반짝임
+    }
 
     private val flakes = ArrayList<Flake>()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val veinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 1f }
     private val tint = Paint()
     private val rnd = Random(7)
     private var t = 0f
 
-    fun update(dt: Float, season: Season, weather: Weather, w: Float, h: Float) {
+    fun update(
+        dt: Float, season: Season, weather: Weather, w: Float, h: Float,
+        night: Boolean = false, blossomIntensity: Float = 0f
+    ) {
         t += dt
-        val want = when {
-            weather == Weather.RAIN || weather == Weather.SNOW -> 0
-            season == Season.SPRING -> 18
-            season == Season.AUTUMN -> 16
-            else -> 0
+        val stormy = weather == Weather.RAIN || weather == Weather.SNOW
+        val windy = weather == Weather.WIND
+        val petals = if (night || stormy) 0f else blossomIntensity.coerceIn(0f, 1f)
+        val (want, shape) = when (season) {
+            Season.SPRING -> (if (petals > 0f) 30 else 0) to S_PETAL
+            Season.AUTUMN -> (if (stormy) 10 else 26) to S_LEAF
+            Season.SUMMER -> when {
+                night -> 5 to S_MOTE
+                weather == Weather.SUNNY -> 14 to S_MOTE
+                stormy -> 4 to S_MOTE
+                else -> 9 to S_MOTE
+            }
+            Season.WINTER -> (if (weather == Weather.SNOW) 8 else 22) to S_GLINT
         }
-        val windK = if (weather == Weather.WIND) 2.6f else 1f
-        while (flakes.size < want) flakes.add(spawn(season, w, h, rnd.nextFloat() * h))
+        // 시간대·날씨가 바뀌면 이미 떠 있는 꽃잎도 즉시 정리한다.
+        if (want == 0) {
+            flakes.clear()
+            return
+        }
+        val windK = if (windy) 2.6f else 1f
+        while (flakes.size < want) flakes.add(spawn(shape, w, h, rnd.nextFloat() * h))
         val it = flakes.iterator()
         var alive = 0
         while (it.hasNext()) {
             val f = it.next()
-            f.phase += dt
-            f.x += (f.vx * windK + sin(f.phase * 1.7f) * 14f) * dt
-            f.y += f.vy * dt
-            f.rot += dt * 90f * windK
-            if (f.y > h + 10f || f.x > w + 20f || f.x < -20f) {
-                if (alive < want) { val n = spawn(season, w, h, -8f); f.x = n.x; f.y = n.y; f.color = n.color; f.size = n.size }
-                else { it.remove(); continue }
+            // 계절이 바뀌면 남은 입자는 새 계절 입자로 교체한다
+            if (f.shape != shape) {
+                val n = spawn(shape, w, h, rnd.nextFloat() * h)
+                f.x = n.x; f.y = n.y; f.vx = n.vx; f.vy = n.vy
+                f.color = n.color; f.size = n.size; f.shape = n.shape; f.alpha = n.alpha
             }
+            f.phase += dt
+            when (f.shape) {
+                S_PETAL -> {
+                    f.x += (f.vx * windK + sin(f.phase * 1.7f) * 16f) * dt
+                    f.y += f.vy * dt
+                    f.rot += dt * 120f * windK
+                }
+                S_LEAF -> {
+                    f.x += (f.vx * windK + sin(f.phase * 2.3f) * 26f) * dt
+                    f.y += f.vy * dt
+                    f.rot += dt * 200f * windK
+                }
+                S_MOTE -> {
+                    f.x += (sin(f.phase * 0.9f) * 12f + 4f) * dt
+                    f.y += f.vy * dt
+                    f.alpha = (120 + 110 * sin(f.phase * 2.2f)).toInt().coerceIn(30, 230)
+                    if (f.y < -10f) f.y = h + 8f
+                    if (f.y > h + 10f) f.y = -8f
+                }
+                else -> { // S_GLINT — 천천히 흩날리며 반짝인다
+                    f.x += (f.vx * 0.5f + sin(f.phase * 1.3f) * 12f) * dt
+                    f.y += f.vy * dt
+                    f.alpha = (140 + 100 * sin(f.phase * 3.1f)).toInt().coerceIn(40, 240)
+                }
+            }
+            if (f.shape != S_MOTE && (f.y > h + 10f || f.x > w + 20f || f.x < -20f)) {
+                if (alive < want) {
+                    val n = spawn(shape, w, h, -8f)
+                    f.x = n.x; f.y = n.y; f.color = n.color; f.size = n.size; f.alpha = n.alpha
+                } else { it.remove(); continue }
+            }
+            if (f.shape == S_PETAL) f.alpha = (235 * petals).toInt()
             alive++
+        }
+        // 계절이 바뀌어 목표보다 많으면 초과분부터 정리
+        while (flakes.size > want) flakes.removeAt(flakes.size - 1)
+    }
+
+    private fun spawn(shape: Int, w: Float, h: Float, y: Float): Flake {
+        val x = rnd.nextFloat() * w * 1.1f - w * 0.1f
+        return when (shape) {
+            S_PETAL -> {
+                val color = listOf(0xFFFFD1DC.toInt(), 0xFFFFC2D4.toInt(), 0xFFFBE3EA.toInt(), 0xFFFFF2F5.toInt())[rnd.nextInt(4)]
+                Flake(x, y, 10f + rnd.nextFloat() * 18f, 15f + rnd.nextFloat() * 20f,
+                    rnd.nextFloat() * 360f, 2.4f + rnd.nextFloat() * 1.8f, color, rnd.nextFloat() * 6f, shape, 235)
+            }
+            S_LEAF -> {
+                val color = listOf(0xFFD94F3D.toInt(), 0xFFE8823C.toInt(), 0xFFF2C14E.toInt(), 0xFFB23F44.toInt())[rnd.nextInt(4)]
+                Flake(x, y, 8f + rnd.nextFloat() * 14f, 24f + rnd.nextFloat() * 24f,
+                    rnd.nextFloat() * 360f, 3f + rnd.nextFloat() * 2.2f, color, rnd.nextFloat() * 6f, shape, 245)
+            }
+            S_MOTE -> {
+                Flake(rnd.nextFloat() * w, y, 0f, -3f - rnd.nextFloat() * 5f,
+                    0f, 1.4f + rnd.nextFloat() * 1.4f, 0xFFFFF6C8.toInt(), rnd.nextFloat() * 6f, shape, 170)
+            }
+            else -> { // S_GLINT
+                val color = if (rnd.nextBoolean()) 0xFFFFFFFF.toInt() else 0xFFDFF0FF.toInt()
+                Flake(x, y, 6f + rnd.nextFloat() * 10f, 10f + rnd.nextFloat() * 14f,
+                    0f, 1.3f + rnd.nextFloat() * 1.3f, color, rnd.nextFloat() * 6f, shape, 190)
+            }
         }
     }
 
-    private fun spawn(season: Season, w: Float, h: Float, y: Float): Flake {
-        val color = if (season == Season.SPRING) {
-            if (rnd.nextBoolean()) 0xFFFFD1DC.toInt() else 0xFFFBE3EA.toInt()
-        } else {
-            listOf(0xFFD9822B.toInt(), 0xFFC0392B.toInt(), 0xFFE0B040.toInt(), 0xFF9C5B2E.toInt())[rnd.nextInt(4)]
-        }
-        return Flake(rnd.nextFloat() * w * 1.1f - w * 0.1f, y, 10f + rnd.nextFloat() * 16f, 16f + rnd.nextFloat() * 18f,
-            rnd.nextFloat() * 360f, if (season == Season.SPRING) 2.2f + rnd.nextFloat() * 1.4f else 3f + rnd.nextFloat() * 2f,
-            color, rnd.nextFloat() * 6f)
-    }
+    private fun withAlpha(color: Int, a: Int): Int =
+        Color.argb(a.coerceIn(0, 255), Color.red(color), Color.green(color), Color.blue(color))
 
     fun draw(c: Canvas, season: Season, w: Float, h: Float) {
         // 은은한 계절 색감
         val col = when (season) {
-            Season.SPRING -> Color.argb(10, 255, 190, 210)
-            Season.SUMMER -> Color.argb(12, 255, 230, 140)
-            Season.AUTUMN -> Color.argb(16, 230, 140, 50)
-            Season.WINTER -> Color.argb(18, 190, 215, 255)
+            Season.SPRING -> Color.argb(12, 255, 190, 210)
+            Season.SUMMER -> Color.argb(10, 255, 230, 140)
+            Season.AUTUMN -> Color.argb(18, 230, 140, 50)
+            Season.WINTER -> Color.argb(20, 190, 215, 255)
         }
         tint.color = col
         c.drawRect(0f, 0f, w, h, tint)
         for (f in flakes) {
-            paint.color = f.color
-            c.save()
-            c.rotate(f.rot, f.x, f.y)
-            c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
-            c.restore()
+            when (f.shape) {
+                S_PETAL -> {
+                    paint.color = withAlpha(f.color, f.alpha)
+                    c.save()
+                    c.rotate(f.rot, f.x, f.y)
+                    c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
+                    // 꽃잎 끝의 진한 점
+                    veinPaint.color = withAlpha(0xFFE87F9A.toInt(), (f.alpha * 0.7f).toInt())
+                    c.drawCircle(f.x + f.size * 0.45f, f.y, f.size * 0.22f, veinPaint)
+                    c.restore()
+                }
+                S_LEAF -> {
+                    paint.color = withAlpha(f.color, f.alpha)
+                    c.save()
+                    c.rotate(f.rot, f.x, f.y)
+                    // 단풍잎 — 마름모 몸통 + 잎자루
+                    val s = f.size
+                    c.drawRect(f.x - s * 0.7f, f.y - s * 0.7f, f.x + s * 0.7f, f.y + s * 0.7f, paint)
+                    c.save()
+                    c.rotate(45f, f.x, f.y)
+                    c.drawRect(f.x - s * 0.45f, f.y - s * 0.45f, f.x + s * 0.45f, f.y + s * 0.45f, paint)
+                    c.restore()
+                    veinPaint.color = withAlpha(0xFF8A4A2B.toInt(), f.alpha)
+                    c.drawLine(f.x, f.y + s * 0.7f, f.x, f.y + s * 1.3f, veinPaint)
+                    c.restore()
+                }
+                S_MOTE -> {
+                    paint.color = withAlpha(f.color, (f.alpha * 0.35f).toInt())
+                    c.drawCircle(f.x, f.y, f.size * 2.4f, paint)
+                    paint.color = withAlpha(f.color, f.alpha)
+                    c.drawCircle(f.x, f.y, f.size * 0.8f, paint)
+                }
+                else -> { // S_GLINT — 십자 반짝임
+                    paint.color = withAlpha(f.color, f.alpha)
+                    val s = f.size
+                    c.drawRect(f.x - s * 1.6f, f.y - s * 0.28f, f.x + s * 1.6f, f.y + s * 0.28f, paint)
+                    c.drawRect(f.x - s * 0.28f, f.y - s * 1.6f, f.x + s * 0.28f, f.y + s * 1.6f, paint)
+                }
+            }
         }
     }
 }

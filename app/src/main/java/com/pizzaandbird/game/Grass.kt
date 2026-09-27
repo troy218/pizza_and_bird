@@ -85,9 +85,19 @@ class GrassField(map: GameMap) {
     )
 
     private val blades = ArrayList<Blade>()
+    private val baseFoliageFilter = map.mapStyle.foliageFilter
+    private var paintedSeason: Season? = null
     private val grassPaint = Paint().apply {
         isFilterBitmap = false
-        colorFilter = PorterDuffColorFilter(map.mapStyle.foliageFilter, PorterDuff.Mode.MULTIPLY)
+        colorFilter = PorterDuffColorFilter(baseFoliageFilter, PorterDuff.Mode.MULTIPLY)
+    }
+
+    /** 계절이 바뀌면 풀잎 틴트도 함께 (봄 연두 · 가을 누렇게 · 겨울 바래게). 매 프레임 호출해도 된다. */
+    fun setSeason(season: Season) {
+        if (paintedSeason == season) return
+        paintedSeason = season
+        grassPaint.colorFilter = PorterDuffColorFilter(
+            multiplyTint(baseFoliageFilter, seasonFoliageTint(season)), PorterDuff.Mode.MULTIPLY)
     }
     private val windOscA: FloatArray    // 진동 성분 @ t
     private val windOscB: FloatArray    // 진동 성분 @ t + PHASE_LAG (풀잎별 위상용)

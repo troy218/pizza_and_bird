@@ -509,7 +509,6 @@ object PreviewMain {
         renderScreen(game, "32_backup_restore_confirm")
 
         scene.closeOverlay()
-        game.input.rawMode = false
     }
 
     /** 화면비 적응 검증: 20:9 · 16:10 울트라와이드 샷 */
@@ -721,7 +720,6 @@ object PreviewMain {
         simulate(game, 0.9f)
         renderScreen(game, "37_levelup_gear")
         scene.closeOverlay()
-        game.input.rawMode = false
     }
 
     private fun drawBirdsSheet(a: Assets) {

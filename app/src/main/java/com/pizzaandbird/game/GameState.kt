@@ -7,8 +7,9 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v5: 8칸 집 꾸미기 레이아웃/세트 효과와 방향·자세·지역·시간·날씨가
- * 포함된 촬영 사진집 메타데이터를 추가했다. 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
+ * 세이브 형식 v6: 선택 퀘스트와 터널 이동 사이에도 이어지는 자전거 길안내 계획을 추가했다.
+ * v5: 8칸 집 꾸미기 레이아웃/세트 효과와 방향·자세·지역·시간·날씨가 포함된 사진집 메타데이터,
+ * 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
  *   화면 연출(몰입 카메라) 설정 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
  *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
  * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
@@ -22,6 +23,8 @@ class GameState {
     var inHome = false             // 현재 집 안에 있는지
     var money = 0                  // 용돈(원)
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
+    val ownedCharms = LinkedHashSet<String>()
+    var charmId = ""
     var luck = 50f                 // 행운 수치 (높을수록 희귀새 출현)
     val pizzas = IntArray(Pizzas.ALL.size * 3)   // [피자id*3 + 품질] 피자 개수
 
@@ -52,6 +55,8 @@ class GameState {
     val activeQuests = ArrayList<QuestData>()       // 다양한 종류의 서브 의뢰 목록 (최대 3개 동시 진행)
     val dailyQuests = ArrayList<DailyQuestData>()   // 오늘의 일일 탐조 미션 (매일 3개)
     var lastDailyDay = 1                            // 일일 미션이 갱신된 날짜
+    var trackedQuestId: String? = null               // 메뉴/HUD에서 선택한 퀘스트
+    var questTravelPlan: QuestTravelPlan? = null     // 터널 씬이 바뀌어도 이어지는 자전거 길안내
 
     // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
     var mainQuestStarted = false
@@ -252,18 +257,10 @@ class GameState {
     /**
      * 지금 얼마나 어두운가 (0 = 한낮, 1 = 한밤중).
      * 저조도 노이즈·셔터 속도 판정과 뷰파인더 EXIF 표시에 함께 쓰인다.
+     * 시간 성분은 태양 고도에서 연속적으로 뽑고(계절별 일출·일몰 반영), 날씨가 얹힌다.
      */
     fun darkness(): Float {
-        val h = worldTime
-        var d = when {
-            h >= 7f && h < 16.5f -> 0f
-            h >= 6f && h < 7f -> 0.35f
-            h >= 16.5f && h < 18f -> 0.35f
-            h >= 18f && h < 19.5f -> 0.65f
-            h >= 4.5f && h < 6f -> 0.6f
-            else -> 1f
-        }
-        d += when (weather()) {
+        val d = DayCycle.darkness(worldTime, season()) + when (weather()) {
             Weather.RAIN -> 0.32f
             Weather.SNOW -> 0.26f
             Weather.CLOUDY -> 0.18f
@@ -371,8 +368,8 @@ class GameState {
         QuestManager.ensureDailyQuests(this)
     }
 
-    /** 밤(올빼미 등 밤새 출현) 여부 */
-    fun isNight(): Boolean = worldTime >= 19.5f || worldTime < 4.5f
+    /** 밤(올빼미 등 밤새 출현) 여부 — 해가 지평선 아래로 충분히 내려간 때. 계절 따라 이동한다. */
+    fun isNight(): Boolean = DayCycle.sunAltitude(worldTime, season()) < -0.12f
 
     fun timeLabel(): String {
         val h = worldTime.toInt().coerceIn(0, 23)
@@ -380,11 +377,11 @@ class GameState {
         return String.format("%02d:%02d", h, m)
     }
 
-    fun timeEmoji(): String = when {
-        worldTime >= 7f && worldTime < 17f -> "☀"
-        worldTime >= 17f && worldTime < 19.5f -> "🌆"
-        else -> if (worldTime >= 4.5f) "🌅" else "🌙"
-    }
+    /** HUD용 시간대 아이콘 — 계절별 일출·일몰에 맞춰 바뀐다 */
+    fun timeEmoji(): String = DayCycle.phaseEmoji(worldTime, season())
+
+    /** '동틀 녘', '노을' 같은 시간대 이름 */
+    fun timePhase(): String = DayCycle.phaseLabel(worldTime, season())
 
     // ------------------ 장식 ------------------
 
@@ -434,7 +431,7 @@ class GameState {
     }
 
     /** 희귀새 출현 계산에 쓰는 실효 행운 (장식 + 자전거 + 감성 장비) */
-    fun effectiveLuck(): Float = (luck + decorLuck() + bikeLuck() + gearLuck()).coerceAtMost(100f)
+    fun effectiveLuck(): Float = (luck + decorLuck() + bikeLuck() + gearLuck() + (Charms.equipped(this)?.luck(this) ?: 0)).coerceAtMost(100f)
 
     // ------------------ 자전거 ------------------
 
@@ -493,6 +490,8 @@ class GameState {
         // 첫 정착지는 항상 서울. 다른 지역은 여행 후 집을 매입한다.
         money = 30000
         hunger = 100f
+        ownedCharms.clear()
+        charmId = ""
         luck = 50f
         for (i in pizzas.indices) pizzas[i] = 0
         // 첫 장비는 물려받은 컴팩트 카메라 한 대
@@ -525,6 +524,8 @@ class GameState {
         activeQuests.clear()
         dailyQuests.clear()
         lastDailyDay = 1
+        trackedQuestId = null
+        questTravelPlan = null
         mainQuestStarted = false
         mainQuestStage = 0
         mainQuestFinished = false
@@ -555,12 +556,14 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 5)
+        put("v", 6)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
         put("money", money)
         put("hunger", hunger.toDouble())
+        put("ownedCharms", JSONArray().apply { ownedCharms.forEach { put(it) } })
+        put("charmId", charmId)
         put("luck", luck.toDouble())
         put("ownedGear", JSONArray().apply { ownedGear.forEach { put(it) } })
         put("useIlc", useIlc)
@@ -581,6 +584,8 @@ class GameState {
         put("activeQuests", JSONArray().apply { activeQuests.forEach { put(it.toJson()) } })
         put("dailyQuests", JSONArray().apply { dailyQuests.forEach { put(it.toJson()) } })
         put("lastDailyDay", lastDailyDay)
+        put("trackedQuestId", trackedQuestId ?: "")
+        put("questTravelPlan", questTravelPlan?.toJson() ?: JSONObject.NULL)
         put("mainQuestStarted", mainQuestStarted)
         put("mainQuestStage", mainQuestStage)
         put("mainQuestFinished", mainQuestFinished)
@@ -632,6 +637,11 @@ class GameState {
             s.inHome = j.optBoolean("inHome", false)
             s.money = j.optInt("money", 0)
             s.hunger = j.optDouble("hunger", 100.0).toFloat()
+            val charms = j.optJSONArray("ownedCharms")
+            if (charms != null) for (i in 0 until charms.length()) {
+                Charms.of(charms.optString(i))?.let { s.ownedCharms.add(it.id) }
+            }
+            s.charmId = j.optString("charmId", "").takeIf { it in s.ownedCharms } ?: ""
             s.luck = j.optDouble("luck", 50.0).toFloat()
             // ---- 카메라 장비 ----
             val og = j.optJSONArray("ownedGear")
@@ -728,6 +738,8 @@ class GameState {
                 }
             }
             s.lastDailyDay = j.optInt("lastDailyDay", s.day)
+            s.trackedQuestId = j.optString("trackedQuestId", "").ifEmpty { null }
+            s.questTravelPlan = j.optJSONObject("questTravelPlan")?.let { QuestTravelPlan.fromJson(it) }
             s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
             s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
             s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size
