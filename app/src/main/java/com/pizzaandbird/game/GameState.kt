@@ -79,6 +79,10 @@ class GameState {
     var bikeSaddleColor = 0                       // 안장·그립 색 (BikeColors.SADDLE 인덱스)
     val ownedBikeParts = LinkedHashSet<String>()  // 장착한 부속품 id (구매=장착)
 
+    // ----- 조작 설정 (진행 상황이 아닌 개인 설정 — '처음부터 다시' 해도 유지) -----
+    var floatStick = true        // 움직이는 조이스틱: 왼쪽 아래를 드래그하면 그 자리에 스틱
+    var analogStick = true       // 아날로그 이동: 스틱을 민 만큼 속도 조절
+
     // ------------------------------------------------------------------
 
     val pizzaCount: Int get() = pizzas.sum()
@@ -535,6 +539,8 @@ class GameState {
         put("bikeTireColor", bikeTireColor)
         put("bikeSaddleColor", bikeSaddleColor)
         put("ownedBikeParts", JSONArray().apply { ownedBikeParts.forEach { put(it) } })
+        put("floatStick", floatStick)
+        put("analogStick", analogStick)
     }
 
     companion object {
@@ -697,6 +703,9 @@ class GameState {
                     if (id in BikeParts.byId) s.ownedBikeParts.add(id)
                 }
             }
+            // v0.4.1 조이스틱 설정 (없으면 새 기본값 = 켬)
+            s.floatStick = j.optBoolean("floatStick", true)
+            s.analogStick = j.optBoolean("analogStick", true)
             return s
         }
     }

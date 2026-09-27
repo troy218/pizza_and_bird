@@ -247,6 +247,16 @@ class WorldScene(
             else -> "메인: 보리 박사를 만나기"
         }
 
+        // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
+        game.hud.contextIcon = when {
+            nearestNpc() != null -> "💬"
+            nearTile(T.SIGN) != null -> "🪧"
+            nearTile(T.BENCH) != null -> "☕"
+            nearestCat() != null -> "🐈"
+            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "🚪"
+            else -> null
+        }
+
         saveT -= dt
         if (saveT <= 0f) {
             saveT = 25f
@@ -295,9 +305,8 @@ class WorldScene(
 
     private fun updatePlayer(dt: Float) {
         val input = game.input
-        var dx = input.dirX
-        var dy = input.dirY
-        if (photoMode) { dx *= 0.5f; dy *= 0.5f }
+        val dx = input.dirX
+        val dy = input.dirY
         val moving = abs(dx) > 0.01f || abs(dy) > 0.01f
         player.moving = moving
         if (moving) {
@@ -311,8 +320,10 @@ class WorldScene(
             val sprint = input.isRun && !player.bike
             var speed = if (player.bike) 97f * state.bikeSpeedMult() else 55f
             if (sprint) speed *= 1.45f
+            if (photoMode) speed *= 0.5f        // 카메라 모드에선 살금살금
             speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
+            speed *= input.moveScale            // 스틱을 민 만큼 (아날로그 설정)
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             lastSpeed = speed
@@ -1115,7 +1126,7 @@ class WorldScene(
                     return
                 }
             }
-            game.toast("주민·이정표·벤치·고양이에게 다가가 A를 눌러보세요!")
+            game.toast("주민·이정표·벤치·고양이에게 다가가 육각 메인 버튼을 눌러보세요!")
             return
         }
         val tap = input.consumeTapWorld()
