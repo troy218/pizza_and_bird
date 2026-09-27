@@ -266,6 +266,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private var closeRect = RectF()
     private var resetArmed = false
     private var questPage = 0
+    private var questSubTab = 0
     private var achievementPage = 0
     private var panelR = RectF()
 
@@ -696,54 +697,158 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         textP.color = 0xFF8A7360.toInt()
         val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 수집 이정표" else "400종 이상 · 공식 자격이 아닌 수집 이정표"
         c.drawText(rankHint, right - textP.measureText(rankHint), y + dp(scene, 13f), textP)
-        y += dp(scene, 23f)
+        y += dp(scene, 19f)
 
-        val perPage = 5
-        val pages = (BirdingCollections.ALL.size + perPage - 1) / perPage
-        questPage = questPage.coerceIn(0, pages - 1)
-        val sets = BirdingCollections.ALL.drop(questPage * perPage).take(perPage)
-        val rowsBottom = contentBottom() - dp(scene, 29f)
-        val rowH = (rowsBottom - y) / perPage
-        for (set in sets) {
-            val done = set.complete(s)
-            val r = RectF(left, y, right, y + rowH - dp(scene, 4f))
-            cuteCard(c, r, if (done) UiKit.PASTEL_MINT else 0xFFFBF1DE.toInt(),
-                if (done) 0xFF7FB37A.toInt() else UiKit.BROWN_LINE, 1.5f, stitched = rowH >= dp(scene, 30f))
-            if (done) {
-                // 완료 도장 (빨간 동그라미 스탬프)
-                strokeP.color = Color.argb(180, 226, 87, 76)
-                strokeP.strokeWidth = dp(scene, 1.6f)
-                c.drawCircle(r.right - dp(scene, 18f), r.centerY(), dp(scene, 9f), strokeP)
-                textP.textSize = textDp(scene, 9f)
-                textP.color = Color.argb(200, 226, 87, 76)
-                c.drawText("완료", r.right - dp(scene, 18f) - textP.measureText("완료") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+        // 서브탭 전환 버튼: [도장 깨기 (70)] / [탐조 의뢰 & 일일 미션]
+        val tabW = (right - left - dp(scene, 6f)) / 2f
+        val tabH = dp(scene, 20f)
+        val tab0R = RectF(left, y, left + tabW, y + tabH)
+        val tab1R = RectF(left + tabW + dp(scene, 6f), y, right, y + tabH)
+
+        val activeCount = s.activeQuests.size + s.dailyQuests.count { !it.completed }
+        if (questSubTab == 0) {
+            cuteBtn(c, tab0R, "도장 깨기 (${BirdingCollections.ALL.size})", UiKit.PASTEL_SKY, UiKit.INK, 10f)
+            UiKit.cuteButton(c, scene.game, tab1R, "의뢰 · 일일 ($activeCount)", UiKit.PASTEL_SAND, UiKit.MUTED, 10f, depthDp = 1.5f)
+        } else {
+            UiKit.cuteButton(c, scene.game, tab0R, "도장 깨기 (${BirdingCollections.ALL.size})", UiKit.PASTEL_SAND, UiKit.MUTED, 10f, depthDp = 1.5f)
+            cuteBtn(c, tab1R, "의뢰 · 일일 ($activeCount)", UiKit.PASTEL_SKY, UiKit.INK, 10f)
+        }
+        btnRects.add(Triple(tab0R, "quest_sub_0") { questSubTab = 0 })
+        btnRects.add(Triple(tab1R, "quest_sub_1") { questSubTab = 1 })
+        y += tabH + dp(scene, 5f)
+
+        if (questSubTab == 0) {
+            val perPage = 5
+            val pages = (BirdingCollections.ALL.size + perPage - 1) / perPage
+            questPage = questPage.coerceIn(0, pages - 1)
+            val sets = BirdingCollections.ALL.drop(questPage * perPage).take(perPage)
+            val rowsBottom = contentBottom() - dp(scene, 26f)
+            val rowH = (rowsBottom - y) / perPage
+            for (set in sets) {
+                val done = set.complete(s)
+                val r = RectF(left, y, right, y + rowH - dp(scene, 4f))
+                cuteCard(c, r, if (done) UiKit.PASTEL_MINT else 0xFFFBF1DE.toInt(),
+                    if (done) 0xFF7FB37A.toInt() else UiKit.BROWN_LINE, 1.5f, stitched = rowH >= dp(scene, 30f))
+                if (done) {
+                    // 완료 도장 (빨간 동그라미 스탬프)
+                    strokeP.color = Color.argb(180, 226, 87, 76)
+                    strokeP.strokeWidth = dp(scene, 1.6f)
+                    c.drawCircle(r.right - dp(scene, 18f), r.centerY(), dp(scene, 9f), strokeP)
+                    textP.textSize = textDp(scene, 9f)
+                    textP.color = Color.argb(200, 226, 87, 76)
+                    c.drawText("완료", r.right - dp(scene, 18f) - textP.measureText("완료") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+                }
+                textP.textSize = textDp(scene, 11.5f)
+                textP.color = if (done) 0xFF397547.toInt() else 0xFF5D4938.toInt()
+                UiKit.icon(c, scene.game, set.icon, RectF(r.left + dp(scene, 7f), r.top + dp(scene, 4f), r.left + dp(scene, 21f), r.top + dp(scene, 18f)))
+                if (done) UiKit.icon(c, scene.game, "check", RectF(r.left + dp(scene, 22f), r.top + dp(scene, 5f), r.left + dp(scene, 32f), r.top + dp(scene, 15f)))
+                c.drawText("${set.name}  ${set.progress(s)}", r.left + dp(scene, if (done) 35f else 25f), r.top + dp(scene, 15f), textP)
+                textP.textSize = textDp(scene, 8.8f)
+                textP.color = 0xFF8A7360.toInt()
+                val missing = set.species.filterNot { s.hasBirdName(it) }
+                val detail = if (missing.isEmpty()) set.note else "남은 새: ${missing.take(4).joinToString("·")}" + if (missing.size > 4) " 외" else ""
+                c.drawText(detail, r.left + dp(scene, 8f), r.bottom - dp(scene, 6f), textP)
+                y += rowH
             }
-            textP.textSize = textDp(scene, 11.5f)
-            textP.color = if (done) 0xFF397547.toInt() else 0xFF5D4938.toInt()
-            UiKit.icon(c, scene.game, set.icon, RectF(r.left + dp(scene, 7f), r.top + dp(scene, 4f), r.left + dp(scene, 21f), r.top + dp(scene, 18f)))
-            if (done) UiKit.icon(c, scene.game, "check", RectF(r.left + dp(scene, 22f), r.top + dp(scene, 5f), r.left + dp(scene, 32f), r.top + dp(scene, 15f)))
-            c.drawText("${set.name}  ${set.progress(s)}", r.left + dp(scene, if (done) 35f else 25f), r.top + dp(scene, 15f), textP)
-            textP.textSize = textDp(scene, 8.8f)
-            textP.color = 0xFF8A7360.toInt()
-            val missing = set.species.filterNot { s.hasBirdName(it) }
-            val detail = if (missing.isEmpty()) set.note else "남은 새: ${missing.take(4).joinToString("·")}" + if (missing.size > 4) " 외" else ""
-            c.drawText(detail, r.left + dp(scene, 8f), r.bottom - dp(scene, 6f), textP)
-            y += rowH
-        }
 
-        val prevR = RectF(left, contentBottom() - dp(scene, 24f), left + dp(scene, 80f), contentBottom())
-        val nextR = RectF(right - dp(scene, 80f), contentBottom() - dp(scene, 24f), right, contentBottom())
-        if (questPage > 0) {
-            cuteBtn(c, prevR, "‹ 이전", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
-            btnRects.add(Triple(prevR, "quest_prev") { questPage-- })
-        }
-        textP.textSize = textDp(scene, 10f)
-        textP.color = 0xFF8A7360.toInt()
-        val pageText = "도장 깨기 ${questPage + 1}/$pages"
-        c.drawText(pageText, panelR.centerX() - textP.measureText(pageText) / 2, contentBottom() - dp(scene, 7f), textP)
-        if (questPage < pages - 1) {
-            cuteBtn(c, nextR, "다음 ›", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
-            btnRects.add(Triple(nextR, "quest_next") { questPage++ })
+            val prevR = RectF(left, contentBottom() - dp(scene, 24f), left + dp(scene, 80f), contentBottom())
+            val nextR = RectF(right - dp(scene, 80f), contentBottom() - dp(scene, 24f), right, contentBottom())
+            if (questPage > 0) {
+                cuteBtn(c, prevR, "‹ 이전", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
+                btnRects.add(Triple(prevR, "quest_prev") { questPage-- })
+            }
+            textP.textSize = textDp(scene, 10f)
+            textP.color = 0xFF8A7360.toInt()
+            val pageText = "도장 깨기 ${questPage + 1}/$pages"
+            c.drawText(pageText, panelR.centerX() - textP.measureText(pageText) / 2, contentBottom() - dp(scene, 7f), textP)
+            if (questPage < pages - 1) {
+                cuteBtn(c, nextR, "다음 ›", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
+                btnRects.add(Triple(nextR, "quest_next") { questPage++ })
+            }
+        } else {
+            // 탐조 의뢰 및 일일 미션 리스트
+            QuestManager.ensureDailyQuests(s)
+            val rowsBottom = contentBottom() - dp(scene, 5f)
+            val availableH = rowsBottom - y
+            val cardH = (availableH - dp(scene, 20f)) / 4f
+
+            // 서브 의뢰 (최대 2개 표시)
+            textP.textSize = textDp(scene, 10.5f)
+            textP.color = 0xFF5D4938.toInt()
+            val subHeader = "진행 중인 서브 의뢰 (${s.activeQuests.size}/3)"
+            c.drawText(subHeader, left, y + dp(scene, 10f), textP)
+            y += dp(scene, 14f)
+
+            if (s.activeQuests.isEmpty()) {
+                val emptyR = RectF(left, y, right, y + cardH)
+                cuteCard(c, emptyR, 0xFFFFFDF8.toInt(), UiKit.BROWN_LINE, 1.2f)
+                textP.textSize = textDp(scene, 9.5f)
+                textP.color = 0xFF8A7360.toInt()
+                val emptyMsg = "진행 중인 의뢰 없음 · 광릉숲 보리 박사에게서 새 의뢰를 받아보세요"
+                c.drawText(emptyMsg, emptyR.centerX() - textP.measureText(emptyMsg) / 2f, emptyR.centerY() + dp(scene, 3f), textP)
+                y += cardH + dp(scene, 6f)
+            } else {
+                for (q in s.activeQuests.take(2)) {
+                    val qr = RectF(left, y, right, y + cardH)
+                    val done = q.isComplete
+                    cuteCard(c, qr, if (done) UiKit.PASTEL_MINT else 0xFFFFFDF8.toInt(),
+                        if (done) 0xFF7FB37A.toInt() else UiKit.BROWN_LINE, 1.3f)
+
+                    val tagText = q.category.label
+                    textP.textSize = textDp(scene, 8.5f)
+                    val tagW = textP.measureText(tagText) + dp(scene, 10f)
+                    val tagR = RectF(qr.left + dp(scene, 6f), qr.top + dp(scene, 4f), qr.left + dp(scene, 6f) + tagW, qr.top + dp(scene, 16f))
+                    UiKit.badge(c, scene.game, tagR, tagText, q.category.tagColor.toInt(), 0xFFFFFFFF.toInt(), 8f)
+
+                    textP.textSize = textDp(scene, 10.5f)
+                    textP.color = if (done) 0xFF397547.toInt() else 0xFF4A3728.toInt()
+                    c.drawText(q.title, tagR.right + dp(scene, 6f), qr.top + dp(scene, 13f), textP)
+
+                    val progText = "${q.progressText} · +₩${scene.won(q.rewardMoney)}"
+                    textP.textSize = textDp(scene, 9.5f)
+                    textP.color = if (done) 0xFF2D6930.toInt() else 0xFFB5651D.toInt()
+                    c.drawText(progText, qr.right - textP.measureText(progText) - dp(scene, 8f), qr.top + dp(scene, 13f), textP)
+
+                    textP.textSize = textDp(scene, 8.5f)
+                    textP.color = 0xFF796653.toInt()
+                    c.drawText(q.description, qr.left + dp(scene, 8f), qr.bottom - dp(scene, 5f), textP)
+                    y += cardH + dp(scene, 4f)
+                }
+            }
+
+            // 일일 탐조 미션 (2개 표시)
+            textP.textSize = textDp(scene, 10.5f)
+            textP.color = 0xFF5D4938.toInt()
+            c.drawText("오늘의 일일 탐조 미션 (3개)", left, y + dp(scene, 10f), textP)
+            y += dp(scene, 14f)
+
+            val dailyToShow = s.dailyQuests.take(2)
+            for (dq in dailyToShow) {
+                val dqr = RectF(left, y, right, y + cardH)
+                val done = dq.isComplete
+                cuteCard(c, dqr, if (done) UiKit.PASTEL_MINT else 0xFFF8F5EE.toInt(),
+                    if (done) 0xFF7FB37A.toInt() else UiKit.BROWN_LINE, 1.3f)
+
+                val tagText = "일일"
+                textP.textSize = textDp(scene, 8.5f)
+                val tagW = textP.measureText(tagText) + dp(scene, 10f)
+                val tagR = RectF(dqr.left + dp(scene, 6f), dqr.top + dp(scene, 4f), dqr.left + dp(scene, 6f) + tagW, dqr.top + dp(scene, 16f))
+                UiKit.badge(c, scene.game, tagR, tagText, 0xFF4A90E2.toInt(), 0xFFFFFFFF.toInt(), 8f)
+
+                textP.textSize = textDp(scene, 10.5f)
+                textP.color = if (done) 0xFF397547.toInt() else 0xFF4A3728.toInt()
+                c.drawText(dq.title, tagR.right + dp(scene, 6f), dqr.top + dp(scene, 13f), textP)
+
+                val progText = if (done) "완료! +₩${scene.won(dq.rewardMoney)}" else "${dq.progressText} · +₩${scene.won(dq.rewardMoney)}"
+                textP.textSize = textDp(scene, 9.5f)
+                textP.color = if (done) 0xFF2D6930.toInt() else 0xFF8A7360.toInt()
+                c.drawText(progText, dqr.right - textP.measureText(progText) - dp(scene, 8f), dqr.top + dp(scene, 13f), textP)
+
+                textP.textSize = textDp(scene, 8.5f)
+                textP.color = 0xFF796653.toInt()
+                c.drawText(dq.description, dqr.left + dp(scene, 8f), dqr.bottom - dp(scene, 5f), textP)
+                y += cardH + dp(scene, 4f)
+            }
         }
     }
 
