@@ -155,16 +155,33 @@ class TitleScene(game: Game) : Scene(game) {
         fun dp(v: Float): Float = v * game.density
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
+
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFakeBoldText = true
+            textSize = dp(38f)
+            color = 0xFF4A3728.toInt()
+        }
+        val shadow = Paint(titlePaint).apply { color = Color.argb(80, 74, 55, 40) }
         val cx = w / 2f
 
-        // 로고 — 라틴이라 5x7 픽셀 폰트 + 크림색 테두리(스티커 느낌)
-        Type.sticker(c, "PIZZA and BIRD", cx, dp(58f), Role.HERO, Type.INK)
+        val t1 = "PIZZA and BIRD"
+        val t2 = "피자와 새"
 
-        // 한글로도 크게
-        Type.sticker(c, "피자와 새", cx, dp(96f), Role.DISPLAY, Type.CARAMEL)
+        var ty = dp(52f)
+        c.drawText(t1, cx - titlePaint.measureText(t1) / 2 + dp(2.5f), ty + dp(2.5f), shadow)
+        c.drawText(t1, cx - titlePaint.measureText(t1) / 2, ty, titlePaint)
 
+        titlePaint.textSize = dp(22f)
+        titlePaint.color = 0xFF6B4F35.toInt()
+        ty += dp(34f)
+        c.drawText(t2, cx - titlePaint.measureText(t2) / 2 + dp(1.5f), ty + dp(1.5f), shadow)
+        c.drawText(t2, cx - titlePaint.measureText(t2) / 2, ty, titlePaint)
+
+        titlePaint.textSize = dp(12.5f)
+        titlePaint.color = 0xFF6FAE6F.toInt()
         val sub = "피자를 굽고, 자전거를 타고, 새를 찍는 힐링 여행"
-        Type.text(c, sub, cx, dp(122f), Role.CAPTION, Type.LEAF, 0.5f)
+        ty += dp(24f)
+        c.drawText(sub, cx - titlePaint.measureText(sub) / 2, ty, titlePaint)
 
         // 버튼
         val bw = dp(210f)
@@ -179,24 +196,29 @@ class TitleScene(game: Game) : Scene(game) {
             strokeWidth = dp(2.5f)
             color = 0xFF6B4F35.toInt()
         }
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFakeBoldText = true
+            textSize = dp(16f)
+            color = 0xFF4A3728.toInt()
+        }
 
         fun button(rect: RectF, label: String, enabled: Boolean) {
             fill.color = if (enabled) 0xFFF8EFDC.toInt() else Color.argb(120, 200, 190, 175)
-            c.drawRoundRect(rect, dp(13f), dp(13f), fill)
-            c.drawRoundRect(rect, dp(13f), dp(13f), border)
-            val col = if (enabled) Type.INK else Color.argb(140, 74, 55, 40)
-            val p = Type.paintAt(16f, true, 0.06f, col)
-            val by2 = rect.centerY() - (p.descent() + p.ascent()) / 2
-            if (enabled) c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + dp(1.2f), Type.paintAt(16f, true, 0.06f, Type.DROP))
-            c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2, p)
+            c.drawRoundRect(rect, dp(12f), dp(12f), fill)
+            c.drawRoundRect(rect, dp(12f), dp(12f), border)
+            tp.color = if (enabled) 0xFF4A3728.toInt() else Color.argb(140, 74, 55, 40)
+            val tw = tp.measureText(label)
+            c.drawText(label, rect.centerX() - tw / 2, rect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
         }
 
         button(startRect, "새로 시작하기", true)
         button(contRect, "이어하기", game.state.started)
 
-        // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
+        // 하단 정보
+        tp.textSize = dp(10f)
+        tp.color = Color.argb(180, 74, 55, 40)
         val info = "v0.2.1 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · made with 🍕"
-        Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
+        c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 
     override fun handleInput(input: Input) {
@@ -241,12 +263,12 @@ class CharacterSelectScene(game: Game) : Scene(game) {
     init { game.hud.showControls = false; game.hud.showStats = false; game.hud.showMinimap = false }
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFFA4E4EE.toInt()); val p=Paint(Paint.ANTI_ALIAS_FLAG)
-        // 이 화면은 가상 해상도(960x540) 월드 캔버스에 그려지므로 px 단위로 지정한다
-        c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, Type.paintPx(30f, true, 0.05f, Type.BROWN))
-        c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, Type.paintPx(16f, false, 0f, Type.SOFT))
-        fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); val lp=Type.paintPx(22f, true, 0.04f, Type.INK); c.drawText(label,r.centerX()-lp.measureText(label)/2,r.bottom-25,lp) }
+        p.color=0xFF6B4F35.toInt(); p.textSize=30f; p.isFakeBoldText=true
+        c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, p)
+        p.textSize=16f; p.isFakeBoldText=false; c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
+        fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); p.textSize=22f; p.isFakeBoldText=true; c.drawText(label,r.centerX()-p.measureText(label)/2,r.bottom-25,p) }
         card(male,"남자",game.state.gender=="male",game.assets.playerDown[0]); card(female,"여자",game.state.gender=="female",game.assets.playerDown[0])
-        c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,Type.paintPx(15f, false, 0f, Type.BROWN))
+        p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
     }
     override fun handleInput(input:Input) { val t=input.consumeTapScreen(); if(t!=null){ if(male.contains(t.x,t.y)) game.state.gender="male"; if(female.contains(t.x,t.y)) game.state.gender="female"; if(male.contains(t.x,t.y)||female.contains(t.x,t.y)) game.haptic() }; if(input.justA && (game.state.gender=="male"||game.state.gender=="female")) game.fadeTo { game.scene=RegionSelectScene(game) } }
 }

@@ -22,9 +22,7 @@ abstract class Overlay(val scene: Scene) {
 // 공통 페인트
 private val fillP = Paint()
 private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-
-// 글자는 Type.text / Type.paint 와 Role 로 그린다 — 크기·굵기·자간이 역할마다 고정되고,
-// 라틴/숫자만 모인 문장은 자동으로 5x7 픽셀 폰트로 넘어간다.
+private val textP = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
 
 private fun dp(scene: Scene, v: Float): Float = v * scene.game.density
 
@@ -42,11 +40,6 @@ private fun dim(c: Canvas, scene: Scene, alpha: Int = 130) {
     c.drawRect(0f, 0f, scene.game.screenW.toFloat(), scene.game.screenH.toFloat(), fillP)
 }
 
-/** 닫기(✕) 글자 */
-private fun drawCloseX(c: Canvas, scene: Scene, r: RectF) {
-    Type.text(c, "✕", r.centerX(), Type.midBaseline(Role.HEADING, r.centerY(), "✕", Type.CARAMEL), Role.HEADING, Type.CARAMEL, 0.5f)
-}
-
 /** 공통 버튼 그리기/등록 */
 private fun drawButton(
     c: Canvas, scene: Scene, r: RectF, label: String,
@@ -57,13 +50,9 @@ private fun drawButton(
     strokeP.color = 0xFFB5651D.toInt()
     strokeP.strokeWidth = dp(scene, 1.8f)
     c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
-    // 버튼 글자: 살짝 벌린 자간 + 아주 옅은 그림자(연한 버튼 위에서도 읽히게)
-    val p = Type.paintAt(textSize, true, 0.035f, textCol)
-    val ty = r.centerY() - (p.descent() + p.ascent()) / 2
-    if (Color.alpha(textCol) > 200) {
-        c.drawText(label, r.centerX() - p.measureText(label) / 2, ty + dp(scene, 1.2f), Type.paintAt(textSize, true, 0.035f, Type.DROP))
-    }
-    c.drawText(label, r.centerX() - p.measureText(label) / 2, ty, p)
+    textP.textSize = dp(scene, textSize)
+    textP.color = textCol
+    c.drawText(label, r.centerX() - textP.measureText(label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 }
 
 // ---------------------------------------------------------------------------
@@ -117,28 +106,32 @@ class DialogOverlay(
         val h = g.screenH.toFloat()
         val margin = dp(scene, 18f)
 
-        // 본문 줄 수에 맞춰 패널 높이 결정 (본문은 Role.BODY — 보통 두께가 읽기 편하다)
-        val bodyPaint = Type.paint(Role.BODY, Type.INK)
+        // 본문 줄 수에 맞춰 패널 높이 결정
+        textP.textSize = dp(scene, 13f)
         val maxW = w - margin * 2f - dp(scene, 28f)
-        val lines = g.hud.wrapText(body, bodyPaint, maxW).take(8)
-        val panelH = dp(scene, 108f) + Type.lineHeight(Role.BODY) * (lines.size - 3).coerceAtLeast(0)
+        val lines = g.hud.wrapText(body, textP, maxW).take(8)
+        val panelH = dp(scene, 108f) + dp(scene, 17f) * (lines.size - 3).coerceAtLeast(0)
         val r = RectF(margin, h - margin - panelH, w - margin, h - margin)
         panel(c, r, scene)
 
-        // 말주머니 제목 칩
+        textP.textSize = dp(scene, 11f)
+        textP.color = 0xFF6FAE6F.toInt()
         if (title.isNotEmpty()) {
-            val tw = Type.width(Role.LABEL, title, Type.CREAM)
-            val chip = RectF(r.left + dp(scene, 12f), r.top - dp(scene, 11f), r.left + dp(scene, 12f) + tw + dp(scene, 18f), r.top + dp(scene, 11f))
-            fillP.color = Type.BROWN
+            val tw = textP.measureText(title)
+            val chip = RectF(r.left + dp(scene, 12f), r.top - dp(scene, 10f), r.left + dp(scene, 12f) + tw + dp(scene, 14f), r.top + dp(scene, 10f))
+            fillP.color = 0xFF6B4F35.toInt()
             c.drawRoundRect(chip, dp(scene, 9f), dp(scene, 9f), fillP)
-            Type.text(c, title, chip.centerX(), Type.midBaseline(Role.LABEL, chip.centerY(), title, Type.CREAM), Role.LABEL, Type.CREAM, 0.5f)
+            textP.color = 0xFFF8EFDC.toInt()
+            c.drawText(title, chip.left + dp(scene, 7f), chip.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
         }
 
         // 본문
-        var ty = r.top + dp(scene, 25f)
+        textP.textSize = dp(scene, 13f)
+        textP.color = 0xFF4A3728.toInt()
+        var ty = r.top + dp(scene, 24f)
         for (ln in lines) {
-            c.drawText(ln, r.left + dp(scene, 14f), ty, bodyPaint)
-            ty += Type.lineHeight(Role.BODY)
+            c.drawText(ln, r.left + dp(scene, 14f), ty, textP)
+            ty += dp(scene, 17f)
         }
 
         // 선택지
@@ -151,7 +144,7 @@ class DialogOverlay(
                 r.left + dp(scene, 10f) + i * (bw + dp(scene, 10f)), bty,
                 r.left + dp(scene, 10f) + i * (bw + dp(scene, 10f)) + bw, bty + dp(scene, 30f)
             )
-            drawButton(c, scene, br, choices[i].label, 0xFFF2E3C2.toInt(), Type.BROWN, 12.5f)
+            drawButton(c, scene, br, choices[i].label, 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12.5f)
             rects.add(br)
         }
         choiceRects = rects
@@ -238,7 +231,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
         // 닫기 X
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 8f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 34f))
-        drawCloseX(c, scene, closeRect)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
         // 탭
         tabRects.clear()
@@ -248,11 +243,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 panelR.left + dp(scene, 12f) + i * (tabW + dp(scene, 8f)), panelR.top + dp(scene, 10f),
                 panelR.left + dp(scene, 12f) + i * (tabW + dp(scene, 8f)) + tabW, panelR.top + dp(scene, 38f)
             )
-            val sel = t == tab
-            fillP.color = if (sel) Type.BROWN else 0xFFF2E3C2.toInt()
-            c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), fillP)
-            val tcol = if (sel) Type.CREAM else Type.BROWN
-            Type.text(c, t.label, r.centerX(), Type.midBaseline(Role.LABEL, r.centerY(), t.label, tcol), Role.LABEL, tcol, 0.5f)
+            fillP.color = if (t == tab) 0xFF6B4F35.toInt() else 0xFFF2E3C2.toInt()
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), fillP)
+            textP.textSize = dp(scene, 12.5f)
+            textP.color = if (t == tab) 0xFFF8EFDC.toInt() else 0xFF6B4F35.toInt()
+            c.drawText(t.label, r.centerX() - textP.measureText(t.label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
             tabRects.add(r to t)
         }
 
@@ -293,14 +288,14 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             "들고 다니는 피자: ${s.pizzaCount}개",
             "설치한 장식: ${s.decorSlots.count { it >= 0 }}/3 (행운 +$decorLuck)"
         )
-        // 상태 목록은 읽기 편하게 보통 두께로
-        val st = Type.paint(Role.BODY, Type.INK)
+        textP.textSize = dp(scene, 12.5f)
+        textP.color = 0xFF4A3728.toInt()
         var ty = contentTop() + dp(scene, 14f)
         val x = panelR.left + dp(scene, 18f)
         for (ln in lines) {
             for (sub in ln.split("\n")) {
-                c.drawText(sub, x, ty, st)
-                ty += Type.lineHeight(Role.BODY)
+                c.drawText(sub, x, ty, textP)
+                ty += dp(scene, 18f)
             }
         }
     }
@@ -311,20 +306,27 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         var ty = contentTop() + dp(scene, 10f)
         val x = panelR.left + dp(scene, 18f)
 
-        c.drawText("화덕에서 토핑을 골라 구울 수 있어요. (최대 ${PIZZA_CAP}개)", x, ty, Type.paint(Role.CAPTION, Type.BROWN))
+        textP.textSize = dp(scene, 12.5f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText("화덕에서 토핑을 골라 구울 수 있어요. (최대 ${PIZZA_CAP}개)", x, ty, textP)
         ty += dp(scene, 20f)
 
         for (t in Toppings.ALL) {
             // 토핑 아이콘(이모지)
-            Type.text(c, t.emoji, x, ty + dp(scene, 24f), Role.EMOJI, Type.INK)
+            textP.textSize = dp(scene, 20f)
+            c.drawText(t.emoji, x, ty + dp(scene, 24f), textP)
 
             val tx = x + dp(scene, 32f)
-            Type.text(c, "${t.name} 피자", tx, ty + dp(scene, 13f), Role.HEADING, Type.INK)
+            textP.textSize = dp(scene, 13.5f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText("${t.name} 피자", tx, ty + dp(scene, 13f), textP)
+            textP.textSize = dp(scene, 10.5f)
+            textP.color = 0xFF8A7360.toInt()
             val bonusTxt = "배고픔 ${if (t.hungerBonus >= 0) "+" else ""}${t.hungerBonus} · 행운 ${if (t.luckBonus >= 0) "+" else ""}${t.luckBonus}" +
                     " · 난이도 " + "●".repeat(((t.cursorSpeed - 0.95f) * 10f).toInt().coerceIn(1, 3))
-            c.drawText(bonusTxt, tx, ty + dp(scene, 27f), Type.paint(Role.CAPTION, Type.SOFT))
+            c.drawText(bonusTxt, tx, ty + dp(scene, 27f), textP)
             val counts = "걸작×${s.pizzaCountOf(t.id, 2)}  맛있는×${s.pizzaCountOf(t.id, 1)}  탄×${s.pizzaCountOf(t.id, 0)}"
-            c.drawText(counts, tx, ty + dp(scene, 41f), Type.paint(Role.CAPTION, Type.SOFT))
+            c.drawText(counts, tx, ty + dp(scene, 41f), textP)
 
             // 먹기 버튼
             val br = RectF(panelR.right - dp(scene, 100f), ty + dp(scene, 6f), panelR.right - dp(scene, 18f), ty + dp(scene, 34f))
@@ -368,9 +370,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val cw = (areaW - gap * (cols - 1)) / cols
         val chh = (areaH - gap * (rowsPerPage - 1)) / rowsPerPage
 
+        textP.textSize = dp(scene, 11.2f)
+        textP.color = 0xFF6B4F35.toInt()
         c.drawText(
             "도감 ${s.birdCounts.size}/${Birds.ALL.size}종 — ${OfficialBirdChecklist.SOURCE_TITLE}",
-            areaLeft, contentTop() - dp(scene, 2f), Type.paint(Role.CAPTION, Type.BROWN)
+            areaLeft, contentTop() - dp(scene, 2f), textP
         )
 
         val rects = LinkedHashMap<String, RectF>()
@@ -406,13 +410,17 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             } else {
                 fillP.color = Color.argb(95, 150, 140, 130)
                 c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 7f), fillP)
-                Type.text(c, "?", bx + bmp.width * k / 2f, Type.midBaseline(Role.CAPTION, r.centerY(), "?", Type.CREAM), Role.CAPTION, Type.CREAM, 0.5f)
+                textP.textSize = dp(scene, 9.5f)
+                textP.color = 0xFFF8EFDC.toInt()
+                c.drawText("?", bx + bmp.width * k / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             }
 
             val tx = bx + bmp.width * k + dp(scene, 5f)
-            val nameCol = if (seen) Type.INK else Color.argb(175, 74, 55, 40)
-            c.drawText(def.name, tx, r.top + dp(scene, 12f), Type.paintAt(10.4f, true, 0.02f, nameCol))
-            val subPaint = Type.paint(Role.MICRO, Type.SOFT)
+            textP.textSize = dp(scene, 10.4f)
+            textP.color = if (seen) 0xFF4A3728.toInt() else Color.argb(175, 74, 55, 40)
+            c.drawText(def.name, tx, r.top + dp(scene, 12f), textP)
+            textP.textSize = dp(scene, 8.4f)
+            textP.color = 0xFF8A7360.toInt()
             val baseLine2 = if (seen) {
                 val best = s.bestStars[def.id] ?: 1
                 "📸${s.birdCounts[def.id]} 최고★$best"
@@ -420,9 +428,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 "미촬영 · ${def.tier.label}"
             }
             val line2 = baseLine2 + if (def.active == "night") " 🌙" else ""
-            c.drawText(line2, tx, r.top + dp(scene, 24f), subPaint)
+            c.drawText(line2, tx, r.top + dp(scene, 24f), textP)
+            textP.textSize = dp(scene, 7.8f)
+            textP.color = Color.argb(170, 94, 76, 58)
             val familyLabel = if (def.familyName.isBlank()) "공식 목록" else def.familyName
-            c.drawText(familyLabel, tx, r.top + dp(scene, 35f), Type.paint(Role.MICRO, Color.argb(170, 94, 76, 58)))
+            c.drawText(familyLabel, tx, r.top + dp(scene, 35f), textP)
             rects[def.id] = r
         }
         bookRects = rects
@@ -441,8 +451,10 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val next = RectF(areaLeft + areaW - dp(scene, 76f), py, areaLeft + areaW, py + dp(scene, 24f))
         pagerButton(prev, "이전", bookPage > 0) { bookPage-- }
         pagerButton(next, "다음", bookPage < totalPages - 1) { bookPage++ }
-        // "1/3" 처럼 라틴만 있으면 자동으로 픽셀 폰트
-        Type.text(c, "${bookPage + 1}/$totalPages", panelR.centerX(), py + dp(scene, 16f), Role.LABEL, Type.BROWN, 0.5f)
+        val pageText = "${bookPage + 1}/$totalPages"
+        textP.textSize = dp(scene, 11.5f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText(pageText, panelR.centerX() - textP.measureText(pageText) / 2f, py + dp(scene, 16f), textP)
     }
 
     private fun drawSettings(c: Canvas) {
@@ -478,13 +490,14 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             }
         }
 
-        val foot = Type.paint(Role.CAPTION, Type.SOFT)
+        textP.textSize = dp(scene, 10.5f)
+        textP.color = 0xFF8A7360.toInt()
         ty += dp(scene, 6f)
-        Type.text(c, "Pizza and Bird v0.2.1-beta01", x, ty, Role.CAPTION, Type.SOFT)
+        c.drawText("Pizza and Bird v0.2.1-beta01", x, ty, textP)
         ty += dp(scene, 15f)
-        c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", x, ty, foot)
+        c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", x, ty, textP)
         ty += dp(scene, 15f)
-        c.drawText("낮과 밤이 흐르고, 밤에는 올빼미가 나와요!", x, ty, foot)
+        c.drawText("낮과 밤이 흐르고, 밤에는 올빼미가 나와요!", x, ty, textP)
     }
 }
 
@@ -542,11 +555,17 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         panel(c, panelR, scene)
 
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 8f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 34f))
-        drawCloseX(c, scene, closeRect)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-        Type.text(c, "🧺 장식 코너", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 32f), Role.TITLE, Type.INK)
+        textP.textSize = dp(scene, 15f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("🧺 장식 코너", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
+        textP.textSize = dp(scene, 10.5f)
+        textP.color = 0xFF8A7360.toInt()
         c.drawText("집에 놓으면 행운이 오르는 소품들이에요 · 보유 ${won(s.money)}",
-            panelR.left + dp(scene, 16f), panelR.top + dp(scene, 48f), Type.paint(Role.CAPTION, Type.SOFT))
+            panelR.left + dp(scene, 16f), panelR.top + dp(scene, 46f), textP)
 
         buyRects = ArrayList()
         var ty = panelR.top + dp(scene, 58f)
@@ -558,11 +577,15 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             strokeP.strokeWidth = dp(scene, 1.5f)
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
 
-            Type.textCentered(c, d.emoji, r.left + dp(scene, 10f), r.centerY(), Role.EMOJI, Type.INK)
-            Type.text(c, d.name, r.left + dp(scene, 44f), r.top + dp(scene, 19f), Role.HEADING, Type.INK)
-            val cap = Type.paint(Role.CAPTION, Type.SOFT)
-            c.drawText(d.desc, r.left + dp(scene, 44f), r.top + dp(scene, 34f), cap)
-            c.drawText("행운 +${d.luck}", r.left + dp(scene, 44f), r.top + dp(scene, 47f), cap)
+            textP.textSize = dp(scene, 20f)
+            c.drawText(d.emoji, r.left + dp(scene, 10f), r.centerY() + dp(scene, 7f), textP)
+            textP.textSize = dp(scene, 13f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(d.name, r.left + dp(scene, 44f), r.top + dp(scene, 18f), textP)
+            textP.textSize = dp(scene, 10f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(d.desc, r.left + dp(scene, 44f), r.top + dp(scene, 33f), textP)
+            c.drawText("행운 +${d.luck}", r.left + dp(scene, 44f), r.top + dp(scene, 46f), textP)
 
             val owned = d.id in s.decorOwned
             val br = RectF(r.right - dp(scene, 88f), r.centerY() - dp(scene, 15f), r.right - dp(scene, 10f), r.centerY() + dp(scene, 15f))
@@ -618,9 +641,13 @@ class DecorPickOverlay(
         panel(c, panelR, scene)
 
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 8f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 34f))
-        drawCloseX(c, scene, closeRect)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2, closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-        Type.text(c, "장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 32f), Role.TITLE, Type.INK)
+        textP.textSize = dp(scene, 14f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
 
         pickRects = ArrayList()
         var ty = panelR.top + dp(scene, 46f)
@@ -632,9 +659,14 @@ class DecorPickOverlay(
             strokeP.color = 0xFFC9A87B.toInt()
             strokeP.strokeWidth = dp(scene, 1.5f)
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
-            Type.textCentered(c, emoji, r.left + dp(scene, 10f), r.centerY(), Role.EMOJI, Type.INK)
-            Type.text(c, name, r.left + dp(scene, 44f), r.top + dp(scene, 20f), Role.HEADING, Type.INK)
-            c.drawText(sub, r.left + dp(scene, 44f), r.top + dp(scene, 36f), Type.paint(Role.CAPTION, Type.SOFT))
+            textP.textSize = dp(scene, 20f)
+            c.drawText(emoji, r.left + dp(scene, 10f), r.centerY() + dp(scene, 7f), textP)
+            textP.textSize = dp(scene, 13f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(name, r.left + dp(scene, 44f), r.top + dp(scene, 19f), textP)
+            textP.textSize = dp(scene, 10f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(sub, r.left + dp(scene, 44f), r.top + dp(scene, 35f), textP)
             pickRects.add(r to id)
             ty += dp(scene, 58f)
         }
@@ -699,10 +731,17 @@ class HouseStyleOverlay(
         panel(c, panelR, scene)
         closeRect = RectF(panelR.right - dp(scene, 34f), panelR.top + dp(scene, 8f), panelR.right - dp(scene, 8f), panelR.top + dp(scene, 34f))
 
-        Type.text(c, "🏠 우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 32f), Role.TITLE, Type.INK)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("🏠 우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 30f), textP)
+        textP.textSize = dp(scene, 10.5f)
+        textP.color = 0xFF8A7360.toInt()
         c.drawText("스타일을 구매하면 이사 후에도 계속 사용할 수 있어요 · 보유 ${won(s.money)}",
-            panelR.left + dp(scene, 16f), panelR.top + dp(scene, 49f), Type.paint(Role.CAPTION, Type.SOFT))
-        drawCloseX(c, scene, closeRect)
+            panelR.left + dp(scene, 16f), panelR.top + dp(scene, 47f), textP)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFFB5651D.toInt()
+        c.drawText("✕", closeRect.centerX() - textP.measureText("✕") / 2,
+            closeRect.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
         styleRects.clear()
         var y = panelR.top + dp(scene, 58f)
@@ -715,9 +754,14 @@ class HouseStyleOverlay(
             strokeP.strokeWidth = dp(scene, if (style.id == s.houseStyleId) 2.5f else 1.5f)
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
 
-            Type.textCentered(c, style.emoji, r.left + dp(scene, 10f), r.centerY(), Role.EMOJI, Type.INK)
-            Type.text(c, style.name, r.left + dp(scene, 44f), r.top + dp(scene, 20f), Role.HEADING, Type.INK)
-            c.drawText(style.desc, r.left + dp(scene, 44f), r.top + dp(scene, 37f), Type.paint(Role.CAPTION, Type.SOFT))
+            textP.textSize = dp(scene, 20f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(style.emoji, r.left + dp(scene, 10f), r.centerY() + dp(scene, 7f), textP)
+            textP.textSize = dp(scene, 12.5f)
+            c.drawText(style.name, r.left + dp(scene, 44f), r.top + dp(scene, 19f), textP)
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(style.desc, r.left + dp(scene, 44f), r.top + dp(scene, 36f), textP)
 
             val br = RectF(r.right - dp(scene, 94f), r.centerY() - dp(scene, 15f), r.right - dp(scene, 9f), r.centerY() + dp(scene, 15f))
             if (style.id == s.houseStyleId) {
@@ -808,8 +852,10 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
 
         when (step) {
             0 -> {
+                textP.textSize = dp(scene, 16f)
+                textP.color = 0xFF4A3728.toInt()
                 val title = "🍕 토핑을 골라요"
-                Type.text(c, title, r.centerX(), r.top + dp(scene, 28f), Role.TITLE, Type.INK, 0.5f)
+                c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 26f), textP)
 
                 toppingRects.clear()
                 val cardW = (r.width() - dp(scene, 16f) * 4) / 3f
@@ -824,12 +870,18 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                     strokeP.strokeWidth = dp(scene, 2f)
                     c.drawRoundRect(cr, dp(scene, 10f), dp(scene, 10f), strokeP)
 
-                    Type.text(c, tp.emoji, cr.centerX(), cr.top + dp(scene, 36f), Role.EMOJI, Type.INK, 0.5f)
-                    Type.text(c, tp.name, cr.centerX(), cr.top + dp(scene, 58f), Role.HEADING, Type.INK, 0.5f)
+                    textP.textSize = dp(scene, 26f)
+                    c.drawText(tp.emoji, cr.centerX() - textP.measureText(tp.emoji) / 2, cr.top + dp(scene, 34f), textP)
+                    textP.textSize = dp(scene, 13f)
+                    textP.color = 0xFF4A3728.toInt()
+                    c.drawText(tp.name, cr.centerX() - textP.measureText(tp.name) / 2, cr.top + dp(scene, 56f), textP)
+                    textP.textSize = dp(scene, 10f)
+                    textP.color = 0xFF8A7360.toInt()
                     val b1 = "배고픔 ${if (tp.hungerBonus >= 0) "+" else ""}${tp.hungerBonus} · 행운 ${if (tp.luckBonus >= 0) "+" else ""}${tp.luckBonus}"
-                    val b2 = "구우기 난이도 " + "●".repeat(((tp.cursorSpeed - 0.95f) * 10f).toInt().coerceIn(1, 3)) + "○".repeat(3 - ((tp.cursorSpeed - 0.95f) * 10f).toInt().coerceIn(1, 3))
-                    Type.text(c, b1, cr.centerX(), cr.top + dp(scene, 76f), Role.CAPTION, Type.SOFT, 0.5f)
-                    Type.text(c, b2, cr.centerX(), cr.top + dp(scene, 92f), Role.CAPTION, Type.SOFT, 0.5f)
+                    c.drawText(b1, cr.centerX() - textP.measureText(b1) / 2, cr.top + dp(scene, 74f), textP)
+                    val diff = ((tp.cursorSpeed - 0.95f) * 10f).toInt().coerceIn(1, 3)
+                    val b2 = "구우기 난이도 " + "●".repeat(diff) + "○".repeat(3 - diff)
+                    c.drawText(b2, cr.centerX() - textP.measureText(b2) / 2, cr.top + dp(scene, 90f), textP)
                     val pz = a.pizzaIcon
                     val psz = dp(scene, 26f)
                     c.drawBitmap(pz, null, RectF(cr.centerX() - psz / 2, cr.top + dp(scene, 100f), cr.centerX() + psz / 2, cr.top + dp(scene, 100f) + psz), a.sprPaint)
@@ -841,7 +893,10 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
             }
             1 -> {
                 val tp = Toppings.of(topping)
-                Type.text(c, "${tp.emoji} ${tp.name} 피자 굽기", r.centerX(), r.top + dp(scene, 28f), Role.TITLE, Type.INK, 0.5f)
+                textP.textSize = dp(scene, 16f)
+                textP.color = 0xFF4A3728.toInt()
+                val title = "${tp.emoji} ${tp.name} 피자 굽기"
+                c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 26f), textP)
 
                 // 게이지
                 val gx = r.left + dp(scene, 26f)
@@ -873,19 +928,26 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                 c.drawLine(cx, gy - dp(scene, 9f), cx, gy + gh + dp(scene, 9f), strokeP)
 
                 // 라벨
-                Type.text(c, "살짝 탐", gx, gy + gh + dp(scene, 18f), Role.CAPTION, Type.INK)
-                Type.text(c, "걸작!", gx + gw / 2f, gy - dp(scene, 14f), Role.CAPTION, Type.LEAF, 0.5f)
-                Type.text(c, "살짝 탐", gx + gw, gy + gh + dp(scene, 18f), Role.CAPTION, Type.INK, 1f)
+                textP.textSize = dp(scene, 10.5f)
+                textP.color = 0xFF4A3728.toInt()
+                c.drawText("살짝 탐", gx, gy + gh + dp(scene, 18f), textP)
+                val mid = "걸작!"
+                c.drawText(mid, gx + gw / 2f - textP.measureText(mid) / 2f, gy - dp(scene, 14f), textP)
+                val right = "살짝 탐"
+                c.drawText(right, gx + gw - textP.measureText(right), gy + gh + dp(scene, 18f), textP)
 
+                textP.textSize = dp(scene, 12.5f)
+                textP.color = 0xFF8A7360.toInt()
                 val hint = "초록 칸에서 멈춰보세요! (아무 곳이나 탭)"
-                Type.text(c, hint, r.centerX(), r.bottom - dp(scene, 18f), Role.BODY, Type.SOFT, 0.5f)
+                c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 18f), textP)
             }
             else -> {
                 val q = PizzaQ.of(resultQ)
                 val tp = Toppings.of(topping)
                 val title = if (lostPizza) "${tp.emoji} ${q.label}… 그런데 두 손이 가득!" else "${tp.emoji} ${q.label} 완성!"
-                val tcol = if (resultQ == 2) Type.CARAMEL else Type.INK
-                Type.sticker(c, title, r.centerX(), r.centerY() - dp(scene, 30f), Role.TITLE, tcol)
+                textP.textSize = dp(scene, 16f)
+                textP.color = if (resultQ == 2) 0xFFB5651D.toInt() else 0xFF4A3728.toInt()
+                c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.centerY() - dp(scene, 30f), textP)
 
                 val k = dp(scene, 3.4f)
                 val bmp = a.pizzaIcon
@@ -893,10 +955,14 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                 val by = r.centerY() - bmp.height * k / 2f + dp(scene, 24f)
                 c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
 
+                textP.textSize = dp(scene, 12.5f)
+                textP.color = 0xFF8A7360.toInt()
                 val info = if (lostPizza) "피자 가방이 가득해서 못 챙겼어요…"
                 else "먹으면 배고픔 +${q.hunger + tp.hungerBonus} · 행운 +${q.luck + tp.luckBonus}"
-                Type.text(c, info, r.centerX(), r.bottom - dp(scene, 20f), Role.BODY, Type.SOFT, 0.5f)
-                Type.text(c, "탭해서 닫기", r.centerX(), r.bottom - dp(scene, 6f), Role.CAPTION, Type.SOFT, 0.5f)
+                c.drawText(info, r.centerX() - textP.measureText(info) / 2, r.bottom - dp(scene, 18f), textP)
+                textP.textSize = dp(scene, 10.5f)
+                val hint2 = "탭해서 닫기"
+                c.drawText(hint2, r.centerX() - textP.measureText(hint2) / 2, r.bottom - dp(scene, 4f), textP)
             }
         }
     }
@@ -948,15 +1014,19 @@ class PhotoResultOverlay(
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
-        // 이름 + 첫 발견 리본 — 이름은 스티커 처리(화면이 잠깐 멈추는 순간이라 화려해도 괜찮다)
-        Type.sticker(c, def.name, r.centerX(), r.top + dp(scene, 28f), Role.TITLE, Type.INK)
+        // 이름 + 첫 발견 리본
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText(def.name, r.centerX() - textP.measureText(def.name) / 2, r.top + dp(scene, 25f), textP)
         if (isNew) {
+            textP.textSize = dp(scene, 9.5f)
             val ribbon = "NEW · 첫 발견"
-            val rw = Type.width(Role.CAPTION, ribbon, Type.PAPER) + dp(scene, 18f)
+            val rw = textP.measureText(ribbon) + dp(scene, 14f)
             val rr = RectF(r.right - rw - dp(scene, 10f), r.top + dp(scene, 9f), r.right - dp(scene, 10f), r.top + dp(scene, 29f))
-            fillP.color = Type.BERRY
-            c.drawRoundRect(rr, dp(scene, 10f), dp(scene, 10f), fillP)
-            Type.text(c, ribbon, rr.centerX(), Type.midBaseline(Role.CAPTION, rr.centerY(), ribbon, Type.PAPER), Role.CAPTION, Type.PAPER, 0.5f)
+            fillP.color = 0xFFE2574C.toInt()
+            c.drawRoundRect(rr, dp(scene, 9f), dp(scene, 9f), fillP)
+            textP.color = 0xFFFFF8E8.toInt()
+            c.drawText(ribbon, rr.centerX() - textP.measureText(ribbon) / 2, rr.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
         }
 
         // 새가 가장 돋보이는 작은 서식지 사진 카드
@@ -1014,26 +1084,36 @@ class PhotoResultOverlay(
             Tier.RARE -> 0xFF3F6FB0.toInt()
             Tier.LEGEND -> 0xFFB65342.toInt()
         }
+        textP.textSize = dp(scene, 9f)
         val tierLabel = "${def.tier.label} · ${def.activeLabel}"
-        val tierW = Type.width(Role.CAPTION, tierLabel, Type.PAPER) + dp(scene, 16f)
+        val tierW = textP.measureText(tierLabel) + dp(scene, 12f)
         val tierR = RectF(photoR.left + dp(scene, 7f), photoR.top + dp(scene, 7f), photoR.left + dp(scene, 7f) + tierW, photoR.top + dp(scene, 25f))
         fillP.color = Color.argb(220, Color.red(tierColor), Color.green(tierColor), Color.blue(tierColor))
-        c.drawRoundRect(tierR, dp(scene, 9f), dp(scene, 9f), fillP)
-        Type.text(c, tierLabel, tierR.centerX(), Type.midBaseline(Role.CAPTION, tierR.centerY(), tierLabel, Type.PAPER), Role.CAPTION, Type.PAPER, 0.5f)
+        c.drawRoundRect(tierR, dp(scene, 8f), dp(scene, 8f), fillP)
+        textP.color = 0xFFFFF8E8.toInt()
+        c.drawText(tierLabel, tierR.centerX() - textP.measureText(tierLabel) / 2, tierR.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
 
-        // 별점은 라틴 기호만이라 픽셀 폰트로 그려진다
-        val y1 = r.top + dp(scene, 174f)
-        Type.text(c, "★".repeat(stars) + "☆".repeat(3 - stars), r.centerX(), y1, Role.DISPLAY, Type.CARAMEL, 0.5f)
+        textP.textSize = dp(scene, 15f)
+        textP.color = 0xFFB5651D.toInt()
+        val starTxt = "★".repeat(stars) + "☆".repeat(3 - stars)
+        val y1 = r.top + dp(scene, 171f)
+        c.drawText(starTxt, r.centerX() - textP.measureText(starTxt) / 2, y1, textP)
 
+        textP.textSize = dp(scene, 11.5f)
+        textP.color = 0xFF8A7360.toInt()
         val best = g.state.bestStars[def.id] ?: stars
         val cnt = "촬영 ${count}회 · 최고 ★$best" + if (def.englishName.isNotBlank()) " · ${def.englishName}" else ""
-        Type.text(c, cnt, r.centerX(), y1 + dp(scene, 20f), Role.CAPTION, Type.SOFT, 0.5f)
+        c.drawText(cnt, r.centerX() - textP.measureText(cnt) / 2, y1 + dp(scene, 19f), textP)
 
         if (questLine != null) {
-            Type.text(c, questLine, r.centerX(), y1 + dp(scene, 38f), Role.CAPTION, Type.SKY, 0.5f)
+            textP.color = 0xFF3F6FB0.toInt()
+            c.drawText(questLine, r.centerX() - textP.measureText(questLine) / 2, y1 + dp(scene, 38f), textP)
         }
 
-        Type.text(c, "화면을 탭해 탐조를 계속해요", r.centerX(), r.bottom - dp(scene, 12f), Role.CAPTION, Type.SOFT, 0.5f)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val hint = "화면을 탭해 탐조를 계속해요"
+        c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
     }
 }
 
@@ -1258,10 +1338,13 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         c.drawRoundRect(mapR, dp(scene, 10f), dp(scene, 10f), strokeP)
 
         // 제목
+        textP.textSize = dp(scene, 15f)
+        textP.color = 0xFFF8EFDC.toInt()
         val t1 = "🗺 대한민국 탐조 지도"
-        Type.text(c, t1, dp(scene, 14f), dp(scene, 30f), Role.TITLE, Type.CREAM)
+        c.drawText(t1, dp(scene, 14f), dp(scene, 30f), textP)
+        textP.textSize = dp(scene, 10.5f)
         val t2 = "방문 ${s.visited.size}/${Regions.ALL.size} · 두 손가락으로 확대 · 끌어서 이동 · 지역을 누르면 정보"
-        Type.text(c, t2, dp(scene, 170f) + Type.width(Role.TITLE, t1, Type.CREAM), dp(scene, 29f), Role.CAPTION, Type.CREAM)
+        c.drawText(t2, dp(scene, 170f), dp(scene, 29f), textP)
 
         drawButtons(c)
         drawLegend(c)
@@ -1329,20 +1412,22 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
             c.drawCircle(x, y, r, strokeP)
 
             if (isHome) {
-                Type.text(c, "🏠", x, y - r - dp(scene, 3f), Role.LABEL, Type.INK, 0.5f)
+                textP.textSize = dp(scene, 11f)
+                textP.color = 0xFF4A3728.toInt()
+                c.drawText("🏠", x - dp(scene, 6f), y - r - dp(scene, 3f), textP)
             }
 
             if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
                 val nm = if (visited) reg.name else "? ${reg.name}"
-                val role = if (isCurrent) Role.CAPTION else Role.MICRO
-                val col = if (isCurrent) Type.BERRY else if (visited) Type.INK else Color.argb(170, 58, 42, 36)
-                val tw = Type.width(role, nm, col)
+                textP.textSize = dp(scene, if (isCurrent) 11.5f else 10.5f)
+                val tw = textP.measureText(nm)
                 fillP.color = Color.argb(170, 255, 252, 240)
                 c.drawRoundRect(
-                    RectF(x - tw / 2 - dp(scene, 4f), y + r + dp(scene, 1f), x + tw / 2 + dp(scene, 4f), y + r + dp(scene, 14f)),
+                    RectF(x - tw / 2 - dp(scene, 3f), y + r + dp(scene, 1f), x + tw / 2 + dp(scene, 3f), y + r + dp(scene, 14f)),
                     dp(scene, 3f), dp(scene, 3f), fillP
                 )
-                Type.text(c, nm, x, y + r + dp(scene, 11f), role, col, 0.5f)
+                textP.color = if (isCurrent) 0xFFD1372C.toInt() else if (visited) 0xFF3A2A24.toInt() else Color.argb(170, 58, 42, 36)
+                c.drawText(nm, x - tw / 2, y + r + dp(scene, 11f), textP)
             }
         }
     }
@@ -1371,11 +1456,12 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val lw = dp(scene, 92f)
         val lh = dp(scene, 14f) * RegionKind.values().size + dp(scene, 10f)
         c.drawRoundRect(RectF(x0 - dp(scene, 6f), y - dp(scene, 12f), x0 + lw, y - dp(scene, 12f) + lh), dp(scene, 6f), dp(scene, 6f), fillP)
-        val leg = Type.paint(Role.MICRO, Type.INK)
         for (k in RegionKind.values()) {
             fillP.color = k.color
             c.drawCircle(x0 + dp(scene, 2f), y - dp(scene, 3f), dp(scene, 4f), fillP)
-            c.drawText(k.label, x0 + dp(scene, 10f), y, leg)
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(k.label, x0 + dp(scene, 10f), y, textP)
             y += dp(scene, 14f)
         }
     }
@@ -1397,42 +1483,51 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         c.drawRoundRect(r, dp(scene, 10f), dp(scene, 10f), strokeP)
 
         val x = r.left + dp(scene, 12f)
-        var y = r.top + dp(scene, 22f)
+        var y = r.top + dp(scene, 20f)
+        textP.textSize = dp(scene, 14f)
+        textP.color = 0xFF4A3728.toInt()
         val title = "${reg.emoji} ${reg.name}"
-        c.drawText(title, x, y, Type.paint(Role.HEADING, Type.INK))
-        val tw = Type.width(Role.HEADING, title, Type.INK)
-        c.drawText(reg.english, x + tw + dp(scene, 6f), y, Type.paint(Role.MICRO, Type.SOFT))
+        c.drawText(title, x, y, textP)
+        val tw = textP.measureText(title)
+        textP.textSize = dp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText(reg.english, x + tw + dp(scene, 6f), y, textP)
         val badge = when {
             reg.id == s.region -> "현재 위치"
             reg.id == s.homeRegion -> "우리 집"
             reg.id in s.visited -> "방문함"
             else -> "미방문"
         }
-        Type.text(c, badge, r.right - dp(scene, 12f), y, Role.CAPTION,
-            if (reg.id == s.region) Type.BERRY else Type.BROWN, 1f)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = if (reg.id == s.region) 0xFFD1372C.toInt() else 0xFF6B4F35.toInt()
+        c.drawText(badge, r.right - dp(scene, 12f) - textP.measureText(badge), y, textP)
 
-        y += dp(scene, 16f)
-        c.drawText("${reg.kind.label} · ${reg.habitatLabels}", x, y, Type.paint(Role.CAPTION, Type.LEAF))
+        y += dp(scene, 15f)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF6FAE6F.toInt()
+        c.drawText("${reg.kind.label} · ${reg.habitatLabels}", x, y, textP)
 
         y += dp(scene, 14f)
-        c.drawText("🐦 " + Regions.signatureBirds(reg).joinToString(", ") { it.name }, x, y, Type.paint(Role.CAPTION, Type.BROWN))
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText("🐦 " + Regions.signatureBirds(reg).joinToString(", ") { it.name }, x, y, textP)
 
         y += dp(scene, 14f)
-        c.drawText("📅 추천 시기: ${reg.season}", x, y, Type.paint(Role.CAPTION, Type.SKY))
+        textP.color = 0xFF3F6FB0.toInt()
+        c.drawText("📅 추천 시기: ${reg.season}", x, y, textP)
 
-        // 설명은 보통 두께로 (가독성)
-        val tip = Type.paint(Role.CAPTION, Type.SOFT)
         y += dp(scene, 14f)
-        for (ln in g.hud.wrapText(if (reg.tip.isNotEmpty()) reg.tip else reg.desc, tip, r.width() - dp(scene, 24f)).take(2)) {
-            c.drawText(ln, x, y, tip)
+        textP.color = 0xFF8A7360.toInt()
+        for (ln in g.hud.wrapText(if (reg.tip.isNotEmpty()) reg.tip else reg.desc, textP, r.width() - dp(scene, 24f)).take(2)) {
+            c.drawText(ln, x, y, textP)
             y += dp(scene, 12f)
         }
 
         y += dp(scene, 2f)
         val exits = Regions.exits(reg.id).values.mapNotNull { Regions.byId[it]?.name }
+        textP.color = 0xFF8A7360.toInt()
         val ex = "🚲 연결: " + if (exits.isEmpty()) "-" else exits.joinToString(", ")
-        for (ln in g.hud.wrapText(ex, tip, r.width() - dp(scene, 24f)).take(2)) {
-            c.drawText(ln, x, y, tip)
+        for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(2)) {
+            c.drawText(ln, x, y, textP)
             y += dp(scene, 12f)
         }
     }

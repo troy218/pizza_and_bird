@@ -16,9 +16,6 @@ const val WORLD_SCALE = 2f
  */
 class Game(val context: Context) {
 
-    // 글꼴(roles·픽셀 폰트·dp 배율)을 먼저 준비한다 — 아래에서 그리는 모든 글자가 여기 의존한다.
-    init { Type.init(context) }
-
     val virtW = 960
     val virtH = 540
 

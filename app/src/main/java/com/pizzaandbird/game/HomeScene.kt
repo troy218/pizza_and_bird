@@ -19,7 +19,8 @@ class HomeScene(game: Game) : Scene(game) {
     private var camX = 0f
     private var camY = 0f
 
-    private val tinyPaint = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply {
+    private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        isFakeBoldText = true
         color = 0xFF4A3728.toInt()
         textSize = 14f
     }
@@ -413,11 +414,12 @@ class HomeScene(game: Game) : Scene(game) {
 
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
-        // 조작 힌트 — 월드 위라 얇은 그림자를 넣어 가독성을 확보
+        // 조작 힌트
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+        tp.textSize = 11f * game.density
+        tp.color = 0x99F8EFDC.toInt()
         val hint = "A: 상호작용 · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
         val w = game.screenW.toFloat()
-        val y = game.screenH - game.density * 10f
-        Type.text(c, hint, w / 2f, y + game.density, Role.CAPTION, 0x66000000, 0.5f)
-        Type.text(c, hint, w / 2f, y, Role.CAPTION, 0xCCF8EFDC.toInt(), 0.5f)
+        c.drawText(hint, w / 2f - tp.measureText(hint) / 2, game.screenH - game.density * 10f, tp)
     }
 }
