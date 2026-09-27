@@ -839,7 +839,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             textP.color = if (total > 0) 0xFF4A3728.toInt() else 0xFF8A7360.toInt()
             val nameTxt = "${p.emoji} ${p.name}"
             textP.textSize = dp(scene, 9.5f)
-            val badgeTxt = "×$total"
+            val badgeTxt = Ingredients.toppingOfPizza(p.id)?.let { "✈ ${it.regionName} 특산" } ?: "×$total"   // [P07]
             val badgeW = textP.measureText(badgeTxt) + dp(scene, 12f)
             drawFitText(c, scene, nameTxt, tx, top0 + dp(scene, 16f), textW - badgeW - dp(scene, 6f), 12f)
             val nameW = textP.measureText(nameTxt)
@@ -1996,7 +1996,14 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
 //   오븐(🍕): 일반 피자 — 느긋하게 익는다. 굽기 쉽고 든든하다.
 // ---------------------------------------------------------------------------
 
-class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : Overlay(scene) {
+// [P07] 도우·특산 재료 확장 — 생성자 파라미터는 뒤에 기본값으로만 추가했다 (기존 호출 호환).
+//   dough: DoughOverlay가 넘기는 도우(속도·판정·굽기 보너스) / topping: 함께 넘기는 특산 재료.
+class BakeOverlay(
+    scene: Scene,
+    private val kind: PizzaKind = PizzaKind.OVEN,
+    private val dough: Dough = Dough.CLASSIC,
+    private val topping: Ingredients.ToppingDef? = null
+) : Overlay(scene) {
 
     private var step = 0                 // 0 메뉴 선택, 1 타이밍, 2 결과
     private var pizzaId = Pizzas.representative(kind).id
@@ -2007,13 +2014,34 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
     private val menuRects = ArrayList<Pair<RectF, Int>>()
     private var cancelRect = RectF()
 
-    private val menu: List<PizzaDef> = Pizzas.ofKind(kind)
-    private val def: PizzaDef get() = Pizzas.of(pizzaId)
+    // [P07] ② 피자 선택 확장 — 특산 탭(현재 지역 재료) + 선택한 특산 재료 + 도우 보너스 문구
+    private var specialTab = false
+    private var activeTopping: Ingredients.ToppingDef? = topping
+    private var doughBonusTxt: String? = null
+    private val specialRects = ArrayList<Pair<RectF, Int>>()   // 0 = 특산 피자 카드, 1 = 재료 사들이기
+    private val kindTabRects = ArrayList<Pair<RectF, Boolean>>()
+
+    // [P07] 일반 메뉴는 기본 12종 — 특산 피자(id 12~19)는 아래 "✈ 특산" 탭에서만 고른다
+    private val menu: List<PizzaDef> = Pizzas.ofKind(kind).filter { !Ingredients.isSpecial(it.id) }
+
+    /** [P07] 지금 굽는 피자 (특산 탭에서 고르면 특산 피자) */
+    private val def: PizzaDef get() = if (activeTopping != null) activeTopping!!.pizza else Pizzas.of(pizzaId)
+
+    /** [P07] 이 조리기구에서 현재 지역 특산 재료를 살 수 있는지 (특산은 전부 화덕피자) */
+    private val localTopping: Ingredients.ToppingDef?
+        get() = if (kind == PizzaKind.OVEN) Ingredients.toppingsFor(scene.game.state.region).firstOrNull() else null
+
+    /** [P07] 도우가 커서 속도에 곱해진다 */
+    private val speedF: Float get() = def.cursorSpeed * dough.speedF
+
+    /** [P07] 도우가 판정 폭(걸작/맛있는)을 좁히거나 넓힌다 */
+    private val perfectHalf: Float get() = def.perfectW / 2f * dough.zoneScale
+    private val goodW: Float get() = kind.goodW * dough.zoneScale
 
     private fun cursorPos(): Float = 0.5f + 0.5f * sin(t * 2.6f)
 
     override fun update(dt: Float) {
-        if (step == 1 && !stopped) t += dt * def.cursorSpeed
+        if (step == 1 && !stopped) t += dt * speedF
     }
 
     override fun handleInput(input: Input) {
@@ -2022,15 +2050,26 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
             0 -> {
                 if (input.justB || input.justBack) { finished = true; return }
                 if (tap == null) return
-                for ((r, id) in menuRects) {
+                // [P07] 하단 서브탭: 🍕 메뉴 / ✈ 특산
+                for ((r, special) in kindTabRects) {
                     if (r.contains(tap.x, tap.y)) {
-                        pizzaId = id
-                        step = 1
-                        t = 0.6f
-                        scene.game.sfx(Audio.Sfx.TAP, 0.6f)
-                        // 🔥 화덕은 장작불 소리 크게, 가정용 오븐은 은은하게
-                        scene.game.audio.playAmb(R.raw.amb_fire, if (kind == PizzaKind.OVEN) 0.5f else 0.25f)
+                        if (specialTab != special) { specialTab = special; scene.game.sfx(Audio.Sfx.TAP, 0.6f) }
                         return
+                    }
+                }
+                // [P07] 특산 탭 — 피자 굽기 / 재료 사들이기
+                if (specialTab) {
+                    val tp = localTopping
+                    if (tp != null) {
+                        for ((r, which) in specialRects) {
+                            if (!r.contains(tap.x, tap.y)) continue
+                            if (which == 1) buyTopping(tp) else startBake(tp)
+                            return
+                        }
+                    }
+                } else {
+                    for ((r, id) in menuRects) {
+                        if (r.contains(tap.x, tap.y)) { startBake(null, id); return }
                     }
                 }
                 if (cancelRect.contains(tap.x, tap.y)) {
@@ -2047,30 +2086,71 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
         }
     }
 
+    /** [P07] 굽기 시작 — 특산 재료는 재고를 먼저 소모하고, 없으면 막는다 */
+    private fun startBake(tp: Ingredients.ToppingDef?, id: Int = -1) {
+        val g = scene.game
+        if (tp != null) {
+            if (!Ingredients.consume(g.context, tp.id)) {
+                g.toast("${tp.icon} ${tp.label} 재료가 없어요! 아래 '재료 사들이기'로 먼저 사 오세요 (${won(tp.price)})")
+                g.sfx(Audio.Sfx.FAIL, 0.55f)
+                return
+            }
+            activeTopping = tp
+            pizzaId = tp.pizzaId
+        } else {
+            activeTopping = null
+            pizzaId = id
+        }
+        step = 1
+        t = 0.6f
+        g.sfx(Audio.Sfx.TAP, 0.6f)
+        // 🔥 화덕은 장작불 소리 크게, 가정용 오븐은 은은하게
+        g.audio.playAmb(R.raw.amb_fire, if (kind == PizzaKind.OVEN) 0.5f else 0.25f)
+    }
+
+    /** [P07] 특산 재료 구매 — 골드는 여기에서 차감 (Ingredients.buy는 재고만) */
+    private fun buyTopping(tp: Ingredients.ToppingDef) {
+        val g = scene.game
+        val s = g.state
+        if (s.money < tp.price) {
+            g.toast("돈이 부족해요… ${tp.icon} ${tp.label}은(는) ${won(tp.price)}")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
+            return
+        }
+        s.money -= tp.price
+        Ingredients.buy(g.context, tp.id)
+        SaveManager.save(g.context, s)
+        g.toast("${tp.icon} ${tp.label} 재료 팬트리에 보관! (남은 돈 ${won(s.money)})")
+        g.sfx(Audio.Sfx.BUY)
+    }
+
     private fun stopBake() {
         stopped = true
         step = 2
+        val g = scene.game
         val pos = cursorPos()
-        val half = def.perfectW / 2f
-        val goodW = kind.goodW
+        val half = perfectHalf
+        val gw = goodW
         resultQ = when {
-            pos < 0.5f - half - goodW || pos > 0.5f + half + goodW -> 0
+            pos < 0.5f - half - gw || pos > 0.5f + half + gw -> 0
             abs(pos - 0.5f) <= half -> 2
             else -> 1
         }
-        lostPizza = !scene.game.state.addPizza(pizzaId, resultQ)
+        lostPizza = !g.state.addPizza(pizzaId, resultQ)
+        // [P07] 도우 보너스는 굽자마자 바로 (피자에 붙어 다니지 않는다)
+        doughBonusTxt = Ingredients.applyDoughBonus(g.state, dough)
         // 화덕의 충격을 몸으로 — 걸작일수록 크게 울린다
         when (resultQ) {
-            2 -> { scene.game.shake(0.3f); scene.game.punchZoom(0.05f) }
-            1 -> scene.game.shake(0.16f)
-            else -> scene.game.kick(0f, 1f, 1.4f)
+            2 -> { g.shake(0.3f); g.punchZoom(0.05f) }
+            1 -> g.shake(0.16f)
+            else -> g.kick(0f, 1f, 1.4f)
         }
-        SaveManager.save(scene.game.context, scene.game.state)
-        scene.game.audio.stopAmb()   // 불 소리 끄기
+        SaveManager.save(g.context, g.state)
+        g.audio.stopAmb()   // 불 소리 끄기
         when (resultQ) {
-            2 -> scene.game.sfx(Audio.Sfx.SPARKLE)          // 걸작!
-            1 -> scene.game.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
-            else -> scene.game.sfx(Audio.Sfx.FAIL, 0.6f)    // 살짝 탐
+            2 -> g.sfx(Audio.Sfx.SPARKLE)          // 걸작!
+            1 -> g.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
+            else -> g.sfx(Audio.Sfx.FAIL, 0.6f)    // 살짝 탐
         }
     }
 
@@ -2080,7 +2160,8 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
         val w = g.screenW.toFloat()
         val h = g.screenH.toFloat()
         val cw = minOf(w * 0.84f, dp(scene, 500f))
-        val chh = if (step == 0) minOf(h - dp(scene, 16f), dp(scene, 290f)) else dp(scene, 240f)
+        // [P07] ①도우 → ②선택 3단 구성이라 선택 화면은 서브탭/팬트리 줄 만큼 더 높다
+        val chh = if (step == 0) minOf(h - dp(scene, 16f), dp(scene, 306f)) else dp(scene, 240f)
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
@@ -2098,40 +2179,50 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                 val descW = minOf(textP.measureText(kind.desc), r.width() - dp(scene, 130f))
                 drawFitText(c, scene, kind.desc, r.centerX() - descW / 2, r.top + dp(scene, 38f), r.width() - dp(scene, 130f), 9.5f)
 
-                // 3열 × 2행 메뉴 카드
+                // 3열 × 2행 메뉴 카드 ([P07] ✈ 특산 탭이면 현재 지역 특산 1종 + 팬트리)
                 menuRects.clear()
+                specialRects.clear()
+                val tp = localTopping
+                val spec = specialTab && tp != null
+
                 val cols = 3
                 val gapX = dp(scene, 10f)
                 val gapY = dp(scene, 8f)
                 val top = r.top + dp(scene, 48f)
-                val bottomArea = r.bottom - dp(scene, 50f)
-                val rows = (menu.size + cols - 1) / cols
+                val bottomArea = r.bottom - dp(scene, 62f)
+                val list = if (spec) listOf(tp!!.pizza) else menu
+                val rows = (list.size + cols - 1) / cols
                 val cardW = (r.width() - dp(scene, 14f) * 2 - gapX * (cols - 1)) / cols
-                val cardH = ((bottomArea - top) - gapY * (rows - 1)) / rows
-                for ((i, p) in menu.withIndex()) {
+                val cardH = (((bottomArea - top) - gapY * (rows - 1)) / rows).coerceAtMost(dp(scene, 96f))
+                // [P07] 행이 적으면(특산 1종) 세로 가운데로 — 윗공간만 비어 보이는 것 방지
+                val gridH = (cardH * rows + gapY * (rows - 1)).coerceAtMost(bottomArea - top)
+                val gridTop = top + ((bottomArea - top) - gridH) / 2f
+                for ((i, p) in list.withIndex()) {
                     val col = i % cols
                     val row = i / cols
                     val cr = RectF(
-                        r.left + dp(scene, 14f) + col * (cardW + gapX), top + row * (cardH + gapY),
-                        r.left + dp(scene, 14f) + col * (cardW + gapX) + cardW, top + row * (cardH + gapY) + cardH
+                        r.left + dp(scene, 14f) + col * (cardW + gapX), gridTop + row * (cardH + gapY),
+                        r.left + dp(scene, 14f) + col * (cardW + gapX) + cardW, gridTop + row * (cardH + gapY) + cardH
                     )
-                    UiKit.card(c, g, cr, 10f, false, kind.tint, 2f)
+                    UiKit.card(c, g, cr, 10f, spec, kind.tint, 2f)
 
                     // 아이콘 (왼쪽) + 이름/효과/난이도 (오른쪽)
                     val isz = minOf(dp(scene, 36f), cardH - dp(scene, 14f))
                     drawPizzaArt(c, scene, p.id, cr.left + dp(scene, 8f) + isz / 2f, cr.centerY(), isz)
                     val tx = cr.left + dp(scene, 8f) + isz + dp(scene, 6f)
                     val textW = cr.right - dp(scene, 6f) - tx
-                    // 보유 수 배지 (오른쪽 위)
+                    // 보유 수 배지 (오른쪽 위) — [P07] 특산은 "✈ 특산" 뱃지
                     val have = g.state.pizzaCountOf(p.id)
                     var badgeW = 0f
-                    if (have > 0) {
-                        val badge = "×$have"
-                        textP.textSize = dp(scene, 9f)
-                        badgeW = textP.measureText(badge) + dp(scene, 10f)
-                        UiKit.badge(c, g, RectF(cr.right - dp(scene, 6f) - badgeW, cr.top + dp(scene, 5f), cr.right - dp(scene, 6f), cr.top + dp(scene, 19f)),
-                            badge, 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 9f)
-                        badgeW += dp(scene, 4f)
+                    run {
+                        val badge = if (spec) "✈ 특산" else if (have > 0) "×$have" else null
+                        if (badge != null) {
+                            textP.textSize = dp(scene, 9f)
+                            badgeW = textP.measureText(badge) + dp(scene, 10f)
+                            UiKit.badge(c, g, RectF(cr.right - dp(scene, 6f) - badgeW, cr.top + dp(scene, 5f), cr.right - dp(scene, 6f), cr.top + dp(scene, 19f)),
+                                badge, if (spec) 0xFF57B894.toInt() else 0xFFF2B63C.toInt(), if (spec) 0xFFFFFBF0.toInt() else 0xFF4A2E12.toInt(), 9f)
+                            badgeW += dp(scene, 4f)
+                        }
                     }
                     textP.color = 0xFF4A3728.toInt()
                     drawFitText(c, scene, "${p.emoji} ${p.name}", tx, cr.top + dp(scene, 17f), textW - badgeW, 12f)
@@ -2144,34 +2235,88 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                     c.drawText(dLabel, tx, cr.top + dp(scene, 44f), textP)
                     textP.color = 0xFFE8830C.toInt()
                     c.drawText(p.difficultyDots(), tx + textP.measureText(dLabel), cr.top + dp(scene, 44f), textP)
-                    menuRects.add(cr to p.id)
+                    if (spec) specialRects.add(cr to 0) else menuRects.add(cr to p.id)
                 }
 
+                // [P07] 특산 탭 — 카드 옆에 팬트리(재료 사들이기) 패널
+                if (spec) {
+                    val pr = RectF(r.left + dp(scene, 14f) + cardW + gapX, gridTop, r.right - dp(scene, 14f), gridTop + cardH)
+                    UiKit.stitchCard(c, g, pr, UiKit.CREAM_HI, UiKit.THREAD, 1.6f)
+                    val stock = Ingredients.stock(g.context, tp.id)
+                    textP.textSize = dp(scene, 12f)
+                    textP.color = 0xFF4A3728.toInt()
+                    c.drawText("🧺 ${Regions.byId[tp.regionId]?.name ?: tp.regionId} 팬트리", pr.left + dp(scene, 12f), pr.top + dp(scene, 20f), textP)
+                    textP.textSize = dp(scene, 9.5f)
+                    textP.color = 0xFF8A7360.toInt()
+                    val ing = "${tp.icon} ${tp.label} 재료 ×$stock · 여행지에서 사 두면 집 화덕에서도 구워요"
+                    drawFitText(c, scene, ing, pr.left + dp(scene, 12f), pr.top + dp(scene, 36f), pr.width() - dp(scene, 24f), 9.5f)
+                    val canBuy = g.state.money >= tp.price
+                    val br = RectF(pr.left + dp(scene, 12f), pr.bottom - dp(scene, 34f), pr.left + dp(scene, 150f), pr.bottom - dp(scene, 10f))
+                    drawButton(c, scene, br, "재료 사들이기 ${won(tp.price)}",
+                        if (canBuy) 0xFFF2B63C.toInt() else Color.argb(120, 200, 190, 175),
+                        if (canBuy) 0xFF4A2E12.toInt() else Color.argb(150, 74, 55, 40), 10f)
+                    specialRects.add(br to 1)
+                    textP.textSize = dp(scene, 9f)
+                    textP.color = if (stock > 0) 0xFF4E8A4E.toInt() else 0xFF8A7360.toInt()
+                    val useTxt = if (stock > 0) "왼쪽 카드를 탭하면 재료 1개 사용!" else "재료가 있어야 구울 수 있어요"
+                    c.drawText(useTxt, br.right + dp(scene, 10f), pr.bottom - dp(scene, 18f), textP)
+                    textP.textSize = dp(scene, 9f)
+                    textP.color = 0xFF8A7360.toInt()
+                    val moneyTxt = "💰 ${won(g.state.money)}"
+                    c.drawText(moneyTxt, pr.right - dp(scene, 12f) - textP.measureText(moneyTxt), pr.top + dp(scene, 20f), textP)
+                }
+
+                // [P07] 하단 — 서브탭(🍕 메뉴 / ✈ 특산) + 그만두기 + 도우·팬트리 정보
+                kindTabRects.clear()
+                if (tp != null) {
+                    val labels = listOf(false to "${kind.emoji} 메뉴", true to "✈ 특산")
+                    var tbx = r.left + dp(scene, 14f)
+                    for ((special, lbl) in labels) {
+                        textP.textSize = dp(scene, 10.5f)
+                        val tw = textP.measureText(lbl) + dp(scene, 18f)
+                        val tr = RectF(tbx, r.bottom - dp(scene, 38f), tbx + tw, r.bottom - dp(scene, 12f))
+                        if (specialTab == special) UiKit.cuteButton(c, g, tr, lbl, kind.tint, 0xFFFFFBF0.toInt(), 10.5f, depthDp = 2f)
+                        else UiKit.cuteButton(c, g, tr, lbl, UiKit.PASTEL_SAND, UiKit.MUTED, 10.5f, depthDp = 2f)
+                        kindTabRects.add(tr to special)
+                        tbx += tw + dp(scene, 6f)
+                    }
+                }
                 cancelRect = RectF(r.centerX() - dp(scene, 60f), r.bottom - dp(scene, 40f), r.centerX() + dp(scene, 60f), r.bottom - dp(scene, 12f))
                 drawButton(c, scene, cancelRect, "그만두기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12f)
-                textP.textSize = dp(scene, 9.5f)
+                textP.textSize = dp(scene, 9f)
                 textP.color = 0xFF8A7360.toInt()
-                val bag = "가방 ${g.state.pizzaCount}/${g.state.pizzaCapEff()}"
-                c.drawText(bag, r.right - dp(scene, 14f) - textP.measureText(bag), r.bottom - dp(scene, 22f), textP)
+                val bag = "가방 ${g.state.pizzaCount}/${g.state.pizzaCapEff()} · ${dough.icon} ${dough.label} · 팬트리 ${Ingredients.stockTotal(g.context)}개"
+                val bagW = textP.measureText(bag)
+                val bagX = r.right - dp(scene, 14f) - bagW
+                drawFitText(c, scene, bag, bagX, r.bottom - dp(scene, 46f), bagW, 9f)
+                textP.textSize = dp(scene, 8.5f)
+                textP.color = kind.tint
+                val dInfo = "도우 ×${"%.2f".format(dough.gaugeSpeed)} · ${dough.bonusLabel}"
+                c.drawText(dInfo, r.right - dp(scene, 14f) - textP.measureText(dInfo), r.bottom - dp(scene, 22f), textP)
             }
             1 -> {
                 val p = def
                 textP.textSize = dp(scene, 16f)
                 textP.color = 0xFF4A3728.toInt()
+                // [P07] 특산 피자 이름에는 지역명이 이미 들어 있다 ("춘천 닭갈비 화덕피자")
+                val at = activeTopping
                 val title = "${p.emoji} ${p.fullName} 굽기"
                 c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 26f), textP)
                 textP.textSize = dp(scene, 9.5f)
                 textP.color = kind.tint
-                val sub = if (kind == PizzaKind.OVEN) "🔥 장작불 400도 — 순식간에 익어요! 커서가 빨라요" else "🍕 가정용 오븐 — 느긋하게 익어요"
-                c.drawText(sub, r.centerX() - textP.measureText(sub) / 2, r.top + dp(scene, 41f), textP)
+                // [P07] 도우 정보 — 고른 도우가 속도/판정/보너스를 바꾼다
+                val sub = "${dough.icon} ${dough.label} · 속도 ×${"%.2f".format(dough.gaugeSpeed)} · ${dough.bonusLabel}" +
+                    (if (at != null) " · ${at.icon} 재료" else "")
+                drawFitText(c, scene, sub, r.centerX() - minOf(textP.measureText(sub), r.width() - dp(scene, 24f)) / 2,
+                    r.top + dp(scene, 41f), r.width() - dp(scene, 24f), 9.5f)
 
                 // 게이지 — 글로스 + 걸작존 글로우 + 프리미엄 커서
                 val gx = r.left + dp(scene, 26f)
                 val gy = r.centerY() - dp(scene, 2f)
                 val gw = r.width() - dp(scene, 52f)
                 val gh = dp(scene, 28f)
-                val half = p.perfectW / 2f
-                val goodW = kind.goodW
+                val half = perfectHalf        // [P07] 도우 보정 포함
+                val goodW = this.goodW        // [P07] 도우 보정 포함
                 // 바 섀도우
                 fillP.color = Color.argb(60, 50, 32, 14)
                 c.drawRoundRect(RectF(gx, gy + dp(scene, 2.5f), gx + gw, gy + gh + dp(scene, 2.5f)), dp(scene, 8f), dp(scene, 8f), fillP)
@@ -2299,6 +2444,19 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                     }
                 }
 
+                // [P07] 도우/특산 재료 정보 — 도우 보너스는 구운 순간 바로 적용된다
+                run {
+                    val at = activeTopping
+                    val extra = buildString {
+                        append("${dough.icon} ${dough.label}")
+                        if (doughBonusTxt != null) append(" · $doughBonusTxt")
+                        if (at != null) append(" · ${at.icon} ${at.regionName} 특산 재료")
+                    }
+                    textP.textSize = dp(scene, 10f)
+                    textP.color = kind.tint
+                    drawFitText(c, scene, extra, r.centerX() - minOf(textP.measureText(extra), r.width() - dp(scene, 24f)) / 2,
+                        r.bottom - dp(scene, 48f), r.width() - dp(scene, 24f), 10f)
+                }
                 val info = if (lostPizza) "피자 가방이 가득해서 못 챙겼어요… (최대 ${g.state.pizzaCapEff()}개)"
                 else "먹으면 배고픔 +${q.hunger + p.hungerBonus} · 행운 +${q.luck + p.luckBonus}"
                 textP.textSize = dp(scene, 12f)
