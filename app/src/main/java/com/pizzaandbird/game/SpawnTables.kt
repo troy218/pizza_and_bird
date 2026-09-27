@@ -8,7 +8,7 @@ import kotlin.math.ln
  * 월드씬 스폰이 종 하나의 최종 가중치를 얻는 단일 진입점([SpawnTables.weight])과
  * "이 계절 이 지역의 대표 새"를 뽑는 [SpawnTables.highlights]를 제공한다.
  *
- * - 큐레이션 39종은 §5(계획서)의 계절 배율 초안을 종별 표로 오버라이드한다.
+ * - 큐레이션 30종은 §5(계획서)의 계절 배율 초안을 종별 표로 오버라이드한다.
  *   숫자는 README 탐조지 표의 "추천 시기"를 그대로 옮긴 것이다.
  * - 나머지 공식종은 과(family)·이름 규칙 엔진이 순서대로 적용해 배율을 합성한다.
  * - 희귀(3★) 이상은 0.25~4.0, 그 외는 0.05~3.0으로 클램프해
@@ -34,7 +34,7 @@ object SpawnTables {
     private fun seasonal(sp: Double, su: Double, au: Double, wi: Double) = Seasonal(sp, su, au, wi)
 
     // -----------------------------------------------------------------------
-    // 1) 큐레이션 39종 오버라이드 표 (계획서 §5 초안)
+    // 1) 큐레이션 30종 오버라이드 표 (계획서 §5 초안)
     // -----------------------------------------------------------------------
 
     private val OVERRIDE: Map<String, Seasonal> = mapOf(
@@ -55,7 +55,7 @@ object SpawnTables {
         "spoonbill" to seasonal(1.5, 1.2, 1.0, 0.3),
         // 겨울 오리 테마
         "spotduck" to seasonal(0.9, 0.5, 1.2, 1.5),        // 청둥오리
-        "tuftedduck" to seasonal(0.9, 0.5, 1.2, 1.5),      // 쇠오리
+        "tufteduck" to seasonal(0.9, 0.5, 1.2, 1.5),       // 쇠오리
         "mandarin" to seasonal(0.9, 0.5, 1.2, 1.5),        // 원앙
         // 왕피천 가을 연어 — 물수리
         "osprey" to seasonal(0.6, 0.4, 1.6, 1.0),
@@ -90,8 +90,8 @@ object SpawnTables {
     /** 나그네새(도요·물떼새) — 봄·가을 ×1.6 */
     private val SHORE_FAMILIES = setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과")
 
-    /** 오리·고니류 — 겨울 ×1.8, 여름 ×0.25 */
-    private val WATERFOWL_FAMILIES = setOf("오리과", "기러기과", "백조과")
+    /** 오리·기러기·고니류 — 겨울 ×1.8, 여름 ×0.25 (셋 다 오리과 — 별도 과명은 없다) */
+    private val WATERFOWL_FAMILIES = setOf("오리과")
 
     /**
      * 여름조 — 여름 ×1.6, 겨울 ×0.1 (제비·꾀꼬이류가 원형).
@@ -100,7 +100,7 @@ object SpawnTables {
     private val SUMMER_MIGRANT_FAMILIES = setOf(
         "제비과", "꾀꼬리과", "두견이과", "파랑새과", "물총새과", "팔색조과",
         "솔딱새과", "휘파람새과", "개개비과", "때까치과", "쏙독새과",
-        "칼새과", "긴꼬리딱새과", "뻐꾸기과"
+        "칼새과", "긴꼬리딱새과"
     )
 
     /** 규칙 엔진 — 표에 없는 공식종의 계절 배율 (일치하는 규칙이 없으면 사계 1.0: 텃새·올빼미류) */
@@ -132,7 +132,7 @@ object SpawnTables {
 
     private val RAPTOR_NAMES = setOf(
         "황조롱이", "말똥가리", "참매", "수리부엉이", "흰꼬리수리",
-        "독수리", "참수리", "하늘수리", "조롱이", "쇠물닭"
+        "독수리", "참수리", "조롱이", "물수리"
     )
 
     private fun isRaptor(def: BirdDef): Boolean = def.name in RAPTOR_NAMES
@@ -140,6 +140,7 @@ object SpawnTables {
     private fun isWaterbird(def: BirdDef): Boolean =
         def.familyName in SHORE_FAMILIES || def.familyName in WATERFOWL_FAMILIES ||
             def.familyName == "두루미과" ||
+            def.familyName == "뜸부기과" || def.familyName == "논병아리과" ||
             def.name.contains("두루미") || def.name.contains("해오라기") ||
             def.name.contains("백로") || def.name.contains("가마우지") ||
             def.name.contains("갈매기") || def.name.contains("황새") ||

@@ -595,7 +595,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             Triple("pin", "위치", "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}"),
             Triple("house", "주택", "${s.ownedHomes.size}채 · 인테리어 ${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}"),
             Triple("book", "도감", "${s.birdCounts.size}/${Birds.ALL.size}종"),
-            Triple("search", "의뢰", s.questBird?.let { Birds.byId[it]?.name } ?: "없음"),
+            Triple("search", "의뢰", if (s.activeQuests.isEmpty()) "없음" else "${s.activeQuests.size}/3 · ${s.activeQuests.first().title}"),
             Triple("calendar", "플레이", timeStr),
             Triple("bike", "자전거", "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else "")),
             Triple("pizza", "피자", "${s.pizzaCount}개 · 화덕 ${s.pizzaCountOfKind(PizzaKind.OVEN)} · 일반 ${s.pizzaCountOfKind(PizzaKind.REGULAR)} · 장식 ${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"),
@@ -694,8 +694,13 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 70f), textP)
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
-        val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
-            ?: "서브 사진 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락"
+        val side = if (s.activeQuests.isEmpty()) {
+            "탐조 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락 (최대 3개)"
+        } else {
+            val first = s.activeQuests.first()
+            val extra = if (s.activeQuests.size > 1) " 외 ${s.activeQuests.size - 1}개" else ""
+            "탐조 의뢰(${s.activeQuests.size}/3): ${first.title}$extra"
+        }
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
         y = mainR.bottom + dp(scene, 7f)
 
@@ -779,18 +784,33 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 btnRects.add(Triple(nextR, "quest_next") { questPage++ })
             }
         } else {
-            // 탐조 의뢰 및 일일 미션 리스트
+            // 탐조 의뢰 및 일일 미션 리스트 — 진행 중인 의뢰는 전부 표시한다 (숨는 의뢰 없음)
             QuestManager.ensureDailyQuests(s)
             val rowsBottom = contentBottom() - dp(scene, 5f)
             val availableH = rowsBottom - y
-            val cardH = (availableH - dp(scene, 20f)) / 4f
+            val headerH = dp(scene, 14f)
+            val gapH = dp(scene, 4f)
+            val minCard = dp(scene, 24f)
+            val subRows = if (s.activeQuests.isEmpty()) 1 else s.activeQuests.size
+            // 화면이 낮으면 일일 미션부터 줄이고 "외 N개"로 알린다 (서브 의뢰는 항상 전부)
+            var dailyShown = s.dailyQuests.size
+            var cardH = minCard
+            while (true) {
+                val hiddenLine = if (dailyShown < s.dailyQuests.size) dp(scene, 14f) else 0f
+                val rows = subRows + dailyShown
+                cardH = (availableH - headerH * 2f - hiddenLine - gapH * (rows + 1)) / rows
+                if (cardH >= minCard || dailyShown <= 1) break
+                dailyShown--
+            }
+            cardH = cardH.coerceAtLeast(dp(scene, 20f))
+            val hiddenDaily = s.dailyQuests.size - dailyShown
 
-            // 서브 의뢰 (최대 2개 표시)
+            // 탐조 의뢰 (전부 표시)
             textP.textSize = textDp(scene, 10.5f)
             textP.color = 0xFF5D4938.toInt()
-            val subHeader = "진행 중인 서브 의뢰 (${s.activeQuests.size}/3)"
+            val subHeader = "진행 중인 탐조 의뢰 (${s.activeQuests.size}/3)"
             c.drawText(subHeader, left, y + dp(scene, 10f), textP)
-            y += dp(scene, 14f)
+            y += headerH
 
             if (s.activeQuests.isEmpty()) {
                 val emptyR = RectF(left, y, right, y + cardH)
@@ -799,9 +819,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 textP.color = 0xFF8A7360.toInt()
                 val emptyMsg = "진행 중인 의뢰 없음 · 광릉숲 보리 박사에게서 새 의뢰를 받아보세요"
                 c.drawText(emptyMsg, emptyR.centerX() - textP.measureText(emptyMsg) / 2f, emptyR.centerY() + dp(scene, 3f), textP)
-                y += cardH + dp(scene, 6f)
+                y += cardH + gapH
             } else {
-                for (q in s.activeQuests.take(2)) {
+                for (q in s.activeQuests) {
                     val qr = RectF(left, y, right, y + cardH)
                     val done = q.isComplete
                     cuteCard(c, qr, if (done) UiKit.PASTEL_MINT else 0xFFFFFDF8.toInt(),
@@ -829,13 +849,13 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 }
             }
 
-            // 일일 탐조 미션 (2개 표시)
+            // 일일 탐조 미션 (전부 표시가 원칙, 화면이 낮을 때만 "외 N개")
             textP.textSize = textDp(scene, 10.5f)
             textP.color = 0xFF5D4938.toInt()
-            c.drawText("오늘의 일일 탐조 미션 (3개)", left, y + dp(scene, 10f), textP)
-            y += dp(scene, 14f)
+            c.drawText("오늘의 일일 탐조 미션 (${s.dailyQuests.size}개)", left, y + dp(scene, 10f), textP)
+            y += headerH
 
-            val dailyToShow = s.dailyQuests.take(2)
+            val dailyToShow = s.dailyQuests.take(dailyShown)
             for (dq in dailyToShow) {
                 val dqr = RectF(left, y, right, y + cardH)
                 val done = dq.isComplete
@@ -860,7 +880,12 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 textP.textSize = textDp(scene, 8.5f)
                 textP.color = 0xFF796653.toInt()
                 c.drawText(dq.description, dqr.left + dp(scene, 8f), dqr.bottom - dp(scene, 5f), textP)
-                y += cardH + dp(scene, 4f)
+                y += cardH + gapH
+            }
+            if (hiddenDaily > 0) {
+                textP.textSize = textDp(scene, 9f)
+                textP.color = 0xFF8A7360.toInt()
+                c.drawText("외 일일 미션 $hiddenDaily 개 진행 중", left, y + dp(scene, 10f), textP)
             }
         }
     }
@@ -1473,7 +1498,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val summaries = listOf(
             "🚶 ${String.format(java.util.Locale.US, "%.1f", stats.walkKm)} km  ·  🚲 ${String.format(java.util.Locale.US, "%.1f", stats.bikeKm)} km",
             "📷 ${stats.photos}장  ·  🐦 ${stats.discoveredSpecies}종  ·  🗺 ${stats.visitedRegions}/${Regions.ALL.size}곳",
-            "🍕 약 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
+            "🍕 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
         )
         var summaryY = top + dp(scene, 39f)
         for (line in summaries) {
@@ -2857,7 +2882,7 @@ class BakeOverlay(
         val tap = input.consumeTapScreen()
         when (step) {
             0 -> {
-                if (input.justB || input.justBack) { finished = true; return }
+                if (input.justB || input.justBack) { cancelBake(); return }
                 if (tap == null) return
                 // [P07] 하단 서브탭: 🍕 메뉴 / ✈ 특산
                 for ((r, special) in kindTabRects) {
@@ -2882,8 +2907,7 @@ class BakeOverlay(
                     }
                 }
                 if (cancelRect.contains(tap.x, tap.y)) {
-                    scene.game.sfx(Audio.Sfx.TAP, 0.5f)
-                    finished = true
+                    cancelBake()
                 }
             }
             1 -> {
@@ -2895,9 +2919,27 @@ class BakeOverlay(
         }
     }
 
+    /** 굽기 전 취소 — 도우는 아직 불에 들어가지 않았으니 결제금을 돌려준다 */
+    private fun cancelBake() {
+        val g = scene.game
+        if (dough.price > 0) {
+            g.state.money += dough.price
+            SaveManager.save(g.context, g.state)
+            g.toast("${dough.icon} ${dough.label} 취소 — ${won(dough.price)} 환불됐어요")
+        }
+        g.sfx(Audio.Sfx.TAP, 0.5f)
+        finished = true
+    }
+
     /** [P07] 굽기 시작 — 특산 재료는 재고를 먼저 소모하고, 없으면 막는다 */
     private fun startBake(tp: Ingredients.ToppingDef?, id: Int = -1) {
         val g = scene.game
+        // 가방이 가득이면 굽기 전에 막는다 — 재료만 날리고 피자를 잃는 일 방지
+        if (g.state.pizzaCount >= g.state.pizzaCapEff()) {
+            g.toast("피자 가방이 가득 찼어요! 먼저 한 판 먹고 오세요 🍕")
+            g.sfx(Audio.Sfx.FAIL, 0.55f)
+            return
+        }
         val selectedId = tp?.pizzaId ?: id
         if (!g.state.isPizzaUnlocked(selectedId)) {
             g.toast("🔒 아직 발견하지 못한 피자 레시피예요. 메인 이야기를 진행해 보세요!")

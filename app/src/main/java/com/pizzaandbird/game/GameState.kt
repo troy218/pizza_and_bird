@@ -374,6 +374,9 @@ class GameState {
     /** 밤(올빼미 등 밤새 출현) 여부 */
     fun isNight(): Boolean = worldTime >= 19.5f || worldTime < 4.5f
 
+    /** 보름달(28일 주기 중 4일) — "보름달" 기념·시계 문양 판정용 */
+    fun isFullMoon(): Boolean = ((day - 1) % 28) in 12..15
+
     fun timeLabel(): String {
         val h = worldTime.toInt().coerceIn(0, 23)
         val m = (((worldTime - h) * 60f).toInt().coerceIn(0, 59))
@@ -719,6 +722,9 @@ class GameState {
                         )
                     )
                 }
+                // 이후 판정은 activeQuests 단일 경로 — 레거시 필드를 비워 중복 보상을 막는다
+                s.questBird = null
+                s.questReward = 0
             }
             val dq = j.optJSONArray("dailyQuests")
             if (dq != null) {
