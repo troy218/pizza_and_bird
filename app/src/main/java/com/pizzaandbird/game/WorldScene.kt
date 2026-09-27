@@ -224,8 +224,10 @@ class WorldScene(
         }
         state.playSeconds += dt
         state.advanceClock(dt)
+        updateSeason()
         updateWeather(dt)
         fx.weather = weather
+        seasonFx.update(dt, state.season(), weather, game.virtW.toFloat(), game.virtH.toFloat())
 
         updatePlayer(dt)
         updateStats(dt)
@@ -479,21 +481,31 @@ class WorldScene(
         viewRig.freeze(0.09f)
     }
 
+    private val seasonFx = SeasonFx()
+    private var lastSeason: Season? = null
+
+    /** 계절이 바뀌면 배너로 알리고 날씨를 곧 새로 뽑는다. */
+    private fun updateSeason() {
+        val now = state.season()
+        val prev = lastSeason
+        lastSeason = now
+        if (prev != null && prev != now) {
+            game.hud.banner("${now.icon} ${now.label}이 왔어요 — ${now.description}")
+            state.weatherSeconds = minOf(state.weatherSeconds, 3f)
+        }
+    }
+
     private fun updateWeather(dt: Float) {
         state.weatherSeconds -= dt
         if (state.weatherSeconds > 0f) return
 
         val old = state.weather()
-        val roll = rnd.nextFloat()
-        val next = when {
-            roll < 0.36f -> Weather.SUNNY
-            roll < 0.57f -> Weather.CLOUDY
-            roll < 0.76f -> Weather.RAIN
-            roll < 0.91f -> Weather.WIND
-            else -> Weather.SNOW
-        }
-        // 눈은 산·북부에서 더 자연스럽지만, 가끔 전국에 내릴 수 있다.
-        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < 0.65f) Weather.CLOUDY else next
+        // 계절별 확률표 (여름 장마, 겨울 눈) — Season.kt
+        val season = state.season()
+        val next = rollSeasonWeather(season, kotlin.random.Random(rnd.nextLong()))
+        // 눈은 산·북부에서 더 자연스럽다. 겨울이 아니면 남부/평지 눈은 흐림으로 바뀐다.
+        val snowSkip = if (season == Season.WINTER) 0.25f else 0.65f
+        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < snowSkip) Weather.CLOUDY else next
         state.weatherId = chosen.id
         state.weatherSeconds = 50f + rnd.nextFloat() * 55f
         if (chosen != old) {
@@ -716,7 +728,7 @@ class WorldScene(
 
     private fun regionPool(): List<BirdDef> {
         val n = state.isNight()
-        val pool = Birds.poolFor(map.region, n)
+        val pool = Birds.poolFor(map.region, n, state.day, state.worldTime)
         return if (pool.isEmpty()) Birds.poolFor(map.region, !n) else pool
     }
 
@@ -726,7 +738,13 @@ class WorldScene(
         if (pool.isEmpty()) return
 
         val currentWeather = state.weather()
-        val weights = pool.map { it.weight * luckBoost(it) * weatherBirdMultiplier(it, currentWeather) }
+        val currentSeason = state.season()
+        val weights = pool.map {
+            Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
+                    luckBoost(it) *
+                    weatherBirdMultiplier(it, currentWeather) *
+                    seasonBirdMultiplier(it, currentSeason, currentWeather)
+        }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
         for (i in pool.indices) {
@@ -1236,7 +1254,8 @@ class WorldScene(
     private fun showSideQuest() {
         val cur = state.questBird
         if (cur == null) {
-            val pool = Birds.poolFor(map.region, false)
+            val n = state.isNight()
+            val pool = Birds.poolFor(map.region, n, state.day, state.worldTime).ifEmpty { Birds.poolFor(map.region, !n) }
             if (pool.isEmpty()) return
             val unphoto = pool.filter { (state.birdCounts[it.id] ?: 0) == 0 && it.tier.star <= 2 }
             val candidates = if (unphoto.isNotEmpty() && rnd.nextDouble() < 0.55) unphoto else pool
@@ -1533,6 +1552,7 @@ class WorldScene(
         c.restore()
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
+        seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
         fx.drawWeather(c, game.virtW, game.virtH)
         if (viewRig.speedFx > 0.02f) {
             speedVignette.draw(c, vw, vh, viewRig.speedFx)

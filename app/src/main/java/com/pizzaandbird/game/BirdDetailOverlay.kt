@@ -352,7 +352,7 @@ class BirdDetailOverlay(
         textP.color = 0xFF6B4F35.toInt()
         val orderFamily = "${def.orderName.ifBlank { enc?.order ?: "기러기목" }} · ${def.familyName.ifBlank { enc?.family ?: "오리과" }}"
         val habitatStr = def.habitats.joinToString("·") { HabitatLabels[it] ?: it }
-        val metaLine1 = "분류: $orderFamily   |   서식: $habitatStr (${def.activeLabel})"
+        val metaLine1 = "분류: $orderFamily   |   서식: $habitatStr (${def.timeWindowLabel})"
         c.drawText(metaLine1, textLeft, curY, textP)
         curY += dp(14f)
 
@@ -363,7 +363,7 @@ class BirdDetailOverlay(
             subsList.size <= 2 -> subsList.joinToString(", ")
             else -> "${subsList.take(2).joinToString(", ")} 외 ${subsList.size - 2}종"
         }
-        val metaLine2 = "범주: ${def.category.ifBlank { enc?.cat ?: "가-1" }}   |   아종: $subsStr"
+        val metaLine2 = "범주: ${def.category.ifBlank { enc?.cat ?: "가-1" }}   |   계절: ${def.seasonLabel} · ${def.migrationLabel}   |   아종: $subsStr"
         textP.textSize = dp(8.8f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(metaLine2, textLeft, curY, textP)
