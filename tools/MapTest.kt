@@ -120,6 +120,51 @@ fun main() {
                     "이정표가 완전히 막힘 ${r.id} $d ($sx,$sy)")
             }
 
+            // 길(포장면) 검증 ------------------------------------------------
+            // (1) 포장면은 전부 하나로 이어져 있어야 한다 (섬처럼 떨어진 길 금지)
+            val paved = ArrayList<Pair<Int, Int>>()
+            for (y in 0 until map.h) for (x in 0 until map.w) {
+                if (map.paveAt(x, y) != Pave.NONE) paved.add(x to y)
+            }
+            check(paved.isNotEmpty(), "길이 하나도 없음 ${r.id}")
+            if (paved.isNotEmpty()) {
+                val seenRoad = HashSet<Long>()
+                val rq = ArrayDeque<Pair<Int, Int>>()
+                rq.add(paved[0])
+                seenRoad.add(paved[0].first.toLong() * 1000 + paved[0].second)
+                while (rq.isNotEmpty()) {
+                    val (x, y) = rq.removeFirst()
+                    for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                        val nx = x + dx
+                        val ny = y + dy
+                        if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue
+                        if (map.paveAt(nx, ny) == Pave.NONE) continue
+                        val k = nx.toLong() * 1000 + ny
+                        if (k in seenRoad) continue
+                        seenRoad.add(k)
+                        rq.add(nx to ny)
+                    }
+                }
+                check(seenRoad.size == paved.size,
+                    "길이 끊겨 있음 ${r.id}: ${paved.size}칸 중 ${seenRoad.size}칸만 연결")
+            }
+            // (2) 구조물 위에는 길이 깔리면 안 된다
+            for ((x, y) in paved) {
+                check(!map.t(x, y).bulk, "구조물 위에 길 ${r.id} ($x,$y)=${map.t(x, y)}")
+            }
+            // (3) 터널 앞 진입로는 반드시 포장되어 있어야 한다 (길이 끊긴 채 터널만 뚫림 방지)
+            for (d in Regions.exits(r.id).keys) {
+                val foot = when (d) {
+                    Dir.N -> listOf(19 to 1, 20 to 1)
+                    Dir.S -> listOf(19 to map.h - 2, 20 to map.h - 2)
+                    Dir.W -> listOf(1 to 15, 1 to 16)
+                    Dir.E -> listOf(map.w - 2 to 15, map.w - 2 to 16)
+                }
+                for ((x, y) in foot) {
+                    check(map.paveAt(x, y) != Pave.NONE, "터널 진입로가 길이 아님 ${r.id} $d ($x,$y)")
+                }
+            }
+
             // 홈 지역: 집 문 & 경로
             if (home.id == r.id) {
                 check(map.hasHouse, "집 없음 ${r.id}")
