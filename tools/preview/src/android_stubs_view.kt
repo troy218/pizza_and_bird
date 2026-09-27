@@ -53,13 +53,15 @@ class KeyEvent {
     }
 }
 
-/** tools/preview — android.view.View 스텁 (BootView 컴파일용). 실제 화면에는 뜨지 않는다. */
+/** tools/preview — android.view.View stub for BootView; not rendered in the headless preview. */
 open class View(val context: android.content.Context) {
-    var width: Int = 0
-    var height: Int = 0
-    val isAttachedToWindow: Boolean = false
+    open var width: Int = 0
+    open var height: Int = 0
+    open val isAttachedToWindow: Boolean = false
     open fun onDraw(c: android.graphics.Canvas) {}
-    fun postInvalidateDelayed(delayMillis: Long) {}
-    fun postInvalidate() {}
-    fun invalidate() {}
+    open fun postInvalidateDelayed(delayMillis: Long) {}
+    open fun postInvalidate() {}
+    open fun invalidate() {}
+    open fun requestLayout() {}
+    open fun setBackgroundColor(color: Int) {}
 }

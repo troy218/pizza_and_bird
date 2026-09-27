@@ -267,6 +267,7 @@ class WorldScene(
     // -------------------------------------------------------------------
 
     override fun update(dt: Float) {
+        Ach.tick(this, state)
         game.hud.update(dt)
         if (overlay != null) {
             game.audio.stopSteps()
@@ -632,8 +633,12 @@ class WorldScene(
             speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
             speed *= input.moveScale            // 스틱을 민 만큼 (아날로그 설정)
+            val moveStartX = player.x
+            val moveStartY = player.y
             if (!moveBy(vx * speed * dt, 0f)) blocked = true
             if (!moveBy(0f, vy * speed * dt)) blocked = true
+            val movedPx = hypot(player.x - moveStartX, player.y - moveStartY)
+            if (movedPx > 0f) Ach.onMove(game.context, movedPx, player.bike)
             lastSpeed = speed
             velX = vx * speed
             velY = vy * speed

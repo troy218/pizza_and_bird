@@ -227,11 +227,9 @@ class DialogOverlay(
 // 메뉴 (상태 / 피자 / 도감 / 설정)
 // ---------------------------------------------------------------------------
 
-class MenuOverlay(scene: Scene) : Overlay(scene) {
+class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) : Overlay(scene) {
     /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
     override val coversWorld: Boolean get() = true
-
-
 
     init {
         scene.game.sfx(Audio.Sfx.BAG_OPEN, 0.6f)   // 🎒 가방 지퍼 열리는 소리
@@ -245,7 +243,8 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         PIZZA("피자", "pizza", UiKit.PASTEL_LEMON),
         BOOK("도감", "book", UiKit.PASTEL_LILAC),
         ALBUM("사진집", "camera", UiKit.PASTEL_SKY),
-        SETTINGS("설정", "gear", UiKit.PASTEL_SAND)
+        SETTINGS("설정", "gear", UiKit.PASTEL_SAND),
+        ACHIEVE("업적", "🏅", UiKit.PASTEL_LEMON)
     }
 
     // ---- 가방 속 전용 그리기 도우미 (아기자기 키트) ----
@@ -261,12 +260,13 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     private fun cuteBtnOff(c: Canvas, r: RectF, label: String, size: Float) =
         UiKit.cuteButton(c, scene.game, r, label, Color.argb(120, 214, 204, 186), Color.argb(150, 74, 55, 40), size)
 
-    private var tab = Tab.STATUS
+    private var tab = if (showAchievements) Tab.ACHIEVE else Tab.STATUS
     private val tabRects = ArrayList<Pair<RectF, Tab>>()
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
     private var resetArmed = false
     private var questPage = 0
+    private var achievementPage = 0
     private var panelR = RectF()
 
     override fun handleInput(input: Input) {
@@ -449,6 +449,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             Tab.BOOK -> drawBook(c)
             Tab.ALBUM -> drawAlbum(c)
             Tab.SETTINGS -> drawSettings(c)
+            Tab.ACHIEVE -> drawAchievements(c)
         }
     }
 
@@ -1327,6 +1328,105 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val pw = textP.measureText(pageText) + dp(scene, 22f)
         UiKit.badge(c, g, RectF(panelR.centerX() - pw / 2f, py, panelR.centerX() + pw / 2f, py + dp(scene, 21f)),
             pageText, 0xFFDDEEF5.toInt(), 0xFF4A6070.toInt(), 10.5f)
+    }
+
+    /** [P06] 진행 요약과 페이지식 업적 목록 — 각 행을 누르면 해금 정보를 살펴본다. */
+    private fun drawAchievements(c: Canvas) {
+        val g = scene.game
+        val ctx = g.context
+        val stats = Ach.stats(ctx)
+        val unlocked = Ach.unlocked(ctx)
+        val left = panelR.left + dp(scene, 12f)
+        val right = panelR.right - dp(scene, 12f)
+        val width = right - left
+        val top = contentTop() + dp(scene, 2f)
+        val summaryH = dp(scene, 80f)
+        val summaryR = RectF(left, top, right, top + summaryH)
+        cuteCard(c, summaryR, UiKit.PASTEL_SKY, 0xFF8BAEBB.toInt(), 1.5f, stitched = false)
+
+        textP.textSize = textDp(scene, 11.5f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("여정 요약", left + dp(scene, 9f), top + dp(scene, 18f), textP)
+        val statsBtn = RectF(right - dp(scene, 101f), top + dp(scene, 5f), right - dp(scene, 7f), top + dp(scene, 27f))
+        cuteBtn(c, statsBtn, "통계 자세히", UiKit.PASTEL_SAND, UiKit.INK, 9f)
+        btnRects.add(Triple(statsBtn, "stats-detail") {
+            scene.openOverlay(StatsOverlay(scene) { scene.openOverlay(MenuOverlay(scene, showAchievements = true)) })
+        })
+
+        val summaries = listOf(
+            "🚶 ${String.format(java.util.Locale.US, "%.1f", stats.walkKm)} km  ·  🚲 ${String.format(java.util.Locale.US, "%.1f", stats.bikeKm)} km",
+            "📷 ${stats.photos}장  ·  🐦 ${stats.discoveredSpecies}종  ·  🗺 ${stats.visitedRegions}/${Regions.ALL.size}곳",
+            "🍕 약 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
+        )
+        var summaryY = top + dp(scene, 39f)
+        for (line in summaries) {
+            drawFitText(c, scene, line, left + dp(scene, 9f), summaryY, width - dp(scene, 18f), 9.4f, 7f)
+            summaryY += dp(scene, 13f)
+        }
+
+        val navH = dp(scene, 26f)
+        val navY = contentBottom() - navH
+        val headingY = summaryR.bottom + dp(scene, 18f)
+        textP.textSize = textDp(scene, 10.5f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("업적", left + dp(scene, 2f), headingY, textP)
+        textP.textSize = textDp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        val countLabel = "${unlocked.size} / ${Ach.total} 해금"
+        c.drawText(countLabel, right - dp(scene, 2f) - textP.measureText(countLabel), headingY, textP)
+
+        val rowTop = headingY + dp(scene, 7f)
+        val listBottom = navY - dp(scene, 5f)
+        val rowGap = dp(scene, 4f)
+        val pageSize = (((listBottom - rowTop + rowGap) / (dp(scene, 34f) + rowGap)).toInt()).coerceIn(1, 5)
+        val rowH = ((listBottom - rowTop - rowGap * (pageSize - 1)) / pageSize).coerceAtLeast(dp(scene, 25f))
+        val pageCount = (Ach.ALL.size + pageSize - 1) / pageSize
+        achievementPage = achievementPage.coerceIn(0, pageCount - 1)
+        val defs = Ach.ALL.drop(achievementPage * pageSize).take(pageSize)
+
+        for ((i, def) in defs.withIndex()) {
+            val y = rowTop + i * (rowH + rowGap)
+            val r = RectF(left, y, right, y + rowH)
+            val isUnlocked = def.id in unlocked
+            val tint = if (isUnlocked) 0xFFFFF4D6.toInt() else UiKit.CARD_HI
+            val border = if (isUnlocked) UiKit.GOLD_DEEP else UiKit.BROWN_LINE
+            cuteCard(c, r, tint, border, if (isUnlocked) 1.8f else 1.2f, stitched = rowH >= dp(scene, 34f))
+            val iconR = minOf(dp(scene, 11f), rowH * 0.28f)
+            val iconX = r.left + dp(scene, 8f) + iconR
+            val icon = if (isUnlocked) def.icon else if (def.hidden) "❔" else "🔒"
+            UiKit.iconCircle(c, g, iconX, r.centerY(), iconR, icon, 12f, if (isUnlocked) UiKit.PASTEL_LEMON else UiKit.PASTEL_SAND)
+            val tx = iconX + iconR + dp(scene, 8f)
+            val maxTextW = (r.right - tx - dp(scene, 8f)).coerceAtLeast(dp(scene, 20f))
+            val title = if (def.hidden && !isUnlocked) "???" else def.title
+            textP.textSize = textDp(scene, 10.5f)
+            textP.color = 0xFF4A3728.toInt()
+            drawFitText(c, scene, title, tx, r.top + minOf(dp(scene, 15f), rowH * 0.43f), maxTextW, 10.5f, 7f)
+            if (rowH >= dp(scene, 34f)) {
+                val sub = when {
+                    isUnlocked -> "해금 · Day ${Ach.unlockDay(ctx, def.id) ?: 1}"
+                    def.hidden -> "숨겨진 순간"
+                    else -> def.desc
+                }
+                textP.color = if (isUnlocked) 0xFF9A6A1F.toInt() else 0xFF8A7360.toInt()
+                drawFitText(c, scene, sub, tx, r.bottom - dp(scene, 6f), maxTextW, 8.4f, 6.5f)
+            }
+            btnRects.add(Triple(r, def.id) {
+                scene.openOverlay(AchievementDetailOverlay(scene, def) {
+                    scene.openOverlay(MenuOverlay(scene, showAchievements = true))
+                })
+            })
+        }
+
+        val prev = RectF(left, navY, left + dp(scene, 66f), navY + navH)
+        val next = RectF(right - dp(scene, 66f), navY, right, navY + navH)
+        cuteBtn(c, prev, "‹ 이전", if (achievementPage > 0) UiKit.PASTEL_SAND else 0xFFD8D1C5.toInt(), UiKit.INK, 9f)
+        cuteBtn(c, next, "다음 ›", if (achievementPage < pageCount - 1) UiKit.PASTEL_SAND else 0xFFD8D1C5.toInt(), UiKit.INK, 9f)
+        val pageLabel = "${achievementPage + 1} / $pageCount"
+        textP.textSize = textDp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText(pageLabel, panelR.centerX() - textP.measureText(pageLabel) / 2f, navY + dp(scene, 17f), textP)
+        if (achievementPage > 0) btnRects.add(Triple(prev, "ach-prev") { achievementPage-- })
+        if (achievementPage < pageCount - 1) btnRects.add(Triple(next, "ach-next") { achievementPage++ })
     }
 
     private fun drawSettings(c: Canvas) {
