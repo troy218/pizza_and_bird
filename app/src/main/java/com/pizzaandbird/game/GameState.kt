@@ -80,6 +80,10 @@ class GameState {
     val decorSlots = IntArray(Decors.SLOT_COUNT) { -1 }
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
+    // 🌸 힐링 컨텐츠 상태 (v0.4.2 「따뜻한 바람」) — 기본 JSONObject로 세이브/로드가 투명하다.
+    var healing = JSONObject()
+
+
     // 자전거 (탈것은 자전거만!) ------------------------------------------
     val ownedBikes = LinkedHashSet<String>()      // 소유한 자전거 모델 id
     var bikeId = "basic"                          // 장착 중인 자전거 모델
@@ -599,6 +603,7 @@ class GameState {
         put("camFov", camFov)
         put("camDof", camDof)
         put("camLead", camLead)
+        put("healing", healing)
     }
 
     companion object {
@@ -790,6 +795,8 @@ class GameState {
             s.camFov = j.optBoolean("camFov", true)
             s.camDof = j.optBoolean("camDof", true)
             s.camLead = j.optBoolean("camLead", true)
+            // 🌸 힐링 상태 (v0.4.2 — 없으면 빈 JSONObject)
+            s.healing = j.optJSONObject("healing") ?: JSONObject()
             return s
         }
     }

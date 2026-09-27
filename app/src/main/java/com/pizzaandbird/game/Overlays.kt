@@ -2507,6 +2507,10 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
             else -> 1
         }
         lostPizza = !scene.game.state.addPizza(pizzaId, resultQ)
+        if (!lostPizza) {
+            Healing.bumpToday(scene.game.state, "pizzasBakedToday")
+            if (resultQ == 2) Healing.unlock(scene.game.state, "pizza_master")
+        }
         // 화덕의 충격을 몸으로 — 걸작일수록 크게 울린다
         when (resultQ) {
             2 -> { scene.game.shake(0.3f); scene.game.punchZoom(0.05f) }
