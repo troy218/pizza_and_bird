@@ -22,24 +22,17 @@ tools/preview/
 - 게임 코드는 **한 글자도 수정 없이** 그대로 컴파일된다 (스텁이 android API 시그니처를 1:1 제공).
 - MainActivity.kt / GameView.kt만 제외 (SurfaceView/Activity 의존 — 프리뷰 불필요).
 
-## 실행 (GitHub Actions)
+## 실행 (GitHub Actions — 자동)
 
-`.github/workflows/graphics-preview.yml`이 `arena/01a0e0d9-pizza-and-bird` 브랜치에
-push되면 자동으로 실행되어 `preview/*.png`를 같은 브랜치에 커밋한다.
+루트 빌드의 `ciRender` 훅이 `arena/01a0e0d9-pizza-and-bird` 브랜치 CI에서만 동작한다.
+APK 빌드(`assembleDebug`)가 끝나면 자동으로 렌더링해서 `preview/*.png`를
+같은 브랜치에 커밋한다 (`[skip ci]` 커밋이라 무한 루프 없음).
 
-## 로컬 실행 (JDK 17 + kotlinc 필요)
+## 로컬 실행 (JDK 17)
 
 ```bash
-mkdir -p tools/preview/fonts
-# NotoSansKR-Regular.ttf / NotoSansKR-Bold.ttf 를 fonts/ 에 준비
-
-GAME_SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
-  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
-kotlinc tools/preview/src/*.kt $GAME_SRCS \
-  -include-runtime -d preview.jar \
-  -main-class com.pizzaandbird.preview.PreviewMain
-java -jar preview.jar preview_out
-open preview_out/04_title.png
+./gradlew :tools-preview:renderPreview
+# 결과: tools/preview/out/*.png
 ```
 
 ## 출력물

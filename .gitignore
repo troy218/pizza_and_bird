@@ -16,5 +16,5 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 
 # 그래픽 프리뷰 파이프라인 산출물
-/preview_out/
+/tools/preview/out/
 /tools/preview/fonts/
