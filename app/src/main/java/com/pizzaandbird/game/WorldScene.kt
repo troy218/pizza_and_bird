@@ -1114,13 +1114,13 @@ class WorldScene(
     }
 
     private fun quickEat() {
-        val tId = state.eatBest()
-        if (tId == null) {
-            game.toast("피자가 없어요! 집의 화덕에서 구워요 🍕")
+        val pid = state.eatBest()
+        if (pid == null) {
+            game.toast("피자가 없어요! 집의 화덕이나 오븐에서 구워요 🍕")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
-            val t = Toppings.of(tId)
-            game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+            val p = Pizzas.of(pid)
+            game.toast("냠냠! ${p.emoji} ${p.fullName}")
             game.sfx(Audio.Sfx.EAT, 0.9f)
         }
     }
