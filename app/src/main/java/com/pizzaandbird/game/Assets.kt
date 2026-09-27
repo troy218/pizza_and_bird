@@ -232,15 +232,6 @@ class Assets(private val context: Context) {
         "tile_water_3" to Triple(R.drawable.art_tile_water_3, 64, 64),
     )
 
-    init {
-        buildCat()
-        buildGrassRig()
-        buildTiles()
-        buildIcons()
-        buildDecorArt()
-        // 새는 여기서 만들지 않는다 — bird(id) 가 종별 지연 생성 (시작 시간 단축)
-    }
-
     // -----------------------------------------------------------------------
     // 공용 헬퍼
     // -----------------------------------------------------------------------
@@ -2959,4 +2950,16 @@ begin(T.LAMP)
 
     fun birdW(id: String): Float = bird(id).width.toFloat()
     fun birdH(id: String): Float = bird(id).height.toFloat()
+
+    // 아트 빌더는 모든 데이터 필드(artIds 등) 선언 이후에 실행돼야 한다 —
+    // 클래스 끝에 두어 초기화 순서 문제(Kotlin 프로퍼티 선언 순서)를 원천 차단한다.
+    // 새는 여기서 만들지 않는다 — bird(id) 가 종별 지연 생성 (시작 시간 단축)
+    init {
+        buildCat()
+        buildGrassRig()
+        buildTiles()
+        buildIcons()
+        buildDecorArt()
+    }
+
 }
