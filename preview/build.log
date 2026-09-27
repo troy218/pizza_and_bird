@@ -1,9 +1,9 @@
-# preview build 2026-09-27 07:32:53Z
-# commit: 051d12d07760cd256c74eb41aacedda509ecbba2
+# preview build 2026-09-27 07:35:47Z
+# commit: 22a2ccfc81f9539f8004d4dbbdfdc82bc4a2e2c6
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
->> 프리뷰 렌더링...
-# status: ok
+# status: compile-failed
+WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
 ...
@@ -23,20 +23,20 @@
 > Task :app:generateReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
 > Task :app:extractDeepLinksRelease
+> Task :app:mergeReleaseResources
 > Task :app:processReleaseMainManifest
+> Task :app:packageReleaseResources
 > Task :app:processReleaseManifest
 > Task :app:processReleaseManifestForPackage
 > Task :app:javaPreCompileRelease
 > Task :app:desugarReleaseFileDependencies
 > Task :app:mergeReleaseStartupProfile
-> Task :app:mergeReleaseResources
-> Task :app:packageReleaseResources
+> Task :app:parseReleaseLocalResources
 > Task :app:mergeExtDexRelease
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:parseReleaseLocalResources
 > Task :app:mergeReleaseAssets
 > Task :app:compressReleaseAssets
 > Task :app:extractReleaseVersionControlInfo
@@ -62,41 +62,72 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494346123.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494519384.json
 
-BUILD SUCCESSFUL in 27s
+BUILD SUCCESSFUL in 28s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-  + 01_tiles.png
-  + 02_sprites.png
-  + 03_birds.png
-  + 04_title.png
-  + 05_region_select.png
-  + 06_world_seoul_day.png
-  + 07_world_seoul_sunset.png
-  + 08_world_seoul_night.png
-  + 09_world_sokcho.png
-  + 10_world_chuncheon.png
-  + 11_world_busan.png
-  + 12_world_jeju.png
-  + 13_photo_mode.png
-  + 14_home_day.png
-  + 15_home_night.png
-  + 16_dialog.png
-  + 17_menu_tab1.png
-  + 17_menu_tab2.png
-  + 17_menu_tab3.png
-  + 17_menu_tab4.png
-  + 17_menu_tab5.png
-  + 17_menu_tab6.png
-  + 21_bake_topping.png
-  + 22_bake_gauge.png
-  + 23_bake_result.png
-  + 24_photo_result.png
-  + 25_map_overlay.png
-  + 26_decor_shop.png
-  + 27_decor_pick.png
-  + 28_ultrawide_title_20x9.png
-  + 29_ultrawide_world_20x9.png
-preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out
+app/src/main/java/com/pizzaandbird/game/Audio.kt:7:19: error: unresolved reference 'Handler'.
+import android.os.Handler
+                  ^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:8:19: error: unresolved reference 'HandlerThread'.
+import android.os.HandlerThread
+                  ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:9:21: error: unresolved reference 'Log'.
+import android.util.Log
+                    ^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:87:31: error: unresolved reference 'HandlerThread'.
+    private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
+                              ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:87:66: error: cannot infer type for this parameter. Please specify it explicitly.
+    private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
+                                                                 ^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:87:72: error: cannot infer type for this parameter. Please specify it explicitly.
+    private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
+                                                                       ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:87:74: error: unresolved reference 'start'.
+    private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
+                                                                         ^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:88:26: error: unresolved reference 'Handler'.
+    private val loader = Handler(audioThread.looper)
+                         ^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:88:46: error: unresolved reference 'looper'.
+    private val loader = Handler(audioThread.looper)
+                                             ^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:202:25: error: unresolved reference 'Log'.
+                        Log.w("PizzaAndBird", "BGM 로딩 실패: res=${p.res}")
+                        ^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:7:21: error: unresolved reference 'View'.
+import android.view.View
+                    ^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:16:36: error: unresolved reference 'View'.
+class BootView(context: Context) : View(context) {
+                                   ^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:29:9: error: unresolved reference 'textAlign'.
+        textAlign = Paint.Align.CENTER
+        ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:29:27: error: unresolved reference 'Align'.
+        textAlign = Paint.Align.CENTER
+                          ^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:33:9: error: unresolved reference 'textAlign'.
+        textAlign = Paint.Align.CENTER
+        ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:33:27: error: unresolved reference 'Align'.
+        textAlign = Paint.Align.CENTER
+                          ^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:38:5: error: 'onDraw' overrides nothing.
+    override fun onDraw(c: Canvas) {
+    ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:40:17: error: unresolved reference 'width'.
+        val w = width.toFloat()
+                ^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:41:17: error: unresolved reference 'height'.
+        val h = height.toFloat()
+                ^^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:67:13: error: unresolved reference 'isAttachedToWindow'.
+        if (isAttachedToWindow) postInvalidateDelayed(100)
+            ^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/BootView.kt:67:33: error: unresolved reference 'postInvalidateDelayed'.
+        if (isAttachedToWindow) postInvalidateDelayed(100)
+                                ^^^^^^^^^^^^^^^^^^^^^

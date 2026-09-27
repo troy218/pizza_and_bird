@@ -114,7 +114,8 @@ class BirdDef(
     val orderName: String = "",
     val familyName: String = "",
     val category: String = "",
-    val subspecies: List<String> = emptyList()
+    val subspecies: List<String> = emptyList(),
+    val birdNum: Int = 0
 ) {
     val activeLabel: String
         get() = when (active) {
@@ -122,6 +123,22 @@ class BirdDef(
             "day" -> "낮새"
             else -> "종일"
         }
+
+    val encEntry: BirdEncyclopediaEntry?
+        get() = (if (birdNum > 0) BirdEncyclopedia.get(birdNum) else null) ?: BirdEncyclopedia.get(name)
+
+    /** 엑셀의 상세 한국어 설명(위키백과 및 생태 정보) 또는 기본 설명 */
+    val fullDesc: String
+        get() = encEntry?.desc?.takeIf { it.isNotBlank() } ?: desc
+
+    val photoAuthor: String
+        get() = encEntry?.author ?: ""
+
+    val photoLicense: String
+        get() = encEntry?.license ?: ""
+
+    val conservationStatus: String
+        get() = encEntry?.status ?: ""
 }
 
 object Birds {
@@ -383,12 +400,14 @@ object Birds {
         "노랑턱멧새", "방울새", "오목눈이", "어치", "큰부리까마귀", "물까치", "찌르레기"
     )
 
-    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.map { entry ->
-        curatedByName[entry.koreanName]?.let { enrich(it, entry) } ?: generated(entry)
+    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.mapIndexed { idx, entry ->
+        val num = idx + 1
+        curatedByName[entry.koreanName]?.let { enrich(it, entry, num) } ?: generated(entry, num)
     }
 
     val byId: Map<String, BirdDef> = ALL.associateBy { it.id }
     val byName: Map<String, BirdDef> = ALL.associateBy { it.name }
+    val byNum: Map<Int, BirdDef> = ALL.associateBy { it.birdNum }
 
     /** 지역 서식지 + 밤낮에 맞는 새 풀 */
     fun poolFor(region: RegionDef, night: Boolean = false): List<BirdDef> = ALL.filter { def ->
@@ -397,7 +416,7 @@ object Birds {
                 (def.active == "any" || (if (night) def.active == "night" else def.active == "day"))
     }
 
-    private fun enrich(def: BirdDef, entry: BirdChecklistEntry): BirdDef = BirdDef(
+    private fun enrich(def: BirdDef, entry: BirdChecklistEntry, num: Int): BirdDef = BirdDef(
         id = def.id,
         name = def.name,
         tier = def.tier,
@@ -413,10 +432,11 @@ object Birds {
         orderName = entry.orderName,
         familyName = entry.familyName,
         category = entry.category,
-        subspecies = entry.subspecies
+        subspecies = entry.subspecies,
+        birdNum = num
     )
 
-    private fun generated(entry: BirdChecklistEntry): BirdDef {
+    private fun generated(entry: BirdChecklistEntry, num: Int): BirdDef {
         val tier = tierFor(entry)
         val habitats = habitatsFor(entry)
         return BirdDef(
@@ -435,7 +455,8 @@ object Birds {
             orderName = entry.orderName,
             familyName = entry.familyName,
             category = entry.category,
-            subspecies = entry.subspecies
+            subspecies = entry.subspecies,
+            birdNum = num
         )
     }
 
@@ -506,6 +527,10 @@ object Birds {
     }
 
     private fun officialDesc(entry: BirdChecklistEntry): String {
+        val enc = BirdEncyclopedia.get(entry.koreanName)
+        if (enc != null && enc.desc.isNotBlank()) {
+            return enc.desc
+        }
         val subs = if (entry.subspecies.isEmpty()) {
             "기록 아종 없음"
         } else {
@@ -1197,8 +1222,8 @@ class RegionDef(
     val villager: String,
     val mapW: Int,
     val mapH: Int,
-    val waterEdges: Set<Dir>,
-    val sandEdges: Set<Dir>,
+    val waterEdges: Set<Dir>,  // 지도는 북쪽이 위: 실제 지역의 바다·하천 하구가 놓인 변
+    val sandEdges: Set<Dir>,   // 물과 육지 사이의 해변·갯벌 띠
     val treeDensity: Double,
     val rockDensity: Double,
     val flowerDensity: Double,
@@ -1328,7 +1353,7 @@ object Regions {
             "jeju", "제주", "Jeju", setOf("coast", "mountain", "forest", "wetland"),
             "바람의 섬, 오름의 섬. 귀한 새들이 머무는 곳.",
             "제주엔 없는 게 없어요. 돌하르방처럼 어여쁜 새들도요.",
-            40, 30, setOf(Dir.S, Dir.E, Dir.W), setOf(Dir.S, Dir.E, Dir.W), 0.07, 0.12, 0.05, false, false,
+            40, 30, setOf(Dir.N, Dir.E, Dir.S, Dir.W), setOf(Dir.N, Dir.E, Dir.S, Dir.W), 0.07, 0.12, 0.05, false, false,
             126.53f, 33.50f, "🏝", RegionKind.COAST, "사계절",
             "해안도로를 따라 달리면 섬새와 물새가 계속 나타나요."
         ),
@@ -1386,7 +1411,7 @@ object Regions {
             "sihwa", "시화호", "Sihwa Lake", setOf("water", "wetland", "coast"),
             "죽음의 호수에서 되살아난 큰 호수. 이제는 큰고니의 겨울 궁전.",
             "예전엔 물이 썩었대요. 지금은 고니가 오니까… 자연은 대단하죠.",
-            40, 30, emptySet(), emptySet(), 0.05, 0.02, 0.05, false, true,
+            40, 30, setOf(Dir.W), setOf(Dir.W), 0.05, 0.02, 0.05, false, true,
             126.73f, 37.28f, "🦢", RegionKind.RIVER, "11~2월 (겨울)",
             "상류 습지 쪽이 수심이 얕아 물새가 모여요."
         ),
