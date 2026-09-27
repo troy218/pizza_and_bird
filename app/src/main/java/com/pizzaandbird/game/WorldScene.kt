@@ -1867,6 +1867,69 @@ class WorldScene(
     }
 
     /** 무작위 사진 의뢰는 메인 스토리 진행도와 무관하게 언제든 수락·포기할 수 있다. */
+    /**
+     * 진행 중 의뢰 칩(HUD 좌상단)을 눌러 의뢰 내용을 다시 읽어 본다.
+     * 보상 지급·수락 없이 열람만 한다. 칩 표시 우선순위(서브 → 메인)를 그대로 따른다.
+     */
+    private fun showQuestLog() {
+        if (photoMode) return
+        val questBird = state.questBird
+        if (questBird != null) {
+            val def = Birds.byId[questBird]
+            openOverlay(
+                DialogOverlay(
+                    this, "진행 중인 사진 의뢰",
+                    "\"${def?.name ?: "그 새"} 사진을 찍어 오게.\n보수는 ${won(state.questReward)}일세.\"\n\n" +
+                        "메인 이야기와는 별개의 의뢰예요. 시간 제한은 없으니 원하는 때에 담아 오면 됩니다.",
+                    listOf(DialogOverlay.Choice("계속할게요"))
+                )
+            )
+            return
+        }
+        if (state.mainQuestFinished) {
+            openOverlay(
+                DialogOverlay(
+                    this, "메인 이야기 (완료)",
+                    "‘함께 사는 새 지도’를 모두 완성했어요. 이제 사진 의뢰와 도장 깨기를 자유롭게 즐겨 보세요.",
+                    listOf(DialogOverlay.Choice("좋아요"))
+                )
+            )
+            return
+        }
+        if (!state.mainQuestStarted) {
+            openOverlay(
+                DialogOverlay(
+                    this, "메인 이야기 시작",
+                    "${NpcRoster.professorRegionName}의 보리 박사를 찾아가 낡은 탐조 수첩 이야기를 들어보세요.",
+                    listOf(DialogOverlay.Choice("알겠어요"))
+                )
+            )
+            return
+        }
+        val chapter = MainStory.current(state) ?: return
+        val objective = chapter.objective(state)
+        val ready = chapter.isComplete(state)
+        val advice = MainQuestAdvisor.advise(state)
+        val adviceLine = advice?.let { adv ->
+            if (adv.alreadyThere) "\n${adv.tip}" else "\n추천 장소: ${adv.regionName}"
+        } ?: ""
+        openOverlay(
+            DialogOverlay(
+                this, chapter.title,
+                "\"${chapter.intro}\"\n\n목표: $objective" +
+                    (if (ready) "\n기록을 정리할 준비가 됐어요. 보리 박사를 찾아가 보고하세요." else "") + adviceLine,
+                buildList {
+                    advice?.let { adv ->
+                        if (!adv.alreadyThere && adv.regionId != state.region) {
+                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
+                        }
+                    }
+                    add(DialogOverlay.Choice("닫기"))
+                }
+            )
+        )
+    }
+
     private fun showSideQuest() {
         val cur = state.questBird
         if (cur == null) {
@@ -1966,6 +2029,10 @@ class WorldScene(
         }
         if (input.justMap) {
             openOverlay(MapOverlay(this))
+            return
+        }
+        if (input.justQuest) {
+            showQuestLog()
             return
         }
         if (input.justEat) {
