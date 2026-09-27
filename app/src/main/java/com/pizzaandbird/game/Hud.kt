@@ -36,7 +36,11 @@ private const val BANNER_LIFE = 2.6f
 class Hud(private val game: Game) {
 
     private val d: Float get() = game.density
-    private fun dp(v: Float): Float = v * d
+    // HUD hit targets breathe with available landscape height, but keep the phone baseline
+    // unchanged and cap the adjustment so split-screen never makes controls jump in size.
+    private val controlScale: Float get() =
+        ((game.screenH / d) / 360f).coerceIn(0.9f, 1.1f)
+    private fun dp(v: Float): Float = v * d * controlScale
 
     // ----- 표시 플래그 (씬이 설정) -----
     var showControls = false
@@ -89,10 +93,8 @@ class Hud(private val game: Game) {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
     }
-    // 컨트롤 레이블용 텍스트 페인트 (본문 타이포그래피는 Type이 담당)
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
-    }
+    // 컨트롤 레이블용 텍스트 페인트 (글꼴·본문 타이포그래피는 Type이 담당)
+    private val text = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true)
     // ----- 조이스틱 애니메이션 상태 (게임 스레드 전용) -----
     private var stickVX = 0f             // 부드러운 캡 벡터 (-1..1)
     private var stickVY = 0f
@@ -201,7 +203,9 @@ class Hud(private val game: Game) {
         menuCx = dp(18f) + menuR
         menuCy = hf - dp(18f) - menuR
 
-        mmR = dp(68f)
+        // Split-screen can leave a very narrow landscape surface. Shrink the compass
+        // before it collides with the fixed-width status panel at the opposite corner.
+        mmR = minOf(dp(68f), wf * 0.16f)
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
         softShadow.maskFilter = BlurMaskFilter(dp(3.4f), BlurMaskFilter.Blur.NORMAL)
@@ -637,7 +641,7 @@ class Hud(private val game: Game) {
             emphasized = hasCtx || pressedA
         )
         // 메인 아이콘: 근처 상호작용 대상이 있으면 그 아이콘, 없으면 기본 주먹
-        text.textSize = dp(21f)
+        text.textSize = TypeScale.px(dp(21f))
         text.color = 0xFFF8EFDC.toInt()
         val mainIcon = contextIcon ?: "👊"
         val miTw = text.measureText(mainIcon)
@@ -989,7 +993,7 @@ class Hud(private val game: Game) {
 
     /** 버튼 중앙에 글자/이모지 그리기 */
     private fun drawGlyph(c: Canvas, cx: Float, cy: Float, glyph: String, size: Float, color: Int = 0xFFF8EFDC.toInt()) {
-        text.textSize = size
+        text.textSize = TypeScale.px(size)
         text.color = color
         val tw = text.measureText(glyph)
         c.drawText(glyph, cx - tw / 2, cy - (text.descent() + text.ascent()) / 2f, text)
@@ -1214,6 +1218,29 @@ class Hud(private val game: Game) {
             }
             drawInkHouse(c, homeX, homeY - above, hw)
         }
+
+        // 메인 퀘스트 추천 위치 — 금색 별 + 펄스 링 (미방문 지역에도 표시)
+        val adv = MainQuestAdvisor.advise(s)
+        if (adv != null && !adv.alreadyThere) {
+            val reg = Regions.byId[adv.regionId]
+            if (reg != null) {
+                val x = ox + reg.mmX * scale
+                val y = oy + reg.mmY * scale
+                val pulse = (game.time * 1.1f) % 1f
+                fx.style = Paint.Style.FILL
+                fx.shader = null
+                fx.color = 0xFFF2D06B.toInt()
+                c.drawCircle(x, y, dot * 1.15f, fx)
+                ink.style = Paint.Style.STROKE
+                ink.strokeWidth = dp(1.1f)
+                ink.color = Color.argb(((1f - pulse) * 170f).toInt(), 242, 182, 60)
+                ink.pathEffect = null
+                c.drawCircle(x, y, dot + dp(1.2f) + pulse * dp(5.5f), ink)
+                val sp = Type.paintAt(8.5f, true, 0.02f, 0xFF5A3D12.toInt())
+                val star = "★"
+                c.drawText(star, x - sp.measureText(star) / 2f, y + dp(3f), sp)
+            }
+        }
     }
 
     private fun drawInkHouse(c: Canvas, x: Float, bottom: Float, w: Float) {
@@ -1294,7 +1321,7 @@ class Hud(private val game: Game) {
         c.drawPath(tmpPath, fx)
 
         inkText.typeface = serifBold
-        inkText.textSize = dp(8.2f)
+        inkText.textSize = TypeScale.px(dp(8.2f))
         val letterR = glass + dp(6.0f)
         val letters = arrayOf("N" to 0, "E" to 90, "S" to 180, "W" to 270)
         for ((lab, deg) in letters) {
@@ -1435,11 +1462,11 @@ class Hud(private val game: Game) {
     private fun fieldTagRect(): RectF? {
         if (!showMinimap || regionLabel.isEmpty() || mmR <= 0f || game.screenW <= 0) return null
         val reg = Regions.byId[game.state.region]
-        measurePaint.typeface = Typeface.DEFAULT_BOLD
-        measurePaint.textSize = dp(12.2f)
+        measurePaint.typeface = Type.face(true)
+        measurePaint.textSize = TypeScale.px(dp(12.2f))
         val nameW = measurePaint.measureText(regionLabel)
         measurePaint.typeface = serif
-        measurePaint.textSize = dp(7.3f)
+        measurePaint.textSize = TypeScale.px(dp(7.3f))
         val subW = measurePaint.measureText(coordLine(reg))
         val wax = dp(16f)
         val pad = dp(8f)
@@ -1523,14 +1550,14 @@ class Hud(private val game: Game) {
         fx.color = Color.argb(160, 255, 206, 186)
         c.drawCircle(wx - dp(1.1f), wy - dp(1.2f), dp(1.35f), fx)
 
-        inkText.typeface = Typeface.DEFAULT_BOLD
-        inkText.textSize = dp(12.2f)
+        inkText.typeface = Type.face(true)
+        inkText.textSize = TypeScale.px(dp(12.2f))
         inkText.color = 0xFF36261A.toInt()
         val nameX = rect.left + dp(20f)
         drawHandInk(c, regionLabel, nameX, rect.top + dp(15.6f), inkText)
 
         inkText.typeface = serif
-        inkText.textSize = dp(7.3f)
+        inkText.textSize = TypeScale.px(dp(7.3f))
         inkText.color = 0xFF766044.toInt()
         c.drawText(coord, nameX, rect.bottom - dp(8.2f), inkText)
 
