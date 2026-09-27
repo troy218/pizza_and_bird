@@ -40,6 +40,7 @@ class GameState {
     var playSeconds = 0f
     var photos = 0                 // 누적 촬영 장수
     var worldTime = 8.5f           // 게임 내 시각 (0.0~24.0, 8.5=오전 8시반)
+    var day = 1                    // 게임 내 날짜 (자정을 넘기거나 잠들면 +1 — 날씨가 바뀐다)
 
     // 탐조가 성장 --------------------------------------------------------
     var level = 1                  // 캐릭터 레벨 (1~MAX_LEVEL)
@@ -177,6 +178,21 @@ class GameState {
 
     // ------------------ 낮/밤 ------------------
 
+    /** 게임 시계를 dt초만큼 진행 (자정을 넘기면 날짜 +1) */
+    fun advanceClock(dt: Float) {
+        worldTime += dt * 24f / DAY_SECONDS
+        while (worldTime >= 24f) {
+            worldTime -= 24f
+            day += 1
+        }
+    }
+
+    /** 침대에서 자고 아침 7:12에 일어남 (자정 전에 잤다면 다음 날) */
+    fun sleepUntilMorning() {
+        if (worldTime > 7.2f) day += 1
+        worldTime = 7.2f
+    }
+
     /** 밤(올빼미 등 밤새 출현) 여부 */
     fun isNight(): Boolean = worldTime >= 19.5f || worldTime < 4.5f
 
@@ -243,6 +259,7 @@ class GameState {
         playSeconds = 0f
         photos = 0
         worldTime = 8.5f
+        day = 1
         for (i in decorSlots.indices) decorSlots[i] = -1
         decorOwned.clear()
         level = 1
@@ -277,6 +294,7 @@ class GameState {
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("day", day)
         put("level", level)
         put("exp", exp)
         put("skillPoints", skillPoints)
@@ -329,6 +347,7 @@ class GameState {
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.day = j.optInt("day", 1).coerceAtLeast(1)
 
             s.level = j.optInt("level", 1).coerceIn(1, Progression.MAX_LEVEL)
             s.exp = j.optInt("exp", 0).coerceAtLeast(0)
