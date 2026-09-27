@@ -410,7 +410,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (input.justEat) {
             val pid = state.eatBest()
             if (pid == null) {
-                game.toast("피자가 없어요! 화덕이나 오븐에서 구워요 🍕")
+                game.toast("피자가 없어요! 🍕")
                 game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val p = Pizzas.of(pid)
@@ -421,11 +421,7 @@ class HomeScene(game: Game) : Scene(game) {
         }
         if (input.justA) {
             val near = nearestInteract()
-            if (near != null) {
-                interact(near.first, near.second)
-            } else {
-                game.toast("화덕·오븐·침대·인테리어 보드·이사박스에 다가가서 육각 메인 버튼을 눌러보세요!")
-            }
+            if (near != null) interact(near.first, near.second)
             return
         }
         val tap = input.consumeTapWorld()
@@ -844,11 +840,5 @@ class HomeScene(game: Game) : Scene(game) {
 
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
-        // 조작 힌트 — 월드 위라 얇은 그림자를 넣어 가독성을 확보
-        val hint = "A: 상호작용 (화덕=화덕피자 · 오븐=일반 피자) · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"
-        val w = game.screenW.toFloat()
-        val y = game.screenH - game.density * 10f
-        Type.text(c, hint, w / 2f, y + game.density, Role.CAPTION, 0x66000000, 0.5f)
-        Type.text(c, hint, w / 2f, y, Role.CAPTION, 0xCCF8EFDC.toInt(), 0.5f)
     }
 }

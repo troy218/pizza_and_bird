@@ -313,9 +313,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val t1 = Type.paintPx(30f, true, 0.05f, Type.BROWN)
         val s1 = "여행할 캐릭터를 골라 주세요"
         c.drawText(s1, cx - t1.measureText(s1) / 2f, 115f, t1)
-        val t2 = Type.paintPx(16f, false, 0f, Type.SOFT)
-        val s2 = "선택한 캐릭터는 게임 내내 함께 여행해요"
-        c.drawText(s2, cx - t2.measureText(s2) / 2f, 145f, t2)
         fun card(r: RectF, label: String, selected: Boolean, bmp: android.graphics.Bitmap) {
             p.color = if (selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt()
             c.drawRoundRect(r, 18f, 18f, p)
@@ -332,9 +329,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val femaleIdle = game.assets.playerSet("female", 0).idle
         card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
         card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
-        val t3 = Type.paintPx(15f, false, 0f, Type.SOFT)
-        val s3 = "캐릭터를 탭해서 선택한 뒤 계속하기를 누르세요"
-        c.drawText(s3, cx - t3.measureText(s3) / 2f, 448f, t3)
     }
 
     override fun drawHud(c: Canvas) {
