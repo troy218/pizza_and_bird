@@ -1292,12 +1292,17 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
-    var faceLeft = true
-    var sprW = 16                    // 스프라이트 크기 (생성 시 Assets에서 설정)
-    var sprH = 15
+    var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
+    var renderPose = BirdPose.PERCHED
+    /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
+    var faceLeft: Boolean
+        get() = facing != BirdFacing.RIGHT
+        set(value) { facing = if (value) BirdFacing.LEFT else BirdFacing.RIGHT }
+    var sprW = 24                    // 고정밀 스프라이트 크기 (생성 시 Assets에서 갱신)
+    var sprH = 24
 
     val cx: Float get() = x + sprW / 2f
-    val cy: Float get() = y + sprH * 0.45f
+    val cy: Float get() = y + sprH * 0.72f
 
     fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
         val fleeTiles = when (def.tier) {
@@ -1317,7 +1322,12 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     val len = sqrt(dx * dx + dy * dy)
                     fleeVx = dx / len * 85f
                     fleeVy = dy / len * 85f - 35f
-                    faceLeft = fleeVx < 0f
+                    facing = if (kotlin.math.abs(fleeVx) >= kotlin.math.abs(fleeVy)) {
+                        if (fleeVx < 0f) BirdFacing.LEFT else BirdFacing.RIGHT
+                    } else {
+                        if (fleeVy < 0f) BirdFacing.BACK else BirdFacing.FRONT
+                    }
+                    renderPose = BirdPose.ALERT
                     fleeT = 0f
                     return
                 }
@@ -1336,7 +1346,13 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                         hopToX = nx; hopToY = ny
                         hopT = 0f
                         state = 1
-                        if (ddx != 0) faceLeft = ddx < 0
+                        facing = when {
+                            ddx < 0 -> BirdFacing.LEFT
+                            ddx > 0 -> BirdFacing.RIGHT
+                            ddy < 0 -> BirdFacing.BACK
+                            else -> BirdFacing.FRONT
+                        }
+                        renderPose = BirdPose.ALERT
                     } else {
                         idleT = 0.6f
                     }
@@ -1348,6 +1364,11 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     x = hopToX; y = hopToY
                     state = 0
                     idleT = 0.7f + (Math.random() * 1.6f).toFloat()
+                    renderPose = when {
+                        Math.random() < 0.28 -> BirdPose.FEEDING
+                        Math.random() < 0.36 -> BirdPose.ALERT
+                        else -> BirdPose.PERCHED
+                    }
                 } else {
                     x = hopFromX + (hopToX - hopFromX) * hopT
                     y = hopFromY + (hopToY - hopFromY) * hopT

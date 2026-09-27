@@ -87,9 +87,11 @@ class Assets(private val context: Context) {
     // 앉은 자세 스프라이트는 종별로 *처음 필요할 때* 만들어 캐시한다.
     // (예전엔 시작 시 598종을 전부 만들어 앱이 켜질 때까지 한참 걸렸다)
     private val birdCache = LinkedHashMap<String, Bitmap>()
+    private data class BirdPoseKey(val id: String, val facing: BirdFacing, val pose: BirdPose)
+    private val birdPoseCache = LinkedHashMap<BirdPoseKey, Bitmap>()
     private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
-    private var birdsFlipped: Map<String, Bitmap> = emptyMap()
     private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
+    private val birdReferencePalettes = HashMap<String, BirdRenderPalette>()
 
     // 타일 (32x32) ------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant 또는 프레임]
@@ -876,28 +878,76 @@ class Assets(private val context: Context) {
         )
     }
 
-    /** 새 한 종의 스프라이트 생성 — [bird] 에서 처음 필요해진 종만 만든다 */
-    private fun buildBird(d: BirdDef): Bitmap {
-        val pal = mapOf(
-            'B' to d.art.body, 'b' to shade(d.art.body, 0.72f), 'H' to shade(d.art.body, 1.18f),
-            'h' to d.art.head, 'a' to d.art.accent,
-            'W' to d.art.belly, 'w' to shade(d.art.belly, 0.82f),
-            't' to d.art.wing, 'T' to shade(d.art.wing, 0.72f),
-            'k' to d.art.beak, 'c' to d.art.crest, 'l' to d.art.leg,
-            'e' to c(0xFFFDFDF8), 'E' to c(0xFF17151A),
-            'v' to c(0xFF8FD4EA)
-        )
-        val rows = birdTemplates[d.art.template.coerceIn(0, birdTemplates.lastIndex)]
-        var bmp = decorateBird(sprite(rows, pal), d)
-        if (d.art.scale != 1f) {
-            bmp = Bitmap.createScaledBitmap(
-                bmp,
-                (bmp.width * d.art.scale).toInt().coerceAtLeast(1),
-                (bmp.height * d.art.scale).toInt().coerceAtLeast(1),
-                false
-            )
+    /**
+     * 새 한 종의 기본 스프라이트 생성.
+     * 실제 사진에서 뽑은 색 + 종별 BirdArt 식별색을 섞은 고정밀 4방향 리그를 사용한다.
+     */
+    private fun buildBird(d: BirdDef): Bitmap =
+        DetailedBirdRenderer.render(d, BirdFacing.LEFT, BirdPose.PERCHED, birdReferencePalette(d))
+
+    private fun buildBirdPose(d: BirdDef, facing: BirdFacing, pose: BirdPose): Bitmap =
+        DetailedBirdRenderer.render(d, facing, pose, birdReferencePalette(d))
+
+    /**
+     * assets/birds/{번호}.jpg의 중앙 피사체 색 군집을 작은 비트맵으로 읽는다.
+     * 배경색 오염을 줄이기 위해 BirdArt 기준색과 가까운 상위 군집을 고르고 34%만 혼합한다.
+     * 따라서 사진의 실제 깃색을 반영하면서 숲/하늘 배경이 몸 전체를 물들이지는 않는다.
+     */
+    private fun birdReferencePalette(d: BirdDef): BirdRenderPalette {
+        birdReferencePalettes[d.id]?.let { return it }
+        val bases = intArrayOf(d.art.body, d.art.belly, d.art.wing, d.art.head, d.art.accent)
+        val counts = HashMap<Int, Int>()
+        if (d.birdNum > 0) {
+            try {
+                val opt = BitmapFactory.Options().apply {
+                    inSampleSize = 8
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+                val small = context.assets.open("birds/${d.birdNum}.jpg").use { BitmapFactory.decodeStream(it, null, opt) }
+                if (small != null) {
+                    val cx = (small.width - 1) / 2f
+                    val cy = (small.height - 1) / 2f
+                    val rx = (small.width * 0.43f).coerceAtLeast(1f)
+                    val ry = (small.height * 0.43f).coerceAtLeast(1f)
+                    for (y in 0 until small.height) for (x in 0 until small.width) {
+                        val dx = (x - cx) / rx
+                        val dy = (y - cy) / ry
+                        if (dx * dx + dy * dy > 1f) continue
+                        val col = small.getPixel(x, y)
+                        val r = Color.red(col); val g = Color.green(col); val b = Color.blue(col)
+                        // 5bit RGB 군집. 과노출/완전 암부도 흰새·검은새에 필요하므로 버리지 않는다.
+                        val q = Color.rgb(r and 0xF8, g and 0xF8, b and 0xF8)
+                        val centerWeight = if (dx * dx + dy * dy < 0.35f) 3 else 1
+                        counts[q] = (counts[q] ?: 0) + centerWeight
+                    }
+                    small.recycle()
+                }
+            } catch (_: Exception) { }
         }
-        return bmp
+        val ranked = counts.entries.sortedByDescending { it.value }.take(28)
+        val maxCount = ranked.firstOrNull()?.value?.coerceAtLeast(1) ?: 1
+
+        fun distance(a: Int, b: Int): Int {
+            val dr = Color.red(a) - Color.red(b)
+            val dg = Color.green(a) - Color.green(b)
+            val db = Color.blue(a) - Color.blue(b)
+            return dr * dr * 3 + dg * dg * 4 + db * db * 2
+        }
+        fun blend(base: Int): Int {
+            if (ranked.isEmpty()) return base
+            val picked = ranked.minByOrNull { e ->
+                // 자주 나온 색은 최대 약 65 RGB-distance만큼 우대한다.
+                distance(base, e.key) - e.value * 4200 / maxCount
+            }!!.key
+            fun ch(a: Int, b: Int) = (a * 0.66f + b * 0.34f).roundToInt().coerceIn(0, 255)
+            return Color.rgb(ch(Color.red(base), Color.red(picked)), ch(Color.green(base), Color.green(picked)), ch(Color.blue(base), Color.blue(picked)))
+        }
+
+        val mapped = bases.map(::blend)
+        return BirdRenderPalette(
+            body = mapped[0], belly = mapped[1], wing = mapped[2],
+            head = mapped[3], accent = mapped[4], beak = d.art.beak, leg = d.art.leg
+        ).also { birdReferencePalettes[d.id] = it }
     }
 
     /** 체형마다 안전한 앵커에 1px 깃무늬를 더해 작은 화면에서도 종을 구분한다. */
@@ -2904,14 +2954,23 @@ begin(T.LAMP)
 
     // -----------------------------------------------------------------------
 
-    /** 새 비트맵 (안전 접근) — 처음 보는 종은 그 자리에서 만들어 캐시한다.
-     * 게임 스레드에서만 호출할 것 (생성 비용 1ms 안팎이라 스폰/도감 페이징 때 부담 없음) */
+    /** 새 비트맵 (안전 접근) — 기본 왼쪽 옆모습. */
     fun bird(id: String): Bitmap {
         birdCache[id]?.let { return it }
         val def = Birds.byId[id] ?: Birds.ALL.first()
         val bmp = buildBird(def)
         birdCache[def.id] = bmp
+        birdPoseCache[BirdPoseKey(def.id, BirdFacing.LEFT, BirdPose.PERCHED)] = bmp
         return bmp
+    }
+
+    /** 방향과 행동이 모두 반영된 필드/촬영용 새. 598종 × 자세는 실제로 필요할 때만 생성한다. */
+    fun birdPose(id: String, facing: BirdFacing, pose: BirdPose = BirdPose.PERCHED): Bitmap {
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        val key = BirdPoseKey(def.id, facing, pose)
+        birdPoseCache[key]?.let { return it }
+        if (facing == BirdFacing.LEFT && pose == BirdPose.PERCHED) return bird(def.id)
+        return buildBirdPose(def, facing, pose).also { birdPoseCache[key] = it }
     }
 
     /** 이 목록의 종을 미리 만들어 둔다 (장면 전환 뒤 스폰 렉을 막고 싶을 때) */
@@ -2921,13 +2980,8 @@ begin(T.LAMP)
         }
     }
 
-    /** 오른쪽을 바라보는 새 (플립, 지연 생성) */
-    fun birdFlipped(id: String): Bitmap {
-        birdsFlipped[id]?.let { return it }
-        val f = flipH(bird(id))
-        birdsFlipped = birdsFlipped + (id to f)
-        return f
-    }
+    /** 오른쪽을 바라보는 새 — 단순 반전이 아니라 방향 캐시의 실제 자세를 사용한다. */
+    fun birdFlipped(id: String): Bitmap = birdPose(id, BirdFacing.RIGHT, BirdPose.PERCHED)
 
     /** 도주 비행 프레임. 종별 팔레트와 체형을 유지하며 좌우 방향도 지원한다. */
     fun birdFlight(id: String, frame: Int, faceLeft: Boolean): Bitmap {

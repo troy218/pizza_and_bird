@@ -215,6 +215,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         GROW("성장", "🌱", UiKit.PASTEL_MINT),
         PIZZA("피자", "🍕", UiKit.PASTEL_LEMON),
         BOOK("도감", "📚", UiKit.PASTEL_LILAC),
+        ALBUM("사진집", "📷", UiKit.PASTEL_SKY),
         SETTINGS("설정", "⚙", UiKit.PASTEL_SAND)
     }
 
@@ -252,7 +253,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         for ((r, t) in tabRects) {
             if (r.contains(tap.x, tap.y)) {
                 // 📚 도감 탭은 책장 넘기는 소리로 열린다
-                if (t == Tab.BOOK && tab != Tab.BOOK) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
+                if ((t == Tab.BOOK || t == Tab.ALBUM) && tab != t) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
                 else g.sfx(Audio.Sfx.TAP, 0.45f)
                 tab = t
                 resetArmed = false
@@ -357,6 +358,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             Tab.GROW -> drawGrow(c)
             Tab.PIZZA -> drawPizza(c)
             Tab.BOOK -> drawBook(c)
+            Tab.ALBUM -> drawAlbum(c)
             Tab.SETTINGS -> drawSettings(c)
         }
     }
@@ -905,6 +907,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private var bookRects: Map<String, RectF> = emptyMap()
     private var bookPage = 0
+    private var albumPage = 0
 
     private fun bookCell(def: BirdDef): RectF? = bookRects[def.id]
 
@@ -1091,6 +1094,117 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             c, g, RectF(panelR.centerX() - pillW / 2f, py, panelR.centerX() + pillW / 2f, py + dp(scene, 22f)),
             pageText, 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 11.5f
         )
+    }
+
+    /** 촬영할 때마다 실제 월드 배경과 방향별 새가 자동으로 쌓이는 사진집. */
+    private fun drawAlbum(c: Canvas) {
+        val g = scene.game
+        val records = g.state.photoAlbum.asReversed()
+        val left = panelR.left + dp(scene, 14f)
+        val right = panelR.right - dp(scene, 14f)
+        val width = right - left
+
+        textP.textSize = dp(scene, 13f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("📷 나의 새 사진집", left, contentTop() + dp(scene, 10f), textP)
+        textP.textSize = dp(scene, 9.2f)
+        textP.color = 0xFF8A7360.toInt()
+        val countText = "${records.size}장 · 최대 ${PhotoArchive.MAX_PHOTOS}장 · 지형과 촬영 방향까지 보존"
+        c.drawText(countText, right - textP.measureText(countText), contentTop() + dp(scene, 10f), textP)
+
+        if (records.isEmpty()) {
+            val emptyR = RectF(left, contentTop() + dp(scene, 28f), right, contentBottom() - dp(scene, 8f))
+            cuteCard(c, emptyR, UiKit.PASTEL_SKY, UiKit.BROWN_LINE, 1.4f)
+            textP.textSize = dp(scene, 34f)
+            c.drawText("📸", emptyR.centerX() - textP.measureText("📸") / 2f, emptyR.centerY() - dp(scene, 12f), textP)
+            textP.textSize = dp(scene, 14f)
+            textP.color = 0xFF4A3728.toInt()
+            val msg = "아직 인화한 사진이 없어요"
+            c.drawText(msg, emptyR.centerX() - textP.measureText(msg) / 2f, emptyR.centerY() + dp(scene, 15f), textP)
+            textP.textSize = dp(scene, 10.5f)
+            textP.color = 0xFF8A7360.toInt()
+            val sub = "필드에서 카메라를 열고 새를 찍으면 이곳에 자동으로 저장돼요"
+            c.drawText(sub, emptyR.centerX() - textP.measureText(sub) / 2f, emptyR.centerY() + dp(scene, 34f), textP)
+            return
+        }
+
+        val cols = 3
+        val rows = 2
+        val pageSize = cols * rows
+        val totalPages = ((records.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+        albumPage = albumPage.coerceIn(0, totalPages - 1)
+        val gridTop = contentTop() + dp(scene, 24f)
+        val pagerH = dp(scene, 28f)
+        val gridBottom = contentBottom() - pagerH
+        val gap = dp(scene, 7f)
+        val cw = (width - gap * (cols - 1)) / cols
+        val ch = (gridBottom - gridTop - gap * (rows - 1)) / rows
+        val page = records.drop(albumPage * pageSize).take(pageSize)
+
+        for ((i, record) in page.withIndex()) {
+            val col = i % cols
+            val row = i / cols
+            val r = RectF(
+                left + col * (cw + gap), gridTop + row * (ch + gap),
+                left + col * (cw + gap) + cw, gridTop + row * (ch + gap) + ch
+            )
+            cuteCard(c, r, 0xFFFFFCF4.toInt(), 0xFFD8B77D.toInt(), 1.4f, stitched = false)
+            val photoR = RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 27f))
+            fillP.color = 0xFF25252B.toInt()
+            c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), fillP)
+            val bmp = PhotoArchive.load(g.context, record.fileName)
+            if (bmp != null) {
+                val k = maxOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
+                val dw = bmp.width * k
+                val dh = bmp.height * k
+                c.save(); c.clipRect(photoR)
+                c.drawBitmap(bmp, null, RectF(photoR.centerX() - dw / 2f, photoR.centerY() - dh / 2f,
+                    photoR.centerX() + dw / 2f, photoR.centerY() + dh / 2f), Paint(Paint.FILTER_BITMAP_FLAG))
+                c.restore()
+            } else {
+                val def = Birds.byId[record.birdId]
+                if (def != null) {
+                    val bird = g.assets.birdPose(def.id, record.facing, record.pose)
+                    val k = minOf(photoR.width() * 0.52f / bird.width, photoR.height() * 0.72f / bird.height)
+                    c.drawBitmap(bird, null, RectF(photoR.centerX() - bird.width * k / 2f, photoR.centerY() - bird.height * k / 2f,
+                        photoR.centerX() + bird.width * k / 2f, photoR.centerY() + bird.height * k / 2f), g.assets.sprPaint)
+                }
+            }
+            strokeP.color = Color.argb(75, 40, 30, 22)
+            strokeP.strokeWidth = dp(scene, 1f)
+            c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), strokeP)
+
+            val def = Birds.byId[record.birdId]
+            val regionName = Regions.byId[record.regionId]?.name ?: record.regionId
+            textP.textSize = dp(scene, 10.2f)
+            textP.color = 0xFF3B2F24.toInt()
+            c.drawText(def?.name ?: "새 사진", r.left + dp(scene, 7f), r.bottom - dp(scene, 10f), textP)
+            textP.textSize = dp(scene, 8.4f)
+            textP.color = 0xFF8A7360.toInt()
+            val meta = "${"★".repeat(record.stars)} · $regionName · ${record.facing.label}"
+            c.drawText(meta, r.right - dp(scene, 7f) - textP.measureText(meta), r.bottom - dp(scene, 10f), textP)
+
+            btnRects.add(Triple(r, def?.name ?: "사진") {
+                scene.openOverlay(PhotoAlbumViewerOverlay(scene, record.id))
+            })
+        }
+
+        fun pager(rect: RectF, label: String, enabled: Boolean, action: () -> Unit) {
+            if (enabled) {
+                cuteBtn(c, rect, label, UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
+                btnRects.add(Triple(rect, label, action))
+            } else cuteBtnOff(c, rect, label, 10.5f)
+        }
+        val py = contentBottom() - dp(scene, 23f)
+        val prev = RectF(left, py, left + dp(scene, 78f), py + dp(scene, 21f))
+        val next = RectF(right - dp(scene, 78f), py, right, py + dp(scene, 21f))
+        pager(prev, "◀ 이전", albumPage > 0) { albumPage-- }
+        pager(next, "다음 ▶", albumPage < totalPages - 1) { albumPage++ }
+        val pageText = "${albumPage + 1} / $totalPages"
+        textP.textSize = dp(scene, 10.5f)
+        val pw = textP.measureText(pageText) + dp(scene, 22f)
+        UiKit.badge(c, g, RectF(panelR.centerX() - pw / 2f, py, panelR.centerX() + pw / 2f, py + dp(scene, 21f)),
+            pageText, 0xFFDDEEF5.toInt(), 0xFF4A6070.toInt(), 10.5f)
     }
 
     private fun drawSettings(c: Canvas) {
@@ -2349,7 +2463,10 @@ class PhotoResultOverlay(
     private val prevLevel: Int = 1,
     private val reachTiles: Float = 0f,
     private val exif: String = "",
-    private val notes: List<String> = emptyList()
+    private val notes: List<String> = emptyList(),
+    private val capturedPhoto: Bitmap? = null,
+    private val birdFacing: BirdFacing = BirdFacing.LEFT,
+    private val birdPose: BirdPose = BirdPose.PERCHED
 ) : Overlay(scene) {
 
     private var t = 0f
@@ -2510,7 +2627,7 @@ class PhotoResultOverlay(
             while (camTxt.length > 1 && textP.measureText("$camTxt…") > camMaxW) camTxt = camTxt.dropLast(1)
             camTxt = "$camTxt…"
         }
-        val info = buildString {
+        var info = buildString {
             if (camTxt.isNotBlank()) append("$camTxt · ")
             if (distTiles > 0f) {
                 append(String.format("%.1f", distTiles))
@@ -2518,7 +2635,12 @@ class PhotoResultOverlay(
                 append("칸 · ")
             }
             if (timeTxt.isNotBlank()) append("$timeTxt · ")
-            append("촬영 ${count}회")
+            append("${birdFacing.label} · ${birdPose.label} · 촬영 ${count}회")
+        }
+        val infoMaxW = cardW - dp(scene, 20f)
+        if (textP.measureText(info) > infoMaxW) {
+            while (info.length > 1 && textP.measureText("$info…") > infoMaxW) info = info.dropLast(1)
+            info += "…"
         }
         c.drawText(info, card.centerX() - textP.measureText(info) / 2, card.bottom - dp(scene, 12f), textP)
 
@@ -2598,8 +2720,25 @@ class PhotoResultOverlay(
     /** 인화지 속 풍경 + 새 */
     private fun drawPhoto(c: Canvas, r: RectF) {
         val a = scene.game.assets
+        // 촬영 시점에 월드 타일/지형물/날씨와 방향별 큰 새를 함께 렌더해 저장한 실제 게임 사진.
+        // 화면 비율이 달라도 중앙 피사체를 유지하는 center-crop으로 인화한다.
+        val saved = capturedPhoto
+        if (saved != null) {
+            val scale = maxOf(r.width() / saved.width.toFloat(), r.height() / saved.height.toFloat())
+            val dw = saved.width * scale
+            val dh = saved.height * scale
+            val dx = r.centerX() - dw / 2f
+            val dy = r.centerY() - dh / 2f
+            c.save()
+            c.clipRect(r)
+            c.drawBitmap(saved, null, RectF(dx, dy, dx + dw, dy + dh), Paint(Paint.FILTER_BITMAP_FLAG))
+            c.restore()
+            return
+        }
+
         val hab = def.habitats.firstOrNull() ?: "field"
 
+        // 이전 세이브/파일 실패 때의 절차적 폴백 풍경
         // 하늘 (6단 밴드 — 이음새가 보이지 않게 겹쳐 그린다)
         val sky = when {
             night -> when (hab) {
