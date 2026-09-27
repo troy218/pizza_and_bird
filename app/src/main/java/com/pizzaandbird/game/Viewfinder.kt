@@ -517,7 +517,7 @@ class Viewfinder(private val game: Game) {
         fill.color = Color.argb((70 * k * blink).toInt(), 226, 87, 76)
         c.drawCircle(badge.left + 14f, badge.centerY(), 9f, fill)
         text.color = Color.argb((240 * k).toInt(), 250, 246, 236)
-        c.drawText("PHOTO", badge.left + 26f, badge.centerY() + 4.5f, text)
+        c.drawText("PHOTO", badge.left + 26f, badge.centerY() - (text.descent() + text.ascent()) / 2f, text)
 
         // 중앙: 시각
         val night = state.isNight()
@@ -528,7 +528,7 @@ class Viewfinder(private val game: Game) {
         fill.color = Color.argb((168 * k).toInt(), 14, 12, 22)
         c.drawRoundRect(cr, 7f, 7f, fill)
         mono.color = Color.argb((240 * k).toInt(), 250, 246, 236)
-        c.drawText(clockTxt, cr.left + 13f, cr.centerY() + 5.5f, mono)
+        c.drawText(clockTxt, cr.left + 13f, cr.centerY() - (mono.descent() + mono.ascent()) / 2f, mono)
 
         // 우측: 장비 + 사거리
         val rig = state.rig()
