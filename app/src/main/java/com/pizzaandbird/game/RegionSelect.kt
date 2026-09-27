@@ -74,15 +74,14 @@ object RegionCards {
                 stroke.color = 0xFFFFF8E8.toInt()
                 stroke.strokeWidth = dp * 2f
                 c.drawCircle(ccx, ccy, dp * 11f, stroke)
-                val vp = Type.paintAt(12f, true, 0.02f, 0xFFFFF8E8.toInt())
-                c.drawText("✓", ccx - vp.measureText("✓") / 2f, Type.midBaseline(vp, ccy), vp)
+                UiKit.iconCenter(c, game, "check", ccx, ccy, dp * 14f)
             }
 
             val x = r.left + dp * 10
             var y = r.top + dp * 16
-            val nameLine = "${reg.emoji} ${reg.name}"
-            c.drawText(nameLine, x, y, namePaint)
-            val nameW = namePaint.measureText(nameLine)
+            UiKit.icon(c, game, reg.emoji, RectF(x, y - dp * 12f, x + dp * 15f, y + dp * 3f))
+            c.drawText(reg.name, x + dp * 20f, y, namePaint)
+            val nameW = namePaint.measureText(reg.name) + dp * 20f
             c.drawText(reg.english, x + nameW + dp * 6f, y, enPaint)
 
             y += dp * 13f
@@ -93,7 +92,8 @@ object RegionCards {
             c.drawText(sig, x, y, metaBird)
 
             y += dp * 12f
-            c.drawText("📅 ${reg.season}", x, y, metaSeason)
+            UiKit.icon(c, game, "calendar", RectF(x, y - dp * 10f, x + dp * 13f, y + dp * 3f))
+            c.drawText(reg.season, x + dp * 17f, y, metaSeason)
 
             y += dp * 12f
             val descLines = game.hud.wrapText(reg.desc, descPaint, r.width() - dp * 20f).take(1)
@@ -102,9 +102,10 @@ object RegionCards {
                 y += dp * 11f
             }
             val hasHome = reg.id == START_REGION_ID || game.state.ownsHome(reg.id)
-            val homeLine = if (reg.id == START_REGION_ID && !game.state.started) "🏠 시작 집 제공"
-            else if (hasHome) "🏠 보유한 집" else "집 매입 ${won(HousePrices.forRegion(reg.id))}"
-            c.drawText(homeLine, x, y + dp * 2f, if (hasHome) homeOwnedPaint else homeBuyPaint)
+            val homeLine = if (reg.id == START_REGION_ID && !game.state.started) "시작 집 제공"
+            else if (hasHome) "보유한 집" else "집 매입 ${won(HousePrices.forRegion(reg.id))}"
+            UiKit.icon(c, game, if (hasHome) "house" else "box", RectF(x, y - dp * 9f, x + dp * 13f, y + dp * 4f))
+            c.drawText(homeLine, x + dp * 17f, y + dp * 2f, if (hasHome) homeOwnedPaint else homeBuyPaint)
         }
     }
 
@@ -182,7 +183,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
         backRect = RectF(dp * 14f, dp * 14f, dp * 90f, dp * 50f)
-        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
+        UiKit.button(c, game, backRect, "arrow_left 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
 
         Type.sticker(c, "서울에서 시작해볼까요?", w / 2f, dp * 32f, Role.DISPLAY, Type.INK)
         Type.text(c, "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요",
@@ -306,7 +307,7 @@ class RegionSelectOverlay(
         panelR = RectF(dp * 14f, dp * 14f, w - dp * 14f, h - dp * 14f)
         UiKit.panel(c, game, panelR)
 
-        val t1 = "📦 이사갈 곳을 골라요"
+        val t1 = "이사갈 곳을 골라요"
         Type.text(c, t1, panelR.left + dp * 16f, panelR.top + dp * 28f, Role.TITLE, Type.INK)
         val t2 = "이사 ${won(MOVE_COST)} · 방문한 지역의 집을 매입해 내 집으로 만들 수 있어요"
         Type.text(c, t2, panelR.left + dp * 16f, panelR.top + dp * 46f, Role.CAPTION, Type.SOFT)
@@ -327,7 +328,7 @@ class RegionSelectOverlay(
             val navY = panelR.bottom - dp * 46f
             prevRect = RectF(panelR.centerX() - dp * 130f, navY, panelR.centerX() - dp * 54f, navY + navH)
             nextRect = RectF(panelR.centerX() + dp * 54f, navY, panelR.centerX() + dp * 130f, navY + navH)
-            for ((rr, lbl) in listOf(prevRect to "◀ 이전", nextRect to "다음 ▶")) {
+            for ((rr, lbl) in listOf(prevRect to "arrow_left 이전", nextRect to "arrow_right 다음")) {
                 UiKit.button(c, game, rr, lbl, 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 11.5f)
             }
             val pg = "${page + 1} / $pages  (방문 ${allRegions.size}곳)"

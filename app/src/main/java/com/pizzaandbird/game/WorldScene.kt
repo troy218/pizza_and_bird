@@ -146,7 +146,7 @@ class WorldScene(
 
         if (region.id !in state.visited) {
             state.visited.add(region.id)
-            game.hud.toast("첫 방문! ${region.name} 🎉")
+            game.hud.toast("첫 방문! ${region.name}")
         }
 
         repeat(2) { trySpawnBird() }
@@ -173,7 +173,7 @@ class WorldScene(
         fx.weather = weather
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
-        game.banner("${region.emoji}  ${region.name}")
+        game.banner(region.name)
 
         game.audio.playBgm(regionBgm())       // 🎵 지역 분위기에 맞는 곡
         updateAmbience()
@@ -359,11 +359,11 @@ class WorldScene(
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
         game.hud.contextIcon = when {
-            nearestNpc() != null -> "💬"
-            nearTile(T.SIGN) != null -> "🪧"
-            nearTile(T.BENCH) != null -> "☕"
-            nearestCat() != null -> "🐈"
-            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "🚪"
+            nearestNpc() != null -> "note"
+            nearTile(T.SIGN) != null -> "map"
+            nearTile(T.BENCH) != null -> "coffee"
+            nearestCat() != null -> "bird"
+            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
             else -> null
         }
 
@@ -515,7 +515,7 @@ class WorldScene(
         val prev = lastSeason
         lastSeason = now
         if (prev != null && prev != now) {
-            game.hud.banner("${now.icon} ${now.label}이 왔어요 — ${now.description}")
+            game.hud.banner("${now.label}이 왔어요 — ${now.description}")
             state.weatherSeconds = minOf(state.weatherSeconds, 3f)
         }
     }
@@ -534,7 +534,7 @@ class WorldScene(
         state.weatherId = chosen.id
         state.weatherSeconds = 50f + rnd.nextFloat() * 55f
         if (chosen != old) {
-            game.hud.banner("${chosen.icon} 날씨 변화: ${chosen.label}")
+            game.hud.banner("날씨 변화: ${chosen.label}")
             game.hud.toast("${chosen.description} · ${chosen.label}")
         }
     }
@@ -689,7 +689,7 @@ class WorldScene(
             hungerWarnT -= dt
             if (hungerWarnT <= 0f) {
                 hungerWarnT = 45f
-                game.toast("배고파요… 집에서 피자를 구워 먹어요! 🍕")
+                game.toast("배고파요… 집에서 피자를 구워 먹어요!")
             }
         }
     }
@@ -723,7 +723,7 @@ class WorldScene(
         state.px = player.x
         state.py = player.y
         SaveManager.save(game.context, state)
-        if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
+        if (viaSea) game.toast("해저 터널을 지나~")
         // 터널로 빨려 들어가는 느낌 — 살짝 광각으로 벌어지며 흔들린다
         viewRig.punchZoom(-0.055f)
         viewRig.shake(0.2f)
@@ -793,11 +793,11 @@ class WorldScene(
             birds.add(FieldBird(def, bx, by))
             if (def.tier.star >= 3) {
                 viewRig.punchZoom(0.03f)              // 희귀새 등장 — 숨을 죽이듯 살짝 당겨진다
-                game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+                game.toast("조심하세요… ${def.name}가 나타났어요!")
                 game.sfx(Audio.Sfx.NOTIFY, 0.7f)
             }
             if (state.questBird == def.id) {
-                game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+                game.toast("의뢰의 새 ${def.name} 등장!")
                 game.sfx(Audio.Sfx.NOTIFY, 0.7f)
             }
             return
@@ -957,7 +957,7 @@ class WorldScene(
             var miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star)
             if (miss && rig.burstRetry()) {
                 miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star) * 0.5f
-                if (!miss) game.toast("연사로 겨우 건졌어요! 📸")
+                if (!miss) game.toast("연사로 겨우 건졌어요!")
             }
             if (miss) {
                 game.toast("초점을 놓쳤어요… 움직이는 새엔 빠른 AF가 필요해요")
@@ -1121,13 +1121,13 @@ class WorldScene(
         val ty = (vy / 16f).toInt()
         if (map.t(tx, ty) == T.SIGN) {
             val target = signTarget(tx, ty)
-            if (target != null) game.toast("🪧 ${directionName(signDirection(tx, ty))} 터널 → ${target.name}")
+            if (target != null) game.toast("${directionName(signDirection(tx, ty))} 터널 · ${target.name}")
         }
     }
 
     private fun restAtBench() {
         state.luck = (state.luck + 2f).coerceAtMost(100f)
-        game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
+        game.toast("벤치에 앉아 쉬었다~ 구름 구경 +2")
         game.sfx(Audio.Sfx.SPARKLE, 0.55f)
     }
 
@@ -1234,13 +1234,13 @@ class WorldScene(
         val objective = chapter.objective(state)
         val advice = MainQuestAdvisor.advise(state)
         val adviceLine = advice?.let { adv ->
-            if (adv.alreadyThere) "\n📍 ${adv.tip}" else "\n📍 추천 장소: ${adv.regionName}"
+            if (adv.alreadyThere) "\n${adv.tip}" else "\n추천 장소: ${adv.regionName}"
         } ?: ""
         openOverlay(
             DialogOverlay(
                 this, chapter.title,
                 "\"${chapter.intro}\"\n\n목표: $objective" +
-                    (if (ready) "\n✓ 기록을 정리할 준비가 됐어요." else "") + adviceLine,
+                    (if (ready) "\n기록을 정리할 준비가 됐어요." else "") + adviceLine,
                 buildList {
                     if (!state.mainQuestStarted) {
                         add(DialogOverlay.Choice("수첩을 이어 쓸게요") { completeMainChapter(chapter) })
@@ -1251,7 +1251,7 @@ class WorldScene(
                     }
                     advice?.let { adv ->
                         if (!adv.alreadyThere && adv.regionId != state.region) {
-                            add(DialogOverlay.Choice("🚲 이동하기") { fastTravel(game, adv.regionId) })
+                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
                         }
                     }
                     add(DialogOverlay.Choice("사진 의뢰 보기") { showSideQuest() })
@@ -1304,7 +1304,7 @@ class WorldScene(
                             state.questBird = def.id
                             state.questReward = def.reward
                             SaveManager.save(game.context, state)
-                            game.toast("서브 의뢰 접수: ${def.name} 사진 📷")
+                            game.toast("서브 의뢰 접수: ${def.name} 사진")
                             game.sfx(Audio.Sfx.NOTIFY, 0.8f)
                         },
                         DialogOverlay.Choice("다른 일을 할게요"))
@@ -1347,7 +1347,7 @@ class WorldScene(
                     DialogOverlay.Choice("장비 가방(조립)") {
                         it.scene.openOverlay(GearBagOverlay(it.scene))
                     },
-                    DialogOverlay.Choice("자전거 상점 🚲") {
+                    DialogOverlay.Choice("자전거 상점") {
                         it.scene.openOverlay(BikeShopOverlay(it.scene))
                     },
                     DialogOverlay.Choice("장식 코너") {
@@ -1396,7 +1396,7 @@ class WorldScene(
             viewRig.punchZoom(if (player.bike) -0.02f else 0.02f)
             game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
             game.toast(
-                if (player.bike) "${state.bike().name} 탔다! 쌩~ 🚲"
+                if (player.bike) "${state.bike().name} 탔다! 쌩~"
                 else "${state.bike().name}에서 내렸어요"
             )
             return
@@ -1410,7 +1410,7 @@ class WorldScene(
             nearTile(T.SIGN)?.let { (sx, sy) ->
                 val target = signTarget(sx, sy)
                 if (target != null) {
-                    game.toast("🪧 ${directionName(signDirection(sx, sy))} 터널 → ${target.name}")
+                    game.toast("${directionName(signDirection(sx, sy))} 터널 · ${target.name}")
                     return
                 }
             }
@@ -1429,7 +1429,7 @@ class WorldScene(
                         Color.argb(220, 242, 130, 160), 3.4f, true
                     )
                 }
-                game.toast("야옹~ 🐈 좋은 기운이 든다 (행운+1)")
+                game.toast("야옹~ 좋은 기운이 든다 (행운+1)")
                 return
             }
             if (map.hasHouse) {
@@ -1462,7 +1462,7 @@ class WorldScene(
             // 고양이 탭
             for (cat in cats) {
                 if (hypot(cat.cx - tap.x, cat.cy - tap.y) < 14f) {
-                    game.toast("야옹~ 🐈")
+                    game.toast("야옹~")
                     return
                 }
             }
@@ -1493,11 +1493,11 @@ class WorldScene(
     private fun quickEat() {
         val pid = state.eatBest()
         if (pid == null) {
-            game.toast("피자가 없어요! 🍕")
+            game.toast("피자가 없어요!")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val p = Pizzas.of(pid)
-            game.toast("냠냠! ${p.emoji} ${p.fullName}")
+            game.toast("냠냠! ${p.fullName}")
             game.sfx(Audio.Sfx.EAT, 0.9f)
         }
     }
@@ -1975,12 +1975,13 @@ class WorldScene(
             n.emoteCd = 7f + rnd.nextFloat() * 8f
             if (n.kind == NpcKind.PROFESSOR && state.questBird == null) continue   // "!" 말풍선이 우선
             val rainy = weather == Weather.RAIN
+            // 말풍선도 글꼴 이모지 대신 로컬 SVG 토큰을 사용한다.
             val opts = when (n.kind) {
-                NpcKind.VILLAGER -> if (rainy) listOf("☔", "💧", "…") else listOf("♪", "🌸", "🐦")
-                NpcKind.KID -> if (night) listOf("🥱", "🌙") else if (rainy) listOf("☔", "💦") else listOf("♪", "!", "🦋", "😆")
-                NpcKind.ELDER -> if (night) listOf("💤", "🌙") else if (rainy) listOf("☔", "🍵") else listOf("…", "🍵", "☀️")
-                NpcKind.SHOP -> listOf("📷", "✨", "💰")
-                NpcKind.PROFESSOR -> listOf("🔍", "📖", "🐦")
+                NpcKind.VILLAGER -> if (rainy) listOf("rain", "sparkle", "…") else listOf("music", "sparkle", "bird")
+                NpcKind.KID -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "sparkle") else listOf("music", "!", "sparkle", "bird")
+                NpcKind.ELDER -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "coffee") else listOf("…", "coffee", "sun")
+                NpcKind.SHOP -> listOf("camera", "sparkle", "coin")
+                NpcKind.PROFESSOR -> listOf("search", "book", "bird")
             }
             n.emote = opts[rnd.nextInt(opts.size)]
             n.emoteT = 2.6f
@@ -2018,9 +2019,7 @@ class WorldScene(
             uiStroke.strokeWidth = 1.4f
             uiStroke.color = Color.argb(a, 107, 79, 53)
             c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiStroke)
-            val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
-            val ew = ep.measureText(em)
-            c.drawText(em, cx - ew / 2, by - 5f, ep)
+            UiKit.icon(c, game, em, RectF(cx - 8f, by - 17f, cx + 8f, by - 1f))
         }
     }
 
@@ -2058,8 +2057,7 @@ class WorldScene(
             // 가까우면 목적지 라벨도
             val distToPlayer = hypot(tunnel.cx - player.cx, tunnel.cy - player.cy)
             if (distToPlayer < 160f) {
-                val dirArrow = Regions.dirArrow(tunnel.dir)
-                val label = "$dirArrow $targetName"
+                val label = "${Regions.dirLabel(tunnel.dir)} · $targetName"
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(label)
                 uiFill.color = Color.argb(200, 58, 52, 74)
@@ -2082,9 +2080,8 @@ class WorldScene(
             var curY = sy
             for (tunnel in map.tunnels) {
                 val target = Regions.byId[tunnel.targetId] ?: continue
-                val dirArrow = Regions.dirArrow(tunnel.dir)
                 val dirLabel = Regions.dirLabel(tunnel.dir)
-                val line = "${tunnel.number} $dirArrow $dirLabel -> ${target.name}"
+                val line = "${tunnel.number} $dirLabel · ${target.name}"
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(line)
                 uiFill.color = Color.argb(210, 58, 52, 74)
