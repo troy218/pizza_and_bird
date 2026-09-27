@@ -18,6 +18,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.StubText
+import android.view.KeyEvent
 import com.pizzaandbird.game.Assets
 import com.pizzaandbird.game.BakeOverlay
 import com.pizzaandbird.game.CameraGear
@@ -276,6 +277,38 @@ object PreviewMain {
         }
         simulate(game, 0.25f)
         s.worldTime = hour
+        renderScreen(game, name)
+    }
+
+    /**
+     * 겨울 눈보라 샷 — 날씨를 눈에 고정하고 눈이 쌓일 때까지 시뮬레이션한다.
+     * moving=true면 Shift+D(달리기)로 이동하며 카메라·줌이 요동치는 동안에도
+     * 눈송이가 화면 전체에 그대로 남는지 확인한다.
+     */
+    private fun snowShot(game: Game, moving: Boolean, name: String) {
+        val s = game.state
+        s.day = 25                                // 겨울 (Season.forDay: 22~28일)
+        s.weatherId = "snow"
+        s.weatherSeconds = 9999f
+        s.worldTime = 11.0f
+        s.px = 21f * 16f
+        s.py = 14f * 16f
+        s.onBike = false
+        game.scene = WorldScene(game, "sokcho", SpawnKind.SAVED)
+        s.weatherSeconds = 9999f                  // 시뮬레이션 내내 눈에 고정
+        simulate(game, 10.0f)                     // 눈이 소복이 쌓일 시간
+        if (moving) {
+            game.input.onKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.ACTION_DOWN)
+            game.input.onKeyEvent(KeyEvent.KEYCODE_D, KeyEvent.ACTION_DOWN)
+            simulate(game, 1.8f)                   // 달리며 이동 (줌·카메라 변화)
+            game.input.onKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.ACTION_UP)
+            game.input.onKeyEvent(KeyEvent.KEYCODE_D, KeyEvent.ACTION_UP)
+            simulate(game, 0.4f)
+        } else {
+            simulate(game, 0.5f)
+        }
+        s.worldTime = 11.0f
+        s.weatherSeconds = 9999f
         renderScreen(game, name)
     }
 

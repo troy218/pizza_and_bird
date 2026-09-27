@@ -340,6 +340,8 @@ class WorldScene(
         streaks.update(dt, velX, velY, viewRig.speedFx, game.virtW.toFloat(), game.virtH.toFloat())
 
         // 디테일 연출 & NPC 말풍선 (보이는 영역은 카메라 리그가 알려 준다)
+        // 화면 크기는 따로 등록한다 — 화면 공간 비/눈 입자가 월드 시야·줌에 끌려다니지 않게
+        fx.setScreen(game.virtW.toFloat(), game.virtH.toFloat())
         fx.update(
             dt, game.time, state.worldTime, viewRig.x, viewRig.y,
             viewRig.viewW, viewRig.viewH, player.cx, player.cy
@@ -994,8 +996,12 @@ class WorldScene(
         }
     }
 
+    // 입자 좌표 소유권 — 혼동 금지!
+    //  - 월드 공간(카메라를 따라 움직임): 꽃잎·낙엽·반딧불·바람결 등 여기(spawnAmbient)의 입자
+    //  - 화면 공간(캐릭터 이동과 무관): 비·눈 — WorldFx(drawWeather)가 화면 전체에 직접 그린다.
+    //    비/눈을 월드 입자로 옮기면 카메라에 붙어 같이 밀리므로 절대 옮기지 않는다.
     private fun ambientKind(): String = when {
-        weather == Weather.RAIN || weather == Weather.SNOW -> "none"     // 비/눈은 WorldFx가 화면 전체에 그린다
+        weather == Weather.RAIN || weather == Weather.SNOW -> "none"
         weather == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
@@ -1014,11 +1020,6 @@ class WorldScene(
         val viewW = viewRig.viewW
         val viewH = viewRig.viewH
         when (ambientKind()) {
-            "rain" -> addParticle(
-                viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
-                Color.argb(150, 100, 160, 210), 1.5f, false
-            )
             "wind" -> addParticle(
                 viewX - 8f, viewY + rnd.nextFloat() * viewH,
                 55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
@@ -1033,11 +1034,6 @@ class WorldScene(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
                 Color.argb(150, 242, 163, 179), 3f, true
-            )
-            "snow" -> addParticle(
-                viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                (rnd.nextFloat() - 0.5f) * 6f, 8f + rnd.nextFloat() * 5f, 5f,
-                Color.argb(190, 240, 246, 252), 2.6f, true
             )
             "sparkle" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
@@ -1588,7 +1584,7 @@ class WorldScene(
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
         seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
-        fx.drawWeather(c, game.virtW, game.virtH)
+        fx.drawWeather(c)
         if (viewRig.speedFx > 0.02f) {
             speedVignette.draw(c, vw, vh, viewRig.speedFx)
             streaks.draw(c, velX, velY, viewRig.speedFx)
@@ -1600,6 +1596,13 @@ class WorldScene(
         }
         if (viewRig.flash > 0.001f) {
             uiFill.color = Color.argb((235 * viewRig.flash).toInt().coerceIn(0, 255), 255, 252, 244)
+            c.drawRect(0f, 0f, vw, vh, uiFill)
+        }
+    }
+
+    /**
+     * 다이내믹 포커싱(심도) — 초점 반경 밖을 부드럽게 눌러 시선을 피사체로 모은다.
+     *  255), 255, 252, 244)
             c.drawRect(0f, 0f, vw, vh, uiFill)
         }
     }
