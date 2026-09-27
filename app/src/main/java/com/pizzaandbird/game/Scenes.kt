@@ -223,7 +223,7 @@ class TitleScene(game: Game) : Scene(game) {
         button(contRect, "이어하기", game.state.started)
 
         // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
-        val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with 🍕"
+        val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with pizza"
         Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
     }
 
@@ -339,8 +339,8 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val bh = d * 40f
         nextRect = RectF((w - bw) / 2f, h - d * 16f - bh, (w + bw) / 2f, h - d * 16f)
         backRect = RectF(d * 14f, d * 14f, d * 90f, d * 50f)
-        UiKit.button(c, game, nextRect, "계속하기 ▶", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
-        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
+        UiKit.button(c, game, nextRect, "arrow_right 계속하기", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
+        UiKit.button(c, game, backRect, "arrow_left 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
     }
 
     override fun handleInput(input: Input) {

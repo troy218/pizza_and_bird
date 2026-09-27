@@ -169,18 +169,23 @@ def draw_hud_controls(d, W, H, density, photo_mode=True, clock=2.6, toast=None, 
                (cx + dx * inn - dx * tri * 0.5 - px * tri * 0.8, cy + dy * inn - dy * tri * 0.5 - py * tri * 0.8)]
         d.polygon(pts, fill=(248, 239, 220, 205))
 
-    a_r = dp(27)
+    a_r = dp(31)
     a_cx, a_cy = W - dp(26) - a_r, H - dp(26) - a_r
-    b_r = dp(21)
-    b_cx, b_cy = a_cx - a_r - dp(8) - b_r, H - dp(22) - b_r
-    cam_r = dp(21)
-    cam_cx, cam_cy = a_cx, a_cy - a_r - dp(12) - cam_r
-    run_r = dp(19)
-    run_cx, run_cy = cam_cx - cam_r - dp(8) - run_r, cam_cy + dp(2)
-    eat_r = dp(19)
-    eat_cx, eat_cy = run_cx - run_r - dp(8) - eat_r, cam_cy + dp(2)
-    menu_r = dp(16)
-    menu_cx, menu_cy = b_cx - b_r - dp(10) - menu_r, b_cy + dp(6)
+    arc_r = dp(19)
+    arc_dist = a_r + dp(9) + arc_r
+
+    def arc(angle_deg):
+        rad = math.radians(angle_deg)
+        return a_cx + arc_dist * math.cos(rad), a_cy - arc_dist * math.sin(rad)
+
+    b_r = arc_r
+    b_cx, b_cy = arc(72)
+    cam_r = arc_r
+    cam_cx, cam_cy = arc(120)
+    eat_r = arc_r
+    eat_cx, eat_cy = arc(168)
+    menu_r = dp(17)
+    menu_cx, menu_cy = dp(18) + menu_r, H - dp(18) - menu_r
 
     def circle_button(cx, cy, rr, col, outline_a=190):
         d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=col)
@@ -205,7 +210,6 @@ def draw_hud_controls(d, W, H, density, photo_mode=True, clock=2.6, toast=None, 
     icon_camera(d, cam_cx - dp(10), cam_cy - dp(8.5), dp(20) / 16, (248, 239, 220, 240))
     circle_button(a_cx, a_cy, a_r, (242, 182, 60) if "A" not in active else (217, 155, 38))
     circle_button(b_cx, b_cy, b_r, (195, 163, 232) if "B" not in active else (159, 127, 200))
-    circle_button(run_cx, run_cy, run_r, (74, 74, 88, 220))
     circle_button(eat_cx, eat_cy, eat_r, (242, 182, 60, 235) if "EAT" not in active else (217, 155, 38, 235))
     circle_button(menu_cx, menu_cy, menu_r, (74, 74, 88, 220))
 
@@ -215,10 +219,6 @@ def draw_hud_controls(d, W, H, density, photo_mode=True, clock=2.6, toast=None, 
     f = font(dp(14))
     tw = measure("B", f, d)
     d.text((b_cx - tw / 2, b_cy - dp(9)), "B", font=f, fill=(255, 252, 244))
-    f = font(dp(17))
-    tw = measure("»", f, d)
-    d.text((run_cx - tw / 2, run_cy - dp(12)), "»", font=f, fill=(248, 239, 220, 230))
-
     # 피자 아이콘 (간식 버튼)
     ps = dp(20)
     d.polygon([(eat_cx, eat_cy - ps / 2), (eat_cx - ps / 2, eat_cy + ps / 2), (eat_cx + ps / 2, eat_cy + ps / 2)],

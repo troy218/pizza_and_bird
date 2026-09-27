@@ -75,13 +75,15 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         state.py = player.y
 
         game.hud.showControls = true
+        game.hud.showPunch = false
+        game.hud.punchHot = false
         game.hud.showStats = true
         game.hud.showMinimap = false
         game.hud.regionLabel = landmark.name
         game.hud.photoModeHint = false
         game.hud.questLabel = null
         game.hud.contextIcon = null
-        game.banner("${landmark.emoji} ${landmark.name}")
+        game.banner(landmark.name)
 
         game.audio.playBgm(R.raw.bgm_home)
         game.audio.stopAmb()
@@ -138,10 +140,10 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
 
         game.hud.contextIcon = nearestInteract()?.let {
             when (it.key) {
-                "exhibit" -> "🖼"
-                "rest" -> "☕"
-                "docent" -> "💬"
-                else -> "❓"
+                "exhibit" -> "photo"
+                "rest" -> "coffee"
+                "docent" -> "note"
+                else -> "pin"
             }
         }
     }
@@ -204,7 +206,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         when (key) {
             "exhibit" -> openOverlay(
                 DialogOverlay(
-                    this, "${landmark.emoji} ${landmark.name}", landmark.exhibit,
+                    this, landmark.name, landmark.exhibit,
                     listOf(
                         DialogOverlay.Choice("관람하기") { viewExhibit() },
                         DialogOverlay.Choice("닫기")
@@ -213,7 +215,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             )
             "rest" -> openOverlay(
                 DialogOverlay(
-                    this, "휴게 공간 ☕",
+                    this, "휴게 공간",
                     "창밖 풍경을 보며 잠시 쉬어 갈 수 있어요.\n따뜻한 차 한 잔에 몸도 마음도 가벼워져요.",
                     listOf(
                         DialogOverlay.Choice("잠시 쉬기") { rest() },
@@ -223,11 +225,11 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             )
             "docent" -> openOverlay(
                 DialogOverlay(
-                    this, "${landmark.docent} 🧭",
+                    this, landmark.docent,
                     landmark.greeting +
                         "\n\n" + landmark.highlight +
                         (if (landmark.tagline.isNotBlank()) "\n\n“${landmark.tagline}”" else "") +
-                        (if (region.tip.isNotBlank()) "\n\n💡 ${region.tip}" else ""),
+                        (if (region.tip.isNotBlank()) "\n\n탐조 팁 · ${region.tip}" else ""),
                     listOf(DialogOverlay.Choice("고마워요"))
                 )
             )
@@ -240,11 +242,11 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             val reward = 30000
             state.money += reward
             state.luck = (state.luck + 8f).coerceAtMost(100f)
-            game.toast("첫 관람 기념! ${won(reward)} · 행운 ☘️+8")
+            game.toast("첫 관람 기념! ${won(reward)} · 행운 +8")
             game.sfx(Audio.Sfx.SPARKLE, 0.85f)
         } else {
             state.luck = (state.luck + 3f).coerceAtMost(100f)
-            game.toast("전망을 감상했다 ☘️+3")
+            game.toast("전망을 감상했다 · 행운 +3")
             game.sfx(Audio.Sfx.SPARKLE, 0.6f)
         }
         SaveManager.save(game.context, state)
@@ -253,7 +255,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
     private fun rest() {
         state.hunger = (state.hunger + 45f).coerceAtMost(100f)
         state.luck = (state.luck + 2f).coerceAtMost(100f)
-        game.toast("잠시 쉬며 창밖을 봤다 🍵 배부름 회복 · 행운 ☘️+2")
+        game.toast("잠시 쉬며 창밖을 봤다 · 배부름 회복 · 행운 +2")
         game.sfx(Audio.Sfx.SPARKLE, 0.5f)
     }
 
@@ -263,7 +265,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             return
         }
         if (input.justCam) {
-            game.toast("실내에선 쉬어도 돼요. 새는 밖에서! 🐦")
+            game.toast("실내에선 쉬어도 돼요. 새는 밖에서!")
             return
         }
         if (input.justB) {
@@ -273,11 +275,11 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         if (input.justEat) {
             val pid = state.eatBest()
             if (pid == null) {
-                game.toast("피자가 없어요! 🍕")
+                game.toast("피자가 없어요!")
                 game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val p = Pizzas.of(pid)
-                game.toast("냠냠! ${p.emoji} ${p.fullName}")
+                game.toast("냠냠! ${p.fullName}")
                 game.sfx(Audio.Sfx.EAT, 0.9f)
             }
             return
@@ -418,11 +420,8 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             c.drawRect(bx - 18f, by - 22f, bx + 18f, by - 2f, aa)
             aa.color = theme.vistaTop
             c.drawRect(bx - 18f, by - 22f, bx + 18f, by - 12f, aa)
-            // 대표 이모지
-            tinyPaint.textSize = 18f
-            val em = landmark.emoji
-            val ew = tinyPaint.measureText(em)
-            c.drawText(em, bx - ew / 2f, by - 6f, tinyPaint)
+            // 대표 아이콘 (전시 사진 위)
+            UiKit.iconCenter(c, game, "photo", bx, by - 12f, 20f)
         }
         // 휴게 소품 (등받이 없는 쿠션 벤치 + 화분)
         run {
@@ -469,9 +468,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         aa.style = Paint.Style.STROKE; aa.strokeWidth = 1.6f
         c.drawCircle(bx, by, 8f, aa)
         aa.style = Paint.Style.FILL
-        tinyPaint.textSize = 11f
-        val tw = tinyPaint.measureText("💬")
-        c.drawText("💬", bx - tw / 2, by + 4f, tinyPaint)
+        UiKit.iconCenter(c, game, "note", bx, by, 10f)
     }
 
     private fun drawPlayer(c: Canvas) {

@@ -45,7 +45,7 @@
 <body>
 <div class="wrap">
   <h1>🕹️ 조이스틱 디자인 업그레이드 <span class="tag">v0.4.1</span></h1>
-  <p class="sub">듀랑고식 조작 구조(플로팅 스틱 + 육각 메인 + 부채꼴 아크) 위에서 <b>조이스틱 비주얼/손맛</b>을 업그레이드했습니다. 화면 왼쪽 아래를 <b>끌어서</b> 만져보세요 — 움직임 없이 떼면 월드 탭(상호작용)으로 동작해요.</p>
+  <p class="sub">듀랑고식 조작 구조(플로팅 스틱 + 육각 메인 + 세 개의 부채꼴 아크 버튼) 위에서 <b>조이스틱 비주얼/손맛</b>을 업그레이드했습니다. 화면 왼쪽 아래를 <b>끌어서</b> 만져보세요 — 움직임 없이 떼면 월드 탭(상호작용)으로 동작해요.</p>
 
   <div class="stage"><canvas id="game" width="960" height="540"></canvas></div>
 
@@ -134,10 +134,9 @@ function layout(w, h) {
   H.mainR = dp(31); H.mainX = w - dp(26) - H.mainR; H.mainY = h - dp(26) - H.mainR;
   const arcR = dp(19), arcDist = H.mainR + dp(9) + arcR;
   const arc = a => { const r = a * Math.PI / 180; return [H.mainX + arcDist * Math.cos(r), H.mainY - arcDist * Math.sin(r)]; };
-  H.bikeR = arcR; [H.bikeX, H.bikeY] = arc(66);
-  H.camR = arcR;  [H.camX, H.camY] = arc(105);
-  H.runR = arcR;  [H.runX, H.runY] = arc(144);
-  H.eatR = arcR;  [H.eatX, H.eatY] = arc(183);
+  H.bikeR = arcR; [H.bikeX, H.bikeY] = arc(72);
+  H.camR = arcR;  [H.camX, H.camY] = arc(120);
+  H.eatR = arcR;  [H.eatX, H.eatY] = arc(168);
   H.menuR = dp(17); H.menuX = dp(18) + H.menuR; H.menuY = h - dp(18) - H.menuR;
   H.mmR = dp(58); H.mmX = w - dp(16) - H.mmR; H.mmY = dp(16) + H.mmR;
 }
@@ -482,7 +481,6 @@ function controlAt(x, y) {
   if (inCircle(x, y, H.mainX, H.mainY, H.mainR * 1.22)) return "A";
   if (inCircle(x, y, H.bikeX, H.bikeY, H.bikeR * 1.3)) return "B";
   if (inCircle(x, y, H.camX, H.camY, H.camR * 1.3)) return "CAM";
-  if (inCircle(x, y, H.runX, H.runY, H.runR * 1.3)) return "RUN";
   if (inCircle(x, y, H.eatX, H.eatY, H.eatR * 1.3)) return "EAT";
   if (inCircle(x, y, H.mmX, H.mmY, H.mmR * 0.96)) return "MAP";
   const held = S.ptr && S.ptr.ctrl === "STICK";
@@ -513,7 +511,6 @@ function pos(e) {
 let flashMsg = "", flashT = 0;
 function flash(m) { flashMsg = m; flashT = 2.2; }
 function pressCtrl(ctrl) {
-  if (ctrl === "RUN") { S.run = true; return; }
   if (ctrl === "CAM") { S.photoMode = !S.photoMode; syncBtns(); return; }
   if (ctrl === "EAT") { flash("🍕 피자 냠!"); return; }
   if (ctrl === "A") { flash("👊 상호작용 (근처 대상 아이콘이 표시돼요)"); return; }
@@ -544,7 +541,6 @@ function onMove(e) {
 function onUp(e) {
   if (!S.ptr) return;
   const p = S.ptr;
-  if (p.ctrl === "RUN") S.run = false;
   if (p.ctrl === "STICK") {
     // 움직임 없이 떼면 월드 탭 (상호작용 유지)
     if (p.tentative) flash("탭! (조이스틱 구역에서도 상호작용은 그대로)");
@@ -681,8 +677,6 @@ function render() {
   drawArcButton(ctx, H.camX, H.camY, H.camR, act === "CAM" ? "#D99B26" : (S.photoMode ? "#E2574C" : rgba(74, 74, 88, 220 / 255)), act === "CAM", plain);
   ctx.save(); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(camCv, H.camX - dp(10), H.camY - dp(8), dp(20), dp(16)); ctx.restore();
-  drawArcButton(ctx, H.runX, H.runY, H.runR, S.run ? "#F2D06B" : (act === "RUN" ? "#D9A03C" : rgba(74, 74, 88, 220 / 255)), act === "RUN", plain);
-  glyph(ctx, H.runX, H.runY, "»", dp(19), S.run ? "#4A3728" : rgba(248, 239, 220, 235 / 255));
   drawArcButton(ctx, H.eatX, H.eatY, H.eatR, act === "EAT" ? "#D99B26" : "#F2B63C", act === "EAT", plain);
   ctx.save(); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(pizzaCv, H.eatX - dp(10), H.eatY - dp(7), dp(20), dp(20) * (pizzaCv.height / pizzaCv.width)); ctx.restore();
