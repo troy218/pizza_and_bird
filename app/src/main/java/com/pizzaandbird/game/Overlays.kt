@@ -1553,7 +1553,8 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
         if (autoRect.contains(tap.x, tap.y)) {
             val count = s.autoArrangeDecors()
             SaveManager.save(g.context, s)
-            g.toast("보유 소품 $count개를 순서대로 정리했어요 ✨")
+            // 한글이 바로 붙으면 식별자로 먹히므로 ${} 로 감싼다
+            g.toast("보유 소품 ${count}개를 순서대로 정리했어요 ✨")
             g.sfx(Audio.Sfx.SUCCESS, 0.6f)
             return
         }
