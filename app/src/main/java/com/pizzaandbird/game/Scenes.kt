@@ -80,12 +80,9 @@ class TitleScene(game: Game) : Scene(game) {
         val bob = kotlin.math.sin(t * 2.2f) * 3f
         val pz = a.pizzaIconBig
         c.drawBitmap(pz, 196f, 176f + bob, a.sprPaint)
-        val bird = a.bird("sparrow")
+        val bird = a.birdFlipped("sparrow")
         val fb = kotlin.math.sin(t * 2.6f + 1f) * 4f
-        val m = android.graphics.Matrix()
-        m.postScale(-1f, 1f, bird.width / 2f, 0f)
-        val flipped = android.graphics.Bitmap.createBitmap(bird, 0, 0, bird.width, bird.height, m, false)
-        c.drawBitmap(flipped, 268f, 162f + fb, a.sprPaint)
+        c.drawBitmap(bird, 268f, 162f + fb, a.sprPaint)
 
         // 날아가는 새들
         p.color = Color.argb(140, 90, 80, 90)

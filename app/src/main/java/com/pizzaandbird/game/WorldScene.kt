@@ -29,11 +29,34 @@ class WorldScene(
     private val birds = ArrayList<FieldBird>()
     private val rnd = Random(region.id.hashCode().toLong() + 7L)
 
+    private data class RenderItem(
+        val depth: Float,
+        val entity: Any? = null,
+        val canopyX: Float = 0f,
+        val canopyY: Float = 0f,
+        val canopyVariant: Int = 0
+    )
+
+    private data class FootDust(
+        var x: Float,
+        var y: Float,
+        var vx: Float,
+        var vy: Float,
+        val color: Int,
+        val size: Float,
+        var age: Float = 0f
+    )
+
+    private val footDust = ArrayList<FootDust>()
+    private val dustPaint = Paint()
+    private var footfallCounter = 0
+
     var photoMode = false
         private set
 
     private var camX = 0f
     private var camY = 0f
+    private var cameraReady = false
     private var spawnTimer = 1.5f
     private var hungerAcc = 0f
     private var luckAcc = 0f
@@ -63,13 +86,13 @@ class WorldScene(
         state.inHome = false
 
         val (sx, sy) = when (spawnKind) {
-            SpawnKind.SAVED -> state.px to state.py
-            SpawnKind.HOME -> 376f to 12.2f * 16f
+            SpawnKind.SAVED -> if (map.solidBox(state.px, state.py)) plazaSpawn() else state.px to state.py
+            SpawnKind.HOME -> ((map.w / 2f + 1f) * 16f) to ((map.h / 2f - 3f) * 16f)
             SpawnKind.TUNNEL -> when (spawnDir) {
-                Dir.N -> 312f to 3f * 16f
-                Dir.S -> 312f to (map.h - 4f) * 16f
-                Dir.W -> 3f * 16f to 15.5f * 16f
-                Dir.E -> (map.w - 4f) * 16f to 15.5f * 16f
+                Dir.N -> ((map.w / 2f - 0.5f) * 16f) to 3f * 16f
+                Dir.S -> ((map.w / 2f - 0.5f) * 16f) to (map.h - 4f) * 16f
+                Dir.W -> 3f * 16f to ((map.h / 2f - 0.5f) * 16f)
+                Dir.E -> (map.w - 4f) * 16f to ((map.h / 2f - 0.5f) * 16f)
             }
         }
         player.set(sx, sy)
@@ -93,6 +116,9 @@ class WorldScene(
         game.hud.photoModeHint = false
     }
 
+    private fun plazaSpawn(): Pair<Float, Float> =
+        ((map.w / 2f - 0.5f) * 16f) to ((map.h / 2f - 0.5f) * 16f)
+
     // -------------------------------------------------------------------
     // 업데이트
     // -------------------------------------------------------------------
@@ -103,6 +129,7 @@ class WorldScene(
         state.playSeconds += dt
 
         updatePlayer(dt)
+        updateFootDust(dt)
         updateStats(dt)
         checkTileTriggers()
 
@@ -124,8 +151,17 @@ class WorldScene(
         // 카메라
         val mapW = map.w * 16f
         val mapH = map.h * 16f
-        camX = (player.cx - game.virtW / 2f).coerceIn(0f, (mapW - game.virtW).coerceAtLeast(0f))
-        camY = (player.cy - game.virtH / 2f).coerceIn(0f, (mapH - game.virtH).coerceAtLeast(0f))
+        val targetCamX = (player.cx - game.virtW / 2f).coerceIn(0f, (mapW - game.virtW).coerceAtLeast(0f))
+        val targetCamY = (player.cy - game.virtH / 2f).coerceIn(0f, (mapH - game.virtH).coerceAtLeast(0f))
+        if (!cameraReady) {
+            camX = targetCamX
+            camY = targetCamY
+            cameraReady = true
+        } else {
+            val follow = (1f - kotlin.math.exp(-dt * 9f)).coerceIn(0f, 1f)
+            camX += (targetCamX - camX) * follow
+            camY += (targetCamY - camY) * follow
+        }
 
         // 상태 동기화 & 주기 저장
         state.px = player.x
@@ -145,9 +181,10 @@ class WorldScene(
         var dx = input.dirX
         var dy = input.dirY
         if (photoMode) { dx *= 0.5f; dy *= 0.5f }
-        val moving = abs(dx) > 0.01f || abs(dy) > 0.01f
-        player.moving = moving
-        if (moving) {
+        val hasInput = abs(dx) > 0.01f || abs(dy) > 0.01f
+        val oldX = player.x
+        val oldY = player.y
+        if (hasInput) {
             if (abs(dx) > abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
             else if (abs(dy) > 0.01f) player.facing = if (dy > 0) Dir.S else Dir.N
 
@@ -159,9 +196,51 @@ class WorldScene(
             if (state.hunger <= 0f) speed *= 0.55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt
-        } else {
-            player.animT = 0f
+        }
+
+        // Gait, step dust, and hunger now respond to real displacement rather than button intent.
+        val distance = hypot(player.x - oldX, player.y - oldY)
+        player.moving = distance > 0.01f
+        repeat(player.advanceGait(distance)) { spawnFootDust() }
+    }
+
+    private fun spawnFootDust() {
+        val tile = map.feetTile(player.x, player.y)
+        val color = when (tile) {
+            T.PATH, T.PLAZA -> 0xFFE0C99A.toInt()
+            T.SAND -> 0xFFEBD69E.toInt()
+            T.GRASS, T.FLOWER, T.TALLGRASS, T.REED -> 0xFFA4C77A.toInt()
+            else -> return
+        }
+        footfallCounter++
+        val side = if (footfallCounter % 2 == 0) -2.5f else 2.5f
+        val rearX = when (player.facing) {
+            Dir.E -> -5f
+            Dir.W -> 5f
+            else -> side
+        }
+        footDust.add(FootDust(player.cx + rearX, player.y + 15f, side * 0.9f, -5.5f, color, 1f + (footfallCounter % 2) * 0.5f))
+        if (footDust.size > 14) footDust.removeAt(0)
+    }
+
+    private fun updateFootDust(dt: Float) {
+        val it = footDust.iterator()
+        while (it.hasNext()) {
+            val puff = it.next()
+            puff.age += dt
+            puff.x += puff.vx * dt
+            puff.y += puff.vy * dt
+            puff.vx *= (1f - dt * 3f).coerceAtLeast(0f)
+            if (puff.age >= 0.24f) it.remove()
+        }
+    }
+
+    private fun drawFootDust(c: Canvas) {
+        for (puff in footDust) {
+            val life = (1f - puff.age / 0.24f).coerceIn(0f, 1f)
+            dustPaint.color = Color.argb((life * 210f).toInt(), Color.red(puff.color), Color.green(puff.color), Color.blue(puff.color))
+            val size = puff.size * (0.7f + (1f - life) * 0.8f)
+            c.drawRect(puff.x - camX - size, puff.y - camY - size, puff.x - camX + size, puff.y - camY + size, dustPaint)
         }
     }
 
@@ -527,16 +606,31 @@ class WorldScene(
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFF3A3040.toInt())
         map.draw(c, game.assets, camX, camY, game.virtW, game.virtH, game.time)
+        drawFootDust(c)
 
-        // 엔티티 (y 정렬)
-        val ents = ArrayList<Any>(map.npcs.size + birds.size + 1)
-        ents.addAll(map.npcs)
-        ents.addAll(birds)
-        ents.add(player)
-        ents.sortBy { sortY(it) }
-        for (e in ents) drawEntity(c, e)
+        // Entities and foreground tree crowns share one foot-depth sort.
+        // This keeps the player behind foliage when walking north, and in front when walking south.
+        val renderItems = ArrayList<RenderItem>(map.npcs.size + birds.size + 8)
+        for (npc in map.npcs) renderItems.add(RenderItem(sortY(npc), entity = npc))
+        for (bird in birds) renderItems.add(RenderItem(sortY(bird), entity = bird))
+        renderItems.add(RenderItem(sortY(player), entity = player))
+        map.forEachVisibleTree(camX, camY, game.virtW, game.virtH) { tx, ty ->
+            renderItems.add(RenderItem(
+                ty * 16f + 11f,
+                canopyX = tx * 16f - camX,
+                canopyY = ty * 16f - camY,
+                canopyVariant = game.assets.treeCanopyVariant(tx, ty)
+            ))
+        }
+        renderItems.sortBy { it.depth }
+        for (item in renderItems) {
+            val entity = item.entity
+            if (entity != null) drawEntity(c, entity)
+            else c.drawBitmap(game.assets.treeCanopies[item.canopyVariant], item.canopyX, item.canopyY, game.assets.sprPaint)
+        }
 
         if (photoMode) drawPhotoOverlay(c)
+        WorldLighting.draw(c, state.playSeconds, game.virtW, game.virtH)
     }
 
     private fun sortY(e: Any): Float = when (e) {
@@ -587,7 +681,8 @@ class WorldScene(
                 }
             }
             is Player -> {
-                val frame = if (player.moving) ((player.animT / 0.16f).toInt() % 2) else 0
+                val frame = player.gaitFrame
+                val bob = player.bodyLift
                 val bmp: android.graphics.Bitmap = when {
                     player.bike && player.facing == Dir.E -> a.bikeSide
                     player.bike && player.facing == Dir.W -> a.bikeSideL
@@ -602,7 +697,7 @@ class WorldScene(
                     RectF(player.x - camX + 3f, player.y - camY + 12f, player.x - camX + 13f, player.y - camY + 16f),
                     a.shadowPaint
                 )
-                c.drawBitmap(bmp, player.x - camX, player.y - camY, a.sprPaint)
+                c.drawBitmap(bmp, player.x - camX, player.y - camY - bob, a.sprPaint)
             }
         }
     }

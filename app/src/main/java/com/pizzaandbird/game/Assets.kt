@@ -42,6 +42,7 @@ class Assets {
 
     // 타일 -------------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant]
+    lateinit var treeCanopies: Array<Bitmap>      // 전경 레이어의 색/실루엣 변형
 
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
@@ -120,6 +121,20 @@ class Assets {
             "................",
             "................"
         )
+        val legs2 = listOf(
+            "...pp......pp...",
+            "..pp........pp..",
+            "..oo........oo..",
+            "................",
+            "................"
+        )
+        val legs3 = listOf(
+            ".....pp..pp.....",
+            "....pp....pp....",
+            "....oo....oo....",
+            "................",
+            "................"
+        )
         val headUp = listOf(
             "................",
             ".....hhhhhh.....",
@@ -160,12 +175,33 @@ class Assets {
             "................",
             "................"
         )
-        playerDown = arrayOf(sprite(headDown + legs0, pal), sprite(headDown + legs1, pal))
-        playerUp = arrayOf(sprite(headUp + legs0, pal), sprite(headUp + legs1, pal))
-        val side0 = sprite(headSide + sideLegs0, pal)
-        val side1 = sprite(headSide + sideLegs1, pal)
-        playerSide = arrayOf(side0, side1)
-        playerSideL = arrayOf(flipH(side0), flipH(side1))
+        val sideLegs2 = listOf(
+            "......pppp......",
+            ".......pp..pp...",
+            ".......oo..oo...",
+            "................",
+            "................"
+        )
+        val sideLegs3 = listOf(
+            "......pppp......",
+            ".....pp..pp.....",
+            ".....oo..oo.....",
+            "................",
+            "................"
+        )
+        playerDown = arrayOf(
+            sprite(headDown + legs0, pal), sprite(headDown + legs1, pal),
+            sprite(headDown + legs2, pal), sprite(headDown + legs3, pal)
+        )
+        playerUp = arrayOf(
+            sprite(headUp + legs0, pal), sprite(headUp + legs1, pal),
+            sprite(headUp + legs2, pal), sprite(headUp + legs3, pal)
+        )
+        playerSide = arrayOf(
+            sprite(headSide + sideLegs0, pal), sprite(headSide + sideLegs1, pal),
+            sprite(headSide + sideLegs2, pal), sprite(headSide + sideLegs3, pal)
+        )
+        playerSideL = playerSide.map { flipH(it) }.toTypedArray()
 
         // 자전거
         val bikeSideRows = listOf(
@@ -288,10 +324,13 @@ class Assets {
     // 타일 (16x16)
     // -----------------------------------------------------------------------
 
+    private var tileSeed = 9017L
+
     private fun tilePainter(paint: (Canvas, Paint, Random) -> Unit): Bitmap {
         val b = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
         val cv = Canvas(b)
-        paint(cv, Paint(), Random(9017))
+        // Each variant gets its own deterministic texture, while builds stay reproducible.
+        paint(cv, Paint(), Random(tileSeed++))
         return b
     }
 
@@ -312,8 +351,10 @@ class Assets {
 
     private fun grassBase(c: Canvas, p: Paint, r: Random, base: Int = c(0xFF96D07A)) {
         fill(c, p, base)
-        specks(c, p, r, c(0xFF89C46C), 6)
+        specks(c, p, r, c(0xFF79B963), 7)
         specks(c, p, r, c(0xFFA9DC90), 5)
+        p.color = c(0xFFB9E59A)
+        c.drawPoint((2 + r.nextInt(12)).toFloat(), (2 + r.nextInt(12)).toFloat(), p)
     }
 
     private fun buildTiles() {
@@ -323,10 +364,16 @@ class Assets {
             list.add(if (bmps.size == 1) arrayOf(bmps[0]) else bmps.toList().toTypedArray())
         }
 
-        // GRASS (3종 변형)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r -> grassBase(c, p, r) })
-        }
+        // GRASS (3종 변형) — one enum slot, three actual visual variants.
+        add(*Array(3) { tilePainter { c, p, r ->
+            grassBase(c, p, r)
+            p.color = c(0xFF78B963)
+            repeat(2) {
+                val x = 2 + r.nextInt(12)
+                val y = 4 + r.nextInt(10)
+                c.drawRect(x.toFloat(), y.toFloat(), (x + 1).toFloat(), (y + 3).coerceAtMost(15).toFloat(), p)
+            }
+        } })
         // TALLGRASS
         add(tilePainter { c, p, r ->
             grassBase(c, p, r, c(0xFF8CC46C))
@@ -341,8 +388,7 @@ class Assets {
             c.drawRect(11f, 5f, 12f, 10f, p)
         })
         // FLOWER (2종 변형)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        add(*Array(2) { tilePainter { c, p, r ->
                 grassBase(c, p, r)
                 val petals = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFC3A3E8), c(0xFFFFFFFF))
                 repeat(3) {
@@ -356,16 +402,16 @@ class Assets {
                     p.color = c(0xFFFFF6D8)
                     c.drawPoint((x + 1).toFloat(), (y + 1).toFloat(), p)
                 }
-            })
-        }
+            } })
         // PATH (2종 변형)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFFE5D3A0))
-                specks(c, p, r, c(0xFFD6BF87), 7)
-                specks(c, p, r, c(0xFFF0E2B8), 4)
-            })
-        }
+        add(*Array(2) { tilePainter { c, p, r ->
+            fill(c, p, c(0xFFE5D3A0))
+            specks(c, p, r, c(0xFFD6BF87), 7)
+            specks(c, p, r, c(0xFFF0E2B8), 4)
+            p.color = c(0xFFC4AA78)
+            c.drawRect(0f, 0f, 16f, 1f, p)
+            c.drawRect(0f, 15f, 16f, 16f, p)
+        } })
         // PLAZA
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFD9C9A7))
@@ -379,34 +425,31 @@ class Assets {
             c.drawRect(10f, 10f, 15f, 15f, p)
         })
         // SAND (2종 변형)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFFF2E1B0))
-                specks(c, p, r, c(0xFFE4CF96), 7)
-                specks(c, p, r, c(0xFFF8ECC8), 5)
-            })
-        }
-        // WATER (2프레임)
-        add(
-            tilePainter { c, p, r ->
-                fill(c, p, c(0xFF66BBE5))
-                p.color = c(0xFF93D4EF)
-                c.drawRect(2f, 4f, 6f, 5f, p)
-                c.drawRect(9f, 10f, 13f, 11f, p)
-                p.color = c(0xFFB9E6F5)
-                c.drawPoint(5f, 4f, p)
-                c.drawPoint(12f, 10f, p)
-            },
-            tilePainter { c, p, r ->
-                fill(c, p, c(0xFF66BBE5))
-                p.color = c(0xFF93D4EF)
-                c.drawRect(5f, 4f, 9f, 5f, p)
-                c.drawRect(2f, 10f, 6f, 11f, p)
-                p.color = c(0xFFB9E6F5)
-                c.drawPoint(8f, 4f, p)
-                c.drawPoint(5f, 10f, p)
+        add(*Array(2) { tilePainter { c, p, r ->
+            fill(c, p, c(0xFFF2E1B0))
+            specks(c, p, r, c(0xFFE4CF96), 7)
+            specks(c, p, r, c(0xFFF8ECC8), 5)
+            p.color = c(0xFFE9D49E)
+            repeat(2) {
+                val x = r.nextInt(13)
+                val y = r.nextInt(14)
+                c.drawRect(x.toFloat(), y.toFloat(), (x + 2).toFloat(), (y + 1).toFloat(), p)
             }
-        )
+        } })
+        // WATER (4 ripple frames): short broken highlights travel at different speeds.
+        add(*Array(4) { frame -> tilePainter { c, p, r ->
+            fill(c, p, c(0xFF4EADD7))
+            p.color = c(0xFF78C4E3)
+            val x1 = (1 + frame * 3) % 16
+            val x2 = (8 + frame * 2) % 16
+            val x3 = (4 + frame * 4) % 16
+            c.drawRect(x1.toFloat(), 3f, (x1 + 4).toFloat(), 4f, p)
+            c.drawRect(x2.toFloat(), 9f, (x2 + 3).toFloat(), 10f, p)
+            c.drawRect(x3.toFloat(), 13f, (x3 + 2).toFloat(), 14f, p)
+            p.color = c(0xFFC3ECF5)
+            c.drawPoint(((x1 + 3) % 16).toFloat(), 3f, p)
+            c.drawPoint(((x2 + 2) % 16).toFloat(), 9f, p)
+        } })
         // REED
         add(tilePainter { c, p, r ->
             grassBase(c, p, r, c(0xFF8CC46C))
@@ -418,24 +461,44 @@ class Assets {
             c.drawRect(2f, 2f, 5f, 5f, p)
             c.drawRect(12f, 1f, 15f, 4f, p)
         })
-        // TREE
+        // TREE base: shadow and trunk stay on the ground layer.
         add(tilePainter { c, p, r ->
             grassBase(c, p, r)
+            p.color = c(0x302D5035)
+            c.drawOval(android.graphics.RectF(3f, 12f, 13f, 16f), p)
             p.color = c(0xFF8A5A33)
-            c.drawRect(7f, 9f, 9f, 15f, p)
+            c.drawRect(7f, 8f, 10f, 16f, p)
             p.color = c(0xFF6B431F)
             c.drawRect(7f, 9f, 8f, 15f, p)
-            p.isAntiAlias = false
-            p.color = c(0xFF3F7D46)
-            c.drawCircle(8f, 7f, 6.2f, p)
-            p.color = c(0xFF4F9E57)
-            c.drawCircle(8f, 6.4f, 5.4f, p)
-            p.color = c(0xFF6BBA72)
-            c.drawCircle(6.2f, 4.6f, 2.8f, p)
+            p.color = c(0xFFB7824D)
+            c.drawRect(9f, 10f, 10f, 14f, p)
         })
+        // Transparent tree crowns are separate, depth-sorted sprites. Three palettes avoid a cloned forest.
+        val crownShadow = intArrayOf(0xFF315F3B.toInt(), 0xFF4B5735.toInt(), 0xFF2E6252.toInt())
+        val crownMid = intArrayOf(0xFF3F7D46.toInt(), 0xFF648548.toInt(), 0xFF398064.toInt())
+        val crownLight = intArrayOf(0xFF58A85F.toInt(), 0xFF91A956.toInt(), 0xFF59A47D.toInt())
+        val crownSpark = intArrayOf(0xFF84C875.toInt(), 0xFFBED278.toInt(), 0xFF8DC6A4.toInt())
+        treeCanopies = Array(3) { variant ->
+            tilePainter { c, p, r ->
+                p.isAntiAlias = false
+                p.color = crownShadow[variant]
+                c.drawCircle(8f, 5.7f, 7f, p)
+                p.color = crownMid[variant]
+                c.drawCircle(8f, 5.4f, 6.1f, p)
+                c.drawCircle(4.5f, 7f, 3.7f, p)
+                c.drawCircle(11.5f, 7f, 3.7f, p)
+                p.color = crownLight[variant]
+                c.drawCircle(if (variant == 1) 10f else 5.5f, 3.8f, 3.1f, p)
+                c.drawCircle(if (variant == 2) 6f else 9.5f, 3.6f, 2.7f, p)
+                p.color = crownSpark[variant]
+                c.drawRect(4f, 2f, 7f, 3f, p)
+                c.drawRect(9f, 2f, 11f, 3f, p)
+                p.color = crownShadow[variant]
+                c.drawRect(12f, 8f, 14f, 10f, p)
+            }
+        }
         // ROCK (2종 변형)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
+        add(*Array(2) { tilePainter { c, p, r ->
                 grassBase(c, p, r)
                 p.color = c(0xFF7C8590)
                 c.drawRect(3f, 5f, 13f, 14f, p)
@@ -443,8 +506,7 @@ class Assets {
                 c.drawRect(4f, 4f, 12f, 12f, p)
                 p.color = c(0xFFB5BDC6)
                 c.drawRect(5f, 5f, 8f, 7f, p)
-            })
-        }
+            } })
         // MOUNTAIN
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF77848F))
@@ -556,16 +618,20 @@ class Assets {
             p.color = c(0xFFF2D06B)
             c.drawRect(7f, 1f, 9f, 3f, p)
         })
-        // FLOOR (집 바닥)
-        add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFCDA775))
-            p.color = c(0xFFB98F5E)
+        // FLOOR (집 바닥): staggered honey-oak planks with grain highlights.
+        add(*Array(3) { tilePainter { c, p, r ->
+            fill(c, p, c(0xFFD8B887))
+            p.color = c(0xFFBE9B68)
             c.drawRect(0f, 5f, 16f, 6f, p)
             c.drawRect(0f, 11f, 16f, 12f, p)
-            c.drawRect(5f, 0f, 6f, 5f, p)
-            c.drawRect(11f, 6f, 12f, 11f, p)
-            c.drawRect(3f, 12f, 4f, 16f, p)
-        })
+            val seam = r.nextInt(5) + 3
+            c.drawRect(seam.toFloat(), 0f, (seam + 1).toFloat(), 5f, p)
+            c.drawRect(((seam + 7) % 13 + 2).toFloat(), 6f, ((seam + 8) % 13 + 2).toFloat(), 11f, p)
+            c.drawRect(((seam + 3) % 13 + 2).toFloat(), 12f, ((seam + 4) % 13 + 2).toFloat(), 16f, p)
+            p.color = c(0xFFE8D09D)
+            c.drawRect(1f, 2f, 4f, 3f, p)
+            c.drawRect(10f, 8f, 13f, 9f, p)
+        } })
         // WALL_IN (집 벽)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
@@ -638,7 +704,7 @@ class Assets {
         })
         // DECOR (장식 슬롯 — 추후 소품 배치용)
         add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFCDA775))
+            fill(c, p, c(0xFFD8B887))
             p.color = c(0xFFB98F5E)
             c.drawRect(0f, 5f, 16f, 6f, p)
             c.drawRect(0f, 11f, 16f, 12f, p)
@@ -650,6 +716,50 @@ class Assets {
             p.color = c(0xFFE8D5A3)
             c.drawRect(7f, 7f, 9f, 9f, p)
         })
+        // RUG — repeating woven medallion so adjacent tiles form one broad carpet.
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFF4F817A))
+            p.color = c(0xFFE4B779)
+            c.drawRect(3f, 3f, 13f, 4f, p); c.drawRect(3f, 12f, 13f, 13f, p)
+            c.drawRect(3f, 5f, 4f, 11f, p); c.drawRect(12f, 5f, 13f, 11f, p)
+            p.color = c(0xFFB85F50)
+            c.drawRect(5f, 5f, 11f, 11f, p)
+            p.color = c(0xFFFFD58A)
+            c.drawRect(7f, 4f, 9f, 12f, p); c.drawRect(4f, 7f, 12f, 9f, p)
+            p.color = c(0xFF386A68)
+            c.drawRect(7f, 7f, 9f, 9f, p)
+        })
+        // SHELF — warm wood with books and a small ceramic pot.
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFF2E3C2))
+            p.color = c(0xFF754C35); c.drawRect(1f, 10f, 15f, 13f, p)
+            p.color = c(0xFF9A6945); c.drawRect(2f, 9f, 14f, 11f, p)
+            p.color = c(0xFFE2574C); c.drawRect(3f, 5f, 5f, 9f, p)
+            p.color = c(0xFF6F8D62); c.drawRect(6f, 4f, 8f, 9f, p)
+            p.color = c(0xFF597A98); c.drawRect(9f, 5f, 11f, 9f, p)
+            p.color = c(0xFFF2D06B); c.drawRect(12f, 6f, 14f, 9f, p)
+            p.color = c(0xFFB9D990); c.drawRect(12f, 4f, 14f, 6f, p)
+        })
+        // PLANT — terracotta pot, layered leaves.
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFD8B887))
+            p.color = c(0xFF4F8B58); c.drawRect(7f, 2f, 9f, 10f, p)
+            c.drawRect(4f, 4f, 7f, 7f, p); c.drawRect(9f, 3f, 12f, 6f, p)
+            p.color = c(0xFF78B96B); c.drawRect(5f, 2f, 7f, 5f, p)
+            c.drawRect(9f, 1f, 11f, 4f, p)
+            p.color = c(0xFFB9664C); c.drawRect(4f, 9f, 12f, 12f, p)
+            p.color = c(0xFFE39169); c.drawRect(5f, 9f, 11f, 10f, p)
+            p.color = c(0xFF8C4B3D); c.drawRect(5f, 12f, 11f, 13f, p)
+        })
+        // CABINET — counter with drawer, tiny lamp highlight.
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFD8B887))
+            p.color = c(0xFF80553A); c.drawRect(1f, 4f, 15f, 14f, p)
+            p.color = c(0xFFB67A4E); c.drawRect(1f, 4f, 15f, 7f, p)
+            p.color = c(0xFFD79B62); c.drawRect(2f, 5f, 14f, 6f, p)
+            p.color = c(0xFF9A6442); c.drawRect(3f, 8f, 8f, 13f, p); c.drawRect(9f, 8f, 13f, 13f, p)
+            p.color = c(0xFFE7C47C); c.drawRect(5f, 10f, 6f, 11f, p); c.drawRect(10f, 10f, 11f, 11f, p)
+        })
 
         tiles = list.toTypedArray()
     }
@@ -660,6 +770,9 @@ class Assets {
         if (n <= 1) return 0
         return ((x * 7 + y * 13) % n + n) % n
     }
+
+    fun treeCanopyVariant(x: Int, y: Int): Int =
+        ((x * 7 + y * 13) % treeCanopies.size + treeCanopies.size) % treeCanopies.size
 
     // -----------------------------------------------------------------------
     // 아이콘
