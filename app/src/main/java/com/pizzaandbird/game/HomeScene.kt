@@ -75,17 +75,30 @@ class HomeScene(game: Game) : Scene(game) {
     private val interiorX = 4.5f * 16f
     private val interiorY = 6.5f * 16f
 
-    /** 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1 */
+    /**
+     * 장식 칸 (인덱스, 월드 px) — MapBuilder.buildHome의 DECOR 타일과 1:1.
+     * 예전 3칸은 0~2로 그대로 남겨 기존 집 배치를 잃지 않는다.
+     */
     private val decorSpots = listOf(
         Triple(0, 5.5f * 16f, 3f * 16f),
         Triple(1, 7.5f * 16f, 3f * 16f),
-        Triple(2, 11.5f * 16f, 6f * 16f)
+        Triple(2, 11.5f * 16f, 6f * 16f),
+        Triple(3, 9.5f * 16f, 6f * 16f),
+        Triple(4, 4.5f * 16f, 5f * 16f),
+        Triple(5, 6.5f * 16f, 5f * 16f),
+        Triple(6, 6.5f * 16f, 7f * 16f),
+        Triple(7, 8.5f * 16f, 7f * 16f)
     )
     /** 장식이 놓이는 타일 위치 (월드 px, 좌상단) */
     private val decorTiles = listOf(
         5f * 16f to 2f * 16f,
         7f * 16f to 2f * 16f,
-        11f * 16f to 5f * 16f
+        11f * 16f to 5f * 16f,
+        9f * 16f to 5f * 16f,
+        4f * 16f to 4f * 16f,
+        6f * 16f to 4f * 16f,
+        6f * 16f to 6f * 16f,
+        8f * 16f to 6f * 16f
     )
 
     /** 상호작용 대상 (A버튼 반경 / 탭 반경). 화덕과 오븐이 나란히 있으므로 항상 가장 가까운 것을 고른다. */
@@ -300,12 +313,24 @@ class HomeScene(game: Game) : Scene(game) {
                     moveHome(picked)
                 }
             )
-            "interior" -> openOverlay(HouseStyleOverlay(this) { styleId ->
-                state.houseStyleId = styleId
-                SaveManager.save(game.context, state)
-                game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
-                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
-            })
+            "interior" -> openOverlay(
+                DialogOverlay(
+                    this, "우리 집 꾸미기 🎨",
+                    "8칸 배치 보드에서 소품을 한눈에 정리하고,\n서로 어울리는 컬렉션을 완성해 보세요!",
+                    listOf(
+                        DialogOverlay.Choice("배치 보드") { it.scene.openOverlay(HomeDecorOverlay(it.scene)) },
+                        DialogOverlay.Choice("스타일 카탈로그") {
+                            it.scene.openOverlay(HouseStyleOverlay(it.scene) { styleId ->
+                                state.houseStyleId = styleId
+                                SaveManager.save(game.context, state)
+                                game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
+                                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
+                            })
+                        },
+                        DialogOverlay.Choice("나중에")
+                    )
+                )
+            )
             "decor" -> {
                 if (state.decorOwned.isEmpty()) {
                     openOverlay(
@@ -316,13 +341,13 @@ class HomeScene(game: Game) : Scene(game) {
                         )
                     )
                 } else {
-                    val idx = slot.coerceIn(0, 2)
+                    val idx = slot.coerceIn(0, state.decorSlots.lastIndex)
                     openOverlay(
                         DecorPickOverlay(this, idx) { picked ->
-                            state.decorSlots[idx] = picked
+                            state.placeDecor(idx, picked)
                             SaveManager.save(game.context, state)
-                            val name = Decors.of(picked)?.name ?: "장식"
-                            game.toast("장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                            val name = Decors.of(picked)?.name ?: "빈 칸"
+                            game.toast(if (picked < 0) "장식 칸을 비웠어요" else "장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
                             game.sfx(Audio.Sfx.SUCCESS, 0.6f)
                         }
                     )

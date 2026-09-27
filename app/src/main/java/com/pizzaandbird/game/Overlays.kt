@@ -479,7 +479,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             "🔍 의뢰" to (s.questBird?.let { Birds.byId[it]?.name } ?: "없음"),
             "⏱ 플레이" to timeStr,
             "🚲 자전거" to "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else ""),
-            "🍕 피자" to "${s.pizzaCount}개 (🔥${s.pizzaCountOfKind(PizzaKind.OVEN)} · 🍕${s.pizzaCountOfKind(PizzaKind.REGULAR)}) · 🧺${s.decorSlots.count { it >= 0 }}/3"
+            "🍕 피자" to "${s.pizzaCount}개 (🔥${s.pizzaCountOfKind(PizzaKind.OVEN)} · 🍕${s.pizzaCountOfKind(PizzaKind.REGULAR)}) · 🧺${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"
         )
         for (i in cells.indices) {
             val col = i % 2
@@ -1243,6 +1243,8 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
     private var buyRects = ArrayList<Pair<RectF, Int>>()
     private var closeRect = RectF()
     private var panelR = RectF()
+    private var catalogPage = 0
+    private var catalogTabs = ArrayList<Pair<RectF, Int>>()
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
@@ -1252,6 +1254,13 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
             return
+        }
+        for ((r, page) in catalogTabs) {
+            if (r.contains(tap.x, tap.y)) {
+                catalogPage = page
+                scene.game.sfx(Audio.Sfx.TAP, 0.35f)
+                return
+            }
         }
         for ((r, id) in buyRects) {
             if (r.contains(tap.x, tap.y)) {
@@ -1314,14 +1323,30 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         )
         UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 56f))
 
-        // 상품 행 — 패널 높이에 맞춰 자동 배분
+        // 두 카탈로그로 나누어 작은 화면에서도 상품 행이 눌리지 않게 한다.
+        catalogTabs = ArrayList()
+        val tabTop = panelR.top + dp(scene, 62f)
+        val tabGap = dp(scene, 6f)
+        val tabW = (panelR.width() - dp(scene, 24f) - tabGap) / Decors.SHOP_GROUPS.size
+        for (i in Decors.SHOP_GROUPS.indices) {
+            val tr = RectF(panelR.left + dp(scene, 12f) + i * (tabW + tabGap), tabTop,
+                panelR.left + dp(scene, 12f) + i * (tabW + tabGap) + tabW, tabTop + dp(scene, 24f))
+            val selected = i == catalogPage
+            drawButton(c, scene, tr, Decors.SHOP_GROUPS[i],
+                if (selected) 0xFF6FBA6B.toInt() else 0xFFF2E3C2.toInt(),
+                if (selected) 0xFFFFF8E8.toInt() else 0xFF6B4F35.toInt(), 10f)
+            catalogTabs.add(tr to i)
+        }
+
+        // 상품 행 — 현재 카탈로그의 수에 맞춰 자동 배분
+        val items = Decors.shopItems(catalogPage)
         buyRects = ArrayList()
         val gap = dp(scene, 5f)
-        val top0 = panelR.top + dp(scene, 62f)
+        val top0 = tabTop + dp(scene, 31f)
         val avail = panelR.bottom - dp(scene, 10f) - top0
-        val rowH = ((avail - gap * (Decors.ALL.size - 1)) / Decors.ALL.size).coerceIn(dp(scene, 36f), dp(scene, 56f))
+        val rowH = ((avail - gap * (items.size - 1)) / items.size).coerceIn(dp(scene, 36f), dp(scene, 56f))
         var ty = top0
-        for (d in Decors.ALL) {
+        for (d in items) {
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH)
             drawCard(c, scene, r)
 
@@ -1376,7 +1401,21 @@ class DecorPickOverlay(
 
     private var pickRects = ArrayList<Pair<RectF, Int>>()
     private var closeRect = RectF()
+    private var prevRect = RectF()
+    private var nextRect = RectF()
     private var panelR = RectF()
+    private var page = 0
+    private val pageSize = 6
+
+    /** 다른 칸에 이미 놓인 소품은 여기서 빼서 복제 배치를 막는다. */
+    private fun availableIds(): List<Int> {
+        val s = scene.game.state
+        val usedElsewhere = s.decorSlots.withIndex()
+            .filter { it.index != slot }
+            .map { it.value }
+            .toSet()
+        return s.decorOwned.distinct().filter { Decors.of(it) != null && it !in usedElsewhere }.sorted()
+    }
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
@@ -1385,6 +1424,17 @@ class DecorPickOverlay(
         if (closeRect.contains(tap.x, tap.y)) {
             scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
+            return
+        }
+        val pages = ((availableIds().size + pageSize - 1) / pageSize).coerceAtLeast(1)
+        if (prevRect.contains(tap.x, tap.y) && page > 0) {
+            page--
+            scene.game.sfx(Audio.Sfx.TAP, 0.35f)
+            return
+        }
+        if (nextRect.contains(tap.x, tap.y) && page < pages - 1) {
+            page++
+            scene.game.sfx(Audio.Sfx.TAP, 0.35f)
             return
         }
         for ((r, id) in pickRects) {
@@ -1402,11 +1452,15 @@ class DecorPickOverlay(
         val s = g.state
         val w = g.screenW.toFloat()
         val h = g.screenH.toFloat()
+        val available = availableIds()
+        val pages = ((available.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+        page = page.coerceIn(0, pages - 1)
+        val current = available.drop(page * pageSize).take(pageSize)
         dim(c, scene, 150)
 
-        val rowCount = s.decorOwned.size + 1
-        val pw = minOf(w * 0.8f, dp(scene, 360f))
-        val ph = minOf(dp(scene, 96f) + dp(scene, 58f) * rowCount, h * 0.9f)
+        val rowCount = current.size + 1 // 마지막은 항상 비우기
+        val pw = minOf(w * 0.84f, dp(scene, 360f))
+        val ph = minOf(dp(scene, 118f) + dp(scene, 48f) * rowCount, h * 0.9f)
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
         panel(c, panelR, scene)
 
@@ -1418,13 +1472,28 @@ class DecorPickOverlay(
         textP.textSize = dp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("✨ 장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 29f), textP)
-        UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 40f))
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("소품 하나는 한 칸에만 배치할 수 있어요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
+        UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 52f))
+
+        // 소품이 많아져도 6개씩 넘긴다.
+        val navY = panelR.top + dp(scene, 57f)
+        prevRect = RectF(panelR.left + dp(scene, 14f), navY, panelR.left + dp(scene, 42f), navY + dp(scene, 20f))
+        nextRect = RectF(panelR.left + dp(scene, 46f), navY, panelR.left + dp(scene, 74f), navY + dp(scene, 20f))
+        val canPrev = page > 0
+        val canNext = page < pages - 1
+        drawButton(c, scene, prevRect, "‹", if (canPrev) 0xFFF2E3C2.toInt() else 0xFFD9CFC0.toInt(), 0xFF4A3728.toInt(), 13f)
+        drawButton(c, scene, nextRect, "›", if (canNext) 0xFFF2E3C2.toInt() else 0xFFD9CFC0.toInt(), 0xFF4A3728.toInt(), 13f)
+        textP.textSize = dp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("${page + 1}/$pages · 배치 가능 ${available.size}개", panelR.left + dp(scene, 82f), navY + dp(scene, 14f), textP)
 
         pickRects = ArrayList()
-        val gap = dp(scene, 6f)
-        val top0 = panelR.top + dp(scene, 48f)
-        val avail = panelR.bottom - dp(scene, 10f) - top0
-        val rowH = ((avail - gap * (rowCount - 1)) / rowCount).coerceIn(dp(scene, 40f), dp(scene, 52f))
+        val gap = dp(scene, 5f)
+        val top0 = panelR.top + dp(scene, 82f)
+        val availH = panelR.bottom - dp(scene, 10f) - top0
+        val rowH = ((availH - gap * (rowCount - 1)) / rowCount).coerceIn(dp(scene, 38f), dp(scene, 50f))
         var ty = top0
 
         fun row(id: Int, emoji: String, name: String, sub: String, accent: Int = 0xFFF2B63C.toInt()) {
@@ -1444,12 +1513,150 @@ class DecorPickOverlay(
             ty += rowH + gap
         }
 
-        for (did in s.decorOwned) {
+        for (did in current) {
             val d = Decors.of(did) ?: continue
-            val placed = s.decorSlots.contains(did)
-            row(did, d.emoji, d.name, "행운 +${d.luck}" + (if (placed) " · 이미 다른 칸에" else ""))
+            val here = s.decorSlots.getOrNull(slot) == did
+            row(did, d.emoji, d.name, "행운 +${d.luck}" + if (here) " · 이 칸에 배치 중" else "")
         }
         row(-1, "🫙", "빈 칸으로 두기", "장식을 치웁니다", 0xFFD9CFC0.toInt())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 집 꾸미기 보드 — 8칸 레이아웃, 자동 정리, 컬렉션 효과를 한 화면에서 관리
+// ---------------------------------------------------------------------------
+
+class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
+
+    private var closeRect = RectF()
+    private var autoRect = RectF()
+    private var clearRect = RectF()
+    private val slotRects = ArrayList<Pair<RectF, Int>>()
+
+    override fun handleInput(input: Input) {
+        val g = scene.game
+        val s = g.state
+        val tap = input.consumeTapScreen()
+        if (input.justB || input.justBack) { finished = true; return }
+        if (tap == null) return
+        if (closeRect.contains(tap.x, tap.y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
+        if (autoRect.contains(tap.x, tap.y)) {
+            val count = s.autoArrangeDecors()
+            SaveManager.save(g.context, s)
+            g.toast("보유 소품 $count개를 순서대로 정리했어요 ✨")
+            g.sfx(Audio.Sfx.SUCCESS, 0.6f)
+            return
+        }
+        if (clearRect.contains(tap.x, tap.y)) {
+            for (i in s.decorSlots.indices) s.decorSlots[i] = -1
+            SaveManager.save(g.context, s)
+            g.toast("배치 보드를 비웠어요. 소품은 그대로 보유 중이에요")
+            g.sfx(Audio.Sfx.TAP, 0.45f)
+            return
+        }
+        for ((r, slot) in slotRects) {
+            if (!r.contains(tap.x, tap.y)) continue
+            g.sfx(Audio.Sfx.TAP, 0.4f)
+            scene.openOverlay(DecorPickOverlay(scene, slot) { picked ->
+                s.placeDecor(slot, picked)
+                SaveManager.save(g.context, s)
+                val d = Decors.of(picked)
+                g.toast(if (d == null) "장식 칸을 비웠어요" else "${d.emoji} ${d.name} 배치 완료!")
+                g.sfx(Audio.Sfx.SUCCESS, 0.6f)
+                // 선택 후에도 다시 보드로 돌아와 여러 칸을 연달아 꾸밀 수 있다.
+                scene.openOverlay(HomeDecorOverlay(scene))
+            })
+            return
+        }
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 158)
+
+        val pw = minOf(w * 0.9f, dp(scene, 470f))
+        val ph = minOf(h * 0.9f, dp(scene, 450f))
+        val panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
+        panel(c, panelR, scene)
+
+        val closeCx = panelR.right - dp(scene, 25f)
+        val closeCy = panelR.top + dp(scene, 23f)
+        closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("🪴 집 꾸미기 보드", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val filled = s.placedDecorIds().size
+        c.drawText("배치 $filled/${s.decorSlots.size} · 소품 +${s.decorItemLuck()} · 세트 +${s.decorSetBonus()}",
+            panelR.left + dp(scene, 16f), panelR.top + dp(scene, 45f), textP)
+        UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 54f))
+
+        // 2 × 4 레이아웃 카드
+        slotRects.clear()
+        val cols = 2
+        val gap = dp(scene, 7f)
+        val gridLeft = panelR.left + dp(scene, 13f)
+        val gridRight = panelR.right - dp(scene, 13f)
+        val cardW = (gridRight - gridLeft - gap) / cols
+        val gridTop = panelR.top + dp(scene, 63f)
+        val setArea = dp(scene, 76f)
+        val buttonsArea = dp(scene, 38f)
+        val gridBottom = panelR.bottom - dp(scene, 12f) - setArea - buttonsArea
+        // 남는 높이를 네 줄에 정확히 나눠 작은 화면에서도 세트 안내와 겹치지 않게 한다.
+        val cardH = ((gridBottom - gridTop - gap * 3f) / 4f).coerceAtLeast(dp(scene, 24f))
+        for (slot in s.decorSlots.indices) {
+            val col = slot % cols
+            val row = slot / cols
+            val left = gridLeft + col * (cardW + gap)
+            val top = gridTop + row * (cardH + gap)
+            val r = RectF(left, top, left + cardW, top + cardH)
+            val id = s.decorSlots[slot]
+            val d = Decors.of(id)
+            UiKit.card(c, g, r, 9f, d != null, if (d != null) 0xFF6FBA6B.toInt() else 0xFFC9A87B.toInt(), if (d != null) 2f else 1f)
+            UiKit.iconCircle(c, g, r.left + dp(scene, 19f), r.centerY(), dp(scene, 11f), d?.emoji ?: "＋", 13f,
+                if (d != null) 0xFF6FBA6B.toInt() else 0xFFE9DDC7.toInt())
+            textP.textSize = dp(scene, 10.5f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText("${slot + 1}. ${d?.name ?: "비어 있음"}", r.left + dp(scene, 37f), r.centerY() - dp(scene, 1f), textP)
+            textP.textSize = dp(scene, 8.5f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(if (d != null) "행운 +${d.luck}" else "탭해서 소품 놓기", r.left + dp(scene, 37f), r.centerY() + dp(scene, 11f), textP)
+            slotRects.add(r to slot)
+        }
+
+        // 다음에 완성할 수 있는 컬렉션을 제안한다.
+        val placed = s.placedDecorIds()
+        val completed = Decors.placedSets(placed)
+        val next = Decors.SETS.filter { it !in completed }.maxByOrNull { set ->
+            set.members.count { it in placed }.toFloat() / set.required
+        }
+        val infoTop = gridBottom + dp(scene, 9f)
+        val info = RectF(gridLeft, infoTop, gridRight, infoTop + dp(scene, 31f))
+        UiKit.card(c, g, info, 8f, completed.isNotEmpty(), 0xFFF2B63C.toInt(), 1.2f)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF4A3728.toInt()
+        val infoText = if (next == null) {
+            "🏅 모든 컬렉션 완성! 세트 효과 +${s.decorSetBonus()}"
+        } else {
+            val n = next.members.count { it in placed }
+            "${next.emoji} 다음: ${next.name}  $n/${next.required} · 완성 시 행운 +${next.bonus}"
+        }
+        c.drawText(infoText, info.left + dp(scene, 10f), info.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+
+        autoRect = RectF(gridLeft, panelR.bottom - dp(scene, 40f), gridLeft + (gridRight - gridLeft - gap) * 0.62f, panelR.bottom - dp(scene, 10f))
+        clearRect = RectF(autoRect.right + gap, autoRect.top, gridRight, autoRect.bottom)
+        drawButton(c, scene, autoRect, "✨ 보유 소품 자동 정리", 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 10.5f)
+        drawButton(c, scene, clearRect, "비우기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10.5f)
     }
 }
 

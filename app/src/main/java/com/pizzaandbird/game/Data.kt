@@ -785,25 +785,74 @@ object Pizzas {
     fun representative(kind: PizzaKind): PizzaDef = ofKind(kind).firstOrNull() ?: ALL[0]
 }
 
-/** 집 장식 소품 — 구매 후 칸에 배치하면 행운 보너스 */
+/**
+ * 집 장식 소품.
+ *
+ * 소품 하나는 한 번만 배치할 수 있다. 여덟 칸을 취향대로 채우고, 서로 어울리는
+ * 컬렉션을 완성하면 추가 행운을 받는다. `shopGroup`은 상점의 두 카탈로그 페이지다.
+ */
 object Decors {
+    const val SLOT_COUNT = 8
+
     class Decor(
-        val id: Int, val name: String, val emoji: String,
-        val cost: Int, val luck: Int, val desc: String
+        val id: Int,
+        val name: String,
+        val emoji: String,
+        val cost: Int,
+        val luck: Int,
+        val desc: String,
+        val shopGroup: Int
     )
 
+    class DecorSet(
+        val id: String,
+        val name: String,
+        val emoji: String,
+        val members: Set<Int>,
+        val required: Int,
+        val bonus: Int,
+        val desc: String
+    )
+
+    val SHOP_GROUPS = listOf("아늑한 집", "탐조 작업실")
+
     val ALL = listOf(
-        Decor(0, "선인장 화분", "🌵", 40000, 1, "작지만 튼튼한 친구. 물은 아껴 주세요."),
-        Decor(1, "원목 책장", "📚", 120000, 2, "조류 도감과 여행 수첩이 가득한 책장."),
-        Decor(2, "포근한 러그", "🧶", 80000, 2, "맨발로 밟으면 기분이 좋아지는 러그."),
-        Decor(3, "스탠드 조명", "💡", 150000, 2, "따뜻한 불빛. 밤에 집 안을 환히 밝혀요."),
-        Decor(4, "탐조 트로피", "🏆", 250000, 3, "첫 사진 콘테스트 입상 기념품!"),
-        Decor(5, "빈티지 라디오", "📻", 100000, 2, "드르륵 돌리면 새소리 방송이 나와요.")
+        // 아늑한 집 ---------------------------------------------------------
+        Decor(0, "선인장 화분", "🌵", 40000, 1, "작지만 튼튼한 친구. 물은 아껴 주세요.", 0),
+        Decor(2, "포근한 러그", "🧶", 80000, 2, "맨발로 밟으면 기분이 좋아지는 러그.", 0),
+        Decor(3, "스탠드 조명", "💡", 150000, 2, "따뜻한 불빛. 밤에 집 안을 환히 밝혀요.", 0),
+        Decor(5, "빈티지 라디오", "📻", 100000, 2, "드르륵 돌리면 새소리 방송이 나와요.", 0),
+        Decor(6, "몬스테라 화분", "🪴", 90000, 1, "창가에서 잎을 활짝 펴는 초록 친구.", 0),
+        Decor(8, "캠프 체어", "🪑", 110000, 1, "여행 사진을 고르며 잠시 쉬기 좋은 의자.", 0),
+        Decor(10, "레코드 플레이어", "🎶", 180000, 2, "바늘을 올리면 방 안에 느긋한 리듬이 번져요.", 1),
+
+        // 탐조 작업실 -------------------------------------------------------
+        Decor(1, "원목 책장", "📚", 120000, 2, "조류 도감과 여행 수첩이 가득한 책장.", 1),
+        Decor(4, "탐조 트로피", "🏆", 250000, 3, "첫 사진 콘테스트 입상 기념품!", 1),
+        Decor(7, "새 사진 액자", "🖼", 130000, 2, "좋아하는 한 장을 벽에 걸어 두었어요.", 1),
+        Decor(9, "여행 엽서판", "✉️", 70000, 2, "지나온 지역의 하늘과 바다를 모아 둔 보드.", 1),
+        Decor(11, "관찰 노트", "📓", 60000, 2, "날짜, 날씨, 그리고 만난 새를 적는 작은 노트.", 1)
+    ).sortedBy { it.id }
+
+    /** 서로 어울리는 소품을 실제로 배치했을 때만 적용되는 컬렉션 효과. */
+    val SETS = listOf(
+        DecorSet("cozy_music", "포근한 음악방", "🎵", setOf(2, 3, 5), 3, 3,
+            "러그 · 스탠드 조명 · 라디오를 함께 배치"),
+        DecorSet("green_window", "초록 창가", "🌿", setOf(0, 6), 2, 2,
+            "선인장과 몬스테라를 함께 배치"),
+        DecorSet("field_studio", "탐조 작업실", "🔭", setOf(1, 7, 11), 3, 4,
+            "책장 · 새 사진 액자 · 관찰 노트를 함께 배치"),
+        DecorSet("travel_memory", "여행의 벽", "🗺", setOf(4, 9), 2, 2,
+            "탐조 트로피와 여행 엽서판을 함께 배치")
     )
 
     val byId: Map<Int, Decor> = ALL.associateBy { it.id }
 
     fun of(id: Int): Decor? = byId[id]
+    fun shopItems(group: Int): List<Decor> = ALL.filter { it.shopGroup == group }
+    fun placedSets(placed: Set<Int>): List<DecorSet> = SETS.filter { set ->
+        set.members.count { it in placed } >= set.required
+    }
 }
 
 /**

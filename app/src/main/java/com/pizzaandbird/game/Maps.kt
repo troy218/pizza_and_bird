@@ -851,10 +851,15 @@ object MapBuilder {
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
         // 이사 박스
         t[6][2] = T.BOX.ordinal
-        // 장식 슬롯 (DECOR 0,1,2 순서로 HomeScene과 매칭)
+        // 장식 슬롯 (DECOR 0~7 순서로 HomeScene과 매칭). 예전 세 칸은 앞에 유지한다.
         t[2][5] = T.DECOR.ordinal
         t[2][7] = T.DECOR.ordinal
         t[5][11] = T.DECOR.ordinal
+        t[5][9] = T.DECOR.ordinal
+        t[4][4] = T.DECOR.ordinal
+        t[4][6] = T.DECOR.ordinal
+        t[6][6] = T.DECOR.ordinal
+        t[6][8] = T.DECOR.ordinal
         val home = Regions.byId["seoul"]!! // 내부맵은 지역 무관 (더미)
         val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
         val pave = Array(h) { IntArray(w) }

@@ -7,7 +7,7 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v4: 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
+ * 세이브 형식 v5: 8칸 집 꾸미기 레이아웃/세트 효과를 포함한다. 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
  *   화면 연출(몰입 카메라) 설정 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
  *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
  * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
@@ -68,7 +68,8 @@ class GameState {
     var musicOn = true             // 설정: 배경 음악
     var sfxOn = true               // 설정: 효과음/환경음
 
-    val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
+    /** 집 장식 칸 (장식 id, -1 = 빈칸). v5부터 8칸이며, 예전 3칸 세이브는 앞 칸에 그대로 옮긴다. */
+    val decorSlots = IntArray(Decors.SLOT_COUNT) { -1 }
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
     // 자전거 (탈것은 자전거만!) ------------------------------------------
@@ -371,14 +372,44 @@ class GameState {
 
     fun ownsHome(regionId: String): Boolean = regionId in ownedHomes
 
-    /** 설치된 장식의 행운 보너스 합 */
-    fun decorLuck(): Int {
-        var s = 0
-        for (id in decorSlots) {
-            val d = Decors.of(id)
-            if (d != null) s += d.luck
+    /** 현재 배치된 장식 id. 중복·알 수 없는 id를 배제해 오래된 세이브도 안전하게 처리한다. */
+    fun placedDecorIds(): Set<Int> = decorSlots.filter { Decors.of(it) != null }.toSet()
+
+    /** 소품 자체가 주는 행운. */
+    fun decorItemLuck(): Int = placedDecorIds().sumOf { Decors.of(it)?.luck ?: 0 }
+
+    /** 컬렉션을 완성해 얻는 추가 행운. */
+    fun decorSetBonus(): Int = Decors.placedSets(placedDecorIds()).sumOf { it.bonus }
+
+    /** 설치된 소품 + 완성한 컬렉션의 행운 보너스 합. */
+    fun decorLuck(): Int = decorItemLuck() + decorSetBonus()
+
+    /** 한 소품은 한 칸에만 놓을 수 있다. 이미 놓여 있던 자리에서는 자동으로 들어 올린다. */
+    fun placeDecor(slot: Int, decorId: Int) {
+        if (slot !in decorSlots.indices) return
+        if (decorId < 0) {
+            decorSlots[slot] = -1
+            return
         }
-        return s
+        if (decorId !in decorOwned || Decors.of(decorId) == null) return
+        for (i in decorSlots.indices) if (i != slot && decorSlots[i] == decorId) decorSlots[i] = -1
+        decorSlots[slot] = decorId
+    }
+
+    /** 보유 소품을 id 순서로 한 번에 정리한다. 반환값은 채워진 칸 수. */
+    fun autoArrangeDecors(): Int {
+        val owned = decorOwned.distinct().filter { Decors.of(it) != null }.sorted()
+        for (i in decorSlots.indices) decorSlots[i] = if (i < owned.size) owned[i] else -1
+        return minOf(owned.size, decorSlots.size)
+    }
+
+    /** 로드 직후 레이아웃을 정리한다. v4에서는 중복 배치가 가능했기 때문에 필요하다. */
+    fun normalizeDecorLayout() {
+        val seen = HashSet<Int>()
+        for (i in decorSlots.indices) {
+            val id = decorSlots[i]
+            if (id !in decorOwned || Decors.of(id) == null || !seen.add(id)) decorSlots[i] = -1
+        }
     }
 
     /** 희귀새 출현 계산에 쓰는 실효 행운 (장식 + 자전거 + 감성 장비) */
@@ -498,7 +529,7 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 4)
+        put("v", 5)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
@@ -687,16 +718,22 @@ class GameState {
                 for (i in 0 until vs.length()) s.visited.add(vs.optString(i))
             }
             val ds = j.optJSONArray("decorSlots")
-            if (ds != null && ds.length() >= 3) {
-                for (i in 0 until 3) s.decorSlots[i] = ds.optInt(i, -1)
+            if (ds != null) {
+                // v4의 3칸 배치는 새 8칸 레이아웃의 앞 세 칸에 보존한다.
+                for (i in 0 until minOf(ds.length(), s.decorSlots.size)) {
+                    s.decorSlots[i] = ds.optInt(i, -1)
+                }
             }
             val dwn = j.optJSONArray("decorOwned")
             if (dwn != null) {
                 for (i in 0 until dwn.length()) {
                     val id = dwn.optInt(i, -1)
-                    if (id >= 0) s.decorOwned.add(id)
+                    if (Decors.of(id) != null && id !in s.decorOwned) s.decorOwned.add(id)
                 }
             }
+            // 매우 오래된 세이브에서 장식을 먼저 배치했던 경우에도 소유권을 복구한다.
+            for (id in s.decorSlots) if (Decors.of(id) != null && id !in s.decorOwned) s.decorOwned.add(id)
+            s.normalizeDecorLayout()
             // 자전거 (v3 이하 세이브에는 기본 자전거만 있다)
             val ob = j.optJSONArray("ownedBikes")
             if (ob != null) {
