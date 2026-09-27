@@ -18,7 +18,7 @@ import kotlin.math.sin
  *
  * 진짜 카메라 앱을 들여다보는 기분이 나도록 다음을 겹겹이 그린다.
  *
- *  1. **렌즈 톤** — 차가운 필름 색조, 좌상단 빛 번짐(시각·계절에 따라 색이 바뀐다),
+ *  1. **렌즈 톤** — 차가운 필름 색조, 좌상단 빛 번짐(낮엔 햇살색 · 밤엔 달빛색),
  *     초점 밖 보케, 필름 그레인, 네 변에서 스며드는 비네트.
  *  2. **프레임** — 유리 가장자리 그림자, 크림색 코너 브래킷 + 금색 포인트,
  *     3분할 그리드와 교차점 마커, 조리개 눈금, 중앙 십자.
@@ -27,7 +27,7 @@ import kotlin.math.sin
  *  4. **상단 바** — REC 점멸등 · PHOTO · AF-C · 시각(하루 진행 게이지) · 장비 카드(렌즈 아이콘).
  *  5. **하단 바** — EXIF(조리개·셔터·ISO), 장비 정보, 거리 게이지(★구역·마커), 촬영 수, 계절·날씨.
  *  6. **AF 박스** — 조준 중인 새에 초점 브래킷 + AF 획득 연출 + 이름/등급/별점/거리 명판
- *     + 초점 영역 거리 바 + 3★ 순간의 반짝임.
+ *     + 초점 영역 거리 바 + 피사체 뒤로 번지는 빛 + 3★ 순간의 금빛 링·반짝임.
  *  7. **셔터** — 곡선 블레이드가 닫히고, 빛이 번지고, "찰칵!" 과 플래시가 터진다.
  *
  * 좌표는 모두 가상 해상도(960x540) 기준이며 월드 캔버스에 그린다(HUD 는 나중에 그려진다).
@@ -194,12 +194,6 @@ class Viewfinder(private val game: Game) {
 
         drawTopBar(c, w, k)
         drawBottomBar(c, w, h, focus, playerCx, playerCy, rangeTiles, k)
-
-        if (focus == null && clock < 10f) {
-            // 첫 사용 안내 (살짝 떠 있다 사라진다)
-            val fade = (1f - ((clock - 8f) / 2f).coerceIn(0f, 1f))
-            drawHint(c, w, h, fade)
-        }
     }
 
     /** 월드 논리 좌표 -> 화면 좌표 (월드가 화면 중앙 기준으로 zoom 배 확대돼 있다) */
@@ -907,38 +901,7 @@ class Viewfinder(private val game: Game) {
     }
 
     // ------------------------------------------------------------------
-    // 7. 첫 사용 안내
-    // ------------------------------------------------------------------
-
-    private fun drawHint(c: Canvas, w: Float, h: Float, fade: Float) {
-        val a = (255 * fade).toInt().coerceIn(0, 255)
-        if (a < 4) return
-        val bob = sin(clock * 2.2f) * 3f
-        val cy = h * 0.69f + bob
-        val line1 = "새를 탭해 촬영하세요"
-        val line2 = "카메라 버튼을 다시 누르면 나갑니다"
-        text.textSize = TypeScale.px(15f)
-        textSoft.textSize = TypeScale.px(11.5f)
-        val pw = maxOf(text.measureText(line1), textSoft.measureText(line2)) + 44f
-        val plate = RectF(w / 2f - pw / 2f, cy - 27f, w / 2f + pw / 2f, cy + 27f)
-        glass(c, plate, 12f, (176 * a / 255), (96 * a / 255))
-        // 작은 카메라 아이콘
-        val cam = game.assets.camIcon(state.rig().look)
-        val iw = 30f
-        c.drawBitmap(
-            cam, null,
-            RectF(plate.left + 12f, plate.centerY() - iw * 9f / 22f, plate.left + 12f + iw, plate.centerY() + iw * 9f / 22f),
-            game.assets.sprPaint
-        )
-        text.textSize = TypeScale.px(15f)
-        text.color = Color.argb(a, 255, 250, 235)
-        c.drawText(line1, plate.left + 50f, plate.top + 21f, text)
-        textSoft.color = Color.argb((a * 0.72f).toInt(), 226, 220, 206)
-        c.drawText(line2, plate.left + 50f, plate.top + 40f, textSoft)
-    }
-
-    // ------------------------------------------------------------------
-    // 8. 셔터 (월드 위에 마지막으로 그린다)
+    // 7. 셔터 (월드 위에 마지막으로 그린다)
     // ------------------------------------------------------------------
 
     fun drawShutter(c: Canvas) {
