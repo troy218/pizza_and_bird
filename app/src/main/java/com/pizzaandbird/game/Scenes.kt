@@ -136,6 +136,9 @@ class TitleScene(game: Game) : Scene(game) {
         val bob = sin(t * 2.2f) * 5f
         val pz = a.pizzaIconBig
         c.drawBitmap(pz, 384f, 336f + bob, a.sprPaint)
+        p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
+        c.drawCircle(658f, 380f, 43f, p)
+        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f, 334f, 696f, 424f))
         val bird = a.bird("sparrow")
         c.drawBitmap(bird, 296f, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
         val fb = sin(t * 2.6f + 1f) * 7f
@@ -233,7 +236,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
-        val info = "v0.3.0 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · made with 🍕"
+        val info = "v0.3.2 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 
@@ -392,8 +395,12 @@ class CharacterSelectScene(game: Game) : Scene(game) {
             stroke.strokeWidth = dp(if (selected) 3f else 2f)
             c.drawRoundRect(r, dp(14f), dp(14f), stroke)
 
-            // 스프라이트 (비율 유지 + 살짝 흔들)
-            val bmp = game.assets.playerSet(gender, 0).down[0]
+            // 스프라이트 (관절 애니메이션 idle 클립 + 비율 유지 + 살짝 흔들)
+            val idleClip = game.assets.playerSet(gender, 0).idle
+            val bmp = idleClip.frame(
+                Dir.S,
+                ((game.time + if (gender == "female") 0.8f else 0f) / Anim.IDLE.frameTime).toInt()
+            )
             val k = minOf(dp(74f) / bmp.height, dp(90f) / bmp.width)
             val bw = bmp.width * k
             val bh = bmp.height * k

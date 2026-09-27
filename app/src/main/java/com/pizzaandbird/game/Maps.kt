@@ -140,15 +140,17 @@ class GameMap(
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
      * 레이어 순서: 지면 -> 포장(오토타일) -> 데칼 -> 구조물/소품 -> 접지 그림자.
-     * 물/화덕은 애니메이션, 물가에는 거품이 인다.
+     * 물은 애니메이션, 집 화덕은 HomeScene의 SVG 일러스트로 렌더링하며 물가에는 거품이 인다.
      */
-    fun draw(c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float) {
+    fun draw(
+        c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float,
+        sunDx: Float = 0f, sunLen: Float = 0f, sunAlpha: Int = 0
+    ) {
         val x0 = (camX / 32f).toInt().coerceAtLeast(0)
         val y0 = (camY / 32f).toInt().coerceAtLeast(0)
         val x1 = ((camX + vw) / 32f).toInt().coerceAtMost(w - 1)
         val y1 = ((camY + vh) / 32f).toInt().coerceAtMost(h - 1)
         val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
-        val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2
 
         for (y in y0..y1) {
             for (x in x0..x1) {
@@ -159,7 +161,7 @@ class GameMap(
                 val pv = paving[y][x]
 
                 // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-                if (pv != Pave.NONE || tile.ground || tile.prop) {
+                if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
                     val gv = ground[y][x]
                     val gTile = T.ALL[gv]
                     val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
@@ -187,10 +189,62 @@ class GameMap(
                 if (d in 1..9) c.drawBitmap(a.medallion[d - 1], fx, fy, a.sprPaint)
                 else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
 
+            }
+        }
+
+        // 3.5) 햇빛 그림자 — 해의 위치(시각)에 따라 나무·가로등·이정표의 긴 그림자가 돌아간다
+        if (sunAlpha > 0 && sunLen > 0f) {
+            sunPaint.color = Color.argb(sunAlpha, 18, 30, 22)
+            val k = sunDx / sunLen
+            // 화면 바로 위/옆의 소품도 그림자가 화면 안으로 드리울 수 있다
+            for (y in (y0 - 2).coerceAtLeast(0)..y1) {
+                for (x in (x0 - 1).coerceAtLeast(0)..(x1 + 1).coerceAtMost(w - 1)) {
+                    val tile = T.ALL[tiles[y][x]]
+                    if (tile != T.TREE && tile != T.LAMP && tile != T.SIGN && tile != T.ROCK) continue
+                    val bx = x * 32f - camX + 16f
+                    val by = y * 32f - camY + 29f
+                    c.save()
+                    c.translate(bx, by)
+                    c.skew(k, 0f)
+                    when (tile) {
+                        T.TREE -> {
+                            sunRect.set(-3f, -1f, 3f, sunLen * 0.45f)
+                            c.drawRect(sunRect, sunPaint)                       // 줄기
+                            sunRect.set(-11f, sunLen * 0.3f, 11f, sunLen * 1.05f + 4f)
+                            c.drawOval(sunRect, sunPaint)                       // 수관
+                        }
+                        T.LAMP -> {
+                            sunRect.set(-1.6f, -1f, 1.6f, sunLen * 1.2f)
+                            c.drawRect(sunRect, sunPaint)
+                            sunRect.set(-6f, sunLen * 1.15f, 6f, sunLen * 1.15f + 5f)
+                            c.drawRect(sunRect, sunPaint)
+                        }
+                        T.SIGN -> {
+                            sunRect.set(-1.4f, -1f, 1.4f, sunLen * 0.5f)
+                            c.drawRect(sunRect, sunPaint)
+                            sunRect.set(-10f, sunLen * 0.45f, 10f, sunLen * 0.8f)
+                            c.drawRect(sunRect, sunPaint)
+                        }
+                        else -> {
+                            sunRect.set(-9f, -3f, 9f, sunLen * 0.4f)
+                            c.drawOval(sunRect, sunPaint)
+                        }
+                    }
+                    c.restore()
+                }
+            }
+        }
+
+        for (y in y0..y1) {
+            for (x in x0..x1) {
+                val fx = x * 32f - camX
+                val fy = y * 32f - camY
+                val tv = tiles[y][x]
+                val tile = T.ALL[tv]
+
                 // 4) 구조물 / 소품
-                if (!tile.ground) {
-                    val bmp = if (tile == T.OVEN) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
-                    else a.tiles[tv][a.tileVariant(tv, x, y)]
+                if (!tile.ground && tile != T.OVEN) {
+                    val bmp = a.tiles[tv][a.tileVariant(tv, x, y)]
                     c.drawBitmap(bmp, fx, fy, a.sprPaint)
                 }
             }
@@ -215,6 +269,8 @@ class GameMap(
         private val foamPaint = Paint().apply {
             color = Color.argb(150, 226, 244, 250)
         }
+        private val sunPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val sunRect = android.graphics.RectF()
     }
 }
 
@@ -727,6 +783,11 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
+    // 머리 위 말풍선 이모트 (♪, …, 💤 등) — WorldScene이 갱신
+    var emote: String? = null
+    var emoteT = 0f
+    var emoteCd = 3f + ((tileX * 37 + tileY * 11) % 7)
+
     val name: String
         get() = when (kind) {
             NpcKind.PROFESSOR -> "보리 박사"
@@ -740,6 +801,7 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
 /** 골목을 거니는 고양이 */
 class Cat(var x: Float, var y: Float) {
     var state = 0                 // 0 앉아있기, 1 걷기
+    var animT = (Math.random() * 3f).toFloat()   // 대기 동작 위상 (고양이마다 다르게)
     var idleT = 1.5f
     var fromX = 0f; var fromY = 0f
     var toX = 0f; var toY = 0f
@@ -750,6 +812,7 @@ class Cat(var x: Float, var y: Float) {
     val cy: Float get() = y + 12f
 
     fun update(dt: Float, map: GameMap) {
+        animT += dt
         when (state) {
             0 -> {
                 idleT -= dt
@@ -785,8 +848,10 @@ class Cat(var x: Float, var y: Float) {
         }
     }
 
-    val frame: Int get() = if (state == 1) 1 + ((hopT * 3f).toInt() % 2) else 0
-    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 2f) else 0f
+    val walking: Boolean get() = state == 1
+    /** 현재 동작의 진행도 0~1 (걸을 때는 한 칸 이동이 한 사이클) */
+    val phase: Float get() = if (state == 1) hopT else (animT / 3.4f) % 1f
+    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 1.4f) else 0f
 }
 
 /** 플레이어 */
@@ -796,12 +861,60 @@ class Player {
     var facing = Dir.S
     var moving = false
     var bike = false
-    var animT = 0f
+
+    // ---- 동작(애니메이션) 상태 ----
+    var anim = Anim.IDLE
+        private set
+    var animT = 0f                    // 현재 클립 안에서의 시간(초)
+    var pedal = 0f                    // 자전거 페달 위상 0~1
+    private var lastPhase = 0f
+    /** 이번 프레임에 발이 땅에 닿았는가 (먼지/발소리용) */
+    var footfall = false
+        private set
 
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
     fun set(px: Float, py: Float) { x = px; y = py }
+
+    /** 현재 클립의 진행도 0~1 */
+    val phase: Float get() = (animT / anim.cycle).coerceIn(0f, 1f)
+
+    /** 현재 프레임 번호 */
+    val frame: Int get() = (animT / anim.frameTime).toInt()
+
+    /**
+     * 동작을 재생한다.
+     * - 걷기 <-> 달리기 <-> 살금살금 사이에서는 위상을 이어받아 발이 튀지 않는다.
+     * - rate 는 실제 이동 속도에 비례시켜 발이 미끄러지지 않게 한다.
+     */
+    fun play(next: Anim, dt: Float, rate: Float = 1f) {
+        if (next != anim) {
+            val strideSet = anim == Anim.WALK || anim == Anim.RUN || anim == Anim.SNEAK
+            val strideNext = next == Anim.WALK || next == Anim.RUN || next == Anim.SNEAK
+            val keep = if (strideSet && strideNext) (animT / anim.cycle) % 1f else 0f
+            anim = next
+            animT = keep * next.cycle
+            lastPhase = keep
+        }
+        val cyc = anim.cycle
+        animT = (animT + dt * rate) % cyc
+        val ph = animT / cyc
+        // 걷기/달리기 사이클에서 발이 닿는 순간 (위상 0 과 0.5 통과)
+        footfall = false
+        if (anim == Anim.WALK || anim == Anim.RUN || anim == Anim.SNEAK) {
+            if (crossed(lastPhase, ph, 0f) || crossed(lastPhase, ph, 0.5f)) footfall = true
+        }
+        lastPhase = ph
+    }
+
+    private fun crossed(a: Float, b: Float, m: Float): Boolean =
+        if (b >= a) (m > a && m <= b) else (m > a || m <= b)
+
+    /** 자전거 페달을 speed(px/s)에 맞춰 돌린다 */
+    fun pedalBy(dt: Float, speed: Float) {
+        pedal = (pedal + dt * (speed / 46f)) % 1f
+    }
 }
 
 /** 필드에 나타난 새 */

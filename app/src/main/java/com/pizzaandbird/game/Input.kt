@@ -252,6 +252,19 @@ class Input(private val game: Game) {
         return false
     }
 
+    /** 현재 눌린 위치가 원 안인지 (원형 버튼 시각 피드백용) */
+    fun isPressedInCircle(cx: Float, cy: Float, radius: Float): Boolean {
+        synchronized(lock) {
+            for ((id, p) in pointerPos) {
+                if (pointerCtrl[id] != Ctrl.NONE) continue
+                val dx = p.x - cx
+                val dy = p.y - cy
+                if (dx * dx + dy * dy <= radius * radius) return true
+            }
+        }
+        return false
+    }
+
     /** 현재 눌린 컨트롤 목록 (시각 피드백용) */
     fun activeControls(): Set<Ctrl> {
         synchronized(lock) { return pointerCtrl.values.toSet() }
