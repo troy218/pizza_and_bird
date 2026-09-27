@@ -372,7 +372,7 @@ app/src/main/java/com/pizzaandbird/game/
 ├── Hud.kt               스탯 바(배고픔/행운/돈/시각·날씨·레벨) + 황동 나침반 미니맵 + 아날로그 조이스틱(v0.4.1 디자인)/육각·아크 버튼
 └── Overlays.kt          대화상자 / 메뉴 6탭(피자 탭은 화덕·일반 서브탭) / 피자 굽기 3단계 / 카메라 상점·장비 가방 / 장식 상점 / 자전거 상점(모델·도색·부속품) / 폴라로이드 사진 결과 / 확대 가능한 전국 지도
 
-tools/make_icons.py      런처 아이콘 생성 (순수 Python, 의존성 0)
+tools/make_icons.py      런처 아이콘 생성 (갤럭시 스쿼클 적응형, 순수 Python, 의존성 0)
 tools/build_fonts.py     내장 글꼴(주아·고운돋움) 서브셋 생성 — assets/font 갱신
 tools/generate_bird_checklist.py  공식 조류목록 Kotlin 데이터 생성
 tools/MapTest.kt         맵 로직 검증 스크립트 (144개 맵 조합 + 길 연결성 자동 테스트)
