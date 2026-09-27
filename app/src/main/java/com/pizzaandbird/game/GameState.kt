@@ -834,4 +834,8 @@ object SaveManager {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
         PhotoArchive.clear(ctx)
     }
+
+    // [P05] 백업 코드가 같은 prefs를 읽을 수 있도록 노출 — 기존 save/load/has/clear 는 무수정
+    fun prefsName(): String = PREFS
+    fun saveKey(): String = KEY
 }

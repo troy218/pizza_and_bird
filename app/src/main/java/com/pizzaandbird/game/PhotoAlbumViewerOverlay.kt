@@ -86,8 +86,9 @@ class PhotoAlbumViewerOverlay(
         val titleY = panel.top + dp(24f)
         text.textSize = dp(16f)
         text.color = 0xFF3B2F24.toInt()
-        val title = "📷 ${def?.name ?: "새 사진"}"
-        c.drawText(title, panel.left + pad, titleY, text)
+        val title = def?.name ?: "새 사진"
+        UiKit.icon(c, g, "camera", RectF(panel.left + pad, titleY - dp(14f), panel.left + pad + dp(16f), titleY + dp(2f)))
+        c.drawText(title, panel.left + pad + dp(21f), titleY, text)
         text.textSize = dp(10f)
         text.color = 0xFF8A7360.toInt()
         val count = "${index + 1} / ${all.size}"
@@ -96,7 +97,7 @@ class PhotoAlbumViewerOverlay(
         val ccx = panel.right - dp(23f)
         val ccy = panel.top + dp(20f)
         closeR = RectF(ccx - dp(18f), ccy - dp(18f), ccx + dp(18f), ccy + dp(18f))
-        UiKit.circleButton(c, g, ccx, ccy, dp(11.5f), "✕", 11f)
+        UiKit.circleButton(c, g, ccx, ccy, dp(11.5f), "close", 11f)
 
         val photoTop = panel.top + dp(36f)
         val footerH = dp(82f)
@@ -135,12 +136,12 @@ class PhotoAlbumViewerOverlay(
 
         text.textSize = dp(12.5f)
         text.color = 0xFF4A3728.toInt()
-        val stars = "★".repeat(record.stars) + "☆".repeat(3 - record.stars)
-        c.drawText("$stars  ${record.facing.label} · ${record.pose.label}", panel.left + pad, metaY, text)
+        UiKit.starRow(c, g, panel.left + pad, metaY + dp(3f), record.stars, 3, dp(9f))
+        c.drawText("${record.facing.label} · ${record.pose.label}", panel.left + pad + dp(42f), metaY, text)
 
         text.textSize = dp(9.8f)
         text.color = 0xFF7A6855.toInt()
-        val line2 = "$region · ${record.day}일차 $timeLabel · ${weather.icon} ${weather.label} · 거리 ${String.format("%.1f", record.distance)}칸"
+        val line2 = "$region · ${record.day}일차 $timeLabel · ${weather.label} · 거리 ${String.format("%.1f", record.distance)}칸"
         c.drawText(line2, panel.left + pad, metaY + dp(17f), text)
         var camera = record.camera.ifBlank { "카메라 기록 없음" }
         val cameraMax = photoBox.width() - dp(4f)
@@ -153,10 +154,10 @@ class PhotoAlbumViewerOverlay(
         val by = panel.bottom - dp(29f)
         prevR = RectF(panel.left + pad, by, panel.left + pad + dp(92f), by + dp(22f))
         nextR = RectF(panel.right - pad - dp(92f), by, panel.right - pad, by + dp(22f))
-        if (index > 0) UiKit.button(c, g, prevR, "◀ 이전 사진", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
-        else UiKit.button(c, g, prevR, "◀ 이전 사진", Color.argb(80, 190, 190, 190), Color.argb(120, 74, 55, 40), 10.5f)
-        if (index < all.lastIndex) UiKit.button(c, g, nextR, "다음 사진 ▶", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
-        else UiKit.button(c, g, nextR, "다음 사진 ▶", Color.argb(80, 190, 190, 190), Color.argb(120, 74, 55, 40), 10.5f)
+        if (index > 0) UiKit.button(c, g, prevR, "arrow_left 이전 사진", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
+        else UiKit.button(c, g, prevR, "arrow_left 이전 사진", Color.argb(80, 190, 190, 190), Color.argb(120, 74, 55, 40), 10.5f)
+        if (index < all.lastIndex) UiKit.button(c, g, nextR, "arrow_right 다음 사진", UiKit.PASTEL_SKY, UiKit.INK, 10.5f)
+        else UiKit.button(c, g, nextR, "arrow_right 다음 사진", Color.argb(80, 190, 190, 190), Color.argb(120, 74, 55, 40), 10.5f)
 
         text.textSize = dp(8.6f)
         text.color = 0xFF9A8570.toInt()

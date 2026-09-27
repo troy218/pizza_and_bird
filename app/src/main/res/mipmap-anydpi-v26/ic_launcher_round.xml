@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  갤럭시 One UI는 이 레이어에 스쿼클 마스크를 씌운다.
+  배경은 108dp 풀블리드(투명 없음). 둥근 코너를 미리 넣지 말 것 — 이중 마스킹된다.
+  ic_launcher_round 도 같은 레이어를 쓴다. 원형 PNG를 roundIcon으로 주면
+  일부 One UI가 원 위에 스쿼클을 한 번 더 씌운다.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

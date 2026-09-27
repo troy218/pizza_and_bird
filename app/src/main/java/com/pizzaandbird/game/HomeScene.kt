@@ -127,12 +127,14 @@ class HomeScene(game: Game) : Scene(game) {
         state.py = player.y
 
         game.hud.showControls = true
+        game.hud.showPunch = false
+        game.hud.punchHot = false
         game.hud.showStats = true
         game.hud.showMinimap = false
         game.hud.regionLabel = "우리 집"
         game.hud.photoModeHint = false
         game.hud.questLabel = null
-        game.banner("🏠 우리 집")
+        game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
         game.audio.stopAmb()
@@ -194,12 +196,12 @@ class HomeScene(game: Game) : Scene(game) {
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상)
         game.hud.contextIcon = nearestInteract()?.let { (target, _) ->
             when (target) {
-                "oven" -> "🔥"
-                "range" -> "🍕"
-                "bed" -> "🛏"
-                "box" -> "📦"
-                "interior" -> "🎨"
-                else -> "🪴"
+                "oven" -> "fire"
+                "range" -> "pizza"
+                "bed" -> "house"
+                "box" -> "box"
+                "interior" -> "sparkle"
+                else -> "plant"
             }
         }
     }
@@ -269,12 +271,12 @@ class HomeScene(game: Game) : Scene(game) {
         when (target) {
             "oven" -> openOverlay(
                 DialogOverlay(
-                    this, "화덕 🔥",
+                    this, "화덕",
                     "장작불이 활활 타오르는 화덕이에요. 얇은 도우의 화덕피자를 굽는 곳!\n" +
-                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (도우는 무한! 힐링게임이니까요)",
+                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (먼저 도우를 골라요 — 기본 도우는 무료!)",
                     listOf(
                         DialogOverlay.Choice("화덕피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.OVEN))
+                            it.scene.openOverlay(DoughOverlay(it.scene, PizzaKind.OVEN))   // [P07] ① 도우 선택 → ② BakeOverlay
                         },
                         DialogOverlay.Choice("나중에")
                     )
@@ -282,12 +284,12 @@ class HomeScene(game: Game) : Scene(game) {
             )
             "range" -> openOverlay(
                 DialogOverlay(
-                    this, "오븐 🍕",
+                    this, "오븐",
                     "익숙한 가정용 오븐이에요. 도톰하고 든든한 일반 피자를 굽는 곳!\n" +
                             "천천히 익어서 굽기 쉬워요. 치즈·페퍼로니·불고기·고구마…",
                     listOf(
                         DialogOverlay.Choice("일반 피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.REGULAR))
+                            it.scene.openOverlay(DoughOverlay(it.scene, PizzaKind.REGULAR))   // [P07] ① 도우 선택 → ② BakeOverlay
                         },
                         DialogOverlay.Choice("나중에")
                     )
@@ -312,7 +314,7 @@ class HomeScene(game: Game) : Scene(game) {
             )
             "interior" -> openOverlay(
                 DialogOverlay(
-                    this, "우리 집 꾸미기 🎨",
+                    this, "우리 집 꾸미기",
                     "8칸 배치 보드에서 소품을 한눈에 정리하고,\n서로 어울리는 컬렉션을 완성해 보세요!",
                     listOf(
                         DialogOverlay.Choice("배치 보드") { it.scene.openOverlay(HomeDecorOverlay(it.scene)) },
@@ -320,7 +322,7 @@ class HomeScene(game: Game) : Scene(game) {
                             it.scene.openOverlay(HouseStyleOverlay(it.scene) { styleId ->
                                 state.houseStyleId = styleId
                                 SaveManager.save(game.context, state)
-                                game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
+                                game.toast("${HouseStyles.of(styleId).name} 적용!")
                                 game.sfx(Audio.Sfx.SUCCESS, 0.7f)
                             })
                         },
@@ -333,7 +335,7 @@ class HomeScene(game: Game) : Scene(game) {
                     openOverlay(
                         DialogOverlay(
                             this, "장식 칸",
-                            "아직 소유한 장식이 없어요.\n사진용품점의 '장식 코너'에서 소품을 구경해 보세요! 🧳",
+                            "아직 소유한 장식이 없어요.\n사진용품점의 '장식 코너'에서 소품을 구경해 보세요!",
                             listOf(DialogOverlay.Choice("다녀올게요!"))
                         )
                     )
@@ -344,7 +346,7 @@ class HomeScene(game: Game) : Scene(game) {
                             state.placeDecor(idx, picked)
                             SaveManager.save(game.context, state)
                             val name = Decors.of(picked)?.name ?: "빈 칸"
-                            game.toast(if (picked < 0) "장식 칸을 비웠어요" else "장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                            game.toast(if (picked < 0) "장식 칸을 비웠어요" else "장식 배치: $name")
                             game.sfx(Audio.Sfx.SUCCESS, 0.6f)
                         }
                     )
@@ -461,9 +463,9 @@ class HomeScene(game: Game) : Scene(game) {
         if (picked.id !in s.visited) s.visited.add(picked.id)
         SaveManager.save(game.context, s)
         if (houseCost > 0) {
-            game.toast("${picked.name} 집을 매입했어요! ${won(houseCost)} · 이사 완료 📦")
+            game.toast("${picked.name} 집을 매입했어요! ${won(houseCost)} · 이사 완료")
         } else {
-            game.toast("짐 싸기 완료! ${picked.name}의 우리 집으로 이사했어요 📦 · ${won(MOVE_COST)}")
+            game.toast("짐 싸기 완료! ${picked.name}의 우리 집으로 이사했어요 · ${won(MOVE_COST)}")
         }
         game.sfx(Audio.Sfx.BUY)
     }
@@ -482,7 +484,7 @@ class HomeScene(game: Game) : Scene(game) {
             return
         }
         if (input.justCam) {
-            game.toast("집에선 쉬어도 돼요. 새는 밖에서! 🐦")
+            game.toast("집에선 쉬어도 돼요. 새는 밖에서!")
             return
         }
         if (input.justB) {
@@ -492,11 +494,11 @@ class HomeScene(game: Game) : Scene(game) {
         if (input.justEat) {
             val pid = state.eatBest()
             if (pid == null) {
-                game.toast("피자가 없어요! 🍕")
+                game.toast("피자가 없어요!")
                 game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val p = Pizzas.of(pid)
-                game.toast("냠냠! ${p.emoji} ${p.fullName}")
+                game.toast("냠냠! ${p.fullName}")
                 game.sfx(Audio.Sfx.EAT, 0.9f)
             }
             return

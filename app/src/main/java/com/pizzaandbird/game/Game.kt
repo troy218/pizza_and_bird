@@ -51,6 +51,9 @@ private const val OVERLAY_ENTER_SEC = 0.09f
  */
 class Game(val context: Context) {
 
+    /** 고양이 펀치 안내를 이번 실행에서 이미 보여 줬는가 */
+    var catPunchHintShown = false
+
     // 글꼴(roles·픽셀 폰트·dp 배율)을 먼저 준비한다 — 아래에서 그리는 모든 글자가 여기 의존한다.
     init { Type.init(context) }
 
@@ -94,6 +97,9 @@ class Game(val context: Context) {
     private var overlayLayer: Bitmap? = null
     private var overlayLayerCanvas: Canvas? = null
     private val overlayFadePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    /** 렌더 합성용 스크래치 사각형 — 프레임마다 할당하지 않도록 재사용 */
+    private val screenDstRect = RectF()
 
     val density: Float = context.resources.displayMetrics.density
 
@@ -279,7 +285,8 @@ class Game(val context: Context) {
         wc.restore()
         // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())
-        val dst = RectF(
+        val dst = screenDstRect
+        dst.set(
             viewOffX, viewOffY,
             viewOffX + virtW * viewScale, viewOffY + virtH * viewScale
         )
@@ -380,6 +387,38 @@ class Game(val context: Context) {
                 disableKeys = true
             )
         )
+    }
+
+    /**
+     * [P05] 백업 코드에서 복원한 직후 — prefs를 다시 읽어 **살아 있는 `state` 객체**를 갱신한다.
+     *
+     * `state`는 val이라 통째로 갈아끼울 수 없고, 씬·HUD·Audio는 전부 이 한 객체를 붙잡고 있다.
+     * 그래서 새로 로드한 상태의 필드를 지금 객체에 그대로 복사해 넣는다(참조 동일성 유지).
+     * 세이브 포맷/스키마는 건드리지 않는다 — [SaveManager.load] 경로만 다시 탄다.
+     *
+     * @return 복원된 상태로 게임 시작 지점(`started`)이 참인지.
+     *         거짓이면 타이틀에서 「새로 시작하기」를 눌러야 한다.
+     */
+    fun reloadState(): Boolean {
+        val fresh = SaveManager.load(context)
+        var k: Class<*> = GameState::class.java
+        while (k != Any::class.java) {
+            for (f in k.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(f.modifiers)) continue
+                try {
+                    f.isAccessible = true
+                    f.set(state, f.get(fresh))
+                } catch (_: Throwable) {
+                }
+            }
+            k = k.superclass ?: Any::class.java
+        }
+        // 복원된 설정을 곧바로 반영한다 (음소거/화질이 백업 기준으로 돌아온다)
+        audio.setMusic(state.musicOn)
+        audio.setSfx(state.sfxOn)
+        hud.releaseStick()
+        applyRenderQuality()
+        return state.started
     }
 }
 
