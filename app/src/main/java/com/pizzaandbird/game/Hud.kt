@@ -491,7 +491,7 @@ class Hud(private val game: Game) {
 
         // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
         val weather = s.weather()
-        Type.text(c, "${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
+        Type.text(c, "${s.season().icon}${s.season().label} · ${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
 
         // 레벨 + 경험치 바
         // 날씨 줄과 겹치지 않도록 그 아래에 배치

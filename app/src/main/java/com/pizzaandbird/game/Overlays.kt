@@ -205,6 +205,10 @@ class DialogOverlay(
 
 class MenuOverlay(scene: Scene) : Overlay(scene) {
 
+    init {
+        scene.game.sfx(Audio.Sfx.BAG_OPEN, 0.6f)   // 🎒 가방 지퍼 열리는 소리
+    }
+
     /** 탭마다 파스텔 색이 다르다 — 가방 속 색색의 인덱스 탭처럼 */
     private enum class Tab(val label: String, val icon: String, val tint: Int) {
         STATUS("상태", "📊", UiKit.PASTEL_PEACH),
@@ -248,7 +252,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         }
         for ((r, t) in tabRects) {
             if (r.contains(tap.x, tap.y)) {
-                g.sfx(Audio.Sfx.TAP, 0.45f)
+                // 📚 도감 탭은 책장 넘기는 소리로 열린다
+                if (t == Tab.BOOK && tab != Tab.BOOK) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
+                else g.sfx(Audio.Sfx.TAP, 0.45f)
                 tab = t
                 resetArmed = false
                 return
@@ -2473,7 +2479,7 @@ class PhotoResultOverlay(
             Tier.LEGEND -> 0xFFB65342.toInt()
         }
         val numPrefix = if (def.birdNum > 0) "No. ${String.format("%03d", def.birdNum)} · " else ""
-        val sub = "$numPrefix${def.tier.label} · ${def.activeLabel}" +
+        val sub = "$numPrefix${def.tier.label} · ${def.seasonLabel} · ${def.timeWindowLabel}" +
                 (if (def.englishName.isNotBlank()) " · ${def.englishName}" else "")
         c.drawText(sub, card.centerX() - textP.measureText(sub) / 2, capTop + dp(scene, 28f), textP)
         fillP.color = tierColor
@@ -3883,6 +3889,10 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
 // ---------------------------------------------------------------------------
 
 class GearBagOverlay(scene: Scene) : Overlay(scene) {
+
+    init {
+        scene.game.sfx(Audio.Sfx.BAG_OPEN, 0.7f)   // 🎒 장비 가방 열기
+    }
 
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
