@@ -44,7 +44,7 @@ private const val BANNER_LIFE = 2.6f
 
 /**
  * 화면 좌표(실제 해상도) 기반 HUD.
- * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
+ * - 좌상단: 레벨/배고픔/행운 플로팅 게이지
  * - 우상단: 황동 회중 나침반 미니맵 (낡은 종이 해도, 탭하면 큰 지도)
  * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/간식) + 메뉴
  */
@@ -502,20 +502,15 @@ class Hud(private val game: Game) {
     }
 
     /**
-     * 좌상단 상태창 — 화면을 적게 가리도록 핵심 게이지만 남긴다.
+     * 좌상단 상태 게이지 — 패널 배경 없이 세계 위에 직접 띄운다.
      * 위에서부터: 레벨(경험치) 바 → 체력(배고픔) 바 → 행운 바.
-     * 돈·계절·시계·장비 정보는 이 창에서 빼고 각각 가방/우상단으로 옮겼다.
+     * 돈·계절·시계·장비 정보는 가방/우상단에 둔다.
      */
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(statsPanelH)
-
-        // 프리미엄 패널
-        val r = RectF(left, top, left + w, top + h)
-        UiKit.panel(c, game, r, 12f)
 
         val a = game.assets
         val iconSz = dp(16f)
@@ -534,8 +529,6 @@ class Hud(private val game: Game) {
 
         // 체력(배고픔) — 레벨 바 아래 (위험하면 맥동해 알린다)
         val hy = top + dp(40f)
-        fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
-        c.drawCircle(left + dp(20f), hy + dp(8f), dp(11f), fill)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), hy, left + dp(12f) + iconSz, hy + iconSz), a.sprPaint)
         val hungerColor = when {
             s.hunger >= 25f -> 0xFFF2913C.toInt()
@@ -549,8 +542,6 @@ class Hud(private val game: Game) {
 
         // 행운 — 체력 바 아래
         val ly = hy + dp(22f)
-        fill.color = Color.argb(60, 111, 186, 107)
-        c.drawCircle(left + dp(20f), ly + dp(8f), dp(11f), fill)
         c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), ly, left + dp(12f) + iconSz, ly + iconSz), a.sprPaint)
         drawBar(c, left + dp(36f), ly + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
     }
