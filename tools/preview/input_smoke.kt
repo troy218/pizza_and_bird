@@ -42,7 +42,7 @@ object InputSmoke {
         // 가로가 더 긴 기기의 양쪽 레터박스까지 검증한다 (가상 1200x540 -> 2400x1080).
         g.onSurfaceChanged(2400, 1080)
         render(g)
-        tap(g, 1200f, 650f) // 타이틀의 '새로 시작하기'
+        tap(g, 1200f, 740f) // 타이틀의 '시작하기' (히어로 카드 리디자인 후 버튼 위치)
         advanceFade(g)
         check(g.scene is CharacterSelectScene)
         tap(g, g.viewOffX + 645f * 2f, 310f * 2f) // 가상 화면의 여자 카드
@@ -79,8 +79,7 @@ object InputSmoke {
             }
         }
         world.openOverlay(modal)
-        repeat(8) { frame(g) }   // 오버레이 등장 연출(0.09초) 동안은 입력을 막는다
-        tap(g, g.hud.mainCx, g.hud.mainCy)
+        tap(g, g.hud.mainCx, g.hud.mainCy) // 첫 프레임부터 모달이 HUD 입력을 가로챈다
         check(modalTap != null && !pressedUnderlyingA)
         world.closeOverlay()
 

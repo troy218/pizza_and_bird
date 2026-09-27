@@ -50,6 +50,7 @@ object GfxStats {
     @JvmStatic var decodes = 0L
     /** 그리기/입력 스레드(=게임 스레드)에서 일어난 디코드만 — 병목의 핵심 지표 */
     @JvmStatic var decodesMain = 0L
+    @JvmStatic var compressionsMain = 0L
     @JvmStatic var drawPath = 0L
     @JvmStatic var drawRoundRect = 0L
     @JvmStatic var drawRect = 0L
@@ -60,7 +61,7 @@ object GfxStats {
 
     @JvmStatic fun reset() {
         gradients = 0L; dashes = 0L; blurFilters = 0L; bitmaps = 0L; rectfs = 0L
-        paths = 0L; paints = 0L; decodes = 0L; decodesMain = 0L
+        paths = 0L; paints = 0L; decodes = 0L; decodesMain = 0L; compressionsMain = 0L
         drawPath = 0L; drawRoundRect = 0L; drawRect = 0L; drawCircle = 0L
         drawText = 0L; drawBitmap = 0L; drawLine = 0L
     }
@@ -655,11 +656,15 @@ class Paint {
         return w
     }
 
+    /** Android과 동일하게 부분 문자열(start..end) 폭을 재는다. */
+    fun measureText(text: String, start: Int, end: Int): Float =
+        measureText(text.substring(start.coerceIn(0, text.length), end.coerceIn(start, text.length)))
+
     fun ascent(): Float = -StubText.metrics(awtFont()).ascent.toFloat()
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
+    val fontMetrics: FontMetrics get() = StubText.metrics(awtFont())
 }
 
 // ---------------------------------------------------------------------------
@@ -676,6 +681,8 @@ class Bitmap internal constructor(val image: BufferedImage) {
 
     fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean =
         try {
+            if (Thread.currentThread().name == "main") GfxStats.compressionsMain++
+            GfxStats.site("Compress")
             javax.imageio.ImageIO.write(image, "png", stream)
             true
         } catch (_: Exception) {
@@ -694,6 +701,15 @@ class Bitmap internal constructor(val image: BufferedImage) {
 
     fun getPixel(x: Int, y: Int): Int = image.getRGB(x, y)
 
+    /** android.graphics.Bitmap.getPixels 와 같은 서명 (도트 후처리에서 사용) */
+    fun getPixels(pixels: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {
+        image.getRGB(x, y, width, height, pixels, offset, stride)
+    }
+
+    fun setPixels(pixels: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {
+        image.setRGB(x, y, width, height, pixels, offset, stride)
+    }
+
     fun copy(config: Config, isMutable: Boolean): Bitmap {
         val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         out.setData(image.copyData(null))
@@ -711,6 +727,7 @@ class Bitmap internal constructor(val image: BufferedImage) {
         @JvmStatic
         fun createBitmap(width: Int, height: Int, config: Config): Bitmap {
             GfxStats.bitmaps++
+            GfxStats.site("Bitmap")
             return Bitmap(BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB))
         }
 
@@ -731,9 +748,14 @@ class Bitmap internal constructor(val image: BufferedImage) {
             val base = src.image.getSubimage(x, y, max(width, 1), max(height, 1))
             val at = m?.tx ?: AffineTransform()
             val bounds = at.createTransformedShape(Rectangle2D.Float(0f, 0f, base.width.toFloat(), base.height.toFloat())).bounds2D
+            // 음의 스케일(좌우 반전)이면 변환 결과가 음수 영역에 놓이므로 (0,0) 기준으로 끌어온다.
+            // 그대로 두면 출력이 1px 투명 비트맵이 돼서 반전 스프라이트가 사라진다.
+            val offX = if (bounds.x < 0) -bounds.x else 0.0
+            val offY = if (bounds.y < 0) -bounds.y else 0.0
             val out = BufferedImage(max(bounds.width.toInt() + 2, 1), max(bounds.height.toInt() + 2, 1), BufferedImage.TYPE_INT_ARGB)
             val g = out.createGraphics()
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+            g.translate(offX, offY)
             g.transform(at)
             g.drawImage(base, 0, 0, null)
             g.dispose()
@@ -827,6 +849,9 @@ object BitmapFactory {
 
     @JvmStatic
     fun decodeFile(path: String): Bitmap? = try {
+        GfxStats.decodes++
+        if (Thread.currentThread().name == "main") GfxStats.decodesMain++
+        GfxStats.site("Decode file")
         val img = javax.imageio.ImageIO.read(java.io.File(path))
         if (img == null) {
             null
@@ -1037,6 +1062,10 @@ class Canvas {
         }
     }
 
+    /** Android과 동일하게 부분 문자열(start..end)을 x,y 에 그린다. */
+    fun drawText(text: String, start: Int, end: Int, x: Float, y: Float, paint: Paint) =
+        drawText(text.substring(start.coerceIn(0, text.length), end.coerceIn(start, text.length)), x, y, paint)
+
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         GfxStats.drawText++
         val tw = paint.measureText(text)
@@ -1148,6 +1177,14 @@ class Canvas {
         stack.add(g)
         g = g.create() as Graphics2D
         return stack.size - 1
+    }
+
+    /** save() + 투명도를 가진 레이어 시작 — 헤드리스 프리뷰는 레이어 대신 합성 알파로 근사한다. */
+    fun saveLayerAlpha(bounds: RectF, alpha: Int): Int {
+        val save = save()
+        g.setComposite(java.awt.AlphaComposite.getInstance(
+            java.awt.AlphaComposite.SRC_OVER, (alpha / 255f).coerceIn(0f, 1f)))
+        return save
     }
 
     fun restoreToCount(count: Int) {

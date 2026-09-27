@@ -1,5 +1,6 @@
 package com.pizzaandbird.game
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -75,6 +76,9 @@ enum class T(
 // 지도
 // ---------------------------------------------------------------------------
 
+/** 지면 캐시 한 장의 크기: 8×8 타일 = 256×256 px (ARGB8888 256 KiB). */
+private const val GROUND_CHUNK_TILES = 8
+
 data class TunnelInfo(
     val dir: Dir,
     val targetId: String,
@@ -107,6 +111,24 @@ class GameMap(
     private val waterPaint by lazy { tintedPaint(mapStyle.waterFilter) }
     private val shorePaint by lazy { tintedPaint(mapStyle.shoreFilter) }
     private val stonePaint by lazy { tintedPaint(mapStyle.stoneFilter) }
+
+    // 지면·포장·데칼은 맵이 만들어진 후 변하지 않는다. 물이 없는 청크만 처음 보일 때
+    // 래스터화해 두면 매 프레임 수백 장의 타일 대신 화면당 몇 장만 그리면 된다.
+    // 물이 있는 청크는 원래 코드로 그려 물결·포말·반짝임 애니메이션을 보존한다.
+    // 40×30 맵 전체를 방문해도 캐시는 약 4.7 MiB (씬 교체 시 함께 해제).
+    private val groundChunkCols = (w + GROUND_CHUNK_TILES - 1) / GROUND_CHUNK_TILES
+    private val groundChunks = arrayOfNulls<Bitmap>(groundChunkCols * ((h + GROUND_CHUNK_TILES - 1) / GROUND_CHUNK_TILES))
+    private val animatedGroundChunks = BooleanArray(groundChunks.size) { index ->
+        val sx = index % groundChunkCols * GROUND_CHUNK_TILES
+        val sy = index / groundChunkCols * GROUND_CHUNK_TILES
+        var containsWater = false
+        for (y in sy until minOf(sy + GROUND_CHUNK_TILES, h)) {
+            for (x in sx until minOf(sx + GROUND_CHUNK_TILES, w)) {
+                if (ground[y][x] == T.WATER.ordinal) containsWater = true
+            }
+        }
+        containsWater
+    }
 
     private fun tintedPaint(filter: Int): Paint = Paint().apply {
         isFilterBitmap = false
@@ -197,6 +219,32 @@ class GameMap(
 
     fun walkableTile(x: Int, y: Int): Boolean = !t(x, y).solid && t(x, y) != T.TUNNEL
 
+    /**
+     * 시야를 가리는 키 큰 지형지물인가 — 바위·나무·산·건물 등.
+     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하다.
+     */
+    fun occludesSight(x: Int, y: Int): Boolean {
+        val tile = t(x, y)
+        return tile.bulk || tile == T.TREE || tile == T.ROCK
+    }
+
+    /**
+     * 두 월드 좌표(16px 논리 좌표) 사이에 시야를 가리는 지형지물이 있는지 확인한다.
+     * 새 → 플레이어 사이에 바위·나무 같은 지형지물이 있으면 플레이어는 '숨은' 상태가 된다.
+     */
+    fun isOccluded(x0: Float, y0: Float, x1: Float, y1: Float): Boolean {
+        val dx = x1 - x0
+        val dy = y1 - y0
+        val dist = sqrt(dx * dx + dy * dy)
+        if (dist < 12f) return false
+        val steps = (dist / 5f).toInt().coerceAtLeast(2)
+        for (i in 1 until steps) {
+            val f = i.toFloat() / steps
+            if (occludesSight(((x0 + dx * f) / 16f).toInt(), ((y0 + dy * f) / 16f).toInt())) return true
+        }
+        return false
+    }
+
     /** 발(스프라이트 좌상단+13px)이 밟고 있는 타일 */
     fun feetTile(px: Float, py: Float): T = t(((px + 8f) / 16f).toInt(), ((py + 13f) / 16f).toInt())
 
@@ -219,6 +267,95 @@ class GameMap(
         return T.ALL[tiles[y][x]].bulk
     }
 
+    /** 정적인 타일에는 래스터화된 청크를, 애니메이션 물이 있는 청크에는 기존 타일 패스를 사용. */
+    private fun drawGround(c: Canvas, a: Assets, camX: Float, camY: Float,
+                           x0: Int, y0: Int, x1: Int, y1: Int, time: Float, waterFrame: Int) {
+        if (x0 > x1 || y0 > y1) return
+        for (cy in y0 / GROUND_CHUNK_TILES..y1 / GROUND_CHUNK_TILES) {
+            for (cx in x0 / GROUND_CHUNK_TILES..x1 / GROUND_CHUNK_TILES) {
+                val index = cy * groundChunkCols + cx
+                val sx = cx * GROUND_CHUNK_TILES
+                val sy = cy * GROUND_CHUNK_TILES
+                if (animatedGroundChunks[index]) {
+                    for (y in maxOf(y0, sy)..minOf(y1, sy + GROUND_CHUNK_TILES - 1)) {
+                        for (x in maxOf(x0, sx)..minOf(x1, sx + GROUND_CHUNK_TILES - 1)) {
+                            drawGroundTile(c, a, x, y, camX, camY, time, waterFrame)
+                        }
+                    }
+                } else {
+                    val bmp = groundChunks[index] ?: buildGroundChunk(a, sx, sy).also { groundChunks[index] = it }
+                    c.drawBitmap(bmp, sx * 32f - camX, sy * 32f - camY, a.sprPaint)
+                }
+            }
+        }
+    }
+
+    private fun buildGroundChunk(a: Assets, sx: Int, sy: Int): Bitmap {
+        val xEnd = minOf(sx + GROUND_CHUNK_TILES, w)
+        val yEnd = minOf(sy + GROUND_CHUNK_TILES, h)
+        val bmp = Bitmap.createBitmap((xEnd - sx) * 32, (yEnd - sy) * 32, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        for (y in sy until yEnd) for (x in sx until xEnd) {
+            drawGroundTile(canvas, a, x, y, sx * 32f, sy * 32f, 0f, 0)
+        }
+        return bmp
+    }
+
+    /** 지면 → 포장 → 데칼 순서는 캐시와 움직이는 물 모두 동일해야 한다. */
+    private fun drawGroundTile(c: Canvas, a: Assets, x: Int, y: Int,
+                               camX: Float, camY: Float, time: Float, waterFrame: Int) {
+        val fx = x * 32f - camX
+        val fy = y * 32f - camY
+        val tv = tiles[y][x]
+        val tile = T.ALL[tv]
+        val pv = paving[y][x]
+
+        // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
+        if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
+            val gv = ground[y][x]
+            val gTile = T.ALL[gv]
+            val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
+            else a.tiles[gv][artVariant(a, gTile, x, y)]
+            c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
+
+            // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
+            if (gTile == T.WATER && pv == Pave.NONE) {
+                val ph = time * 2.8f + x * 1.15f + y * 0.85f
+                if (y > 0 && groundAt(x, y - 1) != T.WATER) foamEdge(c, fx, fy, fx + 32f, fy, ph)
+                if (y < h - 1 && groundAt(x, y + 1) != T.WATER) foamEdge(c, fx, fy + 32f, fx + 32f, fy + 32f, ph + 1.7f)
+                if (x > 0 && groundAt(x - 1, y) != T.WATER) foamEdgeV(c, fx, fy, fx, fy + 32f, ph + 0.9f)
+                if (x < w - 1 && groundAt(x + 1, y) != T.WATER) foamEdgeV(c, fx + 32f, fy, fx + 32f, fy + 32f, ph + 2.3f)
+                // 물 반짝임 (별 반짝임 십자)
+                if ((x * 7 + y * 13) % 6 == 0) {
+                    val tw = (sin(time * 2.6f + x * 1.7f + y * 2.3f) + 1f) / 2f
+                    if (tw > 0.62f) {
+                        val k = (tw - 0.62f) / 0.38f
+                        val sx = fx + 8f + ((x * 11 + y * 5) % 16)
+                        val sy = fy + 7f + ((x * 3 + y * 9) % 18)
+                        val al = (110 + 130 * k).toInt()
+                        sparkle.color = Color.argb(al, 255, 255, 255)
+                        c.drawRect(sx, sy - 2.2f, sx + 1.6f, sy + 3.8f, sparkle)
+                        c.drawRect(sx - 2.2f, sy, sx + 3.8f, sy + 1.6f, sparkle)
+                        sparkle.color = Color.argb(al / 2, 255, 255, 255)
+                        c.drawRect(sx - 4f, sy, sx + 5.6f, sy + 1.2f, sparkle)
+                    }
+                }
+            }
+        }
+
+        // 2) 포장면 (이웃 모양에 맞춰 자동 생성 + 캐시)
+        if (pv != Pave.NONE) {
+            val sandy = T.ALL[ground[y][x]] == T.SAND
+            val variant = if (pv == Pave.STONE) (y and 1) else ((x * 5 + y * 11) % 3)
+            c.drawBitmap(a.roadTile(pv, paveMask(x, y), variant, sandy), fx, fy, a.sprPaint)
+        }
+
+        // 3) 데칼 (광장 문양 / 빗물받이)
+        val d = decals[y][x]
+        if (d in 1..9) c.drawBitmap(a.medallion[d - 1], fx, fy, a.sprPaint)
+        else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
+    }
+
     /**
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
@@ -236,61 +373,7 @@ class GameMap(
         val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
         val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2      // 가정용 오븐 불빛 깜빡임
 
-        for (y in y0..y1) {
-            for (x in x0..x1) {
-                val fx = x * 32f - camX
-                val fy = y * 32f - camY
-                val tv = tiles[y][x]
-                val tile = T.ALL[tv]
-                val pv = paving[y][x]
-
-                // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-                if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
-                    val gv = ground[y][x]
-                    val gTile = T.ALL[gv]
-                    val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
-                    else a.tiles[gv][artVariant(a, gTile, x, y)]
-                    c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
-
-                    // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
-                    if (gTile == T.WATER && pv == Pave.NONE) {
-                        val ph = time * 2.8f + x * 1.15f + y * 0.85f
-                        if (y > 0 && groundAt(x, y - 1) != T.WATER) foamEdge(c, fx, fy, fx + 32f, fy, ph)
-                        if (y < h - 1 && groundAt(x, y + 1) != T.WATER) foamEdge(c, fx, fy + 32f, fx + 32f, fy + 32f, ph + 1.7f)
-                        if (x > 0 && groundAt(x - 1, y) != T.WATER) foamEdgeV(c, fx, fy, fx, fy + 32f, ph + 0.9f)
-                        if (x < w - 1 && groundAt(x + 1, y) != T.WATER) foamEdgeV(c, fx + 32f, fy, fx + 32f, fy + 32f, ph + 2.3f)
-                        // 물 반짝임 (별 반짝임 십자)
-                        if ((x * 7 + y * 13) % 6 == 0) {
-                            val tw = (sin(time * 2.6f + x * 1.7f + y * 2.3f) + 1f) / 2f
-                            if (tw > 0.62f) {
-                                val k = (tw - 0.62f) / 0.38f
-                                val sx = fx + 8f + ((x * 11 + y * 5) % 16)
-                                val sy = fy + 7f + ((x * 3 + y * 9) % 18)
-                                val al = (110 + 130 * k).toInt()
-                                sparkle.color = Color.argb(al, 255, 255, 255)
-                                c.drawRect(sx, sy - 2.2f, sx + 1.6f, sy + 3.8f, sparkle)
-                                c.drawRect(sx - 2.2f, sy, sx + 3.8f, sy + 1.6f, sparkle)
-                                sparkle.color = Color.argb(al / 2, 255, 255, 255)
-                                c.drawRect(sx - 4f, sy, sx + 5.6f, sy + 1.2f, sparkle)
-                            }
-                        }
-                    }
-                }
-
-                // 2) 포장면 (이웃 모양에 맞춰 자동 생성 + 캐시)
-                if (pv != Pave.NONE) {
-                    val sandy = T.ALL[ground[y][x]] == T.SAND
-                    val variant = if (pv == Pave.STONE) (y and 1) else ((x * 5 + y * 11) % 3)
-                    c.drawBitmap(a.roadTile(pv, paveMask(x, y), variant, sandy), fx, fy, a.sprPaint)
-                }
-
-                // 3) 데칼 (광장 문양 / 빗물받이)
-                val d = decals[y][x]
-                if (d in 1..9) c.drawBitmap(a.medallion[d - 1], fx, fy, a.sprPaint)
-                else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
-
-            }
-        }
+        drawGround(c, a, camX, camY, x0, y0, x1, y1, time, waterFrame)
 
         // 3.5) 햇빛 그림자 — 해의 위치(시각)에 따라 나무·가로등·이정표의 긴 그림자가 돌아간다
         if (sunAlpha > 0 && sunLen > 0f) {
@@ -542,6 +625,11 @@ object MapBuilder {
     /**
      * 지역 월드맵 생성 (결정적 절차 생성 — 지역 id 시드).
      *
+     * [ownedHomeRegions]에는 이미 매입한 지역 집을 모두 넘긴다. 예전에는
+     * [homeRegion]의 집만 맵에 세워서, 다른 지역에 매입해 둔 집은 문 자체가
+     * 생기지 않아 들어갈 수 없었다. 기본값은 기존 호출부/테스트 호환을 위해
+     * 현재 정착지 한 채만 가진 것으로 둔다.
+     *
      * 길 설계
      *  - 남북/동서로 **2칸 폭 간선도로**가 지나고, 가운데에서 팔각 광장으로 모인다.
      *  - 간선은 완전한 직선이 아니라 구간마다 살짝 사행(蛇行)한다. 다만 터널·광장
@@ -550,7 +638,11 @@ object MapBuilder {
      *  - 건물 정문·호숫가 데크·숲속 쉼터까지 1칸 폭 샛길이 뻗는다.
      *  - 중심선을 따라 가로수와 가로등이 번갈아 도열한다.
      */
-    fun build(region: RegionDef, homeRegion: String): GameMap {
+    fun build(
+        region: RegionDef,
+        homeRegion: String,
+        ownedHomeRegions: Set<String> = setOf(homeRegion)
+    ): GameMap {
         val w = region.mapW
         val h = region.mapH
         val t = Array(h) { IntArray(w) { T.GRASS.ordinal } }
@@ -1033,7 +1125,10 @@ object MapBuilder {
         // 5. 우리 집 -------------------------------------------------------------
         var houseDoorX = -1
         var houseDoorY = -1
-        val hasHouse = homeRegion == region.id
+        // 정착 중인 집뿐 아니라 이전에 매입해 둔 지역 집도 현관을 유지한다.
+        // homeRegion을 함께 검사해, 오래된 세이브/호출부가 소유 목록을 넘기지 않아도
+        // 현재 정착지의 현관이 사라지지 않게 한다.
+        val hasHouse = region.id == homeRegion || region.id in ownedHomeRegions
         if (hasHouse) {
             for (x in 21..25) for (y in 8..9) {
                 t[y][x] = T.HOUSE_ROOF.ordinal
@@ -2307,6 +2402,8 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
+    /** 지형지물에 시야가 가려져 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
+    var hiddenFromPlayer = false
     var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
     var renderPose = BirdPose.PERCHED
     /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
@@ -2335,10 +2432,16 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
             Tier.LEGEND -> 3.8f
         } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
+        val fleeR = fleeTiles * 16f
+        val dToPlayer = sqrt((playerCx - cx) * (playerCx - cx) + (playerCy - cy) * (playerCy - cy))
+        // 지형지물 뒤 — 새와 플레이어 사이에 바위·나무·건물이 있어 시야가 막히면
+        // 새는 플레이어를 알아채지 못해 훨씬 가까이 다가가도 도망가지 않는다.
+        hiddenFromPlayer = dToPlayer < fleeR && map.isOccluded(playerCx, playerCy, cx, cy)
+        val effFleeR = if (hiddenFromPlayer) (fleeR * HIDDEN_FLEE_K).coerceAtLeast(9f) else fleeR
+
         when (state) {
             0 -> {
-                val d = sqrt((playerCx - cx) * (playerCx - cx) + (playerCy - cy) * (playerCy - cy))
-                if (d < fleeTiles * 16f) {
+                if (dToPlayer < effFleeR) {
                     state = 2
                     val dx = if (cx - playerCx == 0f) 0.01f else cx - playerCx
                     val dy = if (cy - playerCy == 0f) -0.01f else cy - playerCy
@@ -2354,6 +2457,8 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     fleeT = 0f
                     return
                 }
+                // 숨어 있어도 평소 도망 반경 안에선 뭔가 낌새를 느끼고 주위를 두리번거린다
+                if (hiddenFromPlayer && dToPlayer < fleeR) renderPose = BirdPose.ALERT
                 idleT -= dt
                 if (idleT <= 0f) {
                     // 무작위 방향으로 폴짝
@@ -2410,4 +2515,9 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     /** 점프 중 살짝 들리는 높이 */
     val hopLift: Float
         get() = if (state == 1) (kotlin.math.sin((hopT * Math.PI).toFloat()) * 5f) else 0f
+
+    companion object {
+        /** 지형지물 뒤에 숨었을 때의 도망 반경 배율 — 평소보다 훨씬 가까이 다가갈 수 있다. */
+        const val HIDDEN_FLEE_K = 0.45f
+    }
 }

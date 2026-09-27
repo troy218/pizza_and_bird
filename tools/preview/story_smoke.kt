@@ -62,7 +62,7 @@ object StorySmoke {
     }
 
     private fun render(g: Game, name: String) {
-        // 오버레이 등장 애니메이션(Game.overlayAnimT, update에서만 진행)이 끝난 뒤 캡처한다
+        // 게임 상태를 몇 프레임 진행한 뒤 캡처한다 (프리뷰 시계는 여기서 0에 고정).
         repeat(6) { g.update(1f / 30f) }
         val bmp = Bitmap.createBitmap(g.screenW, g.screenH, Bitmap.Config.ARGB_8888)
         g.render(Canvas(bmp))

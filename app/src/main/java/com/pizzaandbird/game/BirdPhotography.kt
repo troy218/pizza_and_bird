@@ -475,62 +475,158 @@ object PhotoArchive {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
-    /** 이미 미리 읽는 중인 파일 — 같은 사진을 두 번 디코드하지 않게 한다. */
-    private val pending = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    // 사진집 그리기/페이지 넘김 경로는 절대로 JPEG를 동기 디코딩하지 않는다.
+    // 빠른 페이지 넘김에도 파일마다 스레드를 만들지 않도록 단일 작업자로 처리한다.
+    private data class ReadJob(val filesDir: File, val name: String, val generation: Long)
+    private val reads = java.util.concurrent.LinkedBlockingDeque<ReadJob>()
+    private val pending = java.util.concurrent.ConcurrentHashMap<String, ReadJob>()
+    private val missing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val cacheLock = Any()
+    private var generation = 0L
+
+    // 셔터 프레임에는 비트맵만 캐시한다. JPEG 압축과 파일 쓰기는 한 작업자에게 맡긴다.
+    // 임시 파일을 완성한 뒤 이름을 바꿔, 사진집에서 미완성 JPEG를 읽지 않게 한다.
+    private data class WriteJob(val folder: File, val name: String, val bitmap: Bitmap, val serial: Long)
+    private val pendingWrites = HashMap<String, WriteJob>() // cacheLock 아래에서만 접근
+    private val writeSerial = java.util.concurrent.atomic.AtomicLong()
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread(task, "PizzaAndBirdPhotoSave").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 }
+    }
+
+    private val reader = Thread({
+        while (true) {
+            val job = reads.takeFirst()
+            try {
+                if (job.generation != synchronized(cacheLock) { generation }) continue
+                val bmp = try {
+                    BitmapFactory.decodeFile(File(File(job.filesDir, DIR), job.name).absolutePath)
+                } catch (_: Exception) {
+                    null
+                }
+                synchronized(cacheLock) {
+                    // 초기화/삭제 중이던 사진이 느린 디코드 뒤에 다시 캐시에 들어오면 안 된다.
+                    if (job.generation == generation && cache.get(job.name) == null) {
+                        if (bmp != null) cache.put(job.name, bmp) else missing.add(job.name)
+                    }
+                }
+            } finally {
+                pending.remove(job.name, job)
+            }
+        }
+    }, "PizzaAndBirdAlbum").apply { isDaemon = true; priority = Thread.MIN_PRIORITY; start() }
 
     private fun dir(context: Context): File = File(context.filesDir, DIR).apply { if (!exists()) mkdirs() }
 
+    /** 사진은 즉시 보여주고, JPEG 인코딩/디스크 쓰기는 셔터 프레임 밖에서 처리한다. */
     fun save(context: Context, id: String, bitmap: Bitmap): String {
         val safe = id.replace(Regex("[^A-Za-z0-9_-]"), "_")
         val name = "photo_$safe.jpg"
+        val folder = try { dir(context) } catch (_: Exception) { return "" }
+        if (!folder.isDirectory) return ""
+        val job = WriteJob(folder, name, bitmap, writeSerial.incrementAndGet())
         return try {
-            val file = File(dir(context), name)
-            file.outputStream().buffered().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 91, it) }
-            cache.put(name, bitmap)
+            synchronized(cacheLock) {
+                pendingWrites[name] = job
+                missing.remove(name)
+                cache.put(name, bitmap)
+                writer.execute { write(job) }
+            }
             name
         } catch (_: Exception) {
+            synchronized(cacheLock) {
+                if (pendingWrites[name] === job) {
+                    pendingWrites.remove(name)
+                    cache.remove(name)
+                }
+            }
             ""
         }
     }
 
-    fun load(context: Context, fileName: String): Bitmap? {
-        if (fileName.isBlank()) return null
-        cache.get(fileName)?.let { return it }
-        return try {
-            BitmapFactory.decodeFile(File(dir(context), fileName).absolutePath)?.also { cache.put(fileName, it) }
+    private fun write(job: WriteJob) {
+        val temporary = File(job.folder, "${job.name}.${job.serial}.tmp")
+        try {
+            if (synchronized(cacheLock) { pendingWrites[job.name] !== job }) return
+            val encoded = temporary.outputStream().buffered().use {
+                job.bitmap.compress(Bitmap.CompressFormat.JPEG, 91, it)
+            }
+            synchronized(cacheLock) {
+                if (pendingWrites[job.name] !== job) return
+                if (encoded && temporary.renameTo(File(job.folder, job.name))) {
+                    missing.remove(job.name)
+                }
+                pendingWrites.remove(job.name)
+            }
         } catch (_: Exception) {
-            null
+            synchronized(cacheLock) {
+                if (pendingWrites[job.name] === job) pendingWrites.remove(job.name)
+            }
+        } finally {
+            temporary.delete()
         }
     }
 
-    /**
-     * 미리 읽어두기 — 게임 스레드에서 JPEG 를 푸는 순간 그 프레임이 흔들린다.
-     * 넘김 버튼을 누르기 전에 옆 사진을 전용 스레드에서 캐시에 넣어둔다.
-     * 이미 캐시에 있으면 아무 일도 하지 않는다.
-     */
-    fun prefetch(context: Context, fileName: String) {
-        if (fileName.isBlank() || cache.get(fileName) != null) return
-        if (pending.contains(fileName)) return
-        pending.add(fileName)
-        Thread({
-            try {
-                val bmp = load(context, fileName)
-                if (bmp != null) cache.put(fileName, bmp)
-            } catch (_: Exception) {
-            } finally {
-                pending.remove(fileName)
+    /** 화면이 꺼지거나 앱이 백그라운드로 갈 때, 저장 큐가 끝나기를 제한 시간 동안 기다린다. */
+    fun awaitPendingWrites(timeoutMs: Long = 1500L) {
+        val done = java.util.concurrent.CountDownLatch(1)
+        writer.execute { done.countDown() }
+        try {
+            done.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+    }
+
+    /** 캐시된 사진만 즉시 반환하고, 없으면 현재 화면 사진을 우선해서 읽는다. */
+    fun image(context: Context, fileName: String): Bitmap? {
+        if (fileName.isBlank()) return null
+        cache.get(fileName)?.let { return it }
+        enqueue(context, fileName, urgent = true)
+        return null
+    }
+
+    /** 사진집의 이웃 사진 미리 읽기. 현재 화면 사진보다 뒤에서 처리한다. */
+    fun prefetch(context: Context, fileName: String) = enqueue(context, fileName, urgent = false)
+
+    private fun enqueue(context: Context, fileName: String, urgent: Boolean) {
+        if (fileName.isBlank() || cache.get(fileName) != null || fileName in missing) return
+        synchronized(cacheLock) {
+            if (cache.get(fileName) != null || fileName in missing || fileName in pendingWrites) return
+            val job = ReadJob(context.filesDir, fileName, generation)
+            val queued = pending.putIfAbsent(fileName, job)
+            if (queued == null) {
+                if (urgent) reads.offerFirst(job) else reads.offerLast(job)
+            } else if (urgent && queued.generation == generation && reads.remove(queued)) {
+                // 이웃 미리 읽기로 줄 서 있던 사진을 현재 화면에서 요청하면 앞으로 옮긴다.
+                reads.offerFirst(queued)
             }
-        }, "PizzaAndBirdAlbum").apply { isDaemon = true; start() }
+        }
     }
 
     fun delete(context: Context, fileName: String) {
         if (fileName.isBlank()) return
-        cache.remove(fileName)
-        try { File(dir(context), fileName).delete() } catch (_: Exception) { }
+        val file = File(dir(context), fileName)
+        synchronized(cacheLock) {
+            generation++
+            reads.clear()
+            pending.clear()
+            pendingWrites.remove(fileName) // 인코딩 중이어도 완성본을 다시 만들지 않는다.
+            cache.remove(fileName)
+            missing.remove(fileName)
+            try { file.delete() } catch (_: Exception) { }
+        }
     }
 
     fun clear(context: Context) {
-        cache.evictAll()
-        try { dir(context).listFiles()?.forEach { it.delete() } } catch (_: Exception) { }
+        val folder = dir(context)
+        synchronized(cacheLock) {
+            generation++
+            reads.clear()
+            pending.clear()
+            pendingWrites.clear()
+            missing.clear()
+            cache.evictAll()
+            try { folder.listFiles()?.forEach { it.delete() } } catch (_: Exception) { }
+        }
     }
 }

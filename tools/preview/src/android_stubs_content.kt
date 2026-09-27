@@ -148,7 +148,6 @@ class Intent(val action: String? = null) {
 }
 
 open class Context {
-    val filesDir: java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "pb_preview")
     companion object {
         const val VIBRATOR_SERVICE = "vibrator"
         const val CLIPBOARD_SERVICE = "clipboard"
@@ -180,4 +179,8 @@ open class Context {
     open val resources: Resources = Resources()
 
     open val assets: android.content.res.AssetManager = android.content.res.AssetManager()
+
+    /** PhotoArchive 등 앱 내부 저장소 접근 — 프리뷰에서는 임시 디렉터리를 써도 된다. */
+    open val filesDir: java.io.File =
+        java.io.File(java.nio.file.Files.createTempDirectory("pizza_and_bird_preview").toFile(), "files")
 }

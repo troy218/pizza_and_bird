@@ -97,13 +97,14 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         game.banner(landmark.name)
 
         game.audio.playBgm(R.raw.bgm_home)
-        game.audio.stopAmb()
+        applyIndoorAmbience()   // 비 오는 날엔 지붕 빗소리 (실내가 완전 무음이던 것도 함께 해결)
     }
 
     override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        applyIndoorAmbience()
         if (overlay != null) {
             game.audio.stopSteps()
             updateRig(dt, 0f, 0f, Gait.IDLE)
@@ -570,8 +571,8 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sx = (docentX - 8f - camX) * WORLD_SCALE
         val sy = (docentY - 13f - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f), a.shadowPaint)
-        val bmp = a.npcBitmap(theme.docentKind, game.time, 1.3f)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        val bmp = a.npcBitmap(theme.docentKind, game.time, 1.3f, game.hdSprites)
+        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 머리 위 💬 마커
         val bx = sx + 16f
         val by = sy - 12f
@@ -589,21 +590,22 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
-        val ps = a.playerSet(state.gender, state.gearTier())
+        val hd = game.hdSprites
+        val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val clip = ps.clip(player.anim)
         val bmp = clip.frame(player.facing, player.frame)
         // 앉은 자세는 머리가 프레임 위로 넘쳐 상단 여백(topPad)을 둔다 — 그만큼 위로 그린다
         // (앉아지는 연출 lift 는 앉은 상태에서만 — 걷는 중엔 제자리에 그린다)
-        val lift = restSit?.takeIf { !it.walking }?.lift ?: 0f
-        val bodyY = sy - clip.topPad + lift * 32f
-        c.drawBitmap(bmp, sx, bodyY, a.sprPaint)
+        val sitLift = restSit?.takeIf { !it.walking }?.lift ?: 0f
+        val bodyY = sy - clip.topPad + sitLift * 32f
+        a.drawPlayer(c, bmp, sx, bodyY, game.worldScale.toFloat())
         val camDir = when (player.facing) {
             Dir.E -> 2
             Dir.W -> 3
             Dir.N -> 1
             else -> 0
         }
-        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, bodyY, a.sprPaint)
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, bodyY, game.worldScale.toFloat())
     }
 
     override fun drawHud(c: Canvas) {

@@ -44,6 +44,7 @@ class BackupOverlay(
 
     // ---- 레이아웃 캐시 (매 프레임 계산) ----
     private var panelR = RectF()
+    private var drawnShift = 0f
     private var closeRect = RectF()
     private var codeBox = RectF()
     private val btnRects = ArrayList<Pair<RectF, () -> Unit>>()
@@ -323,7 +324,8 @@ class BackupOverlay(
         }
     }
 
-    private fun tapAt(x: Float, y: Float) {
+    private fun tapAt(x: Float, screenY: Float) {
+        val y = screenY - drawnShift
         if (closeRect.contains(x, y)) {
             g.sfx(Audio.Sfx.TAP, 0.5f)
             if (step == Step.DONE) backToGame() else close()
@@ -367,7 +369,8 @@ class BackupOverlay(
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
 
         c.save()
-        c.translate(0f, enterShift())
+        drawnShift = enterShift()
+        c.translate(0f, drawnShift)
         UiKit.panel(c, g, panelR, 14f)
         btnRects.clear()
 
@@ -388,14 +391,15 @@ class BackupOverlay(
     /** raw 모드에서는 [Input.isPressedIn]이 채워지지 않으므로, 눌린 버튼을 직접 어둡게 덮는다. */
     private fun drawPressFeedback(c: Canvas) {
         val p = pressPoint ?: return
+        val y = p.y - drawnShift
         val fill = Paint()
         for ((r, _) in btnRects) {
-            if (r.contains(p.x, p.y)) {
+            if (r.contains(p.x, y)) {
                 fill.color = Color.argb(46, 40, 26, 12)
                 c.drawRoundRect(r, dp(6f), dp(6f), fill)
             }
         }
-        if (closeRect.contains(p.x, p.y)) {
+        if (closeRect.contains(p.x, y)) {
             fill.color = Color.argb(46, 40, 26, 12)
             c.drawCircle(closeRect.centerX(), closeRect.centerY(), dp(11f), fill)
         }
