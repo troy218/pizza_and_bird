@@ -4,6 +4,9 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.SoundPool
+import android.os.Handler
+import android.os.HandlerThread
+import android.util.Log
 
 /**
  * 게임 오디오: 효과음(SoundPool) + BGM/환경음(MediaPlayer 루프).
@@ -71,7 +74,18 @@ class Audio(private val context: Context) {
         var target = 0         // 재생해야 할 트랙 (0 = 침묵)
         var vol = 0f           // 현재 볼륨 (페이드로 변함)
         var targetVol = 0f     // 목표 볼륨
+        var pending: PendingLoad? = null   // 로더에서 디코딩 중인 트랙
+        var failedRes = 0      // 로딩에 실패해 더 시도하지 않을 트랙
     }
+
+    /** 디코딩은 MediaPlayer.create 가 끝날 때까지 수십~수백 ms 걸리므로 전용 스레드에서 한다. */
+    private class PendingLoad(val res: Int) {
+        @Volatile var mp: MediaPlayer? = null
+        @Volatile var failed = false
+    }
+
+    private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
+    private val loader = Handler(audioThread.looper)
 
     private val bgmCh = Channel(fadeIn = 1.6f, fadeOut = 0.9f)
     private val ambCh = Channel(fadeIn = 1.3f, fadeOut = 0.7f)
@@ -173,14 +187,41 @@ class Audio(private val context: Context) {
     }
 
     private fun updateChannel(ch: Channel, dt: Float, on: Boolean) {
+        // 침묵 목표(정지)가 되면 과거 실패 기록은 지운다 — 다음번 요청은 다시 시도할 수 있게
+        if (ch.target == 0) ch.failedRes = 0
         val mp = ch.mp
 
-        // 재생 중인 플레이어가 없으면: 목표 트랙을 볼륨 0에서 시작 (페이드인 준비)
+        // 재생 중인 플레이어가 없으면: 백그라운드에서 디코딩한 트랙을 채택하거나 로딩을 시킨다.
+        // (예전엔 여기서 MediaPlayer.create 를 게임 스레드에서 동기 호출해
+        //   곡이 바뀔 때마다 화면이 수백 ms 얼었다)
         if (mp == null) {
-            if (on && ch.target != 0) {
-                ch.mp = createLoop(ch.target)
-                ch.res = ch.target
-                ch.vol = 0f
+            val p = ch.pending
+            if (p != null) {
+                when {
+                    p.failed -> {
+                        Log.w("PizzaAndBird", "BGM 로딩 실패: res=${p.res}")
+                        ch.failedRes = p.res
+                        ch.pending = null
+                    }
+                    p.mp != null -> {
+                        ch.pending = null
+                        if (on && ch.target == p.res) {
+                            // 준비 완료 → 볼륨 0으로 채택, 페이드인은 아래 유지 분기가 맡는다
+                            ch.mp = p.mp
+                            ch.res = p.res
+                            ch.vol = 0f
+                        } else {
+                            // 기다리는 동안 목표가 바뀌었다 → 버림
+                            try { p.mp?.release() } catch (_: Exception) { }
+                        }
+                    }
+                }
+                return
+            }
+            if (on && ch.target != 0 && ch.failedRes != ch.target) {
+                val pl = PendingLoad(ch.target)
+                ch.pending = pl
+                loader.post { loadTrack(pl) }
             }
             return
         }
@@ -220,14 +261,17 @@ class Audio(private val context: Context) {
         try { mp.setVolume(v, v) } catch (_: Exception) { }
     }
 
-    private fun createLoop(res: Int): MediaPlayer? = try {
-        MediaPlayer.create(context, res)?.apply {
-            isLooping = true
-            setVolume(0f, 0f)   // 페이드인은 update()가 담당
-            start()
+    /** 로더 스레드: 트랙 디코딩 (prepare가 수백 ms 걸릴 수 있어 게임 스레드와 분리) */
+    private fun loadTrack(p: PendingLoad) {
+        val mp = try {
+            MediaPlayer.create(context, p.res)?.apply {
+                isLooping = true
+                setVolume(0f, 0f)   // 재생 시작·페이드인은 updateChannel 이 맡는다
+            }
+        } catch (_: Exception) {
+            null
         }
-    } catch (_: Exception) {
-        null
+        if (mp != null) p.mp = mp else p.failed = true
     }
 
     // ------------------------------------------------------------------

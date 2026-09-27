@@ -9,10 +9,11 @@ import android.view.SurfaceView
 
 /**
  * 게임 뷰: SurfaceView + 게임 스레드 (고정 가상 해상도 960x540).
+ *
+ * [game]은 백그라운드 부팅 스레드에서 미리 만들어 넘겨준다
+ * (MainActivity가 스플래시를 띄운 뒤 비동기로 초기화한다).
  */
-class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
-
-    val game = Game(context)
+class GameView(context: Context, val game: Game) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     private var thread: Thread? = null
 

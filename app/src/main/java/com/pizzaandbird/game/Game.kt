@@ -12,8 +12,9 @@ import android.graphics.RectF
 /** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 32px 렌더 */
 const val WORLD_SCALE = 2f
 
-/** 오버레이(메뉴/대화) 등장 연출 시간(초) */
-private const val OVERLAY_ENTER_SEC = 0.16f
+/** 오버레이(메뉴/대화) 등장 연출 시간(초) — 이 동안은 입력을 막아 오발을 막는다.
+ * 너무 길면 버튼이 "씹히는" 느낌이 나므로 재빠르게 열리되 눈에 보이는 수준으로 짧게. */
+private const val OVERLAY_ENTER_SEC = 0.09f
 
 /**
  * 게임 전역 컨텍스트: 씬 관리, 가상 해상도(960x540) 스케일링, 페이드 전환.
@@ -59,8 +60,25 @@ class Game(val context: Context) {
     val density: Float = context.resources.displayMetrics.density
 
     init {
-        // 첫 프레임에 렉이 걸리지 않도록 현재 캐릭터 동작 스프라이트를 미리 만들어 둔다
+        // 스프라이트 생성 비용을 부팅(백그라운드 스레드)에서 미리 치른다.
+        //  - 현재 캐릭터 동작 세트: 첫 프레임 렉 방지
+        //  - 양 성별 0티어: 캐릭터 선택 화면이 열리는 순간 다른 성별 세트(프레임 120장)를
+        //    만들며 얼던 것을 방지 — 카드 두 장(남/여 0티어)이 바로 움직인다.
+        val other = if (state.gender == "female") "male" else "female"
         assets.playerSet(state.gender, state.gearTier())
+        assets.playerSet(other, state.gearTier())
+        assets.playerSet("male", 0)
+        assets.playerSet("female", 0)
+        // 타이틀/지역선택 화면의 새도 미리 만들어 둔다 — 598종 조류 데이터
+        // 클래스 로딩까지 이 시점(백그라운드)에서 끝내 첫 프레임 히치를 없앤다.
+        assets.bird("sparrow")
+        assets.birdFlipped("sparrow")
+        assets.bird("crane")
+        assets.bird("owl")
+        assets.bird("gull")
+        assets.bird("greattit")
+        assets.bird("egret")
+        assets.birdFlipped("magpie")
     }
 
     fun onSurfaceChanged(w: Int, h: Int) {
