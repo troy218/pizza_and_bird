@@ -42,6 +42,7 @@ class WorldScene(
 
     // 디테일 연출 (날씨·물·발자국·작은 생물·조명) — Fx.kt
     private val fx = WorldFx(map, region.id.hashCode().toLong() + 31L)
+    private val atmosphere = CinematicAtmosphere()
     private val weather: Weather get() = state.weather()
     private var stepT = 0f
 
@@ -1719,6 +1720,7 @@ class WorldScene(
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
         seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
         fx.drawWeather(c)
+        atmosphere.draw(c, vw, vh, hour, weather, game.time)
         if (viewRig.speedFx > 0.02f) {
             speedVignette.draw(c, vw, vh, viewRig.speedFx)
             streaks.draw(c, velX, velY, viewRig.speedFx)
