@@ -40,8 +40,8 @@ class GameState {
     val ownedHomes = LinkedHashSet<String>()        // 매입한 지역별 집
     val ownedHouseStyles = LinkedHashSet<String>()  // 구매한 인테리어 스타일
 
-    var homeRegion = START_REGION_ID       // 집이 있는 지역
-    var region = START_REGION_ID           // 현재 지역
+    var homeRegion = START_REGION_ID       // 현재 정착지(다른 매입 집도 다시 들어갈 수 있음)
+    var region = START_REGION_ID           // 현재 지역 / 실내에서는 나갈 지역
     var houseStyleId = "cozy"              // 현재 집 인테리어
     var px = 0f                    // 월드 좌표(px)
     var py = 0f
@@ -49,6 +49,9 @@ class GameState {
 
     var questBird: String? = null  // 박사 사진 의뢰(서브퀘스트): 촬영할 새
     var questReward = 0
+    val activeQuests = ArrayList<QuestData>()       // 다양한 종류의 서브 의뢰 목록 (최대 3개 동시 진행)
+    val dailyQuests = ArrayList<DailyQuestData>()   // 오늘의 일일 탐조 미션 (매일 3개)
+    var lastDailyDay = 1                            // 일일 미션이 갱신된 날짜
 
     // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
     var mainQuestStarted = false
@@ -131,6 +134,7 @@ class GameState {
     fun addPizza(pizzaId: Int, quality: Int): Boolean {
         if (pizzaCount >= pizzaCapEff()) return false
         pizzas[pizzaIdx(pizzaId, quality)]++
+        QuestManager.onPizzaBaked(this, Pizzas.of(pizzaId))
         return true
     }
 
@@ -354,6 +358,7 @@ class GameState {
         while (worldTime >= 24f) {
             worldTime -= 24f
             day += 1
+            QuestManager.ensureDailyQuests(this)
         }
     }
 
@@ -361,6 +366,7 @@ class GameState {
     fun sleepUntilMorning() {
         if (worldTime > 7.2f) day += 1
         worldTime = 7.2f
+        QuestManager.ensureDailyQuests(this)
     }
 
     /** 밤(올빼미 등 밤새 출현) 여부 */
@@ -514,6 +520,9 @@ class GameState {
         onBike = false
         questBird = null
         questReward = 0
+        activeQuests.clear()
+        dailyQuests.clear()
+        lastDailyDay = 1
         mainQuestStarted = false
         mainQuestStage = 0
         mainQuestFinished = false
@@ -567,6 +576,9 @@ class GameState {
         put("onBike", onBike)
         put("questBird", questBird ?: "")
         put("questReward", questReward)
+        put("activeQuests", JSONArray().apply { activeQuests.forEach { put(it.toJson()) } })
+        put("dailyQuests", JSONArray().apply { dailyQuests.forEach { put(it.toJson()) } })
+        put("lastDailyDay", lastDailyDay)
         put("mainQuestStarted", mainQuestStarted)
         put("mainQuestStage", mainQuestStage)
         put("mainQuestFinished", mainQuestFinished)
@@ -682,6 +694,38 @@ class GameState {
             s.onBike = j.optBoolean("onBike", false)
             s.questBird = j.optString("questBird", "").ifEmpty { null }
             s.questReward = j.optInt("questReward", 0)
+            val aq = j.optJSONArray("activeQuests")
+            if (aq != null) {
+                for (i in 0 until aq.length()) {
+                    val o = aq.optJSONObject(i) ?: continue
+                    QuestData.fromJson(o)?.let { s.activeQuests.add(it) }
+                }
+            } else if (s.questBird != null) {
+                // 기존 저장 데이터 호환: questBird가 있으면 기본 퀘스트로 연동
+                val bDef = Birds.byId[s.questBird!!]
+                if (bDef != null) {
+                    s.activeQuests.add(
+                        QuestData(
+                            id = "bird_${bDef.id}",
+                            category = QuestCategory.BIRD_SPECIES,
+                            title = "${bDef.name} 사진 기록",
+                            description = "${bDef.name}의 선명한 사진을 촬영해 오세요.",
+                            targetKey = bDef.id,
+                            targetCount = 1,
+                            rewardMoney = s.questReward,
+                            rewardExp = Progression.questExp(s.questReward)
+                        )
+                    )
+                }
+            }
+            val dq = j.optJSONArray("dailyQuests")
+            if (dq != null) {
+                for (i in 0 until dq.length()) {
+                    val o = dq.optJSONObject(i) ?: continue
+                    DailyQuestData.fromJson(o)?.let { s.dailyQuests.add(it) }
+                }
+            }
+            s.lastDailyDay = j.optInt("lastDailyDay", s.day)
             s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
             s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
             s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size

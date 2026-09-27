@@ -7,7 +7,7 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -52,6 +52,7 @@ class Input(private val game: Game) {
     var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
+    var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     // ----- 로우 터치 (확대/이동 가능한 지도 같은 전체화면 오버레이용) -----
@@ -260,6 +261,7 @@ class Input(private val game: Game) {
             Ctrl.EAT -> { justEat = true; game.haptic() }
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
+            Ctrl.QUEST -> { justQuest = true; game.haptic() }
             else -> {}
         }
     }
@@ -343,6 +345,7 @@ class Input(private val game: Game) {
         justEat = false
         justMap = false
         justPunch = false
+        justQuest = false
         tapScreen = null
         rawEvents.clear()
     }
