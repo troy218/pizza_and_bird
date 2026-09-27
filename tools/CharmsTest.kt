@@ -19,9 +19,9 @@ fun main() {
     s.weatherId = Weather.SUNNY.id
     check(Charms.of("clover")!!.luck(s) == 8)
     check(Charms.of("moon")!!.luck(s) == 3)
-    s.worldTime = 20f
+    s.worldTime = 0f
     check(Charms.of("moon")!!.luck(s) == 15)
-    s.worldTime = 4.5f
+    s.worldTime = 12f
     check(Charms.of("moon")!!.luck(s) == 3)
     for (weather in Weather.values()) {
         s.weatherId = weather.id

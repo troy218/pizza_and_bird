@@ -136,14 +136,13 @@ object LightMaps {
     }
 }
 
-/** 시각(0~24) → 햇빛 세기 0..1 (해 뜨고 지는 시간에 부드럽게) */
-fun daylight(hour: Float): Float = when {
-    hour < 5.5f -> 0f
-    hour < 7f -> (hour - 5.5f) / 1.5f
-    hour < 17.5f -> 1f
-    hour < 19f -> 1f - (hour - 17.5f) / 1.5f
-    else -> 0f
-}
+/**
+ * 시각(0~24) → 햇빛 세기 0..1.
+ *
+ * 태양 고도를 기준으로 매 프레임 연속적으로 변한다(계절에 따라 일출·일몰도 이동).
+ * 실제 곡선은 [DayCycle] 이 갖고 있고, 여기서는 기존 호출부를 위한 얇은 창구다.
+ */
+fun daylight(hour: Float): Float = DayCycle.daylight(hour)
 
 /** 좌표 해시 (결정적 난수) */
 fun hash2(x: Int, y: Int, salt: Int = 0): Int {

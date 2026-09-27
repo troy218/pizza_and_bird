@@ -327,47 +327,23 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         scene.openOverlay(BirdDetailOverlay(scene, def.birdNum))
     }
 
-    /**
-     * 메인 퀘스트 자동 진행 — 카드 탭 시 어드바이저의 추천 지역으로 바로 이동.
-     * 이미 추천 위치에 있으면 "도착 후 할 일" 팁으로 답한다.
-     */
+    /** 퀘스트 카드 탭 — 보리 박사/NPC 또는 실제 탐조 자리까지 자전거로 안내한다. */
     private fun autoGoMainQuest() {
-        val g = scene.game
-        val s = g.state
-        if (MainStory.current(s) == null) return
-        val adv = MainQuestAdvisor.advise(s) ?: return
-        // 보고할 기록이 있으면 — 같은 지역 안에서도 보리 박사 바로 옆으로 데려다 준다
-        val readyToReport = MainStory.current(s)?.isComplete(s) == true &&
-            adv.regionId == NpcRoster.PROFESSOR_REGION
-        if (readyToReport) {
-            g.toast("🔍 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}의 보리 박사에게")
-            g.toast(adv.tip)
-            finished = true
-            fastTravel(g, adv.regionId, force = true)
-            return
-        }
-        if (adv.alreadyThere || adv.regionId == s.region) {
-            // 이미 추천 지역 안 — 이동 대신 "그냥 여기" 안내
-            g.toast("${adv.regionName} · ${adv.reason}")
-            g.toast(adv.tip)
-            return
-        }
-        g.toast("${adv.regionName}으로 출발! · ${adv.reason}")
-        g.toast(adv.tip)
+        if (MainStory.current(scene.game.state) == null) return
+        QuestNavigation.startMainQuest(scene.game, scene)
         finished = true
-        fastTravel(g, adv.regionId)
     }
 
     /**
      * 사진용품점 안내 — 가게는 서울 건물 앞 골목에 하나뿐이다 (`NpcRoster.SHOP_REGION`).
-     * 다른 지역에서는 바로 자전거를 태워 준다.
+     * 다른 지역에서는 자전거 길안내를 시작한다.
      */
     private fun openShopTrip() {
         val g = scene.game
         val s = g.state
         if (NpcRoster.hasShop(s.region)) {
-            g.toast("📷 ${NpcRoster.shopTravelHint}")
-            g.toast("가게 주인에게 말을 걸면 카메라·장식·자전거를 살 수 있어요")
+            QuestNavigation.startPersonTrip(g, scene, NpcRoster.shopkeeper)
+            finished = true
             return
         }
         scene.openOverlay(
@@ -376,10 +352,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 "\"장비·장식·자전거는 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}에 있는 " +
                     "우리 가게에서만 팔아. 다른 동네엔 분점이 없어.\"",
                 listOf(
-                    DialogOverlay.Choice("🚲 ${NpcRoster.shopRegionName}으로 이동") {
-                        g.toast("🚲 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}로 출발!")
+                    DialogOverlay.Choice("🚲 ${NpcRoster.shopkeeper.name}에게 자전거로 가기") {
+                        QuestNavigation.startPersonTrip(g, it.scene, NpcRoster.shopkeeper)
                         finished = true
-                        fastTravel(g, NpcRoster.SHOP_REGION)
                     },
                     DialogOverlay.Choice("다음에 갈게요")
                 )
@@ -603,7 +578,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             Triple("calendar", "플레이", timeStr),
             Triple("bike", "자전거", "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else "")),
             Triple("pizza", "피자", "${s.pizzaCount}개 · 화덕 ${s.pizzaCountOfKind(PizzaKind.OVEN)} · 일반 ${s.pizzaCountOfKind(PizzaKind.REGULAR)} · 장식 ${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"),
-            // 사진용품점은 서울에 하나뿐 — 탭하면 위치를 알려 주고 (서울이 아니면) 태워 준다.
+            // 사진용품점은 서울에 하나뿐 — 탭하면 주인에게 가는 자전거 길안내를 시작한다.
             Triple("camera", "사진용품점", if (NpcRoster.hasShop(s.region)) "지금 이 동네!" else NpcRoster.shopRegionName)
         )
         for (i in cells.indices) {
@@ -634,7 +609,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 while (value.length > 1 && textP.measureText("$value…") > maxVW) value = value.dropLast(1)
                 value = "$value…"
             }
-            // 상점 셀은 눌린다 — 어디 있는지 알려 주고, 다른 지역이면 자전거로 태워 준다
+            // 상점 셀은 눌린다 — 가게 주인에게 실제 길을 따라 찾아간다.
             if (label == "사진용품점") {
                 btnRects.add(Triple(cr, "shop_trip") { openShopTrip() })
             }
@@ -676,12 +651,24 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         textP.color = 0xFF796653.toInt()
         val objective = when {
             s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
-            !s.mainQuestStarted -> "카드를 탭하면 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}의 박사에게 바로 데려다 줘요."
+            !s.mainQuestStarted -> "카드를 누르면 자전거를 타고 박사가 있는 곳까지 직접 달려가요."
             else -> chapter?.objective(s) ?: ""
         }
         val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
         objectiveLines.forEachIndexed { i, line ->
-            c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 13f), textP)
+            c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 12f), textP)
+        }
+        val missingMainSpecies = if (s.mainQuestStarted) {
+            chapter?.collectionDef()?.species?.filterNot { s.hasBirdName(it) }.orEmpty()
+        } else emptyList()
+        if (missingMainSpecies.isNotEmpty()) {
+            textP.textSize = textDp(scene, 9.2f)
+            textP.color = 0xFF8A5A33.toInt()
+            var missingLine = "모을 새: ${missingMainSpecies.take(4).joinToString("·")}" +
+                if (missingMainSpecies.size > 4) " 외" else ""
+            val missingMaxW = mainR.width() - dp(scene, 20f)
+            while (missingLine.length > 4 && textP.measureText(missingLine) > missingMaxW) missingLine = missingLine.dropLast(1)
+            c.drawText(missingLine, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 61f), textP)
         }
         advice?.let { adv ->
             // 추천 위치 한 줄 — "어디로 가야 하는지"를 카드에 직접 보여준다
@@ -695,7 +682,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             textP.color = if (here) 0xFF397547.toInt() else 0xFFB5651D.toInt()
             val maxRecW = mainR.width() - dp(scene, 20f)
             while (rec.length > 4 && textP.measureText(rec) > maxRecW) rec = rec.dropLast(1)
-            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 70f), textP)
+            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 74f), textP)
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
@@ -828,7 +815,15 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
                     textP.textSize = textDp(scene, 8.5f)
                     textP.color = 0xFF796653.toInt()
-                    c.drawText(q.description, qr.left + dp(scene, 8f), qr.bottom - dp(scene, 5f), textP)
+                    drawFitText(
+                        c, scene, QuestNavigation.requirementText(q),
+                        qr.left + dp(scene, 8f), qr.bottom - dp(scene, 5f),
+                        qr.width() - dp(scene, 16f), 8.5f, 7f
+                    )
+                    btnRects.add(Triple(qr, "quest_${q.id}") {
+                        QuestNavigation.startQuest(scene.game, scene, q)
+                        finished = true
+                    })
                     y += cardH + dp(scene, 4f)
                 }
             }
@@ -839,7 +834,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             c.drawText("오늘의 일일 탐조 미션 (3개)", left, y + dp(scene, 10f), textP)
             y += dp(scene, 14f)
 
-            val dailyToShow = s.dailyQuests.take(2)
+            val dailyToShow = s.dailyQuests.take(if (s.activeQuests.isEmpty()) 3 else 2)
             for (dq in dailyToShow) {
                 val dqr = RectF(left, y, right, y + cardH)
                 val done = dq.isComplete
@@ -863,7 +858,15 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
                 textP.textSize = textDp(scene, 8.5f)
                 textP.color = 0xFF796653.toInt()
-                c.drawText(dq.description, dqr.left + dp(scene, 8f), dqr.bottom - dp(scene, 5f), textP)
+                drawFitText(
+                    c, scene, QuestNavigation.requirementText(dq),
+                    dqr.left + dp(scene, 8f), dqr.bottom - dp(scene, 5f),
+                    dqr.width() - dp(scene, 16f), 8.5f, 7f
+                )
+                if (!dq.completed) btnRects.add(Triple(dqr, "daily_${dq.id}") {
+                    QuestNavigation.startDailyQuest(scene.game, scene, dq)
+                    finished = true
+                })
                 y += cardH + dp(scene, 4f)
             }
         }

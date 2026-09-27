@@ -10,7 +10,7 @@
 | 종류 | 가격 | 기본 행운 | 조건부 추가 행운 |
 |---|---:|---:|---|
 | 네잎클로버 브로치 | ₩18,000 | +8 | 없음 |
-| 초승달 펜던트 | ₩24,000 | +3 | 밤(19:30~04:30) +12 |
+| 초승달 펜던트 | ₩24,000 | +3 | 밤(계절별 태양 고도 판정) +12 |
 | 빗방울 귀걸이 | ₩22,000 | +2 | 비 또는 눈 +14 |
 | 바람깃털 키링 | ₩20,000 | +2 | 강풍 +16 |
 
@@ -24,7 +24,7 @@
 ## 검증
 - `tools/typecheck.sh`: 전체 Kotlin 타입 검사 통과.
 - `tools/CharmsTest.kt`: 잔액 부족, 정확한 구매 금액, 중복 구매, 시간/날씨 조건, 한 슬롯 효과, 행운 상한, 필드 종류 분포, 저장 왕복, 기존/잘못된 착용 저장 검사.
-- JVM 테스트는 컴파일한 게임 클래스 및 android.jar를 클래스패스에 놓고 `GameState.kt`, `tools/backup_test/org_json.kt`, `tools/backup_test/android_graphics.kt`, `tools/CharmsTest.kt`를 함께 컴파일합니다. 실행 시 테스트 출력을 게임 클래스보다 먼저 클래스패스에 둡니다.
+- JVM 테스트는 컴파일한 게임 클래스 및 android.jar를 클래스패스에 놓고 `GameState.kt`, `DayCycle.kt`, `tools/backup_test/org_json.kt`, `tools/backup_test/android_graphics.kt`, `tools/CharmsTest.kt`를 함께 컴파일합니다. 실행 시 테스트 출력을 게임 클래스보다 먼저 클래스패스에 둡니다.
 - 기기에서의 터치/렌더링 시각 검증과 APK 빌드는 별도 필요합니다.
 
 타입 검사 과정에서 기존 `WorldScene.kt`의 잘린 충돌 파티클 코드와 클래스 뒤 중복된 끝부분을 복구했습니다.
