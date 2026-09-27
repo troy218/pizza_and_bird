@@ -961,7 +961,27 @@ object Pizzas {
         PizzaDef(10, PizzaKind.OVEN, "디아볼라", "🌶", 12, 4, 1.70f, 0.18f, 5,
             "매콤한 살라미가 불타오르는 악마의 피자. 든든함이 남달라요.", c(0xFFD9503F), c(0xFF8F2B1E), c(0xFFF7CE5B)),
         PizzaDef(11, PizzaKind.OVEN, "루꼴라 프로슈토", "🥗", 8, 12, 1.75f, 0.16f, 5,
-            "갓 구운 도우 위에 생햄과 루꼴라를 산처럼. 최고의 한 판!", c(0xFFF5E3A3), c(0xFFE88A8A), c(0xFF4F8F3F))
+            "갓 구운 도우 위에 생햄과 루꼴라를 산처럼. 최고의 한 판!", c(0xFFF5E3A3), c(0xFFE88A8A), c(0xFF4F8F3F)),
+
+        // ---- [P07] 지역 특산 피자 (id 12~19) — 여행지에서만 재료(특산 토핑)를 사서 굽는다 ----
+        // ⚠️ 피자 id = 세이브 인덱스(pizzas[id*3+품질]). id·순서는 확정 이후 절대 변경/중간삽입 금지.
+        // 계열은 전부 화덕피자(OVEN)로 통일해 "여행지 명물" 포지션을 분리한다.
+        PizzaDef(12, PizzaKind.OVEN, "춘천 닭갈비", "🍗", 12, 3, 1.32f, 0.24f, 3,
+            "철판 볶음의 고향 춘천. 매콤달콤 닭갈비를 도우 위에 넓게 펴 올렸다.", c(0xFFD9503F), c(0xFF8F3A22), c(0xFF6FAE57)),
+        PizzaDef(13, PizzaKind.OVEN, "강릉 감자 옹심이", "🥔", 14, 2, 1.30f, 0.24f, 3,
+            "쫀득한 산간의 맛. 감자옹심이를 올리고 구우면 배가 든든해져요.", c(0xFFF5E3A3), c(0xFFD9B36B), c(0xFFEDE0C0)),
+        PizzaDef(14, PizzaKind.OVEN, "속초 오징어", "🦑", 10, 5, 1.48f, 0.20f, 4,
+            "동해 바다 향기. 속초 오징어를 통째로 썰어 올린 해물 피자.", c(0xFFFDF0DC), c(0xFFE8A0A8), c(0xFFB06A78)),
+        PizzaDef(15, PizzaKind.OVEN, "전주 콩나물 비빔", "🫘", 11, 4, 1.36f, 0.22f, 4,
+            "밥심의 고장 전주. 콩나물과 고추장을 화덕에 함께 구워 비벼 먹는다.", c(0xFFF2D06B), c(0xFFFDF6E8), c(0xFFC8392B)),
+        PizzaDef(16, PizzaKind.OVEN, "대구 납작 치즈", "🧀", 9, 4, 1.30f, 0.22f, 3,
+            "납작만두 감성의 대구. 얇게 눌러 구운 치즈가 바삭해요.", c(0xFFF7E3A8), c(0xFFE8A75C), c(0xFFD98E3A)),
+        PizzaDef(17, PizzaKind.OVEN, "광주 상추 육전", "🥬", 12, 4, 1.44f, 0.20f, 4,
+            "무등산 밥상. 부친 육전을 상추에 싸 먹듯 도우에 얹었다.", c(0xFFE8D8A0), c(0xFF8A5A2E), c(0xFF6FAE57)),
+        PizzaDef(18, PizzaKind.OVEN, "부산 어묵 꼬치", "🐟", 11, 3, 1.52f, 0.18f, 4,
+            "시장 골목의 국물 냄새까지. 부산 어묵을 꼬치째 올린 피자.", c(0xFFF0DCB0), c(0xFFC89A5E), c(0xFF8A5A3A)),
+        PizzaDef(19, PizzaKind.OVEN, "제주 흑돼지", "🐖", 16, 6, 1.60f, 0.18f, 5,
+            "돌담길 정식. 제주 흑돼지 구이를 듬뿍 올린 최고의 여행 피자!", c(0xFFE0A878), c(0xFF7A4226), c(0xFF5E8F4A))
     )
 
     val byId: Map<Int, PizzaDef> = ALL.associateBy { it.id }

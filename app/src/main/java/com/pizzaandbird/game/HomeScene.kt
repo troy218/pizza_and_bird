@@ -273,10 +273,10 @@ class HomeScene(game: Game) : Scene(game) {
                 DialogOverlay(
                     this, "화덕",
                     "장작불이 활활 타오르는 화덕이에요. 얇은 도우의 화덕피자를 굽는 곳!\n" +
-                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (도우는 무한! 힐링게임이니까요)",
+                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (먼저 도우를 골라요 — 기본 도우는 무료!)",
                     listOf(
                         DialogOverlay.Choice("화덕피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.OVEN))
+                            it.scene.openOverlay(DoughOverlay(it.scene, PizzaKind.OVEN))   // [P07] ① 도우 선택 → ② BakeOverlay
                         },
                         DialogOverlay.Choice("나중에")
                     )
@@ -289,7 +289,7 @@ class HomeScene(game: Game) : Scene(game) {
                             "천천히 익어서 굽기 쉬워요. 치즈·페퍼로니·불고기·고구마…",
                     listOf(
                         DialogOverlay.Choice("일반 피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.REGULAR))
+                            it.scene.openOverlay(DoughOverlay(it.scene, PizzaKind.REGULAR))   // [P07] ① 도우 선택 → ② BakeOverlay
                         },
                         DialogOverlay.Choice("나중에")
                     )
