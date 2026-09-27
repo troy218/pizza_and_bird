@@ -312,10 +312,9 @@ object PreviewMain {
         scene.openOverlay(menu)
         val tabCls = Class.forName("com.pizzaandbird.game.MenuOverlay\$Tab")
         val tabs = tabCls.enumConstants
-        val names = listOf("17_menu_status", "18_menu_pizza", "19_menu_book", "20_menu_settings")
         for ((i, tab) in tabs.withIndex()) {
             setField(menu, "tab", tab)
-            renderScreen(game, names[i])
+            renderScreen(game, "17_menu_tab${i + 1}")
         }
 
         // 피자 굽기

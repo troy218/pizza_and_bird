@@ -95,6 +95,15 @@ class RectF {
     fun set(l: Float, t: Float, r: Float, b: Float) {
         left = l; top = t; right = r; bottom = b
     }
+
+    fun set(src: RectF) {
+        left = src.left; top = src.top; right = src.right; bottom = src.bottom
+    }
+
+    fun union(r: RectF) {
+        left = min(left, r.left); top = min(top, r.top)
+        right = max(right, r.right); bottom = max(bottom, r.bottom)
+    }
 }
 
 class Rect {
@@ -187,6 +196,20 @@ class Path {
         val arc = Arc2D.Float(oval.left, oval.top, oval.width(), oval.height(), startAngle, sweepAngle, Arc2D.OPEN)
         p2d.append(arc, true)
     }
+
+    fun addRoundRect(rect: RectF, rx: Float, ry: Float, dir: Direction) {
+        // 클리핑 용도라 실루엣만 정확하면 된다 (방향 무관)
+        val r = RoundRectangle2D.Float(
+            rect.left, rect.top, rect.width(), rect.height(),
+            min(rx * 2f, rect.width()), min(ry * 2f, rect.height())
+        )
+        p2d.append(r, false)
+    }
+
+    fun computeBounds(bounds: RectF, exact: Boolean) {
+        val b = p2d.bounds2D
+        bounds.set(b.x.toFloat(), b.y.toFloat(), (b.x + b.width).toFloat(), (b.y + b.height).toFloat())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -225,7 +248,7 @@ class DashPathEffect(intervals: FloatArray, phase: Float) : PathEffect() {
 // 텍스트(폰트) 지원
 // ---------------------------------------------------------------------------
 
-internal object StubText {
+object StubText {
     @Volatile var regular: Font? = null
     @Volatile var bold: Font? = null
 
@@ -347,6 +370,12 @@ class Bitmap private constructor(val image: BufferedImage) {
 
     fun getPixel(x: Int, y: Int): Int = image.getRGB(x, y)
 
+    fun copy(config: Config, isMutable: Boolean): Bitmap {
+        val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        out.setData(image.copyData(null))
+        return Bitmap(out)
+    }
+
     fun eraseColor(c: Int) {
         val g = image.createGraphics()
         g.color = JColor(c, true)
@@ -360,6 +389,18 @@ class Bitmap private constructor(val image: BufferedImage) {
             Bitmap(BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB))
 
         @JvmStatic
+        fun createBitmap(colors: IntArray, width: Int, height: Int, config: Config): Bitmap {
+            val out = BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB)
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    val idx = y * width + x
+                    if (idx < colors.size) out.setRGB(x, y, colors[idx])
+                }
+            }
+            return Bitmap(out)
+        }
+
+        @JvmStatic
         fun createBitmap(src: Bitmap, x: Int, y: Int, width: Int, height: Int, m: Matrix?, filter: Boolean): Bitmap {
             val base = src.image.getSubimage(x, y, max(width, 1), max(height, 1))
             val at = m?.tx ?: AffineTransform()
@@ -370,6 +411,15 @@ class Bitmap private constructor(val image: BufferedImage) {
             g.transform(at)
             g.drawImage(base, 0, 0, null)
             g.dispose()
+            return Bitmap(out)
+        }
+
+        @JvmStatic
+        fun createBitmap(src: Bitmap, x: Int, y: Int, width: Int, height: Int): Bitmap {
+            val w = max(width, 1); val h = max(height, 1)
+            val sub = src.image.getSubimage(x, y, w, h)
+            val out = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+            out.setData(sub.copyData(null))
             return Bitmap(out)
         }
 
@@ -595,5 +645,9 @@ class Canvas {
 
     fun clipRect(l: Float, t: Float, r: Float, b: Float) {
         g.clip(Rectangle2D.Float(l, t, r - l, b - t))
+    }
+
+    fun clipPath(path: Path) {
+        g.clip(path.p2d)
     }
 }

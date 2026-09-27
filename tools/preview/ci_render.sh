@@ -67,6 +67,7 @@ if [ -x "$KCBIN" ]; then
   if "$KCBIN" tools/preview/src/*.kt $SRCS \
       -d "$OUT/classes-preview" -jvm-target 17 > "$OUT/render.log" 2>&1; then
     echo ">> 프리뷰 렌더링..." >> preview/build.log
+    rm -f "$OUT"/*.png
     if java -cp "$OUT/classes-preview:$KC/kotlinc/lib/kotlin-stdlib.jar" \
       com.pizzaandbird.preview.PreviewMain "$OUT" >> "$OUT/render.log" 2>&1; then
       echo "$SHA" > "$OUT/.last_ok"
