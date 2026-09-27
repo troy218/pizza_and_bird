@@ -66,7 +66,8 @@ class DialogOverlay(
     private val disableKeys: Boolean = false
 ) : Overlay(scene) {
 
-    class Choice(val label: String, val action: (DialogOverlay) -> Unit = { it.finished = true })
+    /** 선택지. action을 실행한 뒤 대화상자는 자동으로 닫힌다 (닫힘 처리를 따로 안 해도 됨). */
+    class Choice(val label: String, val action: (DialogOverlay) -> Unit = {})
 
     private val choices: List<Choice> =
         if (choices.isEmpty()) listOf(Choice("확인")) else choices
@@ -90,7 +91,11 @@ class DialogOverlay(
     }
 
     private fun pick(i: Int) {
-        if (i in choices.indices) choices[i].action(this)
+        if (i !in choices.indices) return
+        choices[i].action(this)
+        // 선택지를 고르면 대화상자를 항상 닫는다.
+        // (액션이 다른 오버레이를 연 경우 scene.overlay가 이미 교체됐으므로 영향 없음)
+        finished = true
     }
 
     override fun draw(c: Canvas) {

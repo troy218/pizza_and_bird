@@ -675,7 +675,6 @@ class WorldScene(
                         )
                     }
                     add(DialogOverlay.Choice("장식 코너 보기") {
-                        it.finished = true
                         it.scene.openOverlay(DecorShopOverlay(it.scene))
                     })
                     add(DialogOverlay.Choice("그냥 볼게요"))

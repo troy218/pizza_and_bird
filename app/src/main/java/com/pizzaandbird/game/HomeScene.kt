@@ -144,7 +144,6 @@ class HomeScene(game: Game) : Scene(game) {
                     "따끈한 화덕이 준비됐어요. 어떤 피자를 구워볼까요?\n(도우는 무한! 힐링게임이니까요)",
                     listOf(
                         DialogOverlay.Choice("피자 굽기!") {
-                            it.finished = true
                             it.scene.openOverlay(BakeOverlay(it.scene))
                         },
                         DialogOverlay.Choice("나중에")
