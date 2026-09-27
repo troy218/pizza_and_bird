@@ -45,6 +45,8 @@ object UiKit {
     val MUTED = 0xFF8A7360.toInt()
     val TRACK = 0xFFD9C6A3.toInt()
 
+    // Shader colors have their own alpha. Reset Paint.alpha before each gradient:
+    // assigning a shader does not clear the translucent shadow color's alpha.
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
@@ -113,6 +115,7 @@ object UiKit {
             radius, radius, fill
         )
         // 본문 그라데이션
+        fill.alpha = 255
         fill.shader = LinearGradient(
             r.left, r.top, r.left, r.bottom,
             CREAM_HI, CREAM_DEEP, Shader.TileMode.CLAMP
@@ -166,6 +169,7 @@ object UiKit {
         // 본문
         val top = if (selected) CARD_SEL_HI else CARD_HI
         val bottom = if (selected) CARD_SEL_LO else CARD_LO
+        fill.alpha = 255
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, top, bottom, Shader.TileMode.CLAMP)
         c.drawRoundRect(r, radius, radius, fill)
         fill.shader = null
@@ -217,6 +221,7 @@ object UiKit {
         fill.color = Color.argb(66, 50, 30, 12)
         c.drawRoundRect(RectF(r.left, r.top + 2f * d, r.right, r.bottom + 2.5f * d), radius, radius, fill)
         // 그라데이션 본문
+        fill.alpha = 255
         fill.shader = LinearGradient(
             r.left, r.top, r.left, r.bottom,
             lighten(base, 34), darken(base, 16), Shader.TileMode.CLAMP
@@ -271,6 +276,7 @@ object UiKit {
         fill.shader = null
         fill.color = Color.argb(60, 40, 26, 12)
         c.drawCircle(cx, cy + 2f * d, radius, fill)
+        fill.alpha = 255
         fill.shader = LinearGradient(cx, cy - radius, cx, cy + radius, lighten(base, 26), darken(base, 14), Shader.TileMode.CLAMP)
         c.drawCircle(cx, cy, radius, fill)
         fill.shader = null
@@ -313,6 +319,7 @@ object UiKit {
         val fillW = (w - inset * 2f) * p
         if (p > 0.005f && fillW > 2f * d) {
             val fr = RectF(x + inset, y + inset, x + inset + fillW, y + h - inset)
+            fill.alpha = 255
             fill.shader = LinearGradient(fr.left, fr.top, fr.right, fr.top, c0, c1, Shader.TileMode.CLAMP)
             c.drawRoundRect(fr, (h - inset * 2f) / 2f, (h - inset * 2f) / 2f, fill)
             fill.shader = null
@@ -338,6 +345,7 @@ object UiKit {
         fill.shader = null
         fill.color = Color.argb(50, 50, 34, 16)
         c.drawRoundRect(RectF(r.left, r.top + 1f * d, r.right, r.bottom + 1f * d), r.height() / 2f, r.height() / 2f, fill)
+        fill.alpha = 255
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, lighten(bg, 22), darken(bg, 12), Shader.TileMode.CLAMP)
         c.drawRoundRect(r, r.height() / 2f, r.height() / 2f, fill)
         fill.shader = null
@@ -358,6 +366,7 @@ object UiKit {
         fill.shader = null
         fill.color = Color.argb(55, 60, 40, 16)
         c.drawCircle(cx, cy + 1.5f * d, radius, fill)
+        fill.alpha = 255
         fill.shader = LinearGradient(cx, cy - radius, cx, cy + radius, lighten(base, 40), darken(base, 8), Shader.TileMode.CLAMP)
         c.drawCircle(cx, cy, radius, fill)
         fill.shader = null
@@ -396,6 +405,7 @@ object UiKit {
         fill.shader = null
         fill.color = Color.argb(70, 20, 14, 26)
         c.drawRoundRect(RectF(r.left, r.top + 2f * d, r.right, r.bottom + 2f * d), 12f * d, 12f * d, fill)
+        fill.alpha = 255
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, 0xFF4A4258.toInt(), 0xFF322C40.toInt(), Shader.TileMode.CLAMP)
         c.drawRoundRect(r, 12f * d, 12f * d, fill)
         fill.shader = null
@@ -517,6 +527,7 @@ object UiKit {
 
     /** 픽셀 모서리 사각형 채우기 (세로 그라데이션) */
     fun pixelFillGradient(c: Canvas, r: RectF, unit: Float, top: Int, bottom: Int) {
+        fill.alpha = 255
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, top, bottom, Shader.TileMode.CLAMP)
         c.drawPath(pixelRect(r, unit), fill)
         fill.shader = null

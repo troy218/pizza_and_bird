@@ -64,6 +64,36 @@ enum class Tier(val star: Int, val label: String) {
     fun starText(): String = "★".repeat(star) + "☆".repeat(4 - star)
 }
 
+/** 게임 내 120일 달력의 계절. 공식 598종 스폰 조건에 사용한다. */
+enum class BirdSeason(val label: String) {
+    SPRING("봄"), SUMMER("여름"), AUTUMN("가을"), WINTER("겨울");
+
+    companion object {
+        val ALL: Set<BirdSeason> = values().toSet()
+        fun ofDay(day: Int): BirdSeason = when (Season.forDay(day)) {
+            Season.SPRING -> SPRING
+            Season.SUMMER -> SUMMER
+            Season.AUTUMN -> AUTUMN
+            Season.WINTER -> WINTER
+        }
+    }
+}
+
+/** 하루 중 조류 활동 시간대. 새벽/황혼 이동, 야행성 종 스폰을 세분화한다. */
+enum class BirdTimeWindow(val label: String) {
+    DAWN("새벽"), DAY("낮"), DUSK("해질녘"), NIGHT("밤");
+
+    companion object {
+        val ALL: Set<BirdTimeWindow> = values().toSet()
+        fun ofHour(hour: Float): BirdTimeWindow = when {
+            hour >= 4.5f && hour < 7.5f -> DAWN
+            hour >= 7.5f && hour < 17.0f -> DAY
+            hour >= 17.0f && hour < 19.5f -> DUSK
+            else -> NIGHT
+        }
+    }
+}
+
 /** 새의 깃무늬. 같은 체형 안에서도 종마다 실루엣과 인상이 겹치지 않게 한다. */
 object BirdPatterns {
     const val PLAIN = 0
@@ -114,7 +144,12 @@ class BirdDef(
     val orderName: String = "",
     val familyName: String = "",
     val category: String = "",
-    val subspecies: List<String> = emptyList()
+    val subspecies: List<String> = emptyList(),
+    val birdNum: Int = 0,
+    val seasons: Set<BirdSeason> = BirdSeason.ALL,
+    val timeWindows: Set<BirdTimeWindow> = BirdTimeWindow.ALL,
+    val regionBias: Map<String, Double> = emptyMap(),
+    val migrationLabel: String = "텃새"
 ) {
     val activeLabel: String
         get() = when (active) {
@@ -122,7 +157,32 @@ class BirdDef(
             "day" -> "낮새"
             else -> "종일"
         }
+
+    val encEntry: BirdEncyclopediaEntry?
+        get() = (if (birdNum > 0) BirdEncyclopedia.get(birdNum) else null) ?: BirdEncyclopedia.get(name)
+
+    /** 엑셀의 상세 한국어 설명(위키백과 및 생태 정보) 또는 기본 설명 */
+    val fullDesc: String
+        get() = encEntry?.desc?.takeIf { it.isNotBlank() } ?: desc
+
+    val photoAuthor: String
+        get() = encEntry?.author ?: ""
+
+    val photoLicense: String
+        get() = encEntry?.license ?: ""
+
+    val conservationStatus: String
+        get() = encEntry?.status ?: ""
+
+    val seasonLabel: String
+        get() = if (seasons.containsAll(BirdSeason.ALL)) "사계절" else seasons.joinToString("·") { it.label }
+
+    val timeWindowLabel: String
+        get() = if (timeWindows.containsAll(BirdTimeWindow.ALL)) activeLabel else timeWindows.joinToString("·") { it.label }
+
+    fun regionMultiplier(region: RegionDef): Double = regionBias[region.id] ?: 1.0
 }
+
 
 object Birds {
     private fun c(v: Long) = v.toInt()
@@ -383,42 +443,79 @@ object Birds {
         "노랑턱멧새", "방울새", "오목눈이", "어치", "큰부리까마귀", "물까치", "찌르레기"
     )
 
-    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.map { entry ->
-        curatedByName[entry.koreanName]?.let { enrich(it, entry) } ?: generated(entry)
+    val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.mapIndexed { idx, entry ->
+        val num = idx + 1
+        curatedByName[entry.koreanName]?.let { enrich(it, entry, num) } ?: generated(entry, num)
     }
 
     val byId: Map<String, BirdDef> = ALL.associateBy { it.id }
     val byName: Map<String, BirdDef> = ALL.associateBy { it.name }
+    val byNum: Map<Int, BirdDef> = ALL.associateBy { it.birdNum }
 
-    /** 지역 서식지 + 밤낮에 맞는 새 풀 */
-    fun poolFor(region: RegionDef, night: Boolean = false): List<BirdDef> = ALL.filter { def ->
-        def.habitats.intersect(region.habitats).isNotEmpty() &&
-                (def.onlyRegions == null || region.id in def.onlyRegions) &&
-                (def.active == "any" || (if (night) def.active == "night" else def.active == "day"))
+    /** 지역 서식지 + 밤낮/계절/시간대에 맞는 새 풀 */
+    fun poolFor(region: RegionDef, night: Boolean = false, day: Int? = null, hour: Float? = null): List<BirdDef> {
+        val season = day?.let { BirdSeason.ofDay(it) }
+        val window = hour?.let { BirdTimeWindow.ofHour(it) }
+        return ALL.filter { def ->
+            def.habitats.intersect(region.habitats).isNotEmpty() &&
+                    (def.onlyRegions == null || region.id in def.onlyRegions) &&
+                    (def.active == "any" || (if (night) def.active == "night" else def.active == "day")) &&
+                    (season == null || season in def.seasons) &&
+                    (window == null || window in def.timeWindows)
+        }
     }
 
-    private fun enrich(def: BirdDef, entry: BirdChecklistEntry): BirdDef = BirdDef(
-        id = def.id,
-        name = def.name,
-        tier = def.tier,
-        habitats = def.habitats,
-        weight = def.weight,
-        reward = def.reward,
-        desc = def.desc,
-        onlyRegions = def.onlyRegions,
-        art = def.art,
-        active = def.active,
-        scientificName = entry.scientificName,
-        englishName = entry.englishName,
-        orderName = entry.orderName,
-        familyName = entry.familyName,
-        category = entry.category,
-        subspecies = entry.subspecies
-    )
+    /** 기본 가중치에 계절/시간/지역 희귀도 보정을 적용한 실제 스폰 가중치. */
+    fun spawnWeight(def: BirdDef, region: RegionDef, day: Int, hour: Float): Double {
+        val season = BirdSeason.ofDay(day)
+        val window = BirdTimeWindow.ofHour(hour)
+        val seasonK = if (season in def.seasons) 1.0 else 0.08
+        val timeK = if (window in def.timeWindows) 1.0 else 0.18
+        val regionK = def.regionMultiplier(region)
+        val rarityFloor = when (def.tier) {
+            Tier.COMMON -> 0.16
+            Tier.UNCOMMON -> 0.10
+            Tier.RARE -> 0.055
+            Tier.LEGEND -> 0.025
+        }
+        return (def.weight * seasonK * timeK * regionK).coerceAtLeast(def.weight * rarityFloor)
+    }
 
-    private fun generated(entry: BirdChecklistEntry): BirdDef {
+    fun currentSeasonLabel(day: Int): String = BirdSeason.ofDay(day).label
+
+    private fun enrich(def: BirdDef, entry: BirdChecklistEntry, num: Int): BirdDef {
+        val profile = spawnProfileFor(entry, def.habitats, def.tier)
+        val usesDefaultProfile = def.seasons == BirdSeason.ALL && def.timeWindows == BirdTimeWindow.ALL &&
+                def.regionBias.isEmpty() && def.migrationLabel == "텃새"
+        return BirdDef(
+            id = def.id,
+            name = def.name,
+            tier = def.tier,
+            habitats = def.habitats,
+            weight = def.weight,
+            reward = def.reward,
+            desc = def.desc,
+            onlyRegions = def.onlyRegions,
+            art = def.art,
+            active = def.active,
+            scientificName = entry.scientificName,
+            englishName = entry.englishName,
+            orderName = entry.orderName,
+            familyName = entry.familyName,
+            category = entry.category,
+            subspecies = entry.subspecies,
+            birdNum = num,
+            seasons = if (usesDefaultProfile) profile.seasons else def.seasons,
+            timeWindows = if (usesDefaultProfile) profile.timeWindows else def.timeWindows,
+            regionBias = if (usesDefaultProfile) profile.regionBias else def.regionBias,
+            migrationLabel = if (usesDefaultProfile) profile.migrationLabel else def.migrationLabel
+        )
+    }
+
+    private fun generated(entry: BirdChecklistEntry, num: Int): BirdDef {
         val tier = tierFor(entry)
         val habitats = habitatsFor(entry)
+        val profile = spawnProfileFor(entry, habitats, tier)
         return BirdDef(
             id = generatedId(entry),
             name = entry.koreanName,
@@ -435,8 +532,95 @@ object Birds {
             orderName = entry.orderName,
             familyName = entry.familyName,
             category = entry.category,
-            subspecies = entry.subspecies
+            subspecies = entry.subspecies,
+            birdNum = num,
+            seasons = profile.seasons,
+            timeWindows = profile.timeWindows,
+            regionBias = profile.regionBias,
+            migrationLabel = profile.migrationLabel
         )
+    }
+
+    private data class SpawnProfile(
+        val seasons: Set<BirdSeason>,
+        val timeWindows: Set<BirdTimeWindow>,
+        val regionBias: Map<String, Double>,
+        val migrationLabel: String
+    )
+
+    private fun spawnProfileFor(entry: BirdChecklistEntry, habitats: Set<String>, tier: Tier): SpawnProfile {
+        val name = entry.koreanName
+        val family = entry.familyName
+        val order = entry.orderName
+        val text = "$name ${entry.englishName} ${entry.scientificName} $family $order"
+
+        val seasons = when {
+            family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과", "호사도요과", "물꿩과", "제비물떼새과") ->
+                setOf(BirdSeason.SPRING, BirdSeason.AUTUMN)
+            family == "오리과" || hasAny(text, "기러기", "고니", "두루미", "Crane", "Goose", "Swan", "Duck", "Teal") ->
+                setOf(BirdSeason.AUTUMN, BirdSeason.WINTER)
+            family in setOf("바다오리과", "아비과", "논병아리과") || hasAny(text, "아비", "바다오리", "Grebe", "Loon") ->
+                setOf(BirdSeason.WINTER, BirdSeason.SPRING)
+            order == "두견이목" || order == "칼새목" || family == "제비과" || family == "팔색조과" ||
+                    hasAny(text, "뻐꾸기", "두견", "제비", "팔색조", "Cuckoo", "Swift", "Swallow", "Pitta") ->
+                setOf(BirdSeason.SPRING, BirdSeason.SUMMER)
+            order == "쏙독새목" || hasAny(text, "쏙독새", "Nightjar") ->
+                setOf(BirdSeason.SUMMER, BirdSeason.AUTUMN)
+            order == "수리목" || order == "매목" ->
+                if (hasAny(text, "새매", "벌매", "조롱이", "Falcon", "Hobby")) setOf(BirdSeason.AUTUMN, BirdSeason.WINTER) else BirdSeason.ALL
+            family in setOf("갈매기과", "도둑갈매기과", "가마우지과", "슴새과") ->
+                setOf(BirdSeason.WINTER, BirdSeason.SPRING, BirdSeason.AUTUMN)
+            tier == Tier.COMMON -> BirdSeason.ALL
+            else -> BirdSeason.ALL
+        }
+
+        val timeWindows = when {
+            order == "올빼미목" || order == "쏙독새목" -> setOf(BirdTimeWindow.DUSK, BirdTimeWindow.NIGHT, BirdTimeWindow.DAWN)
+            order == "수리목" || order == "매목" -> setOf(BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
+            family in setOf("오리과", "두루미과") || hasAny(text, "기러기", "고니") -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
+            family in setOf("도요과", "물떼새과", "갈매기과", "바다오리과") -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
+            else -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
+        }
+
+        val migrationLabel = when {
+            seasons == BirdSeason.ALL -> "텃새/연중"
+            seasons.contains(BirdSeason.WINTER) && !seasons.contains(BirdSeason.SUMMER) -> "겨울철새"
+            seasons.contains(BirdSeason.SUMMER) && !seasons.contains(BirdSeason.WINTER) -> "여름철새"
+            seasons == setOf(BirdSeason.SPRING, BirdSeason.AUTUMN) -> "나그네새"
+            else -> seasons.joinToString("·") { it.label } + " 중심"
+        }
+
+        return SpawnProfile(seasons, timeWindows, regionBiasFor(entry, habitats), migrationLabel)
+    }
+
+    private fun regionBiasFor(entry: BirdChecklistEntry, habitats: Set<String>): Map<String, Double> {
+        val name = entry.koreanName
+        val family = entry.familyName
+        val text = "$name ${entry.englishName} ${entry.familyName} ${entry.orderName}"
+        val m = LinkedHashMap<String, Double>()
+        fun boost(ids: Collection<String>, k: Double) { for (id in ids) m[id] = maxOf(m[id] ?: 1.0, k) }
+
+        if ("coast" in habitats || "wetland" in habitats) {
+            boost(listOf("incheon", "ganghwa", "songdo", "sihwa", "hwaseong", "maehyang", "taean", "geumgang", "gochang", "suncheon", "eulsukdo", "hadori"), 1.45)
+        }
+        if ("water" in habitats || family == "오리과" || hasAny(text, "기러기", "고니")) {
+            boost(listOf("chuncheon", "sihwa", "eulsukdo", "junam", "geumgang", "upo", "hadori", "cheorwon", "imjin"), 1.55)
+        }
+        if ("forest" in habitats || "mountain" in habitats) {
+            boost(listOf("sokcho", "gwangneung", "hallasan", "wangpi", "jeju", "gwangju", "daegu"), 1.35)
+        }
+        if ("field" in habitats) {
+            boost(listOf("cheorwon", "imjin", "taean", "hwaseong", "gongneung", "jeonju", "daejeon"), 1.25)
+        }
+        if (hasAny(text, "두루미", "Crane")) boost(listOf("cheorwon", "imjin", "suncheon", "junam", "geumgang"), 2.5)
+        if (hasAny(text, "저어새", "Spoonbill")) boost(listOf("ganghwa", "songdo", "gochang", "hadori", "suncheon"), 2.4)
+        if (hasAny(text, "가창오리", "Baikal")) boost(listOf("geumgang", "eulsukdo", "junam", "sihwa"), 2.8)
+        if (hasAny(text, "큰고니", "고니", "Swan")) boost(listOf("sihwa", "eulsukdo", "junam", "hadori", "geumgang"), 2.2)
+        if (hasAny(text, "팔색조", "동박새", "Pitta", "White-eye")) boost(listOf("jeju", "hallasan", "hadori", "gwangju", "ulsan", "suncheon"), 2.0)
+        if (hasAny(text, "물수리", "Osprey")) boost(listOf("wangpi", "eulsukdo", "geumgang", "sihwa", "hadori"), 2.1)
+        if (hasAny(text, "도요", "물떼새", "Sandpiper", "Plover", "Knot")) boost(listOf("hwaseong", "maehyang", "songdo", "ganghwa", "gochang", "taean"), 2.0)
+        if (hasAny(text, "갈매기", "바다오리", "아비", "Gull", "Auklet", "Loon")) boost(listOf("gangneung", "busan", "jeju", "hadori", "ulsan", "taean"), 1.8)
+        return m
     }
 
     private fun generatedId(entry: BirdChecklistEntry): String {
@@ -506,6 +690,10 @@ object Birds {
     }
 
     private fun officialDesc(entry: BirdChecklistEntry): String {
+        val enc = BirdEncyclopedia.get(entry.koreanName)
+        if (enc != null && enc.desc.isNotBlank()) {
+            return enc.desc
+        }
         val subs = if (entry.subspecies.isEmpty()) {
             "기록 아종 없음"
         } else {
@@ -1197,8 +1385,8 @@ class RegionDef(
     val villager: String,
     val mapW: Int,
     val mapH: Int,
-    val waterEdges: Set<Dir>,
-    val sandEdges: Set<Dir>,
+    val waterEdges: Set<Dir>,  // 지도는 북쪽이 위: 실제 지역의 바다·하천 하구가 놓인 변
+    val sandEdges: Set<Dir>,   // 물과 육지 사이의 해변·갯벌 띠
     val treeDensity: Double,
     val rockDensity: Double,
     val flowerDensity: Double,
@@ -1328,7 +1516,7 @@ object Regions {
             "jeju", "제주", "Jeju", setOf("coast", "mountain", "forest", "wetland"),
             "바람의 섬, 오름의 섬. 귀한 새들이 머무는 곳.",
             "제주엔 없는 게 없어요. 돌하르방처럼 어여쁜 새들도요.",
-            40, 30, setOf(Dir.S, Dir.E, Dir.W), setOf(Dir.S, Dir.E, Dir.W), 0.07, 0.12, 0.05, false, false,
+            40, 30, setOf(Dir.N, Dir.E, Dir.S, Dir.W), setOf(Dir.N, Dir.E, Dir.S, Dir.W), 0.07, 0.12, 0.05, false, false,
             126.53f, 33.50f, "🏝", RegionKind.COAST, "사계절",
             "해안도로를 따라 달리면 섬새와 물새가 계속 나타나요."
         ),
@@ -1386,7 +1574,7 @@ object Regions {
             "sihwa", "시화호", "Sihwa Lake", setOf("water", "wetland", "coast"),
             "죽음의 호수에서 되살아난 큰 호수. 이제는 큰고니의 겨울 궁전.",
             "예전엔 물이 썩었대요. 지금은 고니가 오니까… 자연은 대단하죠.",
-            40, 30, emptySet(), emptySet(), 0.05, 0.02, 0.05, false, true,
+            40, 30, setOf(Dir.W), setOf(Dir.W), 0.05, 0.02, 0.05, false, true,
             126.73f, 37.28f, "🦢", RegionKind.RIVER, "11~2월 (겨울)",
             "상류 습지 쪽이 수심이 얕아 물새가 모여요."
         ),
