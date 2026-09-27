@@ -84,6 +84,8 @@ class WorldScene(
             }
         }
         player.set(sx, sy)
+        state.px = sx
+        state.py = sy
         player.facing = when (spawnKind) {
             SpawnKind.TUNNEL -> Regions.opposite(spawnDir)
             else -> Dir.S

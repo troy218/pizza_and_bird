@@ -53,6 +53,8 @@ class HomeScene(game: Game) : Scene(game) {
     init {
         state.inHome = true
         player.set(6 * 16f + 4f, 6 * 16f)
+        state.px = player.x
+        state.py = player.y
 
         game.hud.showControls = true
         game.hud.showStats = true
@@ -309,11 +311,12 @@ class HomeScene(game: Game) : Scene(game) {
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
         val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
+        val isFemale = state.gender == "female"
         val bmp = when (player.facing) {
-            Dir.E -> a.playerSide[frame]
-            Dir.W -> a.playerSideL[frame]
-            Dir.N -> a.playerUp[frame]
-            else -> a.playerDown[frame]
+            Dir.E -> if (isFemale) a.femaleSide[frame] else a.playerSide[frame]
+            Dir.W -> if (isFemale) a.femaleSideL[frame] else a.playerSideL[frame]
+            Dir.N -> if (isFemale) a.femaleUp[frame] else a.playerUp[frame]
+            else -> if (isFemale) a.femaleDown[frame] else a.playerDown[frame]
         }
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
