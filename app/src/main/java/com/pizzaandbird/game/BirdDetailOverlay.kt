@@ -82,13 +82,6 @@ class BirdDetailOverlay(
             }
         }
 
-        // 키보드/패드 조작
-        if (input.justLeft || input.isDown(Input.Key.A)) {
-            goPrev()
-        } else if (input.justRight || input.isDown(Input.Key.D)) {
-            goNext()
-        }
-
         if (input.justB || input.justBack) {
             scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
