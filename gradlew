@@ -278,8 +278,8 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     PB_EXIT=$?
     cat "$PB_BUILD_LOG"
     if [ "$PB_EXIT" -ne 0 ]; then
-        grep -E '(^e: |^error:|^FAILURE:|^\* What went wrong:|^> |^Caused by:)' "$PB_BUILD_LOG" \
-            | head -30 | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+        grep -E '(^e: |^error:|^FAILURE:|^\* What went wrong:|^> (Could not|Execution failed|A failure|Failed)|^Caused by:)' "$PB_BUILD_LOG" \
+            | tail -30 | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
     fi
     rm -f "$PB_BUILD_LOG"
     exit "$PB_EXIT"
