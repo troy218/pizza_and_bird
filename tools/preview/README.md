@@ -62,6 +62,21 @@ java -cp tools/preview/out/classes-preview:$KOTLIN_HOME/lib/kotlin-stdlib.jar \
   com.pizzaandbird.preview.PreviewMain tools/preview/out
 ```
 
+### 한반도 윤곽 회귀 테스트
+
+`korea_map_smoke.kt`는 북한 윤곽의 꼭짓점 밀도가 남한과 비슷한지, 휴전선이 틈·겹침 없이
+이어지는지, 황해도 남단과 전체 경계가 유지되는지, 자기 교차가 없는지 검사합니다.
+실제 `KoreaMap.drawLand`로 미니맵/확대 지도 배율과 낮·밤·종이 해도 스타일도 확인합니다.
+게임 전체가 아닌 지도와 그래픽 스텁만 컴파일하면 됩니다 (JDK 17 + kotlinc).
+
+```bash
+kotlinc tools/preview/src/android_stubs_graphics.kt tools/preview/src/android_stubs_res.kt \
+  app/src/main/java/com/pizzaandbird/game/KoreaMap.kt tools/preview/korea_map_smoke.kt \
+  -d tools/preview/out/classes-korea-map -jvm-target 17
+java -Djava.awt.headless=true -cp "tools/preview/out/classes-korea-map:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.KoreaMapSmoke
+```
+
 ### 벚꽃 연출 회귀 테스트
 
 `cherry_blossom_smoke.kt`는 두 해의 날짜·시각·날씨를 분 단위로 훑어 개화기 낮의
