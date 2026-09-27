@@ -187,8 +187,9 @@ object SpawnTables {
         // 계절: 종별 오버라이드 표 → 없으면 규칙 엔진
         var m = OVERRIDE[def.id]?.of(season) ?: ruleSeasonal(def, season)
 
-        // 서식지 상성: 지역 풀에 없는 서식지 전속 종은 ×0.2 (완전 0은 아니게 — 예외적 만남)
-        if (def.habitats.none { it in habitats }) m *= 0.2
+        // 넓은 지역 태그가 없는 종은 ×0.2. 명시 지역 범위는 지역 태그보다 우선하며,
+        // 최종 타일 적합도(BirdEcology)가 실제 미소서식지를 다시 확인한다.
+        if (def.onlyRegions?.contains(regionId) != true && def.habitats.none { it in habitats }) m *= 0.2
 
         // 지역 상성 (산/숲 맹금, 물가 새 미세 조정)
         m *= regionAffinity(def, Regions.byId[regionId])

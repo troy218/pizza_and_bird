@@ -515,7 +515,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sx = (docentX - 8f - camX) * WORLD_SCALE
         val sy = (docentY - 13f - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f), a.shadowPaint)
-        val bmp = a.npcBitmap(theme.docentKind, game.time, 1.3f, game.hdSprites)
+        val bmp = a.docentBitmap(theme, game.time, game.hdSprites)
         a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 머리 위 💬 마커
         val bx = sx + 16f
@@ -538,6 +538,10 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        Charms.equipped(state)?.let { item ->
+            Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
+                sy + if (item.id == "rain") 12f else 22f, 8f, game.time)
+        }
         val camDir = when (player.facing) {
             Dir.E -> 2
             Dir.W -> 3
