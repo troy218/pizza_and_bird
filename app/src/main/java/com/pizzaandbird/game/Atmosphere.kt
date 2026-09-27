@@ -5,8 +5,9 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Shader
-import kotlin.math.abs
 import kotlin.math.sin
 
 /**
@@ -21,20 +22,14 @@ class CinematicAtmosphere {
     private var shaderH = 0
 
     fun draw(canvas: Canvas, width: Float, height: Float, hour: Float, weather: Weather, time: Float) {
-        val dawn = if (hour in 5.5f..7.5f) (1f - abs(hour - 6.5f)).coerceIn(0f, 1f) else 0f
-        val dusk = if (hour in 17f..19f) (1f - abs(hour - 18f)).coerceIn(0f, 1f) else 0f
-        val golden = maxOf(dawn, dusk)
+        // 시간대 색은 DayCycle 의 연속 곡선에서 받는다 — 경계에서 툭 바뀌지 않는다.
+        val golden = DayCycle.golden(hour)
+        val dawn = if (DayCycle.solarHour(hour) < 12f) golden else 0f
+        val dusk = if (DayCycle.solarHour(hour) >= 12f) golden else 0f
 
-        // 따뜻한 역광, 비 오는 날의 청회색, 눈 내리는 날의 차가운 공기.
+        // 따뜻한 역광, 비 오는 날의 청회색, 눈 내리는 날의 차가운 공기, 밤의 푸른 공기.
         // 낮에는 색보정을 거의 하지 않아 타일 원색을 살린다.
-        val (r, g, b, strength) = when {
-            golden > 0.04f -> Quad(255, if (dusk > dawn) 132 else 184, 106, (8f + 13f * golden).toInt())
-            weather == Weather.RAIN -> Quad(102, 145, 190, 12)
-            weather == Weather.SNOW -> Quad(178, 207, 236, 7)
-            weather == Weather.CLOUDY -> Quad(155, 173, 196, 5)
-            else -> Quad(255, 244, 218, 3)
-        }
-        wash.color = Color.argb(strength, r, g, b)
+        wash.color = DayCycle.washColor(hour, weather)
         canvas.drawRect(0f, 0f, width, height, wash)
 
         if (golden <= 0.08f) return
@@ -46,7 +41,14 @@ class CinematicAtmosphere {
         val sourceX = if (fromLeft) width * 0.08f else width * 0.92f
         val drift = sin(time * 0.22f) * width * 0.018f
         val sign = if (fromLeft) 1f else -1f
+        // 빛줄기 색도 그 순간의 직사광 색을 따라간다 (동틀 녘 살구빛 → 노을 주홍)
+        val tint = DayCycle.sunlightColor(hour)
+        if (tint != rayTint) {
+            rayTint = tint
+            rayFilter = PorterDuffColorFilter(tint, PorterDuff.Mode.MULTIPLY)
+        }
         rayPaint.shader = rayShader
+        rayPaint.colorFilter = rayFilter
         rayPaint.alpha = (golden * 220f).toInt().coerceIn(0, 220)
         for (i in rays.indices) {
             val spread = (i - 1.5f) * width * 0.12f
@@ -63,9 +65,12 @@ class CinematicAtmosphere {
             canvas.drawPath(path, rayPaint)
         }
         rayPaint.shader = null
+        rayPaint.colorFilter = null
     }
 
     private var rayShader: LinearGradient? = null
+    private var rayTint = 0
+    private var rayFilter: PorterDuffColorFilter? = null
 
     private fun ensureShader(w: Int, h: Int) {
         if (w == shaderW && h == shaderH && rayShader != null) return
@@ -83,5 +88,4 @@ class CinematicAtmosphere {
         )
     }
 
-    private data class Quad(val r: Int, val g: Int, val b: Int, val a: Int)
 }

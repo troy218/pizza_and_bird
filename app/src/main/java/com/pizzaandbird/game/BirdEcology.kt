@@ -10,9 +10,58 @@ object BirdEcology {
     private val natural = setOf(T.GRASS, T.TALLGRASS, T.FLOWER, T.REED, T.SAND)
     private val swimmers = setOf("오리과", "논병아리과", "아비과", "바다오리과", "가마우지과")
     private val waders = setOf("백로과", "저어새과", "황새과", "도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과")
+    private val regionHintCache = HashMap<String, List<RegionDef>>()
+
+    /**
+     * A curated range is authoritative; otherwise the region must advertise at least one
+     * broad habitat for the species. Fine-scale terrain is checked separately by suitability.
+     */
+    fun regionAllows(def: BirdDef, region: RegionDef): Boolean =
+        def.onlyRegions?.let { region.id in it }
+            ?: def.habitats.any { it in region.habitats }
+
+    /**
+     * Returns the best places to look, ordered by the same regional factors used by spawning.
+     * This is a relative in-game encounter ranking, not a field-survey probability.
+     */
+    fun recommendedRegions(def: BirdDef, limit: Int = 3): List<RegionDef> {
+        if (limit <= 0) return emptyList()
+        val ranked = regionHintCache.getOrPut(def.id) {
+            val seasons = Season.values().filter { BirdSeason.valueOf(it.name) in def.seasons }
+            val windows = BirdTimeWindow.values().filter { window ->
+                window in def.timeWindows && when (def.active) {
+                    "night" -> window == BirdTimeWindow.NIGHT
+                    "day" -> window != BirdTimeWindow.NIGHT
+                    else -> true
+                }
+            }
+            Regions.ALL.mapNotNull { region ->
+                if (!regionAllows(def, region)) return@mapNotNull null
+                var bestWeight = 0.0
+                for (season in seasons) for (window in windows) {
+                    val day = season.ordinal * Season.DAYS_PER_SEASON + 1
+                    val hour = when (window) {
+                        BirdTimeWindow.DAWN -> 6f
+                        BirdTimeWindow.DAY -> 9f
+                        BirdTimeWindow.DUSK -> 18f
+                        BirdTimeWindow.NIGHT -> 22f
+                    }
+                    val weight = Birds.spawnWeight(def, region, day, hour) *
+                            seasonBirdMultiplier(def, season, Weather.SUNNY) *
+                            SpawnTables.weight(def, region.id, region.habitats, season, window == BirdTimeWindow.NIGHT)
+                    if (weight > bestWeight) bestWeight = weight
+                }
+                if (bestWeight > 0.0) region to bestWeight else null
+            }
+                .sortedWith(compareByDescending<Pair<RegionDef, Double>> { it.second }.thenBy { it.first.name })
+                .map { it.first }
+        }
+        return ranked.take(limit)
+    }
 
     /** Bird feet, not the sprite's top-left, are the terrain anchor. Water is bird-only. */
     fun suitability(def: BirdDef, map: GameMap, x: Int, y: Int): Double {
+        if (!regionAllows(def, map.region)) return 0.0
         if (x !in 1 until map.w - 1 || y !in 1 until map.h - 1) return 0.0
         val tile = map.t(x, y)
         if (tile !in natural && tile != T.WATER && tile != T.PATH && tile != T.PLAZA) return 0.0

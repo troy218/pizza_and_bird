@@ -316,13 +316,13 @@ object Birds {
         BirdDef(
             "pitta", "팔색조", Tier.RARE, setOf("forest"), 4.0, 20000,
             "무지개 빛깔 여덟 색을 두른 숲의 보석. 운이 좋아야 만날 수 있다.",
-            setOf("gwangju", "jeju", "ulsan"),
+            setOf("gwangju", "jeju", "hallasan", "ulsan", "suncheon", "wangpi"),
             BirdArt(10, c(0xFF4F8F6A), c(0xFFE8E0C8), c(0xFF3F6FB0), c(0xFF23252B), c(0xFFD9403A), c(0xFFB98A4A), head = c(0xFF3A2D28), accent = c(0xFFD9403A), pattern = BirdPatterns.IRIDESCENT)
         ),
         BirdDef(
             "mandarin", "원앙", Tier.RARE, setOf("water", "forest"), 4.5, 24000,
             "무지개色 깃털의 오리. 부부 금실이 좋아 예부터 사랑의 상징이었다.",
-            setOf("gwangju", "jeonju", "jeju", "ulsan"),
+            setOf("chuncheon", "sokcho", "gwangju", "ulsan", "wangpi"),
             BirdArt(1, c(0xFF6B4A5E), c(0xFFF5EBD0), c(0xFF4F7DAD), c(0xFFC9503A), c(0xFFE8863C), c(0xFFD97B4A), 1.05f, head = c(0xFF356D5A), accent = c(0xFFE8863C), pattern = BirdPatterns.IRIDESCENT)
         ),
         BirdDef(
@@ -335,20 +335,20 @@ object Birds {
         BirdDef(
             "redcrown", "재두루미", Tier.RARE, setOf("wetland", "water"), 3.0, 32000,
             "목덜미가 하얀 겨울 귀빈. 두루미보다 눈이 조금 더 검다.",
-            setOf("seoul", "chuncheon", "incheon", "jeju", "cheorwon", "imjin", "junam", "suncheon", "gongneung"),
+            setOf("cheorwon", "imjin", "gongneung", "suncheon", "junam", "geumgang"),
             BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35), 1.25f, pattern = BirdPatterns.DARK_CAP)
         ),
         // ---------------- 전설 ----------------
         BirdDef(
             "crane", "두루미", Tier.LEGEND, setOf("wetland", "water"), 1.2, 60000,
             "머리에 붉은 왕관을 얹은 격식 있는 겨울 손님. 만나면 한 해가 행복하다.",
-            setOf("seoul", "chuncheon", "incheon", "jeju", "cheorwon", "imjin", "junam", "gongneung"),
+            setOf("cheorwon", "imjin", "gongneung", "suncheon", "junam", "geumgang"),
             BirdArt(2, c(0xFFF5F2EA), c(0xFFFFFFFF), c(0xFFD9D3C8), c(0xFF6B4F35), c(0xFFD9403A), c(0xFF6B4F35), 1.3f, accent = c(0xFFD9403A), pattern = BirdPatterns.DARK_CAP)
         ),
         BirdDef(
             "stork", "황새", Tier.LEGEND, setOf("wetland", "water"), 1.0, 65000,
             "붉은 부리와 다리로 한 발로 서서 잠드는, 전설 속 아기를 물어다 주는 새.",
-            setOf("chuncheon", "seoul", "jeju", "upo", "junam", "cheorwon", "suncheon"),
+            setOf("upo", "junam", "cheorwon", "imjin", "suncheon", "geumgang"),
             BirdArt(2, c(0xFFFDFAF2), c(0xFFFFFFFF), c(0xFFE0DCC8), c(0xFFB03A30), c(0xFFFDFAF2), c(0xFFB03A30), 1.35f, pattern = BirdPatterns.DARK_CAP)
         ),
 
@@ -380,13 +380,13 @@ object Birds {
         BirdDef(
             "oystercatcher", "검은머리물떼새", Tier.UNCOMMON, setOf("coast", "wetland"), 10.0, 9500,
             "붉고 긴 부리로 조개를 여는 갯벌의 장인. 검은 등에 흰 배가 또렷하다.",
-            null,
+            setOf("ganghwa", "songdo", "sihwa", "hwaseong", "maehyang", "gochang", "taean", "suncheon", "geumgang", "hadori"),
             BirdArt(0, c(0xFF23252B), c(0xFFF7F5EE), c(0xFF1A1C21), c(0xFFE24B3A), c(0xFF1A1C21), c(0xFFE2857A), 1.05f)
         ),
         BirdDef(
             "greatknot", "붉은어깨도요", Tier.UNCOMMON, setOf("coast", "wetland"), 11.0, 9000,
             "호주에서 시베리아까지 날아가는 장거리 여행자. 갯벌은 그 긴 여정의 주유소다.",
-            null,
+            setOf("ganghwa", "songdo", "sihwa", "hwaseong", "maehyang", "gochang", "taean", "geumgang"),
             BirdArt(0, c(0xFF9B8B76), c(0xFFF2EDE0), c(0xFF7A6A55), c(0xFF4A4238), c(0xFFB5714A), c(0xFF8A8F98), 0.95f)
         ),
         BirdDef(
@@ -416,7 +416,7 @@ object Birds {
         BirdDef(
             "hoodedcrane", "흑두루미", Tier.LEGEND, setOf("wetland", "field"), 1.6, 52000,
             "잿빛 몸에 흰 머리를 얹은 두루미. 순천만 갈대밭 위를 가족 단위로 낮게 난다.",
-            setOf("suncheon", "cheorwon", "imjin", "junam", "geumgang"),
+            setOf("suncheon", "junam", "geumgang"),
             BirdArt(2, c(0xFF55585F), c(0xFF6B6E76), c(0xFF3F4248), c(0xFF6B4F35), c(0xFFF7F5EE), c(0xFF3A3A44), 1.3f)
         ),
         BirdDef(
@@ -461,13 +461,12 @@ object Birds {
         return def.active == "any" || (if (night) def.active == "night" else def.active == "day")
     }
 
-    /** 지역 서식지 + 밤낮/계절/시간대에 맞는 새 풀 */
+    /** 종별 분포 범위·지역 서식지 + 밤낮/계절/시간대에 맞는 새 풀 */
     fun poolFor(region: RegionDef, night: Boolean = false, day: Int? = null, hour: Float? = null): List<BirdDef> {
         val season = day?.let { BirdSeason.ofDay(it) }
         val window = hour?.let { BirdTimeWindow.ofHour(it) }
         return ALL.filter { def ->
-            def.habitats.intersect(region.habitats).isNotEmpty() &&
-                    (def.onlyRegions == null || region.id in def.onlyRegions) &&
+            BirdEcology.regionAllows(def, region) &&
                     timeOk(def, night, window) &&
                     (season == null || season in def.seasons) &&
                     (window == null || window in def.timeWindows)
@@ -496,6 +495,8 @@ object Birds {
         val profile = spawnProfileFor(entry, def.habitats, def.tier)
         val usesDefaultProfile = def.seasons == BirdSeason.ALL && def.timeWindows == BirdTimeWindow.ALL &&
                 def.regionBias.isEmpty() && def.migrationLabel == "텃새"
+        // Even curated seasonal overrides inherit locality weights unless they define their own.
+        val regionalBias = LinkedHashMap(profile.regionBias).apply { putAll(def.regionBias) }
         return BirdDef(
             id = def.id,
             name = def.name,
@@ -516,7 +517,7 @@ object Birds {
             birdNum = num,
             seasons = if (usesDefaultProfile) profile.seasons else def.seasons,
             timeWindows = if (usesDefaultProfile) profile.timeWindows else def.timeWindows,
-            regionBias = if (usesDefaultProfile) profile.regionBias else def.regionBias,
+            regionBias = regionalBias,
             migrationLabel = if (usesDefaultProfile) profile.migrationLabel else def.migrationLabel
         )
     }
@@ -589,6 +590,7 @@ object Birds {
         }
 
         val timeWindows = when {
+            name.contains("해오라기") -> setOf(BirdTimeWindow.DUSK, BirdTimeWindow.NIGHT, BirdTimeWindow.DAWN)
             order == "올빼미목" || order == "쏙독새목" -> setOf(BirdTimeWindow.DUSK, BirdTimeWindow.NIGHT, BirdTimeWindow.DAWN)
             order == "수리목" || order == "매목" -> setOf(BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
             family in setOf("오리과", "두루미과") || hasAny(text, "기러기", "고니") -> setOf(BirdTimeWindow.DAWN, BirdTimeWindow.DAY, BirdTimeWindow.DUSK)
@@ -607,13 +609,39 @@ object Birds {
         return SpawnProfile(seasons, timeWindows, regionBiasFor(entry, habitats), migrationLabel)
     }
 
+    /** Curated locality multipliers shared by field spawns and the encyclopedia's ranked hints. */
+    private fun localityWeightsFor(name: String): Map<String, Double> = when (name) {
+        "두루미" -> mapOf("cheorwon" to 3.0, "imjin" to 2.7, "suncheon" to 2.2, "junam" to 2.0, "geumgang" to 1.8, "gongneung" to 1.6)
+        "재두루미" -> mapOf("cheorwon" to 3.0, "imjin" to 2.7, "junam" to 2.0, "suncheon" to 1.9, "geumgang" to 1.7, "gongneung" to 1.6)
+        "흑두루미" -> mapOf("suncheon" to 3.2, "junam" to 2.5, "geumgang" to 2.2)
+        "황새" -> mapOf("upo" to 2.8, "junam" to 2.4, "cheorwon" to 2.1, "imjin" to 1.8, "suncheon" to 1.7, "geumgang" to 1.6)
+        "따오기" -> mapOf("upo" to 3.2, "junam" to 2.2, "suncheon" to 1.8)
+        "가창오리" -> mapOf("geumgang" to 3.2, "junam" to 2.5, "eulsukdo" to 2.1, "taean" to 1.8, "sihwa" to 1.7, "hwaseong" to 1.5)
+        "큰고니" -> mapOf("eulsukdo" to 2.8, "sihwa" to 2.6, "junam" to 2.3, "geumgang" to 2.0, "taean" to 1.8, "upo" to 1.6)
+        "저어새" -> mapOf("ganghwa" to 3.0, "songdo" to 2.7, "hadori" to 2.2, "sihwa" to 2.0, "gochang" to 1.8, "hwaseong" to 1.7, "suncheon" to 1.5)
+        "물수리" -> mapOf("wangpi" to 3.0, "eulsukdo" to 2.6, "geumgang" to 2.2, "hadori" to 2.0, "junam" to 1.8, "sihwa" to 1.7)
+        "흰꼬리수리" -> mapOf("taean" to 2.8, "cheorwon" to 2.5, "imjin" to 2.3, "eulsukdo" to 2.0, "junam" to 1.8, "geumgang" to 1.7)
+        "팔색조" -> mapOf("hallasan" to 2.8, "jeju" to 2.5, "gwangju" to 2.2, "wangpi" to 1.9, "ulsan" to 1.8, "suncheon" to 1.7)
+        "동박새" -> mapOf("jeju" to 2.8, "hallasan" to 2.6, "ulsan" to 2.2, "gwangju" to 2.0, "suncheon" to 1.8, "wangpi" to 1.7)
+        "원앙" -> mapOf("chuncheon" to 2.6, "wangpi" to 2.4, "sokcho" to 2.1, "gwangju" to 1.9, "ulsan" to 1.7)
+        "검은머리물떼새" -> mapOf("ganghwa" to 2.8, "maehyang" to 2.6, "gochang" to 2.3, "songdo" to 2.1, "hwaseong" to 1.9, "taean" to 1.7)
+        "붉은어깨도요" -> mapOf("hwaseong" to 3.0, "maehyang" to 2.8, "songdo" to 2.5, "ganghwa" to 2.2, "gochang" to 1.9, "taean" to 1.7)
+        else -> emptyMap()
+    }
+
     private fun regionBiasFor(entry: BirdChecklistEntry, habitats: Set<String>): Map<String, Double> {
         val name = entry.koreanName
         val family = entry.familyName
         val text = "$name ${entry.englishName} ${entry.familyName} ${entry.orderName}"
         val m = LinkedHashMap<String, Double>()
         fun boost(ids: Collection<String>, k: Double) { for (id in ids) m[id] = maxOf(m[id] ?: 1.0, k) }
+        fun boostExact(weights: Map<String, Double>) {
+            for ((id, k) in weights) m[id] = maxOf(m[id] ?: 1.0, k)
+        }
 
+        if ("city" in habitats) {
+            boost(listOf("seoul", "incheon", "daejeon", "jeonju", "daegu", "gwangju", "ulsan", "busan", "ansan", "songdo"), 1.3)
+        }
         if ("coast" in habitats || "wetland" in habitats) {
             boost(listOf("incheon", "ganghwa", "songdo", "sihwa", "hwaseong", "maehyang", "taean", "geumgang", "gochang", "suncheon", "eulsukdo", "hadori"), 1.45)
         }
@@ -634,6 +662,7 @@ object Birds {
         if (hasAny(text, "물수리", "Osprey")) boost(listOf("wangpi", "eulsukdo", "geumgang", "sihwa", "hadori"), 2.1)
         if (hasAny(text, "도요", "물떼새", "Sandpiper", "Plover", "Knot")) boost(listOf("hwaseong", "maehyang", "songdo", "ganghwa", "gochang", "taean"), 2.0)
         if (hasAny(text, "갈매기", "바다오리", "아비", "Gull", "Auklet", "Loon")) boost(listOf("gangneung", "busan", "jeju", "hadori", "ulsan", "taean"), 1.8)
+        boostExact(localityWeightsFor(name))
         return m
     }
 

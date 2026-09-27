@@ -89,6 +89,13 @@ data class TunnelInfo(
     val number: Int
 )
 
+data class ViewpointInfo(
+    val tileX: Int,
+    val tileY: Int,
+    val label: String,
+    val height: Int
+)
+
 class GameMap(
     val region: RegionDef,
     val w: Int,
@@ -105,12 +112,48 @@ class GameMap(
     val tunnels: List<TunnelInfo> = emptyList(),
     val hasLandmark: Boolean = false,
     val landmarkDoorX: Int = -1,
-    val landmarkDoorY: Int = -1
+    val landmarkDoorY: Int = -1,
+    /** Climbable contour height in tile steps. Negative values are low wet ground. */
+    val elevation: Array<IntArray> = Array(h) { IntArray(w) },
+    val viewpoints: List<ViewpointInfo> = emptyList()
 ) {
-    private val foliagePaint by lazy { tintedPaint(mapStyle.foliageFilter) }
-    private val waterPaint by lazy { tintedPaint(mapStyle.waterFilter) }
-    private val shorePaint by lazy { tintedPaint(mapStyle.shoreFilter) }
-    private val stonePaint by lazy { tintedPaint(mapStyle.stoneFilter) }
+    /**
+     * 현재 계절 — 나무(벚꽃·단풍·눈)/풀빛/물빛이 계절마다 바뀐다.
+     * 바뀌면 지면 캐시를 버리고(틴트가 바뀌었으므로) 다시 굽는다.
+     */
+    var season: Season = Season.SPRING
+        set(value) {
+            if (field == value) return
+            field = value
+            refreshSeasonPaints()
+            groundChunks.fill(null)
+        }
+
+    private val foliagePaint = Paint().apply { isFilterBitmap = false }
+    private val waterPaint = Paint().apply { isFilterBitmap = false }
+    private val shorePaint = Paint().apply { isFilterBitmap = false }
+    private val stonePaint = Paint().apply { isFilterBitmap = false }
+    private val elevationSidePaint = Paint().apply { isAntiAlias = false }
+    private val elevationTopPaint = Paint().apply { isAntiAlias = false; style = Paint.Style.STROKE; strokeWidth = 1.5f }
+    private val viewpointPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val viewpointStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.6f }
+    private val viewpointText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF3C5D58.toInt()
+        textSize = 11f
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+
+    private fun refreshSeasonPaints() {
+        foliagePaint.colorFilter = PorterDuffColorFilter(
+            multiplyTint(mapStyle.foliageFilter, seasonFoliageTint(season)), PorterDuff.Mode.MULTIPLY)
+        waterPaint.colorFilter = PorterDuffColorFilter(
+            multiplyTint(mapStyle.waterFilter, seasonWaterTint(season)), PorterDuff.Mode.MULTIPLY)
+        if (shorePaint.colorFilter == null) {
+            shorePaint.colorFilter = PorterDuffColorFilter(mapStyle.shoreFilter, PorterDuff.Mode.MULTIPLY)
+            stonePaint.colorFilter = PorterDuffColorFilter(mapStyle.stoneFilter, PorterDuff.Mode.MULTIPLY)
+        }
+    }
 
     // 지면·포장·데칼은 맵이 만들어진 후 변하지 않는다. 물이 없는 청크만 처음 보일 때
     // 래스터화해 두면 매 프레임 수백 장의 타일 대신 화면당 몇 장만 그리면 된다.
@@ -130,9 +173,8 @@ class GameMap(
         containsWater
     }
 
-    private fun tintedPaint(filter: Int): Paint = Paint().apply {
-        isFilterBitmap = false
-        colorFilter = PorterDuffColorFilter(filter, PorterDuff.Mode.MULTIPLY)
+    init {
+        refreshSeasonPaints()
     }
 
     private fun terrainPaint(tile: T, fallback: Paint): Paint = when (tile) {
@@ -143,9 +185,19 @@ class GameMap(
         else -> fallback
     }
 
-    /** A region chooses its own silhouettes; non-nature tiles keep the global tile pattern. */
-    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int =
-        mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+    /**
+     * A region chooses its own silhouettes; non-nature tiles keep the global tile pattern.
+     * 지역 표가 아트 수를 넘어섰더라도 크래시하지 않도록 항상 실제 범위로 눌러 준다.
+     */
+    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int {
+        val picked = mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+        return picked.coerceIn(0, a.tiles[tile.ordinal].size - 1)
+    }
+
+    /** 이 칸에 그려질 바위 변형 — 숨김 판정이 함께 쓴다. */
+    fun rockLook(x: Int, y: Int): Int =
+        mapStyle.natureArt.variant(T.ROCK, x, y, region.id)
+            ?.coerceIn(0, PropLooks.ROCK_COUNT - 1) ?: 0
 
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
@@ -193,6 +245,22 @@ class GameMap(
         return T.ALL[ground[y][x]]
     }
 
+    /** 지형의 상대 높이. 0은 평지, 양수는 단차가 있는 둔덕·데크, 음수는 저지대다. */
+    fun elevationAt(x: Int, y: Int): Int {
+        if (x < 0 || y < 0 || x >= w || y >= h) return 0
+        return elevation[y][x]
+    }
+
+    /** 계단/경사로를 벗어나 한 번에 절벽을 오르지 못하게 한다. */
+    fun canTraverse(fromPx: Float, fromPy: Float, toPx: Float, toPy: Float): Boolean {
+        val fromX = ((fromPx + 8f) / 16f).toInt()
+        val fromY = ((fromPy + 13f) / 16f).toInt()
+        val toX = ((toPx + 8f) / 16f).toInt()
+        val toY = ((toPy + 13f) / 16f).toInt()
+        if (fromX == toX && fromY == toY) return true
+        return kotlin.math.abs(elevationAt(fromX, fromY) - elevationAt(toX, toY)) <= 1
+    }
+
     /** 포장 재질 (0 = 흙/잔디 그대로) */
     fun paveAt(x: Int, y: Int): Int {
         if (x < 0 || y < 0 || x >= w || y >= h) return Pave.NONE
@@ -221,11 +289,15 @@ class GameMap(
 
     /**
      * 시야를 가리는 키 큰 지형지물인가 — 바위·나무·산·건물 등.
-     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하다.
+     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하고,
+     * **발목만 넘는 자갈(PropSize.PEBBLE) 뒤에도 숨지 못한다** — 그 정도 크기로는
+     * 새가 플레이어를 못 볼 테니까. 자갈 더미를 피해 새에게 다가가야 하는 재미가 생긴다.
      */
     fun occludesSight(x: Int, y: Int): Boolean {
         val tile = t(x, y)
-        return tile.bulk || tile == T.TREE || tile == T.ROCK
+        if (tile.bulk || tile == T.TREE) return true
+        if (tile != T.ROCK) return false
+        return PropLooks.rockBlocksSight(rockLook(x, y))
     }
 
     /**
@@ -312,8 +384,13 @@ class GameMap(
 
         // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
         if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
-            val gv = ground[y][x]
-            val gTile = T.ALL[gv]
+            // 겨울엔 꽃밭이 진다 — 마른 잔디로 읽힌다 (눈은 WorldFx가 덮는다)
+            var gv = ground[y][x]
+            var gTile = T.ALL[gv]
+            if (season == Season.WINTER && gTile == T.FLOWER) {
+                gv = T.GRASS.ordinal
+                gTile = T.GRASS
+            }
             val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
             else a.tiles[gv][artVariant(a, gTile, x, y)]
             c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
@@ -357,6 +434,62 @@ class GameMap(
     }
 
     /**
+     * Raised decks and wet lowlands use a small orthographic lip instead of a flat
+     * color change. It stays in the tile plane so existing sprites and collision
+     * coordinates remain compatible with old saves.
+     */
+    private fun drawElevationRelief(c: Canvas, camX: Float, camY: Float, x0: Int, y0: Int, x1: Int, y1: Int) {
+        for (y in y0..y1) for (x in x0..x1) {
+            val level = elevationAt(x, y)
+            val fx = x * 32f - camX
+            val fy = y * 32f - camY
+            if (level > 0) {
+                val lip = (level * 4f).coerceAtMost(12f)
+                val below = elevationAt(x, y + 1)
+                if (below < level) {
+                    elevationSidePaint.color = Color.argb(34 + level * 12, 48, 67, 62)
+                    c.drawRect(fx + 2f, fy + 27f, fx + 30f, fy + 32f + lip, elevationSidePaint)
+                    elevationTopPaint.color = Color.argb(125, 250, 247, 218)
+                    c.drawLine(fx + 2f, fy + 27f, fx + 30f, fy + 27f, elevationTopPaint)
+                }
+                val right = elevationAt(x + 1, y)
+                if (right < level) {
+                    elevationSidePaint.color = Color.argb(24 + level * 9, 42, 61, 57)
+                    c.drawRect(fx + 27f, fy + 3f, fx + 32f + lip, fy + 29f, elevationSidePaint)
+                }
+            } else if (level < 0 && elevationAt(x, y - 1) >= 0) {
+                // A soft darker rim makes floodplain / tidal flats read as lower ground.
+                elevationSidePaint.color = Color.argb(32, 65, 116, 110)
+                c.drawRect(fx + 1f, fy + 1f, fx + 31f, fy + 4f, elevationSidePaint)
+            }
+        }
+    }
+
+    /** Small railings and a flag make the destination of a climb legible from below. */
+    private fun drawViewpointMarkers(c: Canvas, camX: Float, camY: Float, x0: Int, y0: Int, x1: Int, y1: Int) {
+        for (view in viewpoints) {
+            if (view.tileX !in x0 - 1..x1 + 1 || view.tileY !in y0 - 1..y1 + 1) continue
+            val sx = view.tileX * 32f - camX
+            val sy = view.tileY * 32f - camY
+            viewpointPaint.color = 0xFF6A8E83.toInt()
+            c.drawRect(sx + 5f, sy + 13f, sx + 27f, sy + 16f, viewpointPaint)
+            viewpointStroke.color = 0xFFD8E9D5.toInt()
+            for (px in 7..25 step 6) c.drawLine(sx + px, sy + 7f, sx + px, sy + 15f, viewpointStroke)
+            c.drawLine(sx + 7f, sy + 7f, sx + 25f, sy + 7f, viewpointStroke)
+            viewpointPaint.color = 0xFF4F746A.toInt()
+            c.drawRect(sx + 15f, sy + 3f, sx + 16.5f, sy + 14f, viewpointPaint)
+            viewpointPaint.color = 0xFFF2B63C.toInt()
+            val flag = Path()
+            flag.moveTo(sx + 16f, sy + 3f); flag.lineTo(sx + 26f, sy + 6f); flag.lineTo(sx + 16f, sy + 9f); flag.close()
+            c.drawPath(flag, viewpointPaint)
+            if (view.height >= 2) {
+                viewpointText.color = Color.argb(210, 53, 82, 76)
+                c.drawText("전망", sx + 16f, sy - 3f, viewpointText)
+            }
+        }
+    }
+
+    /**
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
      * 레이어 순서: 지면 -> 포장(오토타일) -> 데칼 -> 구조물/소품 -> 접지 그림자.
@@ -374,6 +507,8 @@ class GameMap(
         val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2      // 가정용 오븐 불빛 깜빡임
 
         drawGround(c, a, camX, camY, x0, y0, x1, y1, time, waterFrame)
+        drawElevationRelief(c, camX, camY, x0, y0, x1, y1)
+        drawViewpointMarkers(c, camX, camY, x0, y0, x1, y1)
 
         // 3.5) 햇빛 그림자 — 해의 위치(시각)에 따라 나무·가로등·이정표의 긴 그림자가 돌아간다
         if (sunAlpha > 0 && sunLen > 0f) {
@@ -430,8 +565,12 @@ class GameMap(
 
                 // 4) 구조물 / 소품
                 if (!tile.ground && tile != T.OVEN) {
+                    // 나무는 계절마다 벚꽃·푸른 잎·단풍·눈으로 갈아입는다
                     val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
-                    else a.tiles[tv][artVariant(a, tile, x, y)]
+                    else if (tile == T.TREE) {
+                        val base = artVariant(a, tile, x, y)
+                        a.tiles[tv][a.seasonTreeIndex(base, season, x, y)]
+                    } else a.tiles[tv][artVariant(a, tile, x, y)]
                     if (tile == T.SIGN) {
                         val k = signAlpha(x, y)
                         if (k <= 0f) continue
@@ -649,6 +788,7 @@ object MapBuilder {
         val base = Array(h) { IntArray(w) { T.GRASS.ordinal } }
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
+        val elevation = Array(h) { IntArray(w) }
         val reserved = Array(h) { BooleanArray(w) }
         val structure = Array(h) { BooleanArray(w) }      // 길이 뚫고 지나갈 수 없는 칸
         val rnd = Random(region.id.hashCode().toLong())
@@ -800,6 +940,25 @@ object MapBuilder {
             if (t[y][x] == T.MOUNTAIN.ordinal) return
             t[y][x] = T.ROCK.ordinal
             reserved[y][x] = true
+        }
+        /**
+         * 바위 옆에 동행 돌을 하나 얹는다 — 3~4칸짜리 돌무더기로 읽히게 한다.
+         * 한 칸짜리 바위를 등간격으로 뿌리면 '붙여놓은 돌' 같아서 동물을 숨길 때도
+         * 주변이 어중간한 얼룩이 된다. 크기가 다른 바위가 겹치면 하나의 노두로 보인다.
+         */
+        val ROCK_OFFSETS = arrayOf(
+            intArrayOf(1, 0), intArrayOf(0, 1), intArrayOf(-1, 0), intArrayOf(0, -1),
+            intArrayOf(1, 1), intArrayOf(1, -1), intArrayOf(-1, 1), intArrayOf(-1, -1)
+        )
+        fun rockBuddy(x: Int, y: Int) {
+            if (rnd.nextFloat() > 0.42f) return
+            val step = ROCK_OFFSETS[rnd.nextInt(8)]
+            val bx = x + step[0]
+            val by = y + step[1]
+            if (bx < 2 || by < 2 || bx >= w - 2 || by >= h - 2) return
+            if (reserved[by][bx] || t[by][bx] != T.GRASS.ordinal) return
+            if (base[by][bx] == T.WATER.ordinal || pave[by][bx] != Pave.NONE) return
+            placeRock(bx, by)
         }
         fun placeTree(x: Int, y: Int) {
             if (!inb(x, y) || isPlazaOrRoad(x, y)) return
@@ -1699,9 +1858,9 @@ object MapBuilder {
             when {
                 // 습지·강은 갈대/물억새를 우선하고, 산은 바위와 숲을 우선한다.
                 isWet && r < 0.28 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
-                isRiver && r < 0.17 -> t[y][x] = T.ROCK.ordinal
-                isCoast && r < 0.16 -> t[y][x] = T.ROCK.ordinal
-                isMountain && r < 0.15 -> t[y][x] = T.ROCK.ordinal
+                isRiver && r < 0.17 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
+                isCoast && r < 0.16 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
+                isMountain && r < 0.15 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
                 // 도시 공원·하천 산책로에는 꽃밭을 조금 더 자주 만든다.
                 region.city && r < 0.19 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
@@ -1709,7 +1868,9 @@ object MapBuilder {
                     t[y][x] = T.FLOWER.ordinal
                     base[y][x] = T.FLOWER.ordinal
                 }
-                r < region.treeDensity + region.flowerDensity + region.rockDensity -> t[y][x] = T.ROCK.ordinal
+                r < region.treeDensity + region.flowerDensity + region.rockDensity -> {
+                    t[y][x] = T.ROCK.ordinal; rockBuddy(x, y)
+                }
             }
         }
 
@@ -1723,6 +1884,90 @@ object MapBuilder {
                 ) {
                     t[y][x] = T.TALLGRASS.ordinal
                     base[y][x] = T.TALLGRASS.ordinal
+                }
+            }
+        }
+
+        // 13.5 높낮이와 전망 데크 ----------------------------------------------------
+        // Water edges, tidal flats, reeds, and rice fields sit slightly lower.
+        // A single regional high point is reached through a real, one-step-at-a-time ramp.
+        for (y in 0 until h) for (x in 0 until w) {
+            elevation[y][x] = when {
+                base[y][x] == T.WATER.ordinal -> -1
+                t[y][x] == T.SAND.ordinal || t[y][x] == T.REED.ordinal ||
+                    t[y][x] == T.TALLGRASS.ordinal && (isWet || isCoast) -> -1
+                else -> 0
+            }
+        }
+
+        val viewpoints = ArrayList<ViewpointInfo>()
+        val viewSpec = mapStyle.viewpoint
+        if (viewSpec != null) {
+            fun freeDeck(x: Int, y: Int): Boolean =
+                inb(x, y) && x in 3 until w - 3 && y in 3 until h - 3 &&
+                    !reserved[y][x] && !structure[y][x] && base[y][x] != T.WATER.ordinal &&
+                    !T.ALL[t[y][x]].solid
+
+            var deck: Pair<Int, Int>? = null
+            val candidates = ArrayList<Pair<Int, Int>>()
+            candidates.add(viewSpec.point.x to viewSpec.point.y)
+            for (radius in 1..6) for (dy in -radius..radius) for (dx in -radius..radius) {
+                if (kotlin.math.abs(dx) != radius && kotlin.math.abs(dy) != radius) continue
+                candidates.add(viewSpec.point.x + dx to viewSpec.point.y + dy)
+            }
+            for (candidate in candidates) if (freeDeck(candidate.first, candidate.second)) {
+                deck = candidate; break
+            }
+
+            if (deck != null) {
+                // BFS finds a walkable connection to an existing path, not a decorative
+                // staircase that ends in a tree or a river. Prefer enough run-up for the height.
+                val startKey = deck.second * 100 + deck.first
+                val parent = HashMap<Int, Int>()
+                val distance = HashMap<Int, Int>()
+                val q = ArrayDeque<Int>()
+                q.add(startKey); distance[startKey] = 0
+                var targetKey: Int? = null
+                while (q.isNotEmpty()) {
+                    val key = q.removeFirst()
+                    val cy = key / 100; val cx = key - cy * 100
+                    val d = distance[key] ?: 0
+                    if (d >= viewSpec.height && pave[cy][cx] != Pave.NONE) { targetKey = key; break }
+                    for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                        val nx = cx + dx; val ny = cy + dy
+                        if (!inb(nx, ny) || nx !in 2 until w - 2 || ny !in 2 until h - 2) continue
+                        val nk = ny * 100 + nx
+                        if (nk in distance || structure[ny][nx] || (reserved[ny][nx] && pave[ny][nx] == Pave.NONE) || T.ALL[t[ny][nx]].solid || base[ny][nx] == T.WATER.ordinal) continue
+                        distance[nk] = d + 1; parent[nk] = key; q.add(nk)
+                    }
+                }
+                if (targetKey != null) {
+                    val route = ArrayList<Pair<Int, Int>>()
+                    var key = targetKey!!
+                    while (true) {
+                        val cy = key / 100; val cx = key - cy * 100
+                        route.add(cx to cy)
+                        if (key == startKey) break
+                        key = parent[key] ?: break
+                    }
+                    route.reverse()
+                    val actualHeight = minOf(viewSpec.height, route.lastIndex.coerceAtLeast(1))
+                    for (i in route.indices) {
+                        val (x, y) = route[i]
+                        val level = kotlin.math.round(actualHeight * (1f - i.toFloat() / route.lastIndex.coerceAtLeast(1))).toInt()
+                        elevation[y][x] = level
+                        if (i == 0) {
+                            t[y][x] = T.PLAZA.ordinal
+                            base[y][x] = T.GRASS.ordinal
+                            pave[y][x] = Pave.STONE
+                        } else {
+                            t[y][x] = T.PATH.ordinal
+                            base[y][x] = T.GRASS.ordinal
+                            pave[y][x] = Pave.STONE
+                        }
+                        reserved[y][x] = true
+                    }
+                    viewpoints.add(ViewpointInfo(deck!!.first, deck!!.second, viewSpec.label, actualHeight))
                 }
             }
         }
@@ -1742,12 +1987,11 @@ object MapBuilder {
             tunnels = tunnelList
         )
 
-        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, mapStyle, tunnelList)
-
         return GameMap(
             region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY,
             mapStyle, tunnelList,
-            hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY
+            hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY,
+            elevation = elevation, viewpoints = viewpoints
         )
     }
 
@@ -1824,7 +2068,7 @@ object MapBuilder {
         fun keep(cx: Int, cy: Int, r: Int) {
             for (y in cy - r..cy + r) for (x in cx - r..cx + r) keepClear.add(y * 100 + x)
         }
-        keep(18, 14, 1)                                  // 빠른 이동(광장) 도착 자리
+        keep(18, 14, 1)                                  // 첫 지역 진입 시 중앙 광장 스폰 자리
         for (info in tunnels) keep(info.tileX, info.tileY, 2)
         if (houseDoorX >= 0) {
             keep(houseDoorX, houseDoorY + 1, 2)          // 현관 앞
@@ -1845,7 +2089,7 @@ object MapBuilder {
         }
 
         /**
-         * 플레이어가 대화하려고 설 수 있는 자리인가 (인사 자리·빠른 이동 도착 지점용).
+         * 플레이어가 대화하려고 설 수 있는 자리인가 (인사 자리·퀘스트 길안내 도착 지점용).
          *
          * 발판 박스(`GameMap.solidBox`)는 서 있는 칸 **아래 칸**까지 검사하므로
          * 아래 칸이 고체면 그 자리에 설 수 없다.
@@ -2156,7 +2400,7 @@ class Npc(val person: NpcPerson, val tileX: Int, val tileY: Int) {
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
-    /** 인사 자리 — 말을 걸 때 플레이어가 서 있어야 할 타일 (빠른 이동 도착 지점으로도 쓴다) */
+    /** 인사 자리 — 말을 걸 때 플레이어가 서 있어야 할 타일 (퀘스트 길안내 목적지로도 쓴다) */
     var greetX: Int = tileX
     var greetY: Int = tileY + 1
     val greetCx: Float get() = greetX * 16f + 8f
@@ -2393,16 +2637,19 @@ class Player {
 
 /** 필드에 나타난 새 */
 class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
-    var state = 0                    // 0 대기, 1 깡충, 2 도망
-    var idleT = 0.8f
-    private var residenceLeft = 55f + (Math.random() * 65f).toFloat()
+    // 0 대기, 1 짧은 걸음/깡충, 2 플레이어에게서 도망, 3 짧은 활공
+    var state = 0
+    private val movement = BirdMovement.profile(def)
+    private val random = Random(System.nanoTime() xor def.id.hashCode().toLong() xor x.toBits().toLong() xor y.toBits().toLong())
+    var idleT = movement.nextRest(random)
+    private var residenceLeft = 55f + random.nextFloat() * 65f
     var hopFromX = 0f; var hopFromY = 0f
     var hopToX = 0f; var hopToY = 0f
     var hopT = 0f
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
-    /** 지형지물에 시야가 가려져 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
+    /** 지형지물 뒤 — 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
     var hiddenFromPlayer = false
     var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
     var renderPose = BirdPose.PERCHED
@@ -2415,15 +2662,30 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
 
     val cx: Float get() = x + sprW / 2f
     val cy: Float get() = y + sprH * 0.72f
+    val flightFrame: Int get() = if (state == 3) ((hopT * 8f).toInt() and 1) else ((fleeT * 11f).toInt() and 1)
+
+    /** 새가 놀랐을 때의 탈출 방향과 속도도 종별 비행 특성에 맞춘다. */
+    fun startFlee(awayX: Float, awayY: Float) {
+        state = 2
+        val len = sqrt(awayX * awayX + awayY * awayY).coerceAtLeast(0.01f)
+        val dx = awayX / len
+        val dy = awayY / len
+        fleeVx = dx * movement.fleeSpeed * movement.horizontalBias
+        fleeVy = dy * movement.fleeSpeed * 0.55f - movement.fleeLift
+        facing = if (kotlin.math.abs(fleeVx) >= kotlin.math.abs(fleeVy)) {
+            if (fleeVx < 0f) BirdFacing.LEFT else BirdFacing.RIGHT
+        } else {
+            if (fleeVy < 0f) BirdFacing.BACK else BirdFacing.FRONT
+        }
+        renderPose = BirdPose.ALERT
+        fleeT = 0f
+    }
 
     fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
-        // Birds eventually leave even when the player waits still: no permanently full pool.
+        // 새마다 다른 체류 시간. 가만히 기다려도 공간이 영구히 점유되지 않는다.
         residenceLeft -= dt
         if (residenceLeft <= 0f && state == 0) {
-            state = 2
-            fleeVx = if (faceLeft) -65f else 65f
-            fleeVy = -45f
-            fleeT = 0f
+            startFlee(if (faceLeft) -1f else 1f, -0.25f)
         }
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
@@ -2433,73 +2695,39 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
         } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
         val fleeR = fleeTiles * 16f
-        val dToPlayer = sqrt((playerCx - cx) * (playerCx - cx) + (playerCy - cy) * (playerCy - cy))
-        // 지형지물 뒤 — 새와 플레이어 사이에 바위·나무·건물이 있어 시야가 막히면
-        // 새는 플레이어를 알아채지 못해 훨씬 가까이 다가가도 도망가지 않는다.
+        val dxPlayer = playerCx - cx
+        val dyPlayer = playerCy - cy
+        val dToPlayer = sqrt(dxPlayer * dxPlayer + dyPlayer * dyPlayer)
         hiddenFromPlayer = dToPlayer < fleeR && map.isOccluded(playerCx, playerCy, cx, cy)
         val effFleeR = if (hiddenFromPlayer) (fleeR * HIDDEN_FLEE_K).coerceAtLeast(9f) else fleeR
 
         when (state) {
             0 -> {
                 if (dToPlayer < effFleeR) {
-                    state = 2
-                    val dx = if (cx - playerCx == 0f) 0.01f else cx - playerCx
-                    val dy = if (cy - playerCy == 0f) -0.01f else cy - playerCy
-                    val len = sqrt(dx * dx + dy * dy)
-                    fleeVx = dx / len * 85f
-                    fleeVy = dy / len * 85f - 35f
-                    facing = if (kotlin.math.abs(fleeVx) >= kotlin.math.abs(fleeVy)) {
-                        if (fleeVx < 0f) BirdFacing.LEFT else BirdFacing.RIGHT
-                    } else {
-                        if (fleeVy < 0f) BirdFacing.BACK else BirdFacing.FRONT
-                    }
-                    renderPose = BirdPose.ALERT
-                    fleeT = 0f
+                    startFlee(cx - playerCx, cy - playerCy)
                     return
                 }
-                // 숨어 있어도 평소 도망 반경 안에선 뭔가 낌새를 느끼고 주위를 두리번거린다
                 if (hiddenFromPlayer && dToPlayer < fleeR) renderPose = BirdPose.ALERT
                 idleT -= dt
-                if (idleT <= 0f) {
-                    // 무작위 방향으로 폴짝
-                    val dirs = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)
-                    val (ddx, ddy) = dirs[(Math.random() * dirs.size).toInt()]
-                    val nx = x + ddx * 16f
-                    val ny = y + ddy * 16f
-                    val tx = ((nx + sprW / 2f) / 16f).toInt()
-                    val ty = ((ny + sprH) / 16f).toInt()
-                    val nearPlayer = sqrt((nx - playerCx) * (nx - playerCx) + (ny - playerCy) * (ny - playerCy)) < 40f
-                    if (BirdEcology.suitability(def, map, tx, ty) > 0.0 && !nearPlayer) {
-                        hopFromX = x; hopFromY = y
-                        hopToX = nx; hopToY = ny
-                        hopT = 0f
-                        state = 1
-                        facing = when {
-                            ddx < 0 -> BirdFacing.LEFT
-                            ddx > 0 -> BirdFacing.RIGHT
-                            ddy < 0 -> BirdFacing.BACK
-                            else -> BirdFacing.FRONT
-                        }
-                        renderPose = BirdPose.ALERT
-                    } else {
-                        idleT = 0.6f
-                    }
-                }
+                if (idleT <= 0f) beginCharacteristicMove(map, playerCx, playerCy)
             }
-            1 -> {
-                hopT += dt / 0.22f
+            1, 3 -> {
+                hopT = (hopT + dt / movement.stepSeconds).coerceAtMost(1f)
+                x = hopFromX + (hopToX - hopFromX) * hopT
+                y = hopFromY + (hopToY - hopFromY) * hopT
                 if (hopT >= 1f) {
                     x = hopToX; y = hopToY
                     state = 0
-                    idleT = 0.7f + (Math.random() * 1.6f).toFloat()
-                    renderPose = when {
-                        Math.random() < 0.28 -> BirdPose.FEEDING
-                        Math.random() < 0.36 -> BirdPose.ALERT
-                        else -> BirdPose.PERCHED
+                    idleT = movement.nextRest(random)
+                    renderPose = when (movement.style) {
+                        BirdMovementStyle.SONG_BIRD -> if (random.nextFloat() < 0.62f) BirdPose.FEEDING else BirdPose.PERCHED
+                        BirdMovementStyle.WADER -> if (random.nextFloat() < 0.55f) BirdPose.FEEDING else BirdPose.PERCHED
+                        BirdMovementStyle.WATERFOWL -> if (random.nextFloat() < 0.25f) BirdPose.FEEDING else BirdPose.PERCHED
+                        BirdMovementStyle.RAPTOR -> if (random.nextFloat() < 0.55f) BirdPose.ALERT else BirdPose.PERCHED
+                        BirdMovementStyle.AERIAL -> BirdPose.PERCHED
+                        BirdMovementStyle.OWL -> if (random.nextFloat() < 0.7f) BirdPose.ALERT else BirdPose.PERCHED
+                        BirdMovementStyle.GROUNDFORAGER -> if (random.nextFloat() < 0.5f) BirdPose.FEEDING else BirdPose.PERCHED
                     }
-                } else {
-                    x = hopFromX + (hopToX - hopFromX) * hopT
-                    y = hopFromY + (hopToY - hopFromY) * hopT
                 }
             }
             2 -> {
@@ -2510,11 +2738,56 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
         }
     }
 
-    val gone: Boolean get() = state == 2 && fleeT > 1.5f
+    private fun beginCharacteristicMove(map: GameMap, playerCx: Float, playerCy: Float) {
+        val dirs = when (movement.style) {
+            BirdMovementStyle.WATERFOWL -> {
+                if (random.nextFloat() < 0.72f) listOf(1 to 0, -1 to 0) else listOf(0 to 1, 0 to -1, 1 to 0, -1 to 0)
+            }
+            BirdMovementStyle.AERIAL, BirdMovementStyle.RAPTOR -> listOf(
+                1 to 0, -1 to 0, 0 to 1, 0 to -1, 1 to 1, -1 to 1, 1 to -1, -1 to -1
+            )
+            else -> listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)
+        }
+        val shuffledDirs = dirs.toMutableList().also { java.util.Collections.shuffle(it, random) }
 
-    /** 점프 중 살짝 들리는 높이 */
+        for ((ddx, ddy) in shuffledDirs) {
+            val nx = x + ddx * 16f * movement.stepTiles
+            val ny = y + ddy * 16f * movement.stepTiles
+            val tx = ((nx + sprW / 2f) / 16f).toInt()
+            val ty = ((ny + sprH) / 16f).toInt()
+            val nextCx = nx + sprW / 2f
+            val nextCy = ny + sprH * 0.72f
+            val nearPlayer = sqrt((nextCx - playerCx) * (nextCx - playerCx) + (nextCy - playerCy) * (nextCy - playerCy)) < 40f
+            if (nearPlayer || BirdEcology.suitability(def, map, tx, ty) <= 0.0) continue
+
+            hopFromX = x; hopFromY = y
+            hopToX = nx; hopToY = ny
+            hopT = 0f
+            // Swallows and raptors glide between perches; ground and water birds stay low.
+            state = if (movement.style == BirdMovementStyle.AERIAL || movement.style == BirdMovementStyle.RAPTOR) 3 else 1
+            facing = when {
+                ddx < 0 -> BirdFacing.LEFT
+                ddx > 0 -> BirdFacing.RIGHT
+                ddy < 0 -> BirdFacing.BACK
+                else -> BirdFacing.FRONT
+            }
+            renderPose = BirdPose.ALERT
+            return
+        }
+
+        // 웅크린 올빼미도 가끔 방향을 바꿔 주위를 살핀다.
+        if (movement.style == BirdMovementStyle.OWL && random.nextFloat() < 0.5f) {
+            facing = listOf(BirdFacing.LEFT, BirdFacing.RIGHT, BirdFacing.FRONT, BirdFacing.BACK)[random.nextInt(4)]
+            renderPose = BirdPose.ALERT
+        }
+        idleT = movement.nextRest(random) * 0.45f
+    }
+
+    val gone: Boolean get() = state == 2 && fleeT > movement.leaveAfter
+
+    /** 종별로 다른 걸음/활공 높이 */
     val hopLift: Float
-        get() = if (state == 1) (kotlin.math.sin((hopT * Math.PI).toFloat()) * 5f) else 0f
+        get() = if (state == 1 || state == 3) (kotlin.math.sin((hopT * Math.PI).toFloat()) * movement.lift) else 0f
 
     companion object {
         /** 지형지물 뒤에 숨었을 때의 도망 반경 배율 — 평소보다 훨씬 가까이 다가갈 수 있다. */

@@ -34,6 +34,9 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     private var camY = 0f
     private var velX = 0f
     private var velY = 0f
+    private var questPathKey = ""
+    private var questPath = emptyList<PointF>()
+    private var questPathIndex = 0
 
     /** 탭 좌표 역변환용 — drawWorld가 쓰는 카메라 기준점 */
     override fun cameraOffset(): PointF = PointF(camX, camY)
@@ -141,17 +144,18 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         game.hud.showMinimap = false
         game.hud.regionLabel = "우리 집"
         game.hud.photoModeHint = false
-        game.hud.questLabel = null
+        updateQuestHud()
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
-        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리
+        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리, 맑으면 창밖 계절 소리
     }
 
     override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        updateQuestHud()
         applyIndoorAmbience()   // 비가 오고 그치는 것을 창밖 소리로 (자다 일어나도 바로 반영)
         if (overlay != null) {
             game.audio.stopSteps()
@@ -162,12 +166,18 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         state.advanceClock(dt)
         updateMotes(dt)
 
-        // 이동 (자전거 금지!)
+        // 이동 (실내에서는 자전거 금지, 길안내는 걸어서 현관/화덕까지)
         player.bike = false
         val input = game.input
-        val dx = input.dirX
-        val dy = input.dirY
-        val moving = dx != 0f || dy != 0f
+        val manualMoving = kotlin.math.abs(input.dirX) > 0.02f || kotlin.math.abs(input.dirY) > 0.02f
+        if (state.questTravelPlan != null && manualMoving) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
+        val guide = if (state.questTravelPlan != null) guidedTravelDirection() else null
+        val dx = guide?.first ?: input.dirX
+        val dy = guide?.second ?: input.dirY
+        val moving = kotlin.math.abs(dx) > 0.01f || kotlin.math.abs(dy) > 0.01f
         player.moving = moving
         if (moving) {
             if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
@@ -175,7 +185,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
             val vx = if (len > 0.01f) dx / len else 0f
             val vy = if (len > 0.01f) dy / len else 0f
-            val speed = (if (state.hunger <= 0f) 34f else 55f) * input.moveScale
+            val speed = (if (state.hunger <= 0f) 34f else 55f) * (if (guide != null) 1f else input.moveScale)
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.play(Anim.WALK, dt, (speed / 55f).coerceIn(0.5f, 1.6f))
@@ -201,6 +211,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
 
         state.px = player.x
         state.py = player.y
+        finishHomeQuestArrival()
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상)
         game.hud.contextIcon = nearestInteract()?.let { (target, _) ->
@@ -213,6 +224,59 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
                 else -> "plant"
             }
         }
+    }
+
+    private fun updateQuestHud() {
+        val tracker = QuestNavigation.tracker(state)
+        game.hud.questLabel = tracker?.title
+        game.hud.questObjective = tracker?.requirement
+        game.hud.questProgress = tracker?.progress
+        game.hud.questTravelLabel = state.questTravelPlan?.let { plan ->
+            if (plan.targetKind == QuestTargetKind.HOME_OVEN && plan.targetRegionId == exitRegionId) {
+                "🚲 화덕으로 이동 중"
+            } else "🚲 현관으로 이동 · ${plan.targetLabel}"
+        }
+    }
+
+    private fun guidedTravelDirection(): Pair<Float, Float>? {
+        val plan = state.questTravelPlan ?: run {
+            questPathKey = ""
+            questPath = emptyList()
+            questPathIndex = 0
+            return null
+        }
+        val toOven = plan.targetKind == QuestTargetKind.HOME_OVEN && plan.targetRegionId == exitRegionId
+        val key = "home:${exitRegionId}:${if (toOven) "oven" else "exit"}:${plan.hashCode()}"
+        if (questPathKey != key) {
+            val goal = if (toOven) PointF(10f * 16f, 3f * 16f)
+            else PointF(7.5f * 16f, (map.h - 1) * 16f - 1f)
+            val path = QuestPathfinder.findPath(map, player.x, player.y, goal.x, goal.y)
+            if (path == null) {
+                QuestNavigation.cancel(game, "실내에서 목표로 이어지는 길을 찾지 못했어요")
+                questPathKey = ""
+                return null
+            }
+            questPathKey = key
+            questPath = path
+            questPathIndex = 0
+        }
+        while (questPathIndex < questPath.size &&
+            hypot(questPath[questPathIndex].x - player.x, questPath[questPathIndex].y - player.y) < 5f
+        ) questPathIndex++
+        val waypoint = questPath.getOrNull(questPathIndex) ?: return null
+        return (waypoint.x - player.x) to (waypoint.y - player.y)
+    }
+
+    private fun finishHomeQuestArrival() {
+        val plan = state.questTravelPlan ?: return
+        if (plan.targetKind != QuestTargetKind.HOME_OVEN || plan.targetRegionId != exitRegionId) return
+        if (hypot(ovenX - player.cx, ovenY - player.cy) > 34f) return
+        state.questTravelPlan = null
+        questPathKey = ""
+        questPath = emptyList()
+        SaveManager.save(game.context, state)
+        game.toast("화덕에 도착했어요. 피자를 구워 의뢰를 마무리하세요!")
+        interact("oven", -1)
     }
 
     private fun updateRig(dt: Float, vx: Float, vy: Float, gait: Gait) {
@@ -495,6 +559,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     // -------------------------------------------------------------------
 
     override fun handleInput(input: Input) {
+        if (state.questTravelPlan != null && (input.justA || input.justEat)) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (input.justBack) {
             openOverlay(MenuOverlay(this))
             return
@@ -505,6 +573,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         }
         if (input.justCam) {
             game.toast("집에선 쉬어도 돼요. 새는 밖에서!")
+            return
+        }
+        if (input.justQuest) {
+            QuestNavigation.openTracker(this)
             return
         }
         if (input.justB) {
@@ -529,6 +601,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             return
         }
         val tap = input.consumeTapWorld()
+        if (tap != null && state.questTravelPlan != null) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (tap != null) {
             val sp = nearestSpot(tap.x, tap.y, tap = true)
             if (sp != null) interact(sp.key, sp.slot)
@@ -588,6 +664,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        Charms.equipped(state)?.let { item ->
+            Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
+                sy + if (item.id == "rain") 12f else 22f, 8f, game.time)
+        }
         // 집 안에서도 카메라는 목에 걸고 다닌다
         val camDir = when (player.facing) {
             Dir.E -> 2
@@ -692,32 +772,26 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         )
     }
 
-    /** 시각에 따른 하늘색 (새벽 분홍 → 낮 하늘 → 노을 → 밤) */
-    private fun skyColor(h: Float): Int {
-        val night = 0xFF1C2350.toInt()
-        val dawn = 0xFFF2A07A.toInt()
-        val day = 0xFF9FD4F0.toInt()
-        val dusk = 0xFFF08A5A.toInt()
-        return when {
-            h < 4.5f -> night
-            h < 6f -> lerpC(night, dawn, (h - 4.5f) / 1.5f)
-            h < 7.5f -> lerpC(dawn, day, (h - 6f) / 1.5f)
-            h < 17f -> day
-            h < 18.5f -> lerpC(day, dusk, (h - 17f) / 1.5f)
-            h < 20f -> lerpC(dusk, night, (h - 18.5f) / 1.5f)
-            else -> night
-        }
-    }
+    /**
+     * 시각에 따른 창밖 하늘색.
+     * DayCycle 의 연속 색 램프를 그대로 쓴다 — 여명 남색 → 보랏빛 → 살구빛 동틀 녘 →
+     * 한낮 하늘 → 노을 주홍 → 자줏빛 땅거미 → 밤. 창문 위쪽은 천정색으로 살짝 짙게.
+     */
+    private fun skyColor(h: Float): Int = DayCycle.skyColor(h)
 
     /** 창밖 풍경: 시각·날씨에 따라 하늘색이 변하고, 밤엔 별과 달, 비/눈 오는 날엔 빗줄기/눈송이 */
     private fun drawWindows(c: Canvas, camXv: Float, camYv: Float) {
         val h = state.worldTime
         val w = homeWeather
+        DayCycle.season = state.season()
         val dl = daylight(h)
         var sky = skyColor(h)
+        var skyTop = DayCycle.skyTopColor(h)
         if (w != Weather.SUNNY) {
             val grey = if (w == Weather.SNOW) 0xFFC4CCD6.toInt() else 0xFF8C98A8.toInt()
-            sky = lerpC(sky, grey, (when (w) { Weather.WIND -> 0.25f; Weather.CLOUDY -> 0.45f; else -> 0.7f }) * (0.25f + 0.75f * dl))
+            val gk = (when (w) { Weather.WIND -> 0.25f; Weather.CLOUDY -> 0.45f; else -> 0.7f }) * (0.25f + 0.75f * dl)
+            sky = lerpC(sky, grey, gk)
+            skyTop = lerpC(skyTop, grey, gk * 0.8f)
         }
         for ((i, wt) in windowTiles.withIndex()) {
             val sx = (wt.first * 16f - camX) * WORLD_SCALE
@@ -725,6 +799,9 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             val l = sx + 7.4f; val t = sy + 7.4f; val r = sx + 24.6f; val b = sy + 21.6f
             uiFill.color = sky
             c.drawRect(l, t, r, b, uiFill)
+            // 창 위쪽은 천정색 — 하늘에 깊이가 생긴다
+            uiFill.color = skyTop
+            c.drawRect(l, t, r, t + 4.6f, uiFill)
             // 하늘 아래쪽은 살짝 밝게 (지평선)
             uiFill.color = Color.argb(50, 255, 255, 255)
             c.drawRect(l, b - 4f, r, b, uiFill)
@@ -812,7 +889,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             fxPath.lineTo(sx + 24.6f + shift, floorTop + len)
             fxPath.lineTo(sx + 7.4f + shift, floorTop + len)
             fxPath.close()
-            uiFill.color = if (warm) Color.argb((52 * k).toInt(), 255, 214, 150) else Color.argb((44 * k).toInt(), 255, 244, 200)
+            // 바닥에 비치는 햇살 색도 그 시각의 직사광 색을 따라간다
+            val sun = DayCycle.sunlightColor(h)
+            uiFill.color = Color.argb(((if (warm) 52 else 44) * k).toInt(),
+                Color.red(sun), Color.green(sun), Color.blue(sun))
             c.drawPath(fxPath, uiFill)
             // 창살 그림자
             uiFill.color = Color.argb((26 * k).toInt(), 90, 70, 40)
@@ -910,6 +990,8 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         val flick = 0.9f + sin(game.time * 9.1f) * 0.05f + sin(game.time * 15.7f) * 0.05f
         val ovx = (ovenX - camX) * WORLD_SCALE
         val ovy = (ovenY - camY) * WORLD_SCALE
+        // 실내 어둠의 '색' 도 바깥 시간대를 따라간다 (새벽 남보라 → 노을 주홍기 → 밤 남색)
+        val amb = DayCycle.ambient(state.worldTime, homeWeather)
         val dark = ((1f - dl) * 100f).toInt()
         if (dark > 4) {
             val k = dark / 100f
@@ -918,7 +1000,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             val lp = (WorldScene.LIGHT_W - game.virtW) / 2f
             val lpy = (WorldScene.LIGHT_H - game.virtH) / 2f
             val lm = LightMaps.get(WorldScene.LIGHT_W, WorldScene.LIGHT_H)
-            lm.begin(Color.argb(dark, 16, 18, 46))
+            lm.begin(Color.argb(dark, Color.red(amb), Color.green(amb), Color.blue(amb)))
             lm.light(ovx + lp, ovy + lpy, 120f * flick, (255 * k).toInt())
             for (i in decorTiles.indices) {
                 if (state.decorSlots[i] == 3) {

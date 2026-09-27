@@ -217,7 +217,8 @@ data class QuestData(
     val rewardMoney: Int = 5000,
     val rewardExp: Int = 40,
     val rewardLuck: Int = 1,
-    var completed: Boolean = false
+    var completed: Boolean = false,
+    val targetRegionId: String = ""
 ) {
     val isComplete: Boolean get() = currentProgress >= targetCount
     val progressText: String get() = "${currentProgress.coerceAtMost(targetCount)}/$targetCount"
@@ -234,6 +235,7 @@ data class QuestData(
         put("rewardExp", rewardExp)
         put("rewardLuck", rewardLuck)
         put("completed", completed)
+        put("targetRegionId", targetRegionId)
     }
 
     companion object {
@@ -252,7 +254,8 @@ data class QuestData(
                 rewardMoney = j.optInt("rewardMoney", 5000),
                 rewardExp = j.optInt("rewardExp", 40),
                 rewardLuck = j.optInt("rewardLuck", 1),
-                completed = j.optBoolean("completed", false)
+                completed = j.optBoolean("completed", false),
+                targetRegionId = j.optString("targetRegionId", "")
             )
         }
     }
@@ -270,7 +273,8 @@ data class DailyQuestData(
     val rewardMoney: Int = 4000,
     val rewardExp: Int = 30,
     val rewardLuck: Int = 1,
-    var completed: Boolean = false
+    var completed: Boolean = false,
+    val targetRegionId: String = ""
 ) {
     val isComplete: Boolean get() = currentProgress >= targetCount
     val progressText: String get() = "${currentProgress.coerceAtMost(targetCount)}/$targetCount"
@@ -287,6 +291,7 @@ data class DailyQuestData(
         put("rewardExp", rewardExp)
         put("rewardLuck", rewardLuck)
         put("completed", completed)
+        put("targetRegionId", targetRegionId)
     }
 
     companion object {
@@ -305,7 +310,8 @@ data class DailyQuestData(
                 rewardMoney = j.optInt("rewardMoney", 4000),
                 rewardExp = j.optInt("rewardExp", 30),
                 rewardLuck = j.optInt("rewardLuck", 1),
-                completed = j.optBoolean("completed", false)
+                completed = j.optBoolean("completed", false),
+                targetRegionId = j.optString("targetRegionId", "")
             )
         }
     }
@@ -340,6 +346,7 @@ object QuestManager {
                 description = "${reg.name} 일대에서 발견되는 ${targetBird.name}의 선명한 사진을 촬영해 오세요.",
                 targetKey = targetBird.id,
                 targetCount = 1,
+                targetRegionId = reg.id,
                 rewardMoney = birdReward,
                 rewardExp = birdExp,
                 rewardLuck = 1
@@ -733,7 +740,7 @@ object MainStory {
  * 메인 퀘스트 자동 진행 어드바이저.
  *
  * "위치도 모르는데" — 현재 장의 목표를 풀어서 어디로 가야 하는지(·왜 거기인지)를
- * 자동 계산한다. 메인 퀘스트 카드/대화를 누르면 이 결과로 바로 이동한다.
+ * 자동 계산한다. 메인 퀘스트 카드/대화를 누르면 자전거를 타고 실제 길을 따라 목표에 간다.
  *
  * 우선순위:
  *  1. 컬렉션 미완료 — 남은 새가 가장 많이 출현하는 지역
@@ -741,7 +748,7 @@ object MainStory {
  *  3. 레벨·라이퍼·3성 부족 — 아직 못 찍은 새가 가장 많은 지역
  *
  * 목표 달성 시 정답은 **보리 박사가 사는 지역**이다 — 박사는 광릉숲 숲속 쉼터 한 곳에만 산다
- * (`NpcRoster.PROFESSOR_REGION`). 그래서 카드/대화의 🚲 버튼이 그 지역까지 태워 준다.
+ * (`NpcRoster.PROFESSOR_REGION`). 그래서 카드/대화의 🚲 버튼이 그 지역의 박사까지 안내한다.
  */
 object MainQuestAdvisor {
 
@@ -780,7 +787,7 @@ object MainQuestAdvisor {
                 prof.id, prof.name,
                 if (here) "목표 달성 · ${spot}의 보리 박사에게 보고하세요"
                 else "목표 달성 · ${prof.name}의 보리 박사에게 보고하세요",
-                if (here) "보리 박사는 ${spot}에 있어요 — 카드 탭하면 바로 앞까지"
+                if (here) "보리 박사는 ${spot}에 있어요 — 카드 탭하면 자전거 길안내 시작"
                 else NpcRoster.professorTravelHint,
                 alreadyThere = here
             )

@@ -339,7 +339,7 @@ object Ach {
 
     private fun recordPhoto(p: Progress, record: BirdPhotoRecord) {
         p.photosByRegion[record.regionId] = (p.photosByRegion[record.regionId] ?: 0) + 1
-        if (record.time >= 19.5f || record.time < 4.5f) p.nightPhotos++
+        if (DayCycle.isNightAt(record.time, Season.forDay(record.day))) p.nightPhotos++
         if (record.weatherId == Weather.RAIN.id) p.rainPhotos++
         if (record.weatherId == Weather.SNOW.id && record.stars >= 3) p.snowThreeStarPhotos++
     }

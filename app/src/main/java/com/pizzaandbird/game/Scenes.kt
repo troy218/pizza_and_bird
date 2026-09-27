@@ -44,9 +44,27 @@ abstract class Scene(val game: Game) {
  * 창밖 풍경은 보이지 않아도 "비가 오고 있다"는 것이 소리로 전해진다. 비가 그치면 조용해진다.
  * (매 프레임 불러도 같은 트랙이면 다시 시작하지 않는다 — Audio.playAmb 의 페이드 규칙)
  */
+/**
+ * 실내(집·랜드마크) 환경음 — 비 오는 날엔 지붕 빗소리, 그 외엔 창밖 계절이 벽 너머로 살짝.
+ * 겨울엔 화덕 장작, 여름 낮엔 멀리 매미, 가을 밤엔 귀뚜라미, 봄 밤엔 개구리.
+ * 씬 update()에서 매 프레임 부른다 (날씨·계절·밤낮이 바뀌면 바로 반영).
+ */
 fun Scene.applyIndoorAmbience() {
-    if (game.state.weather() == Weather.RAIN) game.audio.playAmb(R.raw.amb_rain_roof, 0.20f)
-    else game.audio.stopAmb()
+    val state = game.state
+    if (state.weather() == Weather.RAIN) {
+        game.audio.playAmb(R.raw.amb_rain_roof, 0.20f)
+        return
+    }
+    val night = state.isNight()
+    when (state.season()) {
+        Season.WINTER -> game.audio.playAmb(R.raw.amb_fire, 0.30f)
+        Season.SUMMER -> if (!night) game.audio.playAmb(R.raw.amb_cicada, 0.16f)
+        else game.audio.playAmb(R.raw.amb_night, 0.19f)
+        Season.AUTUMN -> if (night) game.audio.playAmb(R.raw.amb_cricket, 0.21f)
+        else game.audio.playAmb(R.raw.amb_birds, 0.10f)
+        Season.SPRING -> if (night) game.audio.playAmb(R.raw.amb_frog, 0.19f)
+        else game.audio.playAmb(R.raw.amb_birds, 0.13f)
+    }
 }
 
 /**
@@ -430,31 +448,7 @@ class TitleScene(game: Game) : Scene(game) {
 }
 
 /** 스폰 위치 종류 */
-enum class SpawnKind { SAVED, TUNNEL, HOME, FAST, LANDMARK }
-
-/**
- * 메인 퀘스트 자동 진행 — 지정 지역으로 빨리 이동한다.
- *
- * 일반 이동은 터널 경유지만, 메인 퀘스트를 누르면 "어디로 가야 하는지 모르겠는"
- * 플레이어의 짐을 덜어 주기 위해 자전거를 타고(페이드 + 바람 SFX) 해당 지역
- * 중앙 광장 — 보리 박사 바로 옆 — 에 도착한다.
- */
-fun fastTravel(game: Game, regionId: String, force: Boolean = false) {
-    val target = Regions.byId[regionId] ?: return
-    val s = game.state
-    // 이미 그 지역 안이라도 `force`면 다시 내려 놓는다 — 보리 박사 옆(인사 자리)으로 데려다 줄 때 쓴다.
-    if (!force && s.region == target.id && !s.inHome) return
-    s.inHome = false
-    s.onBike = false      // 도착 후 바로 촬영할 수 있게(자전거는 새를 놀라게 하므로)
-    s.px = 0f
-    s.py = 0f             // WorldScene init 가 실제 스폰 좌표로 다시 쓴다
-    game.audio.stopSteps()
-    game.sfx(Audio.Sfx.WHOOSH, 0.85f)
-    game.fadeTo {
-        game.scene = WorldScene(game, target.id, SpawnKind.FAST)
-        SaveManager.save(game.context, game.state)   // 즉시 영속 — 강제 종료해도 못 간다
-    }
-}
+enum class SpawnKind { SAVED, TUNNEL, HOME, LANDMARK }
 
 /** 첫 플레이 시 아바타 선택 화면. 카드는 가상 캔버스(화면비 적응), 버튼은 실제 화면 좌표로 그린다. */
 class CharacterSelectScene(game: Game) : Scene(game) {

@@ -14,11 +14,12 @@ import android.util.Log
  * - 효과음: res/raw/sfx_* (짧은 소리, 동시 재생 가능)
  *           레벨업 팡파레 · 고양이 야옹 1~3/펀치 · 지형별 발소리(자갈/나무/풀/모래/눈/물/돌)
  * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 숲 / 바닷가 / 밤 / 바람 / 화덕 불 /
- *           비 · 장맛비 · 지붕에 떨어지는 비)
+ *           비 · 장맛비 · 지붕에 떨어지는 비 / 계절: 여름 매미 · 가을 귀뚜라미 · 봄 개구리)
  * - BGM   : res/raw/bgm_* (한 채널 루프 — 타이틀 / 월드 / 산 / 바다 / 집)
  *
  * 곡 배치를 바꾸고 싶으면 씬에서 부르는 R.raw.bgm_* 만 바꾸면 된다.
  * 원본 소리(audio_src/)를 res/raw 로 다듬는 파이프라인은 tools/build_audio.py.
+ * 계절 3종(매미/귀뚜라미/개구리)은 tools/season_audio.py 합성음 — 실황 녹음으로 교체 예정.
  */
 class Audio(private val context: Context) {
 
