@@ -453,9 +453,12 @@ class Paint {
     enum class Style { FILL, STROKE, FILL_AND_STROKE }
     enum class Cap { BUTT, ROUND, SQUARE }
     enum class Join { MITER, ROUND, BEVEL }
+    enum class Align { LEFT, CENTER, RIGHT }
 
     var color: Int = 0xFF000000.toInt()
     var textSize: Float = 12f
+    var textAlign: Align = Align.LEFT
+    var textScaleX: Float = 1f
     var strokeWidth: Float = 1f
     var isAntiAlias: Boolean = false
     var isFakeBoldText: Boolean = false
@@ -480,6 +483,8 @@ class Paint {
     constructor(paint: Paint) {
         color = paint.color
         textSize = paint.textSize
+        textAlign = paint.textAlign
+        textScaleX = paint.textScaleX
         strokeWidth = paint.strokeWidth
         isAntiAlias = paint.isAntiAlias
         isFakeBoldText = paint.isFakeBoldText
@@ -591,6 +596,10 @@ class Bitmap private constructor(val image: BufferedImage) {
             return Bitmap(out)
         }
 
+        /** BitmapFactory 스텁이 BufferedImage 로부터 Bitmap 을 만들 수 있게 한다. */
+        @JvmStatic
+        internal fun wrap(image: BufferedImage): Bitmap = Bitmap(image)
+
         @JvmStatic
         fun createScaledBitmap(src: Bitmap, width: Int, height: Int, filter: Boolean): Bitmap {
             val out = BufferedImage(max(width, 1), max(height, 1), BufferedImage.TYPE_INT_ARGB)
@@ -614,6 +623,10 @@ class Canvas {
     private var g: Graphics2D
     private val stack = ArrayList<Graphics2D>()
     private val owner: Bitmap?
+
+    /** saveLayer 로 만든 오프스크린 레이어 (stack 과 같은 순서로 쌓인다) */
+    private class Layer(val image: BufferedImage, val left: Float, val top: Float, val alpha: Float)
+    private val layers = ArrayList<Layer?>()
 
     val width: Int
     val height: Int
@@ -723,6 +736,10 @@ class Canvas {
         }
     }
 
+    fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float, rx: Float, ry: Float, paint: Paint) {
+        drawRoundRect(RectF(left, top, right, bottom), rx, ry, paint)
+    }
+
     fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) {
         colorize(paint)
         val shape = Ellipse2D.Float(cx - radius, cy - radius, radius * 2f, radius * 2f)
@@ -731,6 +748,10 @@ class Canvas {
             Paint.Style.STROKE -> { strokeOf(paint); g.draw(shape) }
             Paint.Style.FILL_AND_STROKE -> { strokeOf(paint); g.fill(shape); g.draw(shape) }
         }
+    }
+
+    fun drawOval(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) {
+        drawOval(RectF(left, top, right, bottom), paint)
     }
 
     fun drawOval(oval: RectF, paint: Paint) {
@@ -852,9 +873,32 @@ class Canvas {
 
     fun save(): Int {
         stack.add(g)
+        layers.add(null)
         g = g.create() as Graphics2D
         return stack.size - 1
     }
+
+    /**
+     * Android 의 saveLayer 와 같은 의미의 오프스크린 레이어.
+     * restore 시점에 paint.alpha 를 곱해 합성한다 (HUD 를 통째로 흐리게 만드는 용도).
+     */
+    fun saveLayer(left: Float, top: Float, right: Float, bottom: Float, paint: Paint?): Int {
+        val w = maxOf((right - left).toInt(), 1)
+        val h = maxOf((bottom - top).toInt(), 1)
+        val img = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+        val lg = img.createGraphics()
+        lg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+        lg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED)
+        lg.transform = g.transform
+        lg.translate(-left.toDouble(), -top.toDouble())
+        stack.add(g)
+        layers.add(Layer(img, left, top, (paint?.alpha ?: 255) / 255f))
+        g = lg
+        return stack.size - 1
+    }
+
+    fun saveLayer(bounds: RectF, paint: Paint?): Int =
+        saveLayer(bounds.left, bounds.top, bounds.right, bounds.bottom, paint)
 
     fun restoreToCount(count: Int) {
         while (stack.size > count) restore()
@@ -864,6 +908,16 @@ class Canvas {
         if (stack.isNotEmpty()) {
             g.dispose()
             g = stack.removeAt(stack.size - 1)
+            val layer = layers.removeAt(layers.size - 1)
+            if (layer != null && layer.alpha > 0.001f) {
+                val prev = g
+                g = prev.create() as Graphics2D
+                g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, layer.alpha)
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+                g.drawImage(layer.image, layer.left.toInt(), layer.top.toInt(), null)
+                g.dispose()
+                g = prev
+            }
         }
     }
 
@@ -891,5 +945,52 @@ class Canvas {
 
     fun clipPath(path: Path) {
         g.clip(path.p2d)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BitmapFactory (프리뷰: ImageIO 로 실제 JPEG/PNG 를 읽는다)
+// ---------------------------------------------------------------------------
+
+object BitmapFactory {
+
+    class Options {
+        var inSampleSize: Int = 1
+        var inJustDecodeBounds: Boolean = false
+        var outWidth: Int = -1
+        var outHeight: Int = -1
+    }
+
+    @JvmStatic
+    fun decodeStream(stream: java.io.InputStream): Bitmap? = decodeStream(stream, null)
+
+    @JvmStatic
+    fun decodeStream(stream: java.io.InputStream, opts: Options?): Bitmap? = try {
+        stream.use { input ->
+            val img = javax.imageio.ImageIO.read(input) ?: return null
+            Bitmap.wrap(toArgb(img))
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    @JvmStatic
+    fun decodeFile(path: String): Bitmap? = try {
+        decodeStream(java.io.FileInputStream(path))
+    } catch (_: Exception) {
+        null
+    }
+
+    @JvmStatic
+    fun decodeByteArray(data: ByteArray, offset: Int, length: Int): Bitmap? =
+        decodeStream(java.io.ByteArrayInputStream(data, offset, length))
+
+    private fun toArgb(img: BufferedImage): BufferedImage {
+        if (img.type == BufferedImage.TYPE_INT_ARGB) return img
+        val out = BufferedImage(img.width, img.height, BufferedImage.TYPE_INT_ARGB)
+        val g = out.createGraphics()
+        g.drawImage(img, 0, 0, null)
+        g.dispose()
+        return out
     }
 }
