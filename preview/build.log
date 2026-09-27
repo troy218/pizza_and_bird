@@ -1,241 +1,73 @@
-# preview build 2026-09-27 07:43:19Z
-# commit: 19c78dace884c69bf94185acf37dcfd5916c9250
-# gradle exit code: 1
->> kotlin 컴파일러 다운로드 중...
+# preview build 2026-09-27 07:43:11Z
+# commit: 092d1564cde366f4336e2996494d2cb11654a373
+# gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
 WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
-36:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:19 Unresolved reference 'justLeft'.
-37:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:19 Unresolved reference 'justLeft'.
-38:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:37 Unresolved reference 'isDown'.
-39:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:37 Unresolved reference 'isDown'.
-40:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:50 Unresolved reference 'Key'.
-41:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:50 Unresolved reference 'Key'.
-42:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:26 Unresolved reference 'justRight'.
-43:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:26 Unresolved reference 'justRight'.
-44:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:45 Unresolved reference 'isDown'.
-45:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:45 Unresolved reference 'isDown'.
-46:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:58 Unresolved reference 'Key'.
-47:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:58 Unresolved reference 'Key'.
-48:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:270:33 Unresolved reference 'seenCount회'.
-49:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:270:33 Unresolved reference 'seenCount회'.
-54:FAILURE: Build failed with an exception.
-66:* Exception is:
-67:org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
-76:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-128:Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
-229:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-281:Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-282:	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 ...
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
-	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
-	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:61)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
-	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:61)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:44)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
-	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
-	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:76)
-	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
-	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
-	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
-	at org.gradle.internal.Factories$1.create(Factories.java:31)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	... 2 more
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:mergeReleaseJniLibFolders
+> Task :app:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:stripReleaseDebugSymbols NO-SOURCE
+> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:buildKotlinToolingMetadata
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkReleaseAarMetadata
+> Task :app:generateReleaseResValues
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :app:processReleaseMainManifest
+> Task :app:processReleaseManifest
+> Task :app:processReleaseManifestForPackage
+> Task :app:javaPreCompileRelease
+> Task :app:desugarReleaseFileDependencies
+> Task :app:mergeReleaseStartupProfile
+> Task :app:mergeReleaseResources
+> Task :app:packageReleaseResources
+> Task :app:mergeExtDexRelease
+> Task :app:mergeReleaseArtProfile
+> Task :app:mergeReleaseShaders
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :app:compressReleaseAssets
+> Task :app:parseReleaseLocalResources
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:collectReleaseDependencies
+> Task :app:sdkReleaseDependencyData
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:processReleaseResources
+> Task :app:optimizeReleaseResources
 
+> Task :app:compileReleaseKotlin
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
-BUILD FAILED in 48s
-26 actionable tasks: 26 executed
+> Task :app:compileReleaseJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderRelease
+> Task :app:mergeReleaseGlobalSynthetics
+> Task :app:mergeDexRelease
+> Task :app:processReleaseJavaRes
+> Task :app:compileReleaseArtProfile
+> Task :app:mergeReleaseJavaResource
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :app:assembleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494951539.json
+
+BUILD SUCCESSFUL in 40s
+40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-app/src/main/java/com/pizzaandbird/game/Assets.kt:5:25: error: unresolved reference 'BitmapFactory'.
-import android.graphics.BitmapFactory
-                        ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:14:21: error: unresolved reference 'LruCache'.
-import android.util.LruCache
-                    ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2953:30: error: unresolved reference 'LruCache'.
-    private val photoCache = LruCache<Int, Bitmap>(24)
-                             ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2954:30: error: unresolved reference 'LruCache'.
-    private val thumbCache = LruCache<Int, Bitmap>(128)
-                             ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2959:20: error: cannot infer type for this parameter. Please specify it explicitly.
-        photoCache.get(num)?.let { return it }
-                   ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2959:30: error: cannot infer type for this parameter. Please specify it explicitly.
-        photoCache.get(num)?.let { return it }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2959:30: error: not enough information to infer type argument for 'T'.
-        photoCache.get(num)?.let { return it }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2959:30: error: not enough information to infer type argument for 'R'.
-        photoCache.get(num)?.let { return it }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2959:34: error: cannot infer type for this parameter. Please specify it explicitly.
-        photoCache.get(num)?.let { return it }
-                                 ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2961:13: error: argument type mismatch: actual type is 'R', but 'K' was expected.
-            context.assets.open("birds/$num.jpg").use { stream ->
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2961:51: error: cannot infer type for this parameter. Please specify it explicitly.
-            context.assets.open("birds/$num.jpg").use { stream ->
-                                                  ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2961:55: error: cannot infer type for this parameter. Please specify it explicitly.
-            context.assets.open("birds/$num.jpg").use { stream ->
-                                                      ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2962:17: error: unresolved reference 'BitmapFactory'.
-                BitmapFactory.decodeStream(stream)?.also {
-                ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2962:53: error: cannot infer type for this parameter. Please specify it explicitly.
-                BitmapFactory.decodeStream(stream)?.also {
-                                                    ^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2962:58: error: cannot infer type for this parameter. Please specify it explicitly.
-                BitmapFactory.decodeStream(stream)?.also {
-                                                         ^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2967:13: error: null cannot be a value of a non-null type 'K'.
-            null
-            ^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2974:20: error: cannot infer type for this parameter. Please specify it explicitly.
-        thumbCache.get(num)?.let { return it }
-                   ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2974:30: error: cannot infer type for this parameter. Please specify it explicitly.
-        thumbCache.get(num)?.let { return it }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2974:30: error: not enough information to infer type argument for 'T'.
-        thumbCache.get(num)?.let { return it }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2974:30: error: not enough information to infer type argument for 'R'.
-        thumbCache.get(num)?.let { return it }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2974:34: error: cannot infer type for this parameter. Please specify it explicitly.
-        thumbCache.get(num)?.let { return it }
-                                 ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2976:13: error: argument type mismatch: actual type is 'R', but 'K' was expected.
-            context.assets.open("birds_thumb/$num.jpg").use { stream ->
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2976:57: error: cannot infer type for this parameter. Please specify it explicitly.
-            context.assets.open("birds_thumb/$num.jpg").use { stream ->
-                                                        ^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2976:61: error: cannot infer type for this parameter. Please specify it explicitly.
-            context.assets.open("birds_thumb/$num.jpg").use { stream ->
-                                                            ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2977:17: error: unresolved reference 'BitmapFactory'.
-                BitmapFactory.decodeStream(stream)?.also {
-                ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2977:53: error: cannot infer type for this parameter. Please specify it explicitly.
-                BitmapFactory.decodeStream(stream)?.also {
-                                                    ^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2977:58: error: cannot infer type for this parameter. Please specify it explicitly.
-                BitmapFactory.decodeStream(stream)?.also {
-                                                         ^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:2982:13: error: argument type mismatch: actual type is 'android.graphics.Bitmap?', but 'K' was expected.
-            birdPhoto(num)
-            ^^^^^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Audio.kt:7:19: error: unresolved reference 'Handler'.
 import android.os.Handler
                   ^^^^^^^
@@ -245,57 +77,42 @@ import android.os.HandlerThread
 app/src/main/java/com/pizzaandbird/game/Audio.kt:9:21: error: unresolved reference 'Log'.
 import android.util.Log
                     ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:31: error: unresolved reference 'HandlerThread'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:40:20: error: unresolved reference 'sfx_crow'.
+        CROW(R.raw.sfx_crow),                  // 밤/흐린 날 까마귀 (으스스한 한 소리)
+                   ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:41:23: error: unresolved reference 'sfx_cuckoo1'.
+        CUCKOO1(R.raw.sfx_cuckoo1),            // 뻐꾸기 1 (숲·산 지역 지저귐)
+                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:42:23: error: unresolved reference 'sfx_cuckoo2'.
+        CUCKOO2(R.raw.sfx_cuckoo2),            // 뻐꾸기 2 (짧은 한 마디)
+                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:43:25: error: unresolved reference 'sfx_book_open'.
+        BOOK_OPEN(R.raw.sfx_book_open),        // 📚 도감 펼치기
+                        ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:44:24: error: unresolved reference 'sfx_bag_open'.
+        BAG_OPEN(R.raw.sfx_bag_open)           // 🎒 가방/장비 가방 열기
+                       ^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:31: error: unresolved reference 'HandlerThread'.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                               ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:66: error: cannot infer type for this parameter. Please specify it explicitly.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:66: error: cannot infer type for this parameter. Please specify it explicitly.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                                                                  ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:72: error: cannot infer type for this parameter. Please specify it explicitly.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:72: error: cannot infer type for this parameter. Please specify it explicitly.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                                                                        ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:74: error: unresolved reference 'start'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:74: error: unresolved reference 'start'.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                                                                          ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:88:26: error: unresolved reference 'Handler'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:93:26: error: unresolved reference 'Handler'.
     private val loader = Handler(audioThread.looper)
                          ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:88:46: error: unresolved reference 'looper'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:93:46: error: unresolved reference 'looper'.
     private val loader = Handler(audioThread.looper)
                                              ^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:202:25: error: unresolved reference 'Log'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:207:25: error: unresolved reference 'Log'.
                         Log.w("PizzaAndBird", "BGM 로딩 실패: res=${p.res}")
                         ^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:19: error: unresolved reference 'justLeft'.
-        if (input.justLeft || input.isDown(Input.Key.A)) {
-                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:37: error: unresolved reference 'isDown'.
-        if (input.justLeft || input.isDown(Input.Key.A)) {
-                                    ^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:86:50: error: unresolved reference 'Key'.
-        if (input.justLeft || input.isDown(Input.Key.A)) {
-                                                 ^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:26: error: unresolved reference 'justRight'.
-        } else if (input.justRight || input.isDown(Input.Key.D)) {
-                         ^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:45: error: unresolved reference 'isDown'.
-        } else if (input.justRight || input.isDown(Input.Key.D)) {
-                                            ^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:88:58: error: unresolved reference 'Key'.
-        } else if (input.justRight || input.isDown(Input.Key.D)) {
-                                                         ^^^
-app/src/main/java/com/pizzaandbird/game/BirdDetailOverlay.kt:270:33: error: unresolved reference 'seenCount회'.
-            val stampStr = "📸 $seenCount회 촬영 · 최고 ★$bestStars"
-                                ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdEncyclopedia.kt:56:31: error: unresolved reference 'getJSONObject'.
-                val obj = arr.getJSONObject(i)
-                              ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdEncyclopedia.kt:60:47: error: unresolved reference 'length'.
-                    for (j in 0 until subsArr.length()) {
-                                              ^^^^^^
-app/src/main/java/com/pizzaandbird/game/BirdEncyclopedia.kt:61:46: error: unresolved reference 'getString'.
-                        subsList.add(subsArr.getString(j))
-                                             ^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/BootView.kt:7:21: error: unresolved reference 'View'.
 import android.view.View
                     ^^^^
@@ -335,3 +152,12 @@ app/src/main/java/com/pizzaandbird/game/Maps.kt:479:13: error: unresolved refere
 app/src/main/java/com/pizzaandbird/game/Maps.kt:479:31: error: unresolved reference 'Align'.
             textAlign = Paint.Align.CENTER
                               ^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:193:57: error: unresolved reference 'amb_night'.
+            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+                                                        ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:194:68: error: unresolved reference 'amb_sea'.
+            "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
+                                                                   ^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:195:69: error: unresolved reference 'amb_forest'.
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
+                                                                    ^^^^^^^^^^
