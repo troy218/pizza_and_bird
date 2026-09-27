@@ -66,7 +66,8 @@ class DialogOverlay(
     private val disableKeys: Boolean = false
 ) : Overlay(scene) {
 
-    class Choice(val label: String, val action: (DialogOverlay) -> Unit = { it.finished = true })
+    /** 선택지. action을 실행한 뒤 대화상자는 자동으로 닫힌다 (닫힘 처리를 따로 안 해도 됨). */
+    class Choice(val label: String, val action: (DialogOverlay) -> Unit = {})
 
     private val choices: List<Choice> =
         if (choices.isEmpty()) listOf(Choice("확인")) else choices
