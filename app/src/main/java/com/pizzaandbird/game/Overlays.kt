@@ -587,8 +587,8 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val right = panelR.right - dp(scene, 12f)
         var ty = contentTop()
 
-        // 헤더 — 피자 가방 게이지
-        val headH = dp(scene, 40f)
+        // 헤더 — 피자 가방 게이지 + 장작 화덕 일러스트
+        val headH = dp(scene, 44f)
         val headR = RectF(left, ty, right, ty + headH)
         drawCard(c, scene, headR)
         textP.textSize = dp(scene, 12f)
@@ -598,9 +598,16 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFFB5651D.toInt()
         val capEff = s.pizzaCapEff()
         val capTxt = "${s.pizzaCount}/$capEff"
-        c.drawText(capTxt, right - dp(scene, 10f) - textP.measureText(capTxt), ty + dp(scene, 16f), textP)
-        UiKit.bar(c, g, left + dp(scene, 10f), ty + dp(scene, 22f), right - left - dp(scene, 20f), dp(scene, 9f),
+        c.drawText(capTxt, right - dp(scene, 58f) - textP.measureText(capTxt), ty + dp(scene, 16f), textP)
+        UiKit.bar(c, g, left + dp(scene, 10f), ty + dp(scene, 22f), right - left - dp(scene, 68f), dp(scene, 9f),
             s.pizzaCount / capEff.toFloat(), 0xFFFFD97A.toInt(), 0xFFF2A33C.toInt())
+        textP.textSize = dp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("장작 화덕에서 토핑을 골라 구워요", left + dp(scene, 10f), ty + dp(scene, 41f), textP)
+        g.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(right - dp(scene, 52f), ty + dp(scene, 2f), right - dp(scene, 6f), ty + dp(scene, 42f))
+        )
         ty += headH + dp(scene, 6f)
 
         // 토핑 카드 — 남은 높이에 맞춰 자동 배분
@@ -1284,6 +1291,10 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
         panel(c, r, scene)
 
         val a = g.assets
+        g.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(r.right - dp(scene, 52f), r.top + dp(scene, 3f), r.right - dp(scene, 8f), r.top + dp(scene, 45f))
+        )
 
         when (step) {
             0 -> {
