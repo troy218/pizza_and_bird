@@ -1,0 +1,16 @@
+# Android / Gradle
+*.iml
+.gradle/
+build/
+/local.properties
+.idea/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+
+# 빌드 산출물 & 키
+*.apk
+*.aab
+*.keystore
+!gradle/wrapper/gradle-wrapper.jar
