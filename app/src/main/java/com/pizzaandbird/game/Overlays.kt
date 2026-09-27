@@ -4687,6 +4687,10 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
             is CamBody -> {
                 body.append("${Mounts.label(gear.mount)} · ${if (gear.weatherProof) "방진방적" else "실내·맑은 날 권장"}\n")
                 body.append("같은 렌즈를 써도 환산 초점거리가 ${gear.sensor.crop.fmt1()}배가 돼요\n")
+                if (gear.ibis <= 0f) {
+                    body.append("바디 손떨림 보정이 없어요 — 손떨방(OS) 붙은 렌즈가 유리해요\n")
+                }
+                body.append("💡 같은 예산이면 바디 급을 조금 낮추고 렌즈에 투자하는 편이 결과물이 좋아요\n")
             }
             is CamLens -> {
                 val cur = CameraGear.body(s.bodyId)
@@ -4700,6 +4704,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
                     }
                 }
                 body.append(if (gear.macro) "접사 렌즈 — 아주 가까이서 찍을 수 있어요\n" else "")
+                body.append("💡 렌즈는 바디를 바꿔도 계속 쓸 수 있어요. 망원·조리개에 먼저 투자해 보세요\n")
             }
             is TeleConv -> body.append("망원 단렌즈·고급 줌에만 물릴 수 있어요\n")
             is CamAccessory -> body.append("효과: ${gear.effect}\n")
