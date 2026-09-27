@@ -50,6 +50,8 @@ class Input(private val game: Game) {
     var justMenu = false
     var justBack = false
     var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
+    var justLeft = false      // 좌 (오버레이 목록 넘기기용 엣지 트리거)
+    var justRight = false     // 우
     var justMap = false       // 큰 지도 (미니맵 탭)
     var isRun = false         // 달리기 홀드 (🏃 버튼 / Shift 키)
 
@@ -82,6 +84,7 @@ class Input(private val game: Game) {
                         queue.add(QEv(K.CANCEL, e.getX(i), e.getY(i), e.getPointerId(i), 0, 0))
                     }
                 }
+                else -> {}
             }
         }
         return true
@@ -209,6 +212,8 @@ class Input(private val game: Game) {
                             KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
                             KeyEvent.KEYCODE_E -> justEat = true
                             KeyEvent.KEYCODE_BACK -> justBack = true
+                            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> justLeft = true
+                            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> justRight = true
                         }
                     } else if (ev.act == KeyEvent.ACTION_UP) {
                         keys.remove(ev.keyCode)
@@ -287,6 +292,8 @@ class Input(private val game: Game) {
         justBack = false
         justEat = false
         justMap = false
+        justLeft = false
+        justRight = false
         tapScreen = null
         rawEvents.clear()
     }
