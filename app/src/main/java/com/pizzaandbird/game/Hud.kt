@@ -241,16 +241,21 @@ class Hud(private val game: Game) {
         punchCx = (eatCx - dp(54f)).coerceIn(punchR + dp(8f), wf - punchR - dp(8f))
         punchCy = (eatCy + dp(2f)).coerceIn(punchR + dp(8f), hf - punchR - dp(8f))
 
-        // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
-        menuR = dp(17f)
-        menuCx = dp(18f) + menuR
-        menuCy = hf - dp(18f) - menuR
-
         // Split-screen can leave a very narrow landscape surface. Shrink the compass
         // before it collides with the fixed-width status panel at the opposite corner.
         mmR = minOf(dp(68f), wf * 0.16f)
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
+
+        // --- 메뉴 클러스터 (시계 왼쪽 상단) ---
+        menuR = dp(16f)
+        val gap = dp(9f)
+        val dialSize = dp(42f)
+        val dialCxCalc = mmCx - mmR - gap - dialSize / 2f
+        val clockSizeCalc = dp(38f)
+        val clockCxCalc = dialCxCalc - dialSize / 2f - gap - clockSizeCalc / 2f
+        menuCx = clockCxCalc - dp(10f) - menuR
+        menuCy = mmCy - dp(4f)
 
         // --- 토스트 고정 자리 -------------------------------------------
         // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
