@@ -8,11 +8,52 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import java.util.Random
+import kotlin.math.roundToInt
+
+// 살아있는 풀 리그 상수 (파일 최상위 — 클래스 본문 안에서는 const val 을 쓸 수 없다)
+private const val GRASS_KINDS = 5
+private const val GRASS_LEAN_MAX = 5      // 좌우 기움 -5..+5
+private const val GRASS_CURL_MAX = 3      // 휨(곡률) -3..+3
+private const val GRASS_W = 18            // 포즈 비트맵 폭
+private const val GRASS_CX = 9            // 비트맵 안에서 밑동(뿌리) 열
+private const val GRASS_LEAN_UNIT = 1.5f
+private const val GRASS_CURL_UNIT = 1.25f
+
+/** 자전거 페달 애니메이션 프레임 수 */
+const val BIKE_FRAMES = 8
+
+/** NPC 대기 애니메이션 프레임 수 / 프레임 길이(초) */
+const val NPC_FRAMES = 12
+
+/** 고양이 애니메이션 프레임 수 */
+const val CAT_SIT_FRAMES = 8
+const val CAT_WALK_FRAMES = 6
+const val NPC_FRAME_TIME = 0.2f
 
 /**
- * 모든 그래픽은 코드로 생성하는 순수 픽셀 아트 에셋 (v0.2 — 2배 해상도).
+ * 캐릭터 동작 종류 — 프레임 수와 프레임 길이(초).
+ *
+ * IDLE  : 숨쉬기 · 무게중심 이동 · 눈 깜빡임 · 두리번거리기
+ * WALK  : 걷기 (팔다리 교차 + 상하 바운스 + 머리카락 흔들림)
+ * RUN   : 달리기 (큰 보폭 · 앞으로 기울인 자세 · 굽힌 팔)
+ * SNEAK : 살금살금 (카메라 모드에서 이동할 때)
+ * AIM   : 카메라 조준 (숨죽인 미세한 흔들림)
+ */
+enum class Anim(val frames: Int, val frameTime: Float) {
+    IDLE(12, 0.17f),
+    WALK(8, 0.085f),
+    RUN(8, 0.062f),
+    SNEAK(8, 0.13f),
+    AIM(4, 0.2f);
+
+    /** 한 바퀴 도는 데 걸리는 시간(초) */
+    val cycle: Float get() = frames * frameTime
+}
+
+/**
+ * 캐릭터와 월드 타일을 코드로 생성하는 픽셀 아트 에셋 (v0.2 — 2배 해상도).
  * - 타일 32x32 / 캐릭터 32x32 / 새 13종 체형 + 9종 깃무늬 + 비행 2프레임
- * - 외부 이미지 파일 없음 — APK 크기 최소화 & 오프라인
+ * - 캐릭터/타일은 코드로 생성, 작은 장식 일러스트는 로컬 SVG — 네트워크·외부 라이브러리 없음
  */
 class Assets {
 
@@ -23,66 +64,17 @@ class Assets {
     val pxPaint = Paint()                                   // 화면 업스케일 (픽셀 느낌 유지)
     val shadowPaint = Paint().apply { color = Color.argb(70, 30, 40, 30); isAntiAlias = true }
 
-    // 플레이어 --------------------------------------------------------------
-    // 레벨 등급(0~3)별 걷기 스프라이트 세트 — 겉모습(장비)이 좋아진다.
-    class PlayerSet(
-        val down: Array<Bitmap>,   // [0] 서있기 [1][2] 걷기
-        val up: Array<Bitmap>,
-        val side: Array<Bitmap>,   // 오른쪽 방향
-        val sideL: Array<Bitmap>   // 왼쪽 방향 (플립)
-    )
-
-    // 성별 × 레벨 등급별 스프라이트 세트
-    lateinit var playerTiers: Array<PlayerSet>   // 남자, gearTier로 인덱싱
-    lateinit var femaleTiers: Array<PlayerSet>   // 여자
-
-    // 기본(남자 0등급) 접근자 — 기존 코드 호환용
-    val playerDown: Array<Bitmap> get() = playerTiers[0].down
-    val playerUp: Array<Bitmap> get() = playerTiers[0].up
-    val playerSide: Array<Bitmap> get() = playerTiers[0].side
-    val playerSideL: Array<Bitmap> get() = playerTiers[0].sideL
-    val femaleDown: Array<Bitmap> get() = femaleTiers[0].down
-    val femaleUp: Array<Bitmap> get() = femaleTiers[0].up
-    val femaleSide: Array<Bitmap> get() = femaleTiers[0].side
-    val femaleSideL: Array<Bitmap> get() = femaleTiers[0].sideL
-
-    /** 레벨 등급으로 스프라이트 세트 선택 (남자) */
-    fun playerSet(tier: Int): PlayerSet = playerTiers[tier.coerceIn(0, playerTiers.size - 1)]
-
-    /** 성별 + 레벨 등급으로 스프라이트 세트 선택 */
-    fun playerSet(gender: String, tier: Int): PlayerSet {
-        val tiers = if (gender == "female") femaleTiers else playerTiers
-        return tiers[tier.coerceIn(0, tiers.size - 1)]
-    }
-
-    // 자전거 탑승 스프라이트 (모델·도색·부속품·성별별로 생성해 캐시한다)
-    class BikeSet(val down: Bitmap, val up: Bitmap, val side: Bitmap, val sideL: Bitmap)
-
-    private val bikeCache = LinkedHashMap<String, BikeSet>()
-
-    /** 자전거 탑승 스프라이트 — 성별 + 자전거 스타일(모델·도색·부속품)에 따라 그려진다 */
-    fun bikeSet(gender: String, style: BikeStyle): BikeSet {
-        val key = "${if (gender == "female") "f" else "m"}|${style.cacheKey}"
-        bikeCache[key]?.let { return it }
-        val set = buildBikeSet(gender == "female", style)
-        bikeCache[key] = set
-        while (bikeCache.size > 48) {
-            val eldest = bikeCache.keys.first()
-            bikeCache.remove(eldest)
-        }
-        return set
-    }
-
-    // NPC -------------------------------------------------------------------
-    lateinit var npcProfessor: Bitmap
-    lateinit var npcShop: Bitmap
-    lateinit var npcVillager: Bitmap
-    lateinit var npcKid: Bitmap
-    lateinit var npcElder: Bitmap
+    // 플레이어 / NPC --------------------------------------------------------
+    // 동작 스프라이트는 CharacterArt 골격 애니메이션으로 필요할 때 생성한다.
+    // (클래스 정의와 접근자는 아래 "사람 — 골격 애니메이션" 절에 있다)
 
     // 고양이 -----------------------------------------------------------------
-    lateinit var catFrames: Array<Bitmap>       // [0] 앉음 [1][2] 걷기
-    lateinit var catFramesL: Array<Bitmap>      // 오른쪽 바라봄
+    lateinit var catSit: Array<Bitmap>          // 앉아서 꼬리 살랑 (왼쪽 바라봄)
+    lateinit var catSitL: Array<Bitmap>         // 오른쪽 바라봄
+    lateinit var catWalk: Array<Bitmap>         // 사뿐사뿐 걷기
+    lateinit var catWalkL: Array<Bitmap>
+    lateinit var catFrames: Array<Bitmap>       // 호환용 (= catSit)
+    lateinit var catFramesL: Array<Bitmap>
 
     // 새 ---------------------------------------------------------------------
     lateinit var birds: Map<String, Bitmap>                  // 앉은 자세
@@ -110,9 +102,17 @@ class Assets {
         return b
     }
 
+    // 살아있는 풀 리그 (§ 아래 buildGrassRig) ------------------------------------
+    // 주의: 아래 init 블록에서 buildGrassRig()가 이 배열들을 채우므로,
+    //       반드시 init 보다 *앞쪽*에 선언해야 한다 (Kotlin은 선언 순서대로 실행).
+    private lateinit var grassPoses: Array<Array<Array<Bitmap>>>   // [종][lean][curl]
+    val grassOx = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 X
+    val grassOy = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 Y
+
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
     lateinit var pizzaIconBig: Bitmap
+    lateinit var pizzaArts: Array<Bitmap>       // Pizzas.ALL 순서(id) — 피자 종류별 아이콘
     lateinit var cloverIcon: Bitmap
     lateinit var cameraIcon: Bitmap
     lateinit var houseIcon: Bitmap
@@ -121,10 +121,9 @@ class Assets {
     lateinit var decorArt: Array<Bitmap>        // Decors.ALL 순서
 
     init {
-        buildPlayers()
-        buildNpcs()
         buildCat()
         buildBirds()
+        buildGrassRig()
         buildTiles()
         buildIcons()
         buildDecorArt()
@@ -163,671 +162,226 @@ class Assets {
     )
 
     // -----------------------------------------------------------------------
-    // 사람 (32x32, 절차 생성: 외곽선+음영)
-    // dir: 0=아래(정면) 1=위(뒤) 2=오른쪽(측면) / frame: 0 서있기 1,2 걷기
+    // 사람 — 골격 애니메이션 (CharacterArt.kt)
+    // 프레임은 필요할 때 만들어 캐시한다 (성별 x 레벨 등급 조합이 많기 때문).
     // -----------------------------------------------------------------------
 
-    private data class Pal(
-        val hair: Int, val hair2: Int, val skin: Int, val skin2: Int,
-        val top: Int, val top2: Int, val pants: Int, val pants2: Int,
-        val shoe: Int, val line: Int, val pack: Int, val pack2: Int,
-        val eye: Int, val blush: Int
+    private fun pal(
+        hair: Long, hair2: Long, skin: Long, skin2: Long, top: Long, top2: Long,
+        pants: Long, pants2: Long, shoe: Long, line: Long, pack: Long, pack2: Long,
+        eye: Long, blush: Long
+    ) = CharacterArt.Pal(
+        c(hair), c(hair2), c(skin), c(skin2), c(top), c(top2),
+        c(pants), c(pants2), c(shoe), c(line), c(pack), c(pack2), c(eye), c(blush)
     )
 
-    /** 탐조가 장비 (레벨 등급에 따라 겉모습이 좋아진다) */
-    private class Gear(
-        val cap: Int? = null,        // 탐조 모자 색 (null이면 없음)
-        val capDark: Int = 0,
-        val vest: Int? = null,       // 탐조 조끼 색
-        val vestDark: Int = 0,
-        val scarf: Int? = null,      // 목도리 색
-        val brim: Boolean = false,   // 챙 넓은 모자
-        val feather: Int? = null     // 모자 깃털 장식
+    private val malePal = pal(
+        0xFF4A2F1D, 0xFF382314, 0xFFFFD9B0, 0xFFE8B88C, 0xFFF2B63C, 0xFFD99B26,
+        0xFF4A6FA5, 0xFF3A5A8A, 0xFF7A4A2B, 0xFF33241C, 0xFFD9534F, 0xFFB23F44,
+        0xFF2E2620, 0xFFF2A58C
     )
-
-    private fun person(
-        dir: Int, frame: Int, pl: Pal,
-        glasses: Boolean = false, apron: Boolean = false,
-        cane: Boolean = false, small: Boolean = false,
-        gear: Gear? = null
-    ): Bitmap {
-        val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-        val cv = Canvas(bmp)
-        val p = Paint()
-        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-            p.color = col; cv.drawRect(l, t, rr, b, p)
-        }
-        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
-        }
-        fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
-            p.color = col; cv.drawCircle(cx, cy, rad, p)
-        }
-
-        val oy = if (small) 3f else 0f                 // 아이는 키가 작다
-        val legTop = if (small) 26f else 24.5f
-
-        // ----- 다리 (모든 방향 공통 프레임) -----
-        fun legs(xL: Float, xR: Float, wide: Float) {
-            val liftL = frame == 1
-            val liftR = frame == 2
-            // 바지
-            if (!liftL) {
-                r(xL - 1, legTop - 1, xL + wide + 1, 30.5f, pl.line)
-                r(xL, legTop, xL + wide, 30f, pl.pants)
-            } else {
-                r(xL - 1, legTop - 1, xL + wide + 1, 28.5f, pl.line)
-                r(xL, legTop, xL + wide, 28f, pl.pants)
-            }
-            if (!liftR) {
-                r(xR - 1, legTop - 1, xR + wide + 1, 30.5f, pl.line)
-                r(xR, legTop, xR + wide, 30f, pl.pants)
-            } else {
-                r(xR - 1, legTop - 1, xR + wide + 1, 28.5f, pl.line)
-                r(xR, legTop, xR + wide, 28f, pl.pants)
-            }
-            r(xL + wide / 2f - 0.6f, legTop, xL + wide / 2f + 0.6f, 30f, pl.pants2)
-            // 신발
-            val shoeL = if (liftL) 27.6f else 29.2f
-            val shoeR = if (liftR) 27.6f else 29.2f
-            r(xL - 1f, shoeL, xL + wide + 1.4f, shoeL + 2.2f, pl.shoe)
-            r(xR - 1.4f, shoeR, xR + wide + 1f, shoeR + 2.2f, pl.shoe)
-        }
-
-        // ----- 몸통 -----
-        fun torso(left: Float, right: Float, topY: Float) {
-            o(left - 1, topY - 1, right + 1, legTop + 1.5f, 4f, pl.line)
-            o(left, topY, right, legTop + 0.5f, 3.5f, pl.top)
-            r(right - (right - left) * 0.32f, topY + 1, right - 1, legTop - 0.5f, pl.top2)
-            r(left + (right - left) * 0.28f, topY, left + (right - left) * 0.44f, topY + 2.2f, pl.top2)
-            if (apron) {
-                o(left + 1.5f, topY + 2.5f, right - 1.5f, legTop - 1f, 2.5f, c(0xFFFDF6E8))
-                r(left + 3f, topY + 2.5f, right - 3f, topY + 4f, c(0xFFE8DFC8))
-                r(left + 4f, topY + 8f, right - 4f, topY + 9.5f, c(0xFFE8DFC8))
-            }
-        }
-
-        when (dir) {
-            0 -> { // 정면
-                torso(9.5f, 22.5f, 15.5f + oy)
-                // 팔
-                val armY = if (frame == 1) -1f else if (frame == 2) 1f else 0f
-                r(7.6f, 16.5f + oy, 10.2f, 22.5f + oy + armY, pl.top2)
-                r(21.8f, 16.5f + oy, 24.4f, 22.5f + oy - armY, pl.top2)
-                r(8.0f, 22.2f + oy + armY, 9.8f, 24.4f + oy + armY, pl.skin)
-                r(22.2f, 22.2f + oy - armY, 24.0f, 24.4f + oy - armY, pl.skin)
-                legs(11.2f, 17.4f, 3.6f)
-                // 머리
-                cir(16f, 9.2f + oy, 7.4f, pl.line)
-                cir(16f, 9.2f + oy, 6.6f, pl.skin)
-                cir(16f, 7.6f + oy, 6.3f, pl.hair)
-                r(10f, 8.4f + oy, 22f, 9.6f + oy, pl.hair)
-                r(10f, 8.6f + oy, 11.8f, 14.6f + oy, pl.hair)
-                r(20.2f, 8.6f + oy, 22f, 14.6f + oy, pl.hair)
-                r(13f, 8.6f + oy, 15f, 10.2f + oy, pl.hair)
-                r(17f, 8.6f + oy, 19f, 10.2f + oy, pl.hair)
-                r(12.2f, 9.8f + oy, 19.8f, 13.4f + oy, pl.skin)
-                // 눈/볼
-                r(12.6f, 10.6f + oy, 14f, 12.4f + oy, pl.eye)
-                r(18f, 10.6f + oy, 19.4f, 12.4f + oy, pl.eye)
-                r(11.2f, 12.6f + oy, 12.8f, 13.8f + oy, pl.blush)
-                r(19.2f, 12.6f + oy, 20.8f, 13.8f + oy, pl.blush)
-                if (glasses) {
-                    p.style = Paint.Style.STROKE; p.strokeWidth = 1.1f
-                    p.color = pl.line
-                    cv.drawCircle(13.3f, 11.5f + oy, 2.4f, p)
-                    cv.drawCircle(18.7f, 11.5f + oy, 2.4f, p)
-                    cv.drawLine(15.5f, 11.4f + oy, 16.5f, 11.4f + oy, p)
-                    p.style = Paint.Style.FILL
-                }
-            }
-            1 -> { // 뒤
-                torso(9.5f, 22.5f, 15.5f + oy)
-                val armY = if (frame == 1) -1f else if (frame == 2) 1f else 0f
-                r(7.6f, 16.5f + oy, 10.2f, 22.5f + oy + armY, pl.top2)
-                r(21.8f, 16.5f + oy, 24.4f, 22.5f + oy - armY, pl.top2)
-                legs(11.2f, 17.4f, 3.6f)
-                // 머리(뒤통수)
-                cir(16f, 9.2f + oy, 7.4f, pl.line)
-                cir(16f, 9.2f + oy, 6.6f, pl.hair)
-                r(10.5f, 11.5f + oy, 21.5f, 13.6f + oy, pl.hair2)
-                r(12f, 6f + oy, 20f, 7.4f + oy, pl.hair2)
-                // 배낭
-                o(10.4f, 16.2f + oy, 21.6f, 24.2f + oy, 3f, pl.line)
-                o(11.2f, 17f + oy, 20.8f, 23.4f + oy, 2.5f, pl.pack)
-                r(13f, 18.6f + oy, 19f, 22.2f + oy, pl.pack2)
-                r(12.2f, 17.4f + oy, 19.8f, 18.2f + oy, pl.pack2)
-            }
-            else -> { // 오른쪽 측면
-                torso(11.5f, 21.5f, 15.5f + oy)
-                // 앞 팔 (흔들림)
-                val swing = if (frame == 1) -2f else if (frame == 2) 2f else 0f
-                r(14.5f, 17f + oy, 17.5f, 22.5f + oy + swing, pl.top2)
-                r(14.9f, 22.2f + oy + swing, 16.9f, 24.2f + oy + swing, pl.skin)
-                // 측면 다리(보폭)
-                if (frame == 0) {
-                    r(13.5f, legTop - 1, 19.5f, 30.5f, pl.line)
-                    r(14.5f, legTop, 18.5f, 30f, pl.pants)
-                    r(13.8f, 29.2f, 19.6f, 31.2f, pl.shoe)
-                } else if (frame == 1) {
-                    r(16f, legTop - 1, 20.5f, 29.5f, pl.line)
-                    r(17f, legTop, 19.5f, 29f, pl.pants)
-                    r(17.6f, 28.4f, 22.4f, 30.4f, pl.shoe)
-                    r(10.5f, legTop - 1, 15f, 29.5f, pl.line)
-                    r(11.5f, legTop, 14f, 29f, pl.pants2)
-                    r(9.8f, 28.2f, 14.4f, 30.2f, pl.shoe)
-                } else {
-                    r(14f, legTop - 1, 19f, 30f, pl.line)
-                    r(15f, legTop, 18f, 29.5f, pl.pants)
-                    r(14.4f, 28.6f, 19.8f, 30.6f, pl.shoe)
-                    r(12f, legTop, 15f, 28.5f, pl.pants2)
-                    r(11.4f, 27.6f, 15.6f, 29.6f, pl.shoe)
-                }
-                // 머리(측면)
-                cir(17f, 9.2f + oy, 7f, pl.line)
-                cir(17f, 9.2f + oy, 6.2f, pl.skin)
-                p.color = pl.hair
-                cv.drawArc(RectF(11f, 3f + oy, 23f, 11.8f + oy), 180f, 180f, true, p)
-                r(11f, 8f + oy, 13.6f, 14.8f + oy, pl.hair)
-                r(12.4f, 11.8f + oy, 13.6f, 14.6f + oy, pl.hair2)
-                r(18.6f, 7.8f + oy, 21.2f, 9.8f + oy, pl.hair)
-                // 눈/코/볼
-                r(19.6f, 10.2f + oy, 21f, 12f + oy, pl.eye)
-                r(22.6f, 11.2f + oy, 23.6f, 12.4f + oy, pl.skin2)
-                r(19.8f, 12.8f + oy, 21.2f, 13.8f + oy, pl.blush)
-            }
-        }
-
-        // ----- 탐조가 장비 (레벨 등급별 겉모습) -----
-        if (gear != null) {
-            // 목도리 (목 언저리 밴드)
-            gear.scarf?.let { sc ->
-                when (dir) {
-                    0 -> {
-                        r(11.6f, 14.2f + oy, 20.4f, 16.4f + oy, sc)
-                        r(18.2f, 16f + oy, 20.2f, 20.2f + oy, sc)   // 늘어진 자락
-                    }
-                    1 -> r(11.4f, 14f + oy, 20.6f, 16f + oy, sc)
-                    else -> {
-                        r(13.6f, 14.2f + oy, 20.6f, 16.4f + oy, sc)
-                        r(13.4f, 16f + oy, 15.4f, 19.6f + oy, sc)
-                    }
-                }
-            }
-            // 조끼 (앞면/측면만 — 뒷면은 배낭이 가림)
-            gear.vest?.let { vs ->
-                when (dir) {
-                    0 -> {
-                        r(9.6f, 16.4f + oy, 12.8f, legTop + 0.2f, vs)
-                        r(19.2f, 16.4f + oy, 22.4f, legTop + 0.2f, vs)
-                        r(13.2f, 15.8f + oy, 18.8f, 17.6f + oy, vs)
-                        r(9.6f, 16.4f + oy, 10.4f, legTop + 0.2f, gear.vestDark)
-                        r(21.6f, 16.4f + oy, 22.4f, legTop + 0.2f, gear.vestDark)
-                    }
-                    2 -> {
-                        r(14.6f, 16.4f + oy, 20.6f, legTop + 0.2f, vs)
-                        r(14.6f, 16.4f + oy, 15.4f, legTop + 0.2f, gear.vestDark)
-                    }
-                    else -> {}
-                }
-            }
-            // 모자 (탐조 캡 / 챙 넓은 모자)
-            gear.cap?.let { cp ->
-                when (dir) {
-                    0, 1 -> {
-                        // 돔
-                        o(10.2f, 2.4f + oy, 21.8f, 8.4f + oy, 3.2f, pl.line)
-                        o(10.8f, 2.8f + oy, 21.2f, 8f + oy, 3f, cp)
-                        r(11.4f, 3.2f + oy, 20.6f, 5.2f + oy, gear.capDark)
-                        // 챙 (정면만, 넓은 모자는 더 크게)
-                        if (dir == 0) {
-                            if (gear.brim) {
-                                o(7.2f, 7.4f + oy, 24.8f, 9.6f + oy, 2f, pl.line)
-                                o(7.6f, 7.6f + oy, 24.4f, 9.2f + oy, 1.6f, cp)
-                            } else {
-                                r(9f, 7.6f + oy, 21.2f, 9.2f + oy, pl.line)
-                                r(9.4f, 7.8f + oy, 20.8f, 8.9f + oy, gear.capDark)
-                            }
-                        }
-                    }
-                    else -> {
-                        o(11.2f, 2.4f + oy, 22.8f, 8.4f + oy, 3.2f, pl.line)
-                        o(11.8f, 2.8f + oy, 22.2f, 8f + oy, 3f, cp)
-                        r(12.4f, 3.2f + oy, 21.6f, 5.2f + oy, gear.capDark)
-                        // 옆 챙 (오른쪽으로)
-                        if (gear.brim) {
-                            o(19.6f, 7f + oy, 27.2f, 9f + oy, 1.8f, cp)
-                        } else {
-                            r(20.2f, 7.2f + oy, 26.4f, 8.6f + oy, cp)
-                        }
-                    }
-                }
-                // 깃털 장식
-                gear.feather?.let { ft ->
-                    when (dir) {
-                        0, 1 -> {
-                            r(20.4f, 1.6f + oy, 21.6f, 5.4f + oy, ft)
-                            r(21.2f, 2.2f + oy, 22.4f, 4.2f + oy, ft)
-                        }
-                        else -> {
-                            r(12.2f, 1.4f + oy, 13.4f, 5.2f + oy, ft)
-                            r(11.4f, 2f + oy, 12.6f, 4f + oy, ft)
-                        }
-                    }
-                }
-            }
-        }
-
-        if (cane) {
-            r(23.8f, 15f + oy, 25.2f, 30.5f, c(0xFF8A5A33))
-            r(22.6f, 14f + oy, 26f, 15.6f, c(0xFF6B431F))
-        }
-        return bmp
-    }
-
-    // -----------------------------------------------------------------------
-    // 플레이어 & 자전거
-    // -----------------------------------------------------------------------
-
-    private fun malePal(): Pal = Pal(
-        hair = c(0xFF4A2F1D), hair2 = c(0xFF382314), skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
-        top = c(0xFFF2B63C), top2 = c(0xFFD99B26), pants = c(0xFF4A6FA5), pants2 = c(0xFF3A5A8A),
-        shoe = c(0xFF7A4A2B), line = c(0xFF33241C), pack = c(0xFFD9534F), pack2 = c(0xFFB23F44),
-        eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
-    )
-
-    /** 여자 팔레트(머리·상의·바지색만 다름) — 장비는 동일하게 진화 */
-    private fun femalePal(): Pal = malePal().copy(
-        hair = c(0xFF6A3155), hair2 = c(0xFF4A203D), top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B),
+    private val femalePal = malePal.copy(
+        hair = c(0xFF6A3155), hair2 = c(0xFF4A203D),
+        top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B),
         pants = c(0xFF66529B), pants2 = c(0xFF4D3C7C)
     )
 
-    private fun buildPlayers() {
-        val pl = malePal()
-        // 레벨 등급별 장비: 0=새내기, 1=견습(캡), 2=숙련(캡+조끼), 3=명인(챙모자+조끼+목도리+깃털)
-        val gearTiers = arrayOf<Gear?>(
-            null,
-            Gear(cap = c(0xFF4F8F6A), capDark = c(0xFF3C6E50)),
-            Gear(
-                cap = c(0xFF3F6FA0), capDark = c(0xFF2F5580),
-                vest = c(0xFF6B8E4E), vestDark = c(0xFF52703B)
-            ),
-            Gear(
-                cap = c(0xFF8A5A2B), capDark = c(0xFF6E4620),
-                vest = c(0xFF3E6B57), vestDark = c(0xFF2C4E3F),
-                scarf = c(0xFFD9534F), brim = true, feather = c(0xFFF2D06B)
-            )
+    /** 레벨 등급별 탐조 장비: 0 새내기 · 1 견습(캡) · 2 숙련(캡+조끼) · 3 명인(챙모자+조끼+목도리+깃털) */
+    private val gearTiers = arrayOf<CharacterArt.Gear?>(
+        null,
+        CharacterArt.Gear(cap = c(0xFF4F8F6A), capDark = c(0xFF3C6E50)),
+        CharacterArt.Gear(
+            cap = c(0xFF3F6FA0), capDark = c(0xFF2F5580),
+            vest = c(0xFF6B8E4E), vestDark = c(0xFF52703B)
+        ),
+        CharacterArt.Gear(
+            cap = c(0xFF8A5A2B), capDark = c(0xFF6E4620),
+            vest = c(0xFF3E6B57), vestDark = c(0xFF2C4E3F),
+            scarf = c(0xFFD9534F), brim = true, feather = c(0xFFF2D06B)
         )
-        fun buildTiers(pal: Pal): Array<PlayerSet> = Array(gearTiers.size) { tier ->
-            val g = gearTiers[tier]
-            val down = Array(3) { person(0, it, pal, gear = g) }
-            val up = Array(3) { person(1, it, pal, gear = g) }
-            val side = Array(3) { person(2, it, pal, gear = g) }
-            val sideL = Array(3) { flipH(side[it]) }
-            PlayerSet(down, up, side, sideL)
-        }
-        playerTiers = buildTiers(pl)
-        val fp = femalePal()
-        femaleTiers = buildTiers(fp)
+    )
 
+    val tierCount: Int get() = gearTiers.size
+
+    private fun look(gender: String, tier: Int): CharacterArt.Look {
+        val female = gender == "female"
+        return CharacterArt.Look(
+            pal = if (female) femalePal else malePal,
+            gear = gearTiers[tier.coerceIn(0, gearTiers.size - 1)],
+            longHair = female
+        )
+    }
+
+    /** 방향별 프레임 묶음 */
+    class Clip(
+        val down: Array<Bitmap>,
+        val up: Array<Bitmap>,
+        val side: Array<Bitmap>,
+        val sideL: Array<Bitmap>
+    ) {
+        val count: Int get() = down.size
+
+        fun frame(dir: Dir, i: Int): Bitmap {
+            val k = ((i % count) + count) % count
+            return when (dir) {
+                Dir.E -> side[k]
+                Dir.W -> sideL[k]
+                Dir.N -> up[k]
+                else -> down[k]
+            }
+        }
+    }
+
+    /** 플레이어 동작 세트 (한 성별 x 한 등급) */
+    class PlayerSet(
+        val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip
+    ) {
+        fun clip(anim: Anim): Clip = when (anim) {
+            Anim.IDLE -> idle
+            Anim.WALK -> walk
+            Anim.RUN -> run
+            Anim.SNEAK -> sneak
+            Anim.AIM -> aim
+        }
+
+        // 기존 코드 호환 (아바타 썸네일 등) — 서 있는 자세
+        val down: Array<Bitmap> get() = idle.down
+        val up: Array<Bitmap> get() = idle.up
+        val side: Array<Bitmap> get() = idle.side
+        val sideL: Array<Bitmap> get() = idle.sideL
+    }
+
+    private val playerCache = HashMap<Int, PlayerSet>()
+
+    private fun buildClip(look: CharacterArt.Look, frames: Int, pose: (Float) -> CharacterArt.Pose): Clip {
+        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look) }
+        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look) }
+        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look) }
+        val sideL = Array(frames) { flipH(side[it]) }
+        return Clip(down, up, side, sideL)
+    }
+
+    /** 성별 + 레벨 등급으로 동작 세트 얻기 (첫 사용 시 생성) */
+    fun playerSet(gender: String, tier: Int): PlayerSet {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = (if (gender == "female") 1 else 0) * 64 + t
+        playerCache[key]?.let { return it }
+        val lk = look(gender, t)
+        val set = PlayerSet(
+            idle = buildClip(lk, Anim.IDLE.frames) { CharacterArt.idlePose(it) },
+            walk = buildClip(lk, Anim.WALK.frames) { CharacterArt.walkPose(it, CharacterArt.WALK) },
+            run = buildClip(lk, Anim.RUN.frames) { CharacterArt.walkPose(it, CharacterArt.RUN) },
+            sneak = buildClip(lk, Anim.SNEAK.frames) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
+            aim = buildClip(lk, Anim.AIM.frames) { CharacterArt.aimPose(it) }
+        )
+        playerCache[key] = set
+        return set
+    }
+
+    /** 레벨 등급으로 (남자) */
+    fun playerSet(tier: Int): PlayerSet = playerSet("male", tier)
+
+    private val cheerCache = HashMap<Int, Array<Bitmap>>()
+
+    /** 레벨업 축하 동작 (정면 8프레임) */
+    fun cheerFrames(gender: String, tier: Int): Array<Bitmap> {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = (if (gender == "female") 1 else 0) * 64 + t
+        cheerCache[key]?.let { return it }
+        val lk = look(gender, t)
+        val frames = Array(8) {
+            CharacterArt.render(CharacterArt.FRONT, CharacterArt.cheerPose(it / 8f), lk)
+        }
+        cheerCache[key] = frames
+        return frames
+    }
+
+    /** 애니메이션 시간 -> 스프라이트 */
+    fun playerBitmap(gender: String, tier: Int, anim: Anim, dir: Dir, animT: Float): Bitmap {
+        val clip = playerSet(gender, tier).clip(anim)
+        return clip.frame(dir, (animT / anim.frameTime).toInt())
     }
 
     // -----------------------------------------------------------------------
-    // 자전거 탑승 스프라이트 (모델 · 도색 · 부속품별로 그린다)
+    // 자전거 (페달을 밟는 라이더) — 8프레임
     // -----------------------------------------------------------------------
 
-    private fun buildBikeSet(female: Boolean, style: BikeStyle): BikeSet {
-        val pl = if (female) femalePal() else malePal()
-        val frame = style.frame.argb
-        val frameDark = shade(frame, 0.68f)
-        val tireCol = style.tire.argb
-        val tireIn = shade(tireCol, 1.55f)
-        val saddleCol = style.saddle.argb
-        val metal = c(0xFF9AA0AD)
-        val rim = c(0xFF23232B)
-        val helmet = c(0xFFD9534F)
-        val helmetDark = c(0xFFB23F44)
-        val kind = style.modelId
+    class BikeSet(
+        val down: Array<Bitmap>, val up: Array<Bitmap>,
+        val side: Array<Bitmap>, val sideL: Array<Bitmap>
+    ) {
+        val count: Int get() = down.size
 
-        // 모델별 바퀴 크기 / 타이어 두께 (옆모습 기준)
-        val (wr, ring) = when (kind) {
-            "minivelo" -> 4.6f to 1.0f
-            "bmx" -> 5.0f to 1.3f
-            "road", "fixie" -> 5.7f to 0.8f
-            "mtb" -> 6.2f to 1.7f
-            "cruiser" -> 6.3f to 1.8f
-            else -> 6.0f to 1.1f            // basic/city/ebike/tandem
-        }
-
-        // ----- 옆모습 (오른쪽) -----
-        val sideBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-        run {
-            val cv = Canvas(sideBmp)
-            val p = Paint()
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
-            }
-            fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawCircle(cx, cy, rad, p)
-            }
-            fun line(x1: Float, y1: Float, x2: Float, y2: Float, w: Float, col: Int) {
-                p.color = col; p.style = Paint.Style.STROKE; p.strokeWidth = w
-                cv.drawLine(x1, y1, x2, y2, p)
-                p.style = Paint.Style.FILL
-            }
-            fun wheel(cx: Float, cy: Float, rad: Float) {
-                cir(cx, cy, rad, rim)
-                cir(cx, cy, rad - ring, tireCol)
-                cir(cx, cy, (rad - ring) * 0.42f, tireIn)
-                cir(cx, cy, 1f, metal)
-            }
-
-            // 바퀴
-            when (kind) {
-                "vintage" -> {
-                    wheel(7.5f, 27f, 4.4f)                    // 작은 뒷바퀴
-                    cir(23f, 21.5f, 8.2f, rim)                // 커다란 앞바퀴
-                    cir(23f, 21.5f, 7.1f, tireCol)
-                    cir(23f, 21.5f, 3f, tireIn)
-                    cir(23f, 21.5f, 1.1f, metal)
-                }
-                "tandem" -> {
-                    wheel(7f, 26f, 5.8f)
-                    wheel(25.5f, 26f, 5.8f)
-                }
-                else -> {
-                    wheel(8f, 26f, wr)
-                    wheel(24f, 26f, wr)
-                }
-            }
-
-            // 프레임 (모델별)
-            when (kind) {
-                "road", "fixie" -> {
-                    line(8f, 26f, 15f, 22f, 2f, frame)          // 체인스테이
-                    line(15f, 22f, 13f, 14.5f, 2.2f, frame)     // 시트튜브
-                    line(8.2f, 25.2f, 13f, 15.2f, 1.5f, frame)  // 시트스테이
-                    line(15f, 21.4f, 21.8f, 15.5f, 2.2f, frame) // 다운튜브
-                    line(13.2f, 15.2f, 21.2f, 14.8f, 2f, frame) // 탑튜브
-                    line(21.5f, 15.2f, 24f, 26f, 2f, frame)     // 포크
-                    line(8.6f, 26.6f, 15.2f, 22.8f, 1.2f, frameDark)
-                    if (kind == "fixie") r(16.4f, 18.2f, 18.8f, 19.1f, frameDark) // 픽시 로고 줄
-                }
-                "cruiser" -> {
-                    line(8.5f, 21f, 22.5f, 21f, 2.4f, frame)    // 크랭크 튜브
-                    line(9f, 20.4f, 13.5f, 14.8f, 2.2f, frame)  // 시트스테이
-                    line(13.5f, 14.8f, 15f, 20.6f, 2f, frame)   // 시트튜브
-                    line(15.5f, 20.2f, 21.5f, 15f, 2f, frame)   // 다운튜브(곡선 느낌)
-                    line(21.5f, 15f, 23.8f, 25.5f, 2f, frame)   // 포크
-                    line(8.5f, 22.3f, 23.5f, 22.3f, 1.2f, frameDark)
-                }
-                "bmx" -> {
-                    line(8f, 25.5f, 14.5f, 21.5f, 2.2f, frame)
-                    line(14.5f, 21.5f, 12.8f, 15f, 2.2f, frame)
-                    line(8.2f, 24.8f, 12.8f, 15.6f, 1.5f, frame)
-                    line(14.5f, 21f, 20.8f, 15.5f, 2.2f, frame)
-                    line(13f, 15.4f, 20.5f, 15f, 2f, frame)
-                    line(20.6f, 15.2f, 23.5f, 25.5f, 2f, frame)
-                    r(8.4f, 22.6f, 23.2f, 23.5f, frameDark)
-                }
-                "minivelo" -> {
-                    r(9f, 19.8f, 23f, 21.8f, frame)
-                    r(12.2f, 15f, 14.4f, 20.2f, frame)
-                    r(20.4f, 14f, 22.6f, 20.4f, frame)
-                    r(9f, 21.2f, 23f, 22f, frameDark)
-                }
-                "tandem" -> {
-                    r(6.5f, 19.8f, 26.5f, 21.8f, frame)    // 긴 프레임
-                    r(10.4f, 15f, 12.6f, 20.2f, frame)     // 뒤 시트튜브
-                    r(18.4f, 14.6f, 20.6f, 20.2f, frame)   // 앞 시트튜브
-                    r(23.8f, 13.6f, 25.8f, 20.4f, frame)   // 헤드
-                    r(6.5f, 21.2f, 26.5f, 22f, frameDark)
-                    r(7.8f, 13.6f, 13.2f, 15.4f, saddleCol) // 뒤 탑승자 안장
-                }
-                "vintage" -> {
-                    line(8f, 23f, 13f, 13f, 2.2f, frame)        // 백본
-                    line(13f, 13f, 21.5f, 12.2f, 2f, frame)     // 상단 튜브
-                    line(21.2f, 12.2f, 23f, 20.5f, 2.2f, frame) // 헤드/포크
-                    line(7.5f, 27f, 11.8f, 16f, 1.6f, frame)    // 뒤 포크
-                    line(8f, 22.4f, 12.5f, 13.6f, 1.2f, frameDark)
-                }
-                else -> {
-                    // basic / city / mtb / ebike — 가로 메인 프레임
-                    r(8.5f, 19.5f, 23.5f, 22f, frame)
-                    r(12f, 14.5f, 14.5f, 20f, frame)
-                    r(20.5f, 13.5f, 23f, 20.5f, frame)
-                    r(8.5f, 21.4f, 23.5f, 22.4f, frameDark)
-                    if (kind == "mtb") {
-                        r(21f, 16f, 23.6f, 21.5f, metal)   // 서스펜션 포크
-                        r(21.2f, 16.4f, 23.4f, 19.4f, frame)
-                    }
-                    if (kind == "ebike") {
-                        o(17.5f, 18.4f, 22.6f, 21.8f, 1.2f, rim)        // 배터리 (프레임 위)
-                        o(17.8f, 18.7f, 22.3f, 21.5f, 1f, c(0xFF4A4A56))
-                        r(18.4f, 19.3f, 21.4f, 20.2f, c(0xFF6FB6C9))
-                        cir(21.9f, 20.7f, 0.7f, c(0xFF7ADB8A))
-                    }
-                }
-            }
-
-            // 안장 / 핸들 / 페달
-            when (kind) {
-                "road", "fixie" -> {
-                    r(11f, 13.6f, 15.4f, 15.2f, saddleCol)         // 좁은 안장
-                    r(18.6f, 11.6f, 23.4f, 13.2f, saddleCol)       // 스템
-                    o(22.6f, 12.2f, 25.4f, 15.6f, 1.6f, saddleCol) // 드롭바
-                    r(23.8f, 13.2f, 25.4f, 14.2f, rim)             // 그립
-                }
-                "bmx" -> {
-                    r(10.4f, 13.8f, 15.2f, 15.6f, saddleCol)
-                    r(21.6f, 10.2f, 22.8f, 14.6f, metal)               // 긴 스템
-                    r(20.2f, 8.6f, 25.8f, 10.2f, saddleCol)        // 하이바
-                    r(24.6f, 8.2f, 25.8f, 11.2f, rim)
-                }
-                "cruiser" -> {
-                    r(9.8f, 13.2f, 16.2f, 15.4f, saddleCol)        // 푹신한 넓은 안장
-                    r(18.2f, 11.2f, 25.4f, 13.2f, saddleCol)       // 와이드 핸들
-                    o(23.6f, 10.4f, 25.6f, 13.4f, 1.2f, rim)
-                }
-                "vintage" -> {
-                    r(11.4f, 12f, 16f, 13.6f, saddleCol)           // 높은 안장
-                    r(20.2f, 8.6f, 25.8f, 10.2f, saddleCol)        // 숙인 핸들
-                    r(24.4f, 8.2f, 25.8f, 11.4f, rim)
-                }
-                else -> {
-                    r(10.2f, 13.6f, 15.6f, 15.6f, saddleCol)
-                    r(19f, 11.8f, 25.2f, 13.8f, saddleCol)
-                    r(23.4f, 11.2f, 25.6f, 14.4f, rim)
-                    if (kind == "mtb") r(18.4f, 10.8f, 25.4f, 12.4f, saddleCol) // 라이저 바
-                }
-            }
-            cir(15f, 22.2f, 1.7f, metal)                            // 크랭크
-            r(13.8f, 23.2f, 16.6f, 24.6f, rim)                      // 페달
-
-            // 부속품 중 뒤쪽(짐받이) — 라이더보다 먼저
-            if (style.rack) {
-                r(6.2f, 20.4f, 12.6f, 21.4f, metal)
-                r(6.6f, 21.4f, 7.6f, 23.2f, metal)
-                r(11.2f, 21.4f, 12.2f, 23.2f, metal)
-            }
-
-            // 라이더 — 다리
-            r(12.5f, 15.5f, 16.2f, 21.5f, pl.pants)
-            r(13.2f, 20.8f, 17.2f, 23.2f, pl.shoe)
-            // 몸통(살짝 숙임)
-            o(12.8f, 6.8f, 19.8f, 17f, 3.5f, pl.top)
-            r(16.5f, 8f, 19.4f, 16.2f, pl.top2)
-            // 팔
-            r(16.5f, 9.5f, 19f, 11.5f, pl.top2)
-            r(19f, 10.2f, 21.6f, 11.8f, pl.skin)
-            // 머리 + 헬멧
-            cir(18.2f, 5f, 5f, pl.line)
-            cir(18.2f, 5f, 4.3f, pl.skin)
-            p.color = helmet
-            cv.drawArc(RectF(13.6f, 0.4f, 22.8f, 7.4f), 180f, 180f, true, p)
-            r(13.8f, 4.2f, 23f, 5.6f, helmetDark)
-            r(15.4f, 5.4f, 21f, 6.2f, pl.skin)
-
-            // 부속품 중 앞쪽(바구니/전조등/방울/스트리머)
-            if (style.basket) {
-                o(23.6f, 12.6f, 29.8f, 18.8f, 1.6f, c(0xFFC9A05C))
-                r(24.2f, 14.2f, 29.2f, 15f, c(0xFFB08840))
-                r(24.2f, 16.2f, 29.2f, 17f, c(0xFFB08840))
-                r(23.2f, 11.8f, 24.4f, 19.2f, c(0xFFA07838))
-            }
-            if (style.light) {
-                cir(24.6f, 12.2f, 1.8f, metal)
-                cir(25.4f, 12.2f, 1.2f, c(0xFFF2E3C2))
-                cir(25.8f, 12.2f, 0.6f, c(0xFFFFF8E0))
-            }
-            if (style.bell) {
-                cir(21.6f, 10.9f, 1.4f, c(0xFFD9A03C))
-                cir(21.6f, 10.5f, 0.6f, c(0xFFF2D06B))
-            }
-            if (style.streamers) {
-                r(21.2f, 13.9f, 23.6f, 14.8f, c(0xFFDB6B9A))
-                r(20f, 15.1f, 22.8f, 15.9f, c(0xFFF2D06B))
-                r(19f, 16.3f, 21.2f, 16.9f, c(0xFF6FB6C9))
+        fun frame(dir: Dir, i: Int): Bitmap {
+            val k = ((i % count) + count) % count
+            return when (dir) {
+                Dir.E -> side[k]
+                Dir.W -> sideL[k]
+                Dir.N -> up[k]
+                else -> down[k]
             }
         }
-
-        // ----- 뒤모습 -----
-        val upBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-        run {
-            val cv = Canvas(upBmp)
-            val p = Paint()
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
-            }
-            fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawCircle(cx, cy, rad, p)
-            }
-            val wr2 = when (kind) {
-                "minivelo" -> 3.4f
-                "bmx" -> 3.8f
-                "road", "fixie" -> 4f
-                "cruiser", "mtb", "vintage" -> 4.7f
-                else -> 4.4f
-            }
-            // 뒷바퀴
-            cir(16f, 28.5f, wr2, rim)
-            cir(16f, 28.5f, wr2 - ring * 0.8f, tireCol)
-            cir(16f, 28.5f, (wr2 - ring * 0.8f) * 0.4f, tireIn)
-            // 라이더(뒤)
-            cir(16f, 8.2f, 5.6f, pl.line)
-            cir(16f, 8.2f, 4.9f, pl.hair)
-            r(11.5f, 10.6f, 20.5f, 12.4f, pl.hair2)
-            o(10.6f, 14.6f, 21.4f, 23.6f, 3f, pl.top)
-            o(11.4f, 15.4f, 20.6f, 22.8f, 2.5f, pl.pack)
-            r(13.2f, 17f, 18.8f, 21.4f, pl.pack2)
-            // 팔(핸들쪽) — 핸들 폭은 모델마다
-            val hx = when (kind) {
-                "road", "fixie" -> 1.6f
-                "cruiser" -> -1.6f
-                else -> 0f
-            }
-            r(8.4f + hx, 16.5f, 11.6f + hx, 19.5f, pl.top2)
-            r(20.4f - hx, 16.5f, 23.6f - hx, 19.5f, pl.top2)
-            r(6.8f + hx, 16.2f, 9.2f + hx, 18.6f, rim)
-            r(22.8f - hx, 16.2f, 25.2f - hx, 18.6f, rim)
-            // 부속품 (뒤에서 보이는 것들)
-            if (style.rack) r(10.4f, 24.2f, 21.6f, 25.2f, metal)
-            if (style.light) cir(16f, 16.2f, 1.5f, c(0xFFF2E3C2))
-            if (style.bell) cir(24.4f - hx, 15.6f, 1.2f, c(0xFFD9A03C))
-            if (style.streamers) {
-                r(6.4f + hx, 18.8f, 9.2f + hx, 21.6f, c(0xFFDB6B9A))
-                r(22.8f - hx, 18.8f, 25.6f - hx, 21.6f, c(0xFFF2D06B))
-            }
-            // 다리
-            r(11.6f, 23.6f, 15f, 27.6f, pl.pants)
-            r(17f, 23.6f, 20.4f, 27.6f, pl.pants)
-            r(11f, 26.6f, 15.4f, 28.8f, pl.shoe)
-            r(16.6f, 26.6f, 21f, 28.8f, pl.shoe)
-        }
-
-        // ----- 정면 -----
-        val downBmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
-        run {
-            val cv = Canvas(downBmp)
-            val p = Paint()
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
-            }
-            fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawCircle(cx, cy, rad, p)
-            }
-            val wr2 = when (kind) {
-                "minivelo" -> 3.4f
-                "bmx" -> 3.8f
-                "road", "fixie" -> 4f
-                "cruiser", "mtb", "vintage" -> 4.7f
-                else -> 4.4f
-            }
-            // 앞바퀴
-            cir(16f, 28.5f, wr2, rim)
-            cir(16f, 28.5f, wr2 - ring * 0.8f, tireCol)
-            cir(16f, 28.5f, (wr2 - ring * 0.8f) * 0.4f, tireIn)
-            // 핸들바(정면) — 폭은 모델마다
-            val hx = when (kind) {
-                "road", "fixie" -> 1.6f
-                "cruiser" -> -1.6f
-                else -> 0f
-            }
-            r(7f + hx, 17.2f, 25f - hx, 19.4f, saddleCol)
-            r(6.4f + hx, 16.6f, 8.6f + hx, 19.8f, rim)
-            r(23.4f - hx, 16.6f, 25.6f - hx, 19.8f, rim)
-            // 부속품 (정면에서 보이는 것들)
-            if (style.basket) {
-                o(10.6f, 19.8f, 21.4f, 23.4f, 1.4f, c(0xFFC9A05C))
-                r(11.4f, 21f, 20.6f, 21.8f, c(0xFFB08840))
-            }
-            if (style.light) {
-                cir(16f, 16.2f, 1.8f, metal)
-                cir(16f, 16.2f, 1.1f, c(0xFFFFF8E0))
-            }
-            if (style.bell) cir(23.2f - hx, 15.8f, 1.2f, c(0xFFD9A03C))
-            if (style.streamers) {
-                r(6.2f + hx, 19.6f, 9f + hx, 22.4f, c(0xFFDB6B9A))
-                r(23f - hx, 19.6f, 25.8f - hx, 22.4f, c(0xFFF2D06B))
-            }
-            // 라이더(정면)
-            cir(16f, 8.2f, 5.6f, pl.line)
-            cir(16f, 8.2f, 4.9f, pl.skin)
-            p.color = helmet
-            cv.drawArc(RectF(10.6f, 3.4f, 21.4f, 9.6f), 180f, 180f, true, p)
-            r(10.8f, 6.8f, 21.2f, 8.2f, helmetDark)
-            r(12.8f, 8.6f, 14.4f, 10.6f, pl.eye)
-            r(17.6f, 8.6f, 19.2f, 10.6f, pl.eye)
-            r(14.6f, 11.4f, 17.4f, 12.4f, pl.blush)
-            o(10.6f, 14.6f, 21.4f, 23.6f, 3f, pl.top)
-            r(18f, 15.4f, 21f, 23f, pl.top2)
-            r(8.4f + hx, 16.5f, 11.6f + hx, 19.5f, pl.top2)
-            r(20.4f - hx, 16.5f, 23.6f - hx, 19.5f, pl.top2)
-            r(11.6f, 23.6f, 15f, 27.6f, pl.pants)
-            r(17f, 23.6f, 20.4f, 27.6f, pl.pants)
-            r(11f, 26.6f, 15.4f, 28.8f, pl.shoe)
-            r(16.6f, 26.6f, 21f, 28.8f, pl.shoe)
-        }
-
-        return BikeSet(downBmp, upBmp, sideBmp, flipH(sideBmp))
     }
 
+    private val bikeCache = LinkedHashMap<String, BikeSet>()
+
+    /** 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시) */
+    fun bikeSet(gender: String, tier: Int, style: BikeStyle): BikeSet {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
+        bikeCache[key]?.let { return it }
+        val lk = look(gender, t)
+        val n = BIKE_FRAMES
+        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style) }
+        val set = BikeSet(
+            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style) },
+            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style) },
+            side = side,
+            sideL = Array(n) { flipH(side[it]) }
+        )
+        bikeCache[key] = set
+        while (bikeCache.size > 40) {
+            val eldest = bikeCache.keys.first()
+            bikeCache.remove(eldest)
+        }
+        return set
+    }
+
+    /** 자전거 스프라이트 (pedalPhase: 페달 위상) */
+    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle): Bitmap {
+        val set = bikeSet(gender, tier, style)
+        val f = (pedalPhase * set.count).toInt()
+        return set.frame(dir, f)
+    }
+
+    // 기존 코드 호환 접근자
+    val playerTiers: Array<PlayerSet> get() = Array(gearTiers.size) { playerSet("male", it) }
+    val playerDown: Array<Bitmap> get() = playerSet("male", 0).down
+    val playerUp: Array<Bitmap> get() = playerSet("male", 0).up
+    val playerSide: Array<Bitmap> get() = playerSet("male", 0).side
+    val playerSideL: Array<Bitmap> get() = playerSet("male", 0).sideL
+    val femaleDown: Array<Bitmap> get() = playerSet("female", 0).down
+    val femaleUp: Array<Bitmap> get() = playerSet("female", 0).up
+    val femaleSide: Array<Bitmap> get() = playerSet("female", 0).side
+    val femaleSideL: Array<Bitmap> get() = playerSet("female", 0).sideL
+    /** 기본 자전거 외형 (구 코드 호환 접근자용) */
+    private val defaultBikeStyle = BikeStyle(
+        "basic", BikeColors.frame(0), BikeColors.tire(0), BikeColors.saddle(0),
+        basket = false, rack = false, light = false, streamers = false, bell = false
+    )
+
+    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).down[0]
+    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).up[0]
+    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).side[0]
+    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).sideL[0]
+
     // -----------------------------------------------------------------------
-    // NPC
+    // NPC — 성격이 드러나는 대기 동작 (12프레임)
     // -----------------------------------------------------------------------
 
     private fun npcPal(
         hair: Long, top: Long, top2: Long, pants: Long, pack: Long
-    ): Pal = Pal(
+    ): CharacterArt.Pal = CharacterArt.Pal(
         hair = c(hair), hair2 = shade(c(hair), 0.75f),
         skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
         top = c(top), top2 = c(top2), pants = c(pants), pants2 = shade(c(pants), 0.75f),
@@ -835,121 +389,83 @@ class Assets {
         eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
     )
 
-    private fun buildNpcs() {
-        npcProfessor = person(0, 0, npcPal(0xFFCFD2D8, 0xFFF5F2EA, 0xFFD8D2C4, 0xFF5D6470, 0xFF9AA3AD), glasses = true)
-        npcShop = person(0, 0, npcPal(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A), apron = true)
-        npcVillager = person(0, 0, npcPal(0xFF2E2620, 0xFFC3A3E8, 0xFF9F7FC8, 0xFF4A6FA5, 0xFF8A5A33))
-        npcKid = person(0, 0, npcPal(0xFF5B3A29, 0xFFE2574C, 0xFFB23F44, 0xFF3F6FB0, 0xFFF2B63C), small = true)
-        npcElder = person(0, 0, npcPal(0xFFE8E4DC, 0xFF8A7360, 0xFF6B5A48, 0xFF5D6470, 0xFF4F463F), cane = true)
+    private fun npcLook(kind: NpcKind): CharacterArt.Look = when (kind) {
+        NpcKind.PROFESSOR -> CharacterArt.Look(
+            npcPal(0xFFCFD2D8, 0xFFF5F2EA, 0xFFD8D2C4, 0xFF5D6470, 0xFF9AA3AD), glasses = true
+        )
+        NpcKind.SHOP -> CharacterArt.Look(
+            npcPal(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A), apron = true
+        )
+        NpcKind.VILLAGER -> CharacterArt.Look(
+            npcPal(0xFF2E2620, 0xFFC3A3E8, 0xFF9F7FC8, 0xFF4A6FA5, 0xFF8A5A33)
+        )
+        NpcKind.KID -> CharacterArt.Look(
+            npcPal(0xFF5B3A29, 0xFFE2574C, 0xFFB23F44, 0xFF3F6FB0, 0xFFF2B63C), small = true
+        )
+        NpcKind.ELDER -> CharacterArt.Look(
+            npcPal(0xFFE8E4DC, 0xFF8A7360, 0xFF6B5A48, 0xFF5D6470, 0xFF4F463F),
+            cane = true, longHair = true
+        )
     }
 
+    private fun npcArtKind(kind: NpcKind): Int = when (kind) {
+        NpcKind.PROFESSOR -> CharacterArt.NPC_PROFESSOR
+        NpcKind.SHOP -> CharacterArt.NPC_SHOP
+        NpcKind.VILLAGER -> CharacterArt.NPC_VILLAGER
+        NpcKind.KID -> CharacterArt.NPC_KID
+        NpcKind.ELDER -> CharacterArt.NPC_ELDER
+    }
+
+    private val npcCache = HashMap<NpcKind, Array<Bitmap>>()
+
+    /** NPC 대기 애니메이션 프레임 (12장, 약 2.4초 루프) */
+    fun npcFrames(kind: NpcKind): Array<Bitmap> {
+        npcCache[kind]?.let { return it }
+        val lk = npcLook(kind)
+        val art = npcArtKind(kind)
+        val frames = Array(NPC_FRAMES) {
+            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk)
+        }
+        npcCache[kind] = frames
+        return frames
+    }
+
+    /** 시간 -> NPC 스프라이트 (offset 으로 NPC마다 위상을 다르게) */
+    fun npcBitmap(kind: NpcKind, time: Float, offset: Float = 0f): Bitmap {
+        val frames = npcFrames(kind)
+        val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
+        return frames[i]
+    }
+
+    val npcProfessor: Bitmap get() = npcFrames(NpcKind.PROFESSOR)[0]
+    val npcShop: Bitmap get() = npcFrames(NpcKind.SHOP)[0]
+    val npcVillager: Bitmap get() = npcFrames(NpcKind.VILLAGER)[0]
+    val npcKid: Bitmap get() = npcFrames(NpcKind.KID)[0]
+    val npcElder: Bitmap get() = npcFrames(NpcKind.ELDER)[0]
+
+
     // -----------------------------------------------------------------------
-    // 고양이 (32x26)
+    // 고양이 (32x26) — 꼬리/귀/눈/네 다리가 따로 움직인다 (CharacterArt.renderCat)
     // -----------------------------------------------------------------------
 
     private fun buildCat() {
-        val orange = c(0xFFE8944A)
-        val orange2 = c(0xFFC97430)
-        val cream = c(0xFFFBEFD8)
-        val line = c(0xFF33241C)
-        fun base(): Triple<Bitmap, Canvas, Paint> {
-            val bmp = Bitmap.createBitmap(32, 26, Bitmap.Config.ARGB_8888)
-            return Triple(bmp, Canvas(bmp), Paint())
-        }
-        fun head(cv: Canvas, p: Paint, cx: Float, cy: Float) {
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun cir(x: Float, y: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawCircle(x, y, rad, p)
-            }
-            fun tri(a: Float, b2: Float, cc: Float, d: Float, e: Float, f: Float, col: Int) {
-                p.color = col
-                val path = Path()
-                path.moveTo(a, b2); path.lineTo(cc, d); path.lineTo(e, f); path.close()
-                cv.drawPath(path, p)
-            }
-            cir(cx, cy, 5.2f, line); cir(cx, cy, 4.6f, orange)
-            tri(cx - 4.4f, cy - 2.6f, cx - 3.4f, cy - 6.8f, cx - 1f, cy - 3.4f, orange)
-            tri(cx + 1f, cy - 3.4f, cx + 3.2f, cy - 6.6f, cx + 4.2f, cy - 2.6f, orange)
-            tri(cx - 3.7f, cy - 3f, cx - 3.1f, cy - 5.6f, cx - 1.8f, cy - 3.6f, c(0xFFF2A3B3))
-            tri(cx + 1.8f, cy - 3.6f, cx + 3f, cy - 5.4f, cx + 3.6f, cy - 3f, c(0xFFF2A3B3))
-            r(cx - 2.6f, cy - 1.4f, cx - 1.2f, cy + 0.2f, c(0xFF4F8F52))
-            r(cx + 1.2f, cy - 1.4f, cx + 2.6f, cy + 0.2f, c(0xFF4F8F52))
-            r(cx - 0.7f, cy + 1.4f, cx + 0.7f, cy + 2.6f, c(0xFFF2A3B3))
-            // 수염
-            p.color = c(0xCCFDF6E8); p.strokeWidth = 0.9f
-            cv.drawLine(cx - 4.6f, cy + 0.6f, cx - 8.4f, cy - 0.6f, p)
-            cv.drawLine(cx - 4.6f, cy + 1.8f, cx - 8.2f, cy + 2.4f, p)
-            cv.drawLine(cx + 4.6f, cy + 0.6f, cx + 8.4f, cy - 0.6f, p)
-            cv.drawLine(cx + 4.6f, cy + 1.8f, cx + 8.2f, cy + 2.4f, p)
-        }
+        catSit = Array(CAT_SIT_FRAMES) { CharacterArt.renderCat(false, it / CAT_SIT_FRAMES.toFloat()) }
+        catWalk = Array(CAT_WALK_FRAMES) { CharacterArt.renderCat(true, it / CAT_WALK_FRAMES.toFloat()) }
+        catSitL = Array(catSit.size) { flipH(catSit[it]) }
+        catWalkL = Array(catWalk.size) { flipH(catWalk[it]) }
+        catFrames = catSit
+        catFramesL = catSitL
+    }
 
-        // [0] 앉은 자세
-        val (b0, c0, p0) = base()
-        run {
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p0.color = col; c0.drawRect(l, t, rr, b, p0)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p0.color = col; c0.drawRoundRect(RectF(l, t, rr, b), rad, rad, p0)
-            }
-            // 꼬리
-            r(23.5f, 8f, 25.7f, 17f, orange2)
-            r(21.8f, 5.6f, 26.2f, 8.2f, orange)
-            r(23.2f, 5.9f, 25.2f, 7.9f, cream)
-            // 몸
-            o(6.5f, 12.4f, 24.5f, 24.6f, 6.5f, line)
-            o(7.5f, 13.4f, 23.5f, 23.6f, 5.8f, orange)
-            r(11f, 13.6f, 13f, 22.6f, orange2)
-            r(15.4f, 13.4f, 17.4f, 23f, orange2)
-            r(19.6f, 13.8f, 21.6f, 22.4f, orange2)
-            o(9.5f, 15.5f, 19.5f, 22.5f, 3.5f, cream)
-            // 앞발
-            r(9.5f, 22.6f, 13.4f, 24.8f, cream)
-            r(15.8f, 22.6f, 19.6f, 24.8f, cream)
-            head(c0, p0, 14f, 9.4f)
+    /** 고양이 스프라이트 — walking 여부와 위상(0~1)으로 고른다 */
+    fun catBitmap(walking: Boolean, phase: Float, faceLeft: Boolean): Bitmap {
+        val set = if (walking) {
+            if (faceLeft) catWalk else catWalkL
+        } else {
+            if (faceLeft) catSit else catSitL
         }
-
-        // [1][2] 걷는 자세
-        fun walking(frame: Int): Bitmap {
-            val (bmp, cv, p) = base()
-            fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
-                p.color = col; cv.drawRect(l, t, rr, b, p)
-            }
-            fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
-                p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
-            }
-            // 꼬리 (살짝 흔들림)
-            val tw = if (frame == 1) 0f else 1.6f
-            r(24.5f + tw, 4f, 26.7f + tw, 14f, orange2)
-            r(23.4f + tw, 3.2f, 27f + tw, 5.4f, orange)
-            // 몸
-            o(3.5f, 10.4f, 26.5f, 20.6f, 5f, line)
-            o(4.5f, 11.4f, 25.5f, 19.6f, 4.4f, orange)
-            r(9f, 11.6f, 11f, 19.4f, orange2)
-            r(14.6f, 11.4f, 16.6f, 19.6f, orange2)
-            r(20f, 11.8f, 22f, 19.2f, orange2)
-            o(6.5f, 15.4f, 23.5f, 19.4f, 2.5f, cream)
-            // 다리 (프레임별)
-            if (frame == 1) {
-                r(6.6f, 19.4f, 9f, 24.2f, orange)
-                r(19.8f, 19.4f, 22.2f, 24.2f, orange)
-                r(6.2f, 23f, 9.6f, 25f, cream)
-                r(19.4f, 23f, 22.8f, 25f, cream)
-                r(13f, 19.6f, 15.4f, 21.8f, orange2)
-            } else {
-                r(10.6f, 19.4f, 13f, 24.2f, orange)
-                r(23f, 19.4f, 25.4f, 24.2f, orange)
-                r(10.2f, 23f, 13.6f, 25f, cream)
-                r(22.6f, 23f, 26f, 25f, cream)
-                r(6.4f, 19.6f, 8.8f, 21.8f, orange2)
-            }
-            head(cv, p, 6.2f, 8.6f)
-            return bmp
-        }
-        catFrames = arrayOf(b0, walking(1), walking(2))
-        catFramesL = arrayOf(flipH(b0), flipH(catFrames[1]), flipH(catFrames[2]))
+        val i = ((phase * set.size).toInt() % set.size + set.size) % set.size
+        return set[i]
     }
 
     // -----------------------------------------------------------------------
@@ -1480,6 +996,153 @@ class Assets {
         c.drawRect(x + 1.5f, y, x + 2.5f, y + 4.6f, p)        // 중앙 가닥 (가장 큼)
         p.color = tip
         c.drawRect(x + 1.5f, y, x + 2.5f, y + 1.3f, p)        // 중앙 가닥 팁 하이라이트
+    }
+
+    // -----------------------------------------------------------------------
+    // 살아있는 풀 — 풀잎 리그 (Living Grass RIG)
+    //
+    // 듀오 애니메이션의 "내부 구조"를 그대로 픽셀에 적용한다.
+    //  · RIG  : 풀잎 하나 = ROOT → MID → TIP 3단 뼈대. 각 단은 *정수 픽셀 오프셋*으로
+    //            누적되기 때문에 바람에 휜다고 앤티앨리어싱이 생기지 않는다.
+    //            (float로 회전시킨 뒤 스케일링하면 픽셀이 뭉개진다 — 이게 함정)
+    //  · POSE : 가능한 자세(lean × curl)를 미리 구워 bitmap 사전으로 들고 있다가
+    //            상태 머신이 인덱스만 고른다 = Lottie/Rive의 "작성된 상태 + 트윈".
+    //  · 내부 디테일: 3톤 명암(밝은 면 / 중간 / 그림자) + 그림자쪽 1px 잎맥 점선 +
+    //            가운데 접힘 하이라이트 + 끝 2행 팁 하이라이트 + 기저부 접지 그림자.
+    // -----------------------------------------------------------------------
+
+    private class GrassKind(
+        val h: Int, val bh: Int, val oy: Int,        // 높이 / 비트맵 높이 / 밑동 행
+        val wBase: Int, val wMid: Int,               // 기저부·중간부 두께
+        val deep: Int, val body: Int, val lit: Int, val hi: Int, val vein: Int,
+        val restLean: Int, val restCurl: Int,         // 이 종 고유의 기본 자세
+        val seed: Int,                                // 이삭 색 (0 = 없음)
+        val fold: Boolean                             // 접힘 하이라이트 여부
+    )
+
+    private fun grassKinds() = listOf(
+        // 0 새순 — 낮고 촘촘한 싹. 초원 대부분을 담당
+        GrassKind(
+            8, 12, 10, 2, 2,
+            c(0xFF2E5A2A), c(0xFF4E8A3C), c(0xFF7FBE5E), c(0xFFA8DA7E), c(0xFF3D7033),
+            0, 0, 0, false
+        ),
+        // 1 기본 풀잎 — 라운드 2px 잎
+        GrassKind(
+            12, 16, 14, 2, 2,
+            c(0xFF35632F), c(0xFF4E8A3C), c(0xFF6FAE57), c(0xFF8CC46C), c(0xFF447C34),
+            0, 0, 0, true
+        ),
+        // 2 긴 풀 — 3px 두께, 풀숲(TALLGRASS)의 주역
+        GrassKind(
+            17, 21, 19, 3, 2,
+            c(0xFF3A6B33), c(0xFF5B9A45), c(0xFF8CC46C), c(0xFFB7E08C), c(0xFF4C8539),
+            0, 0, 0, false
+        ),
+        // 3 마른 풀 — 올리브 톤, 기본 자세가 이미 오른쪽으로 눕는다
+        GrassKind(
+            14, 18, 16, 3, 2,
+            c(0xFF4A5A2A), c(0xFF7E9440), c(0xFFA8BC5E), c(0xFFC9D88A), c(0xFF6A7F34),
+            2, 1, 0, true
+        ),
+        // 4 이삭/갈대 — 끝에 이삭穗. 갈대습지(REED)
+        GrassKind(
+            16, 24, 22, 2, 2,
+            c(0xFF3E6B4A), c(0xFF5F9A5E), c(0xFF8FCB8C), c(0xFFC3E6B0), c(0xFF4C7F4C),
+            -1, 0, c(0xFFD9C58A), false
+        )
+    )
+
+    /**
+     * 풀잎 한 자세를 픽셀로 새긴다.
+     * 뿌리(0,0)는 절대 움직이지 않고, 끝점만 (lean, curl)만큼 간다.
+     * 세로줄을 1px씩 내려가며 x를 정수로 누적해서 그리기 때문에
+     * 어떤 각도에서도 결과가 "계단식 픽셀 선"으로 남아 깔끔하다.
+     */
+    private fun grassPose(k: GrassKind, lean: Int, curl: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(GRASS_W, k.bh, Bitmap.Config.ARGB_8888)
+        val h = k.h
+        val tipX = (lean + k.restLean) * GRASS_LEAN_UNIT
+        val arc = (curl + k.restCurl) * GRASS_CURL_UNIT
+        // 이차 베지어: 첫 조점은 거의 수직(뿌리가 박혀 있음), 둘째 조점이 휨을 만든다
+        val c1 = tipX * 0.12f
+        val c2 = tipX * 0.60f + arc
+        var tipPx = GRASS_CX
+
+        for (i in 0..h) {
+            val t = i / h.toFloat()
+            val u = 1f - t
+            val x = 3f * u * u * t * c1 + 3f * u * t * t * c2 + t * t * t * tipX
+            val px = GRASS_CX + x.roundToInt()
+            if (i == h) tipPx = px
+            val y = k.oy - i
+            if (y < 0) break
+
+            // 잎폭 테이퍼 — 풀답게 끝 40%를 가늘게 (1px로 긴 첨부)
+            val w = when {
+                t < 0.14f -> k.wBase
+                t < 0.58f -> k.wMid
+                else -> 1
+            }
+            val tipLight = t > 0.84f     // 끝 2~3행: 가장 밝은 하이라이트
+            val rootDark = t < 0.11f     // 기저부: 접지감
+            val veinOn = w >= 3 && t > 0.14f && t < 0.55f && (i % 3 == 0)   // 내부 잎맥 점선
+            val foldOn = k.fold && i in (h * 0.38f).toInt()..(h * 0.38f).toInt() + 1
+
+            for (j in 0 until w) {
+                val col = px - ((w - 1) / 2) + j
+                val isLeft = j == 0
+                val isRight = j == w - 1
+                var color = when {
+                    tipLight -> k.hi
+                    w == 1 -> k.body
+                    isRight -> k.deep
+                    isLeft -> if (foldOn) k.hi else k.lit
+                    else -> if (veinOn) k.vein else k.body
+                }
+                if (rootDark) color = shade(color, 0.80f)
+                if (col in 0 until GRASS_W) bmp.setPixel(col, y, color)
+            }
+        }
+
+        // 이삭穗 — 줄기 끝 위로 좁아지는穗
+        if (k.seed != 0) {
+            for (j in 1..4) {
+                val y2 = k.oy - h - j
+                if (y2 < 0) break
+                val drift = (tipX * 0.07f * j).roundToInt()
+                val halfW = if (j <= 2) 1 else 0
+                for (dx in -halfW..halfW) {
+                    val x2 = tipPx + drift + dx
+                    if (x2 in 0 until GRASS_W) {
+                        bmp.setPixel(x2, y2, if (dx == 0) k.seed else shade(k.seed, 0.76f))
+                    }
+                }
+            }
+        }
+        return bmp
+    }
+
+    private fun buildGrassRig() {
+        val kinds = grassKinds()
+        grassPoses = Array(GRASS_KINDS) { ki ->
+            val k = kinds[ki]
+            grassOx[ki] = GRASS_CX
+            grassOy[ki] = k.oy
+            Array(GRASS_LEAN_MAX * 2 + 1) { li ->
+                Array(GRASS_CURL_MAX * 2 + 1) { ci ->
+                    grassPose(k, li - GRASS_LEAN_MAX, ci - GRASS_CURL_MAX)
+                }
+            }
+        }
+    }
+
+    /** 상태 머신이 부르는 포즈 조회 (범위는 여기서 클램프) */
+    fun grassPose(kind: Int, lean: Int, curl: Int): Bitmap {
+        val k = if (kind in 0 until GRASS_KINDS) kind else 1
+        val li = (lean + GRASS_LEAN_MAX).coerceIn(0, GRASS_LEAN_MAX * 2)
+        val ci = (curl + GRASS_CURL_MAX).coerceIn(0, GRASS_CURL_MAX * 2)
+        return grassPoses[k][li][ci]
     }
 
     private fun buildTiles() {
@@ -2133,6 +1796,108 @@ class Assets {
             c.drawRect(15.4f, 7f, 16.6f, 8.4f, p)
         })
 
+        // RANGE_TOP (가정용 오븐 윗부분 — 레인지 후드 + 백스플래시 + 조리도구 선반)
+        begin(T.RANGE_TOP)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFCDA775))
+            p.color = c(0xFF9A9AA6)
+            c.drawRect(1f, 0f, 31f, 32f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(2.4f, 0f, 29.6f, 32f, p)
+            // 레인지 후드 (스틸)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(2.4f, 0f, 29.6f, 7.4f, p)
+            p.color = c(0xFF8C919C)
+            c.drawRect(2.4f, 5.6f, 29.6f, 7.4f, p)
+            p.color = c(0xFFD5D8DF)
+            c.drawRect(4f, 1.2f, 28f, 2.4f, p)
+            p.color = c(0xFFF7E9A8)
+            c.drawRect(13f, 6f, 19f, 7.4f, p)
+            // 백스플래시 타일
+            p.color = c(0xFFDCE8E6)
+            c.drawRect(4f, 9f, 28f, 24f, p)
+            p.color = c(0xFFC4D3D0)
+            c.drawRect(4f, 13.8f, 28f, 14.6f, p)
+            c.drawRect(4f, 18.8f, 28f, 19.6f, p)
+            c.drawRect(9.6f, 9f, 10.4f, 24f, p)
+            c.drawRect(15.6f, 9f, 16.4f, 24f, p)
+            c.drawRect(21.6f, 9f, 22.4f, 24f, p)
+            // 걸어 둔 나무 주걱 / 스틸 뒤집개
+            p.color = c(0xFFB98F5E)
+            c.drawRect(8f, 9.5f, 9.6f, 21f, p)
+            p.color = c(0xFFC9A87B)
+            c.drawRect(7f, 19f, 10.6f, 23f, p)
+            p.color = c(0xFF6B6B78)
+            c.drawRect(23f, 9.5f, 24.6f, 20f, p)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(21.6f, 19f, 26f, 23f, p)
+            // 선반 + 토마토 소스·바질 병
+            p.color = c(0xFFB98F5E)
+            c.drawRect(3.4f, 25f, 28.6f, 26.6f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(6f, 26.6f, 26f, 32f, p)
+            p.color = c(0xFFE2574C)
+            c.drawRect(11f, 21.5f, 14.4f, 25f, p)
+            p.color = c(0xFF6B4F35)
+            c.drawRect(11.8f, 20.4f, 13.6f, 21.6f, p)
+            p.color = c(0xFF6FAE57)
+            c.drawRect(15.6f, 22f, 18.6f, 25f, p)
+            p.color = c(0xFF3F7D46)
+            c.drawRect(16.2f, 21f, 18f, 22.2f, p)
+        })
+        // RANGE (가정용 오븐 — 쿡탑 + 오븐 창, 2프레임 불빛)
+        begin(T.RANGE)
+        for (f in 0 until 2) {
+            add(tilePainter { c, p, r ->
+                fill(c, p, c(0xFFCDA775))
+                p.color = c(0xFF9A9AA6)
+                c.drawRect(1f, 0f, 31f, 31f, p)
+                p.color = c(0xFFEFEDE6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 29.6f, p)
+                // 쿡탑 (윗면, 스틸) + 화구 2개
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 10f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(2.4f, 9f, 29.6f, 10.4f, p)
+                p.color = c(0xFFD5D8DF)
+                c.drawRect(3.6f, 2f, 28.4f, 2.8f, p)
+                p.color = c(0xFF3A3F4A)
+                c.drawCircle(10f, 5.8f, 3.2f, p)
+                c.drawCircle(22f, 5.8f, 3.2f, p)
+                p.color = c(0xFF5A626C)
+                c.drawCircle(10f, 5.8f, 2f, p)
+                c.drawCircle(22f, 5.8f, 2f, p)
+                p.color = if (f == 0) c(0xFFF2913C) else c(0xFFE2574C)
+                c.drawCircle(10f, 5.8f, 1.2f, p)
+                // 노브 3개 + 오븐 손잡이
+                p.color = c(0xFF4A4A55)
+                c.drawRect(6.6f, 11.6f, 9.4f, 13.6f, p)
+                c.drawRect(14.6f, 11.6f, 17.4f, 13.6f, p)
+                c.drawRect(22.6f, 11.6f, 25.4f, 13.6f, p)
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(4f, 15f, 28f, 16.6f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(4f, 16.6f, 28f, 17.2f, p)
+                // 오븐 창 (안에서 피자가 익는 중 — 프레임마다 불빛 밝기가 다름)
+                p.color = c(0xFF23232B)
+                c.drawRect(6f, 18.4f, 26f, 27.4f, p)
+                p.color = c(0xFF3A2A28)
+                c.drawRect(7.4f, 19.6f, 24.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFE07A2C) else c(0xFFF2913C)
+                c.drawRect(8.4f, 21f, 23.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFF2B63C) else c(0xFFF7CE5B)
+                c.drawRect(9.6f, 22f, 22.4f, 24.4f, p)
+                p.color = c(0xFFE2574C)
+                c.drawRect(11f, 22.6f, 13f, 23.6f, p)
+                c.drawRect(17f, 23f, 19f, 24f, p)
+                p.color = c(0xFF5A5A66)
+                c.drawRect(8.4f, 19.6f, 24.6f, 20.4f, p)
+                // 하단 받침
+                p.color = c(0xFF6B6B78)
+                c.drawRect(3f, 29.6f, 29f, 31.4f, p)
+            })
+        }
+
         medallion = RoadArt.medallion(3)
         drain = RoadArt.drain()
         castShadow = RoadArt.castShadows()
@@ -2144,6 +1909,9 @@ class Assets {
             v.toTypedArray()
         }
     }
+
+    /** 피자 종류별 아이콘 (id = Pizzas.ALL 인덱스) */
+    fun pizzaArt(pizzaId: Int): Bitmap = pizzaArts[pizzaId.coerceIn(0, pizzaArts.size - 1)]
 
     /** 타일 좌표 기반 변형 선택 */
     fun tileVariant(tileOrdinal: Int, x: Int, y: Int): Int {
@@ -2181,6 +1949,44 @@ class Assets {
         val pizzaBmp = sprite(pizza, pal + ('A' to c(0xFF7D9C4F)))
         pizzaIcon = pizzaBmp
         pizzaIconBig = Bitmap.createScaledBitmap(pizzaBmp, pizzaBmp.width * 4, pizzaBmp.height * 4, false)
+
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
+        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        val pizzaOven = listOf(
+            "......................",
+            ".....cckccccckc.....",
+            "...ckCCCCCCCCCCkc...",
+            "..cCCRRCCCCCRRCCCc..",
+            "..kCCRRCCACCRRCCd...",
+            ".cCCCCCCCCCCCCCCCd..",
+            ".cCRRCCCACCCRRCCk...",
+            ".kCRRCCCCCCCRRCCd...",
+            ".cCCCCCRRCCACCCCd...",
+            ".cCCACCRRCCCCCCd....",
+            ".cCCCCCCCCCRRCCk....",
+            ".dCCCCCCCCCRRCCd....",
+            "..dkddddddkdd......",
+            "...ddddkddddd......",
+            "......................"
+        )
+        pizzaArts = Array(Pizzas.ALL.size) { i ->
+            val def = Pizzas.ALL[i]
+            if (def.kind == PizzaKind.OVEN) {
+                sprite(
+                    pizzaOven, mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            } else {
+                sprite(
+                    pizza, mapOf(
+                        'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            }
+        }
 
         cloverIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
             val cv = Canvas(this)

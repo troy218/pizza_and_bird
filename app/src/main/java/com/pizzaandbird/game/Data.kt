@@ -373,6 +373,7 @@ object Birds {
     }
 
     val byId: Map<String, BirdDef> = ALL.associateBy { it.id }
+    val byName: Map<String, BirdDef> = ALL.associateBy { it.name }
 
     /** 지역 서식지 + 밤낮에 맞는 새 풀 */
     fun poolFor(region: RegionDef, night: Boolean = false): List<BirdDef> = ALL.filter { def ->
@@ -664,7 +665,7 @@ object Birds {
 }
 
 // ---------------------------------------------------------------------------
-// 피자 (토핑) / 카메라 / 장식
+// 피자 (화덕피자 / 일반 피자) / 카메라 / 장식
 // ---------------------------------------------------------------------------
 
 /** 피자 품질 (bake 미니게임 결과) */
@@ -678,24 +679,95 @@ enum class PizzaQ(val label: String, val hunger: Int, val luck: Int, val stars: 
     }
 }
 
-/** 피자 토핑 — 굽기 미니게임의 난이도와 효과가 달라진다 */
-object Toppings {
-    class Topping(
-        val id: Int, val name: String, val emoji: String,
-        val hungerBonus: Int, val luckBonus: Int,
-        val cursorSpeed: Float,        // 커서 속도 배율 (높을수록 어려움)
-        val perfectW: Float            // 걸작(초록) 구간 폭 (0~1)
+/**
+ * 피자 계열 — 집의 두 조리기구에서 각각 다른 계열을 굽는다.
+ * - 화덕피자: 장작 화덕(🔥). 얇은 도우를 고온에서 순식간에 굽는다 → 커서가 빠르고 금방 타지만 효과(특히 행운)가 크다.
+ * - 일반 피자: 가정용 오븐(🍕). 익숙한 도톰한 피자 → 굽기 쉽고 든든하다.
+ */
+enum class PizzaKind(
+    val label: String,          // 계열 이름
+    val emoji: String,
+    val station: String,        // 굽는 곳 이름 (화덕 / 오븐)
+    val desc: String,
+    val goodW: Float,           // 게이지의 노랑(맛있는) 구간 폭 — 화덕은 뜨거워서 금방 탄다
+    val tint: Int               // UI 포인트 색
+) {
+    OVEN("화덕피자", "🔥", "화덕", "장작불 400도에서 순식간에 굽는 얇은 도우. 어렵지만 행운이 쑥쑥!", 0.20f, 0xFFD9683A.toInt()),
+    REGULAR("일반 피자", "🍕", "오븐", "가정용 오븐에서 천천히 굽는 도톰한 피자. 굽기 쉽고 든든해요.", 0.26f, 0xFFE8A93A.toInt());
+
+    /** 이름 뒤에 붙는 말: "마르게리타 화덕피자" / "불고기 피자" */
+    val suffix: String get() = if (this == OVEN) "화덕피자" else "피자"
+}
+
+/** 피자 한 종류 — 계열(화덕/일반), 먹었을 때 효과, 굽기 미니게임 난이도, 아이콘 색 */
+class PizzaDef(
+    val id: Int,
+    val kind: PizzaKind,
+    val name: String,
+    val emoji: String,
+    val hungerBonus: Int,          // 품질 기본치에 더해지는 배고픔 회복
+    val luckBonus: Int,            // 품질 기본치에 더해지는 행운
+    val cursorSpeed: Float,        // 커서 속도 배율 (높을수록 어려움)
+    val perfectW: Float,           // 걸작(초록) 구간 폭 (0~1)
+    val difficulty: Int,           // 표시용 난이도 1~5
+    val desc: String,
+    val baseColor: Int,            // 아이콘: 치즈/소스 바탕색
+    val topColorA: Int,            // 아이콘: 토핑색 1
+    val topColorB: Int             // 아이콘: 토핑색 2
+) {
+    /** "마르게리타 화덕피자" / "불고기 피자" */
+    val fullName: String get() = "$name ${kind.suffix}"
+
+    /** 난이도 표시 "●●●○○" */
+    fun difficultyDots(): String = "●".repeat(difficulty.coerceIn(1, 5)) + "○".repeat(5 - difficulty.coerceIn(1, 5))
+}
+
+/**
+ * 피자 메뉴. id는 세이브 데이터의 인덱스이므로 순서를 바꾸거나 중간에 끼워 넣지 말 것!
+ * (0~2는 v0.2의 치즈/버섯/불고기 — 옛 세이브와 호환)
+ */
+object Pizzas {
+    private fun c(v: Long): Int = v.toInt()
+
+    val ALL: List<PizzaDef> = listOf(
+        // ---- 일반 피자 (가정용 오븐) — 쉽고 든든 ----
+        PizzaDef(0, PizzaKind.REGULAR, "치즈", "🧀", 0, 0, 1.00f, 0.26f, 1,
+            "쭉 늘어나는 기본 치즈 피자. 처음 굽기에 딱!", c(0xFFF7CE5B), c(0xFFF2B63C), c(0xFFE8A75C)),
+        PizzaDef(1, PizzaKind.REGULAR, "버섯", "🍄", -4, 6, 1.15f, 0.32f, 2,
+            "향긋한 양송이 듬뿍. 숲의 기운이 행운을 불러요.", c(0xFFF7CE5B), c(0xFFB8926A), c(0xFF8A6A4A)),
+        PizzaDef(2, PizzaKind.REGULAR, "불고기", "🥩", 8, 2, 1.38f, 0.20f, 3,
+            "달콤짭짤한 불고기가 한가득. 한국식 피자의 정석.", c(0xFFF2C24E), c(0xFF8A4A2E), c(0xFF6FAE57)),
+        PizzaDef(3, PizzaKind.REGULAR, "페퍼로니", "🍕", 6, 1, 1.10f, 0.26f, 1,
+            "짭짤한 페퍼로니가 빼곡. 실패가 없는 맛.", c(0xFFF7CE5B), c(0xFFC8392B), c(0xFFA32E22)),
+        PizzaDef(4, PizzaKind.REGULAR, "고구마", "🍠", 4, 5, 1.22f, 0.26f, 2,
+            "달콤한 고구마 무스와 옥수수. 꼬마들이 제일 좋아해요.", c(0xFFF2B84A), c(0xFFB8702C), c(0xFFFFF0A0)),
+        PizzaDef(5, PizzaKind.REGULAR, "콤비네이션", "🥓", 10, 3, 1.30f, 0.22f, 3,
+            "페퍼로니·피망·양파·올리브 총출동. 든든함 최고!", c(0xFFF7CE5B), c(0xFFC8392B), c(0xFF5E9E4A)),
+
+        // ---- 화덕피자 (장작 화덕) — 어렵지만 효과 큼 ----
+        PizzaDef(6, PizzaKind.OVEN, "마르게리타", "🍅", 4, 8, 1.45f, 0.22f, 3,
+            "토마토·모차렐라·바질. 화덕피자의 기본이자 완성.", c(0xFFD9503F), c(0xFFFDF6E8), c(0xFF4F8F3F)),
+        PizzaDef(7, PizzaKind.OVEN, "마리나라", "🌿", 0, 10, 1.40f, 0.24f, 3,
+            "치즈 없이 토마토와 마늘, 오레가노만. 담백한 행운의 맛.", c(0xFFC94A3A), c(0xFFEFE2BC), c(0xFF5C8F3F)),
+        PizzaDef(8, PizzaKind.OVEN, "콰트로 포르마지", "🧀", 10, 6, 1.55f, 0.20f, 4,
+            "네 가지 치즈가 부글부글. 고소함이 배를 든든히 채워요.", c(0xFFF5E3A3), c(0xFF6B7FA3), c(0xFFE8A75C)),
+        PizzaDef(9, PizzaKind.OVEN, "고르곤졸라", "🍯", 2, 14, 1.60f, 0.18f, 4,
+            "꿀을 콕 찍어 먹는 고르곤졸라. 새들도 반할 행운의 피자.", c(0xFFF2E6C0), c(0xFF7A8BB0), c(0xFFE8B923)),
+        PizzaDef(10, PizzaKind.OVEN, "디아볼라", "🌶", 12, 4, 1.70f, 0.18f, 5,
+            "매콤한 살라미가 불타오르는 악마의 피자. 든든함이 남달라요.", c(0xFFD9503F), c(0xFF8F2B1E), c(0xFFF7CE5B)),
+        PizzaDef(11, PizzaKind.OVEN, "루꼴라 프로슈토", "🥗", 8, 12, 1.75f, 0.16f, 5,
+            "갓 구운 도우 위에 생햄과 루꼴라를 산처럼. 최고의 한 판!", c(0xFFF5E3A3), c(0xFFE88A8A), c(0xFF4F8F3F))
     )
 
-    val ALL = listOf(
-        Topping(0, "치즈", "🧀", 0, 0, 1.0f, 0.26f),
-        Topping(1, "버섯", "🍄", -4, 6, 1.15f, 0.32f),
-        Topping(2, "불고기", "🥩", 8, 2, 1.38f, 0.20f)
-    )
+    val byId: Map<Int, PizzaDef> = ALL.associateBy { it.id }
 
-    val byId: Map<Int, Topping> = ALL.associateBy { it.id }
+    fun of(id: Int): PizzaDef = byId[id] ?: ALL[0]
 
-    fun of(id: Int): Topping = byId[id] ?: ALL[0]
+    /** 계열별 메뉴 (표시 순서 유지) */
+    fun ofKind(kind: PizzaKind): List<PizzaDef> = ALL.filter { it.kind == kind }
+
+    /** 계열의 대표 피자 (아이콘 등에 사용) */
+    fun representative(kind: PizzaKind): PizzaDef = ofKind(kind).firstOrNull() ?: ALL[0]
 }
 
 /** 집 장식 소품 — 구매 후 칸에 배치하면 행운 보너스 */

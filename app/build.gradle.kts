@@ -11,8 +11,8 @@ android {
         applicationId = "com.pizzaandbird.game"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.0-beta01"
+        versionCode = 6
+        versionName = "0.3.3-beta01"
     }
 
     // ---------------------------------------------------------------
@@ -60,4 +60,32 @@ android {
 
 dependencies {
     // 외부 의존성 없음 — 완전 오프라인 게임 (android.jar 기본 API만 사용)
+}
+
+// ---------------------------------------------------------------
+// CI 진단: Kotlin 컴파일 오류(e: …)를 GitHub Actions annotation(::error::)으로도 출력한다.
+// 워크플로 로그를 내려받지 못하는 환경(에이전트/모바일)에서도 실패 원인을 바로 볼 수 있게 함.
+// 로컬 빌드에는 영향 없음 (GITHUB_ACTIONS 환경에서만 동작).
+// ---------------------------------------------------------------
+if (System.getenv("GITHUB_ACTIONS") == "true") {
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        val pending = StringBuilder()
+        var reported = 0
+        logging.addStandardErrorListener(object : org.gradle.api.logging.StandardOutputListener {
+            override fun onOutput(output: CharSequence) {
+                pending.append(output)
+                var nl = pending.indexOf("\n")
+                while (nl >= 0) {
+                    val line = pending.substring(0, nl).trimEnd()
+                    pending.delete(0, nl + 1)
+                    // "e: file:///…:줄:칸 메시지" 형태의 컴파일러 진단만 (데몬 재시작 안내 등은 제외)
+                    if (line.startsWith("e: file:") && reported < 10) {
+                        reported++
+                        println("::error::$line")
+                    }
+                    nl = pending.indexOf("\n")
+                }
+            }
+        })
+    }
 }
