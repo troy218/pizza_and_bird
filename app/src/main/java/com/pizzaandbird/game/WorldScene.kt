@@ -30,6 +30,11 @@ class WorldScene(
     private val cats = ArrayList<Cat>()
     private val rnd = Random(region.id.hashCode().toLong() + 7L)
 
+    // 디테일 연출 (날씨·물·발자국·작은 생물·조명) — Fx.kt
+    private val fx = WorldFx(map, region.id.hashCode().toLong() + 31L)
+    private val weather: Weather get() = state.weather()
+    private var stepT = 0f
+
     var photoMode = false
         private set
 
@@ -110,6 +115,7 @@ class WorldScene(
         game.hud.showControls = true
         game.hud.showStats = true
         game.hud.showMinimap = true
+        fx.weather = weather
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
@@ -138,8 +144,9 @@ class WorldScene(
             return   // 대화상자/메뉴 중에는 세계 정지
         }
         state.playSeconds += dt
-        state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
+        state.advanceClock(dt)
         updateWeather(dt)
+        fx.weather = weather
 
         updatePlayer(dt)
         updateStats(dt)
@@ -173,7 +180,7 @@ class WorldScene(
         val it = birds.iterator()
         while (it.hasNext()) {
             val b = it.next()
-            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult())
+            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult() * weather.fleeK)
             if (b.state == 2 && !b.fleeCued) {
                 b.fleeCued = true
                 game.sfx(Audio.Sfx.BIRD_FLEE, 0.65f)   // 푸드덕! 도망
@@ -188,7 +195,7 @@ class WorldScene(
         spawnTimer -= dt
         if (spawnTimer <= 0f) {
             trySpawnBird()
-            spawnTimer = (if (state.isNight()) 2f else 2.5f) + rnd.nextFloat() * 3.5f
+            spawnTimer = ((if (state.isNight()) 2f else 2.5f) + rnd.nextFloat() * 3.5f) * weather.spawnK
         }
 
         // 파티클
@@ -204,6 +211,13 @@ class WorldScene(
 
         // 카메라
         updateCamera(snap = false, dt = dt)
+
+        // 디테일 연출 & NPC 말풍선
+        fx.update(
+            dt, game.time, state.worldTime, camX, camY,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE, player.cx, player.cy
+        )
+        updateNpcEmotes(dt)
 
         // 상태 동기화 & 주기 저장
         state.px = player.x
@@ -285,8 +299,20 @@ class WorldScene(
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.animT += dt * (if (sprint) 1.4f else 1f)
+
+            // 발걸음 (지형별 발자국·풀잎·물 튀김)
+            stepT -= dt
+            if (stepT <= 0f) {
+                stepT = when {
+                    player.bike -> 0.11f
+                    sprint -> 0.2f
+                    else -> 0.3f
+                }
+                fx.onStep(player.cx, player.y + 14.5f, player.facing, player.bike, sprint)
+            }
         } else {
             player.animT = 0f
+            stepT = 0f
         }
     }
 
@@ -522,7 +548,7 @@ class WorldScene(
     // -------------------------------------------------------------------
 
     private fun addParticle(x: Float, y: Float, vx: Float, vy: Float, life: Float, col: Int, size: Float, sway: Boolean) {
-        if (particles.size > 60) return
+        if (particles.size > 100) return
         particles.add(Pt(x, y, vx, vy, life, life, col, size, sway))
     }
 
@@ -539,9 +565,8 @@ class WorldScene(
     }
 
     private fun ambientKind(): String = when {
-        state.weather() == Weather.RAIN -> "rain"
-        state.weather() == Weather.SNOW -> "snow"
-        state.weather() == Weather.WIND -> "wind"
+        weather == Weather.RAIN || weather == Weather.SNOW -> "none"     // 비/눈은 WorldFx가 화면 전체에 그린다
+        weather == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
         "forest" in region.habitats -> "leaf"
@@ -1023,7 +1048,16 @@ class WorldScene(
         c.drawColor(0xFF3A3040.toInt())
         val camXv = camX * WORLD_SCALE
         val camYv = camY * WORLD_SCALE
-        map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
+        // 햇빛 그림자: 아침엔 서쪽, 저녁엔 동쪽으로 길게 (흐리거나 비 오면 옅게)
+        val hour = state.worldTime
+        val dl = daylight(hour)
+        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        val sunAlpha = (54f * dl * weather.shadowK).toInt()
+        map.draw(
+            c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time,
+            sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
+        )
+        fx.drawGround(c, camXv, camYv, game.virtW, game.virtH)
         drawCloudShadows(c, camXv, camYv)
 
         // 엔티티 (y 정렬)
@@ -1036,9 +1070,18 @@ class WorldScene(
         for (e in ents) drawEntity(c, e)
 
         drawParticles(c, camXv, camYv)
-        drawDayNight(c)
-        drawNightGlow(c, camXv, camYv)
+        fx.drawAir(c, camXv, camYv, game.virtW, game.virtH)
+        fx.drawWeather(c, game.virtW, game.virtH)
+        drawLighting(c, camXv, camYv)
+        drawNpcOverlays(c)
         if (photoMode) drawPhotoOverlay(c)
+    }
+
+    /** 발밑 타일이 풀숲이면 1(키 큰 풀) / 2(갈대), 아니면 0 */
+    private fun grassKindAt(lx: Float, ly: Float): Int = when (map.t((lx / 16f).toInt(), (ly / 16f).toInt())) {
+        T.TALLGRASS -> 1
+        T.REED -> 2
+        else -> 0
     }
 
     private fun sortY(e: Any): Float = when (e) {
@@ -1060,7 +1103,7 @@ class WorldScene(
                     NpcKind.KID -> a.npcKid
                     NpcKind.ELDER -> a.npcElder
                 }
-                val bob = if ((sin(game.time * 2.4f + e.tileX).toInt() % 2) == 0) -1.5f else 0f
+                val bob = if (sin(game.time * 2.4f + e.tileX) > 0f) -1.5f else 0f
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE + bob
                 c.drawOval(
@@ -1090,6 +1133,16 @@ class WorldScene(
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
                 c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
+                val gk = grassKindAt(e.cx, e.cy + 3f)
+                if (gk != 0) fx.drawGrassOver(c, sx + 4f, sy + bmp.height, bmp.width - 8f, gk == 2, e.state == 1)
+                // 밤에 웅크린 고양이는 쿨쿨
+                if (e.state == 0 && state.isNight()) {
+                    val zt = (game.time * 0.8f) % 1f
+                    tinyPaint.textSize = 10f + zt * 4f
+                    tinyPaint.color = Color.argb((230 * (1f - zt)).toInt(), 248, 239, 220)
+                    c.drawText("z", sx + 22f + zt * 6f, sy + 4f - zt * 12f, tinyPaint)
+                    tinyPaint.color = 0xFF4A3728.toInt()
+                }
             }
             is FieldBird -> {
                 val flying = e.state == 2
@@ -1123,6 +1176,8 @@ class WorldScene(
                     a.sprPaint.alpha = 255
                 } else {
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
+                    val gk = grassKindAt(e.cx, e.y + bmp.height / WORLD_SCALE - 1f)
+                    if (gk != 0 && e.state == 0) fx.drawGrassOver(c, bx + 2f, by + bmp.height, bmp.width - 4f, gk == 2, false)
                 }
             }
             is Player -> {
@@ -1142,17 +1197,30 @@ class WorldScene(
                 val sy = (player.y - camY) * WORLD_SCALE
                 c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
+                // 풀숲에 들어가면 발목이 풀에 가려진다
+                val gk = grassKindAt(player.cx, player.y + 13f)
+                if (gk != 0) fx.drawGrassOver(c, sx + 3f, sy + 32f, 26f, gk == 2, player.moving)
             }
         }
     }
 
     private fun drawCloudShadows(c: Canvas, camXv: Float, camYv: Float) {
-        for (i in 0 until 3) {
-            val speed = 7f + i * 3.5f
-            val w = 250f + i * 70f
+        // 맑으면 구름 3조각, 강풍 4조각(빠르게), 흐리면 6조각 — 비/눈은 하늘 전체가 흐려 그림자가 없다
+        val n = when (weather) {
+            Weather.SUNNY -> 3
+            Weather.WIND -> 4
+            Weather.CLOUDY -> 6
+            else -> 0
+        }
+        val windK = if (weather == Weather.WIND) 3.2f else 1f   // 바람 부는 날엔 구름 그림자가 빠르게 지나간다
+        if (n == 0) return
+        cloudPaint.color = Color.argb(if (weather == Weather.CLOUDY) 34 else 26, 18, 30, 56)
+        for (i in 0 until n) {
+            val speed = (7f + (i % 3) * 3.5f + (i / 3) * 2f) * windK
+            val w = 250f + (i % 3) * 70f
             val span = map.w * 32f + 800f
             val cxw = ((game.time * speed + i * 430f) % span) - 400f
-            val cyw = 110f + i * 200f + sin(game.time * 0.13f + i * 2f) * 50f
+            val cyw = 110f + (i % 3) * 200f + (i / 3) * 110f + sin(game.time * 0.13f + i * 2f) * 50f
             c.drawOval(RectF(cxw - camXv - w / 2f, cyw - camYv - 60f, cxw - camXv + w / 2f, cyw - camYv + 60f), cloudPaint)
         }
     }
@@ -1186,7 +1254,7 @@ class WorldScene(
 
     private fun ambientColor(): Int {
         val h = state.worldTime
-        val night = Color.argb(96, 24, 28, 66)
+        val night = Color.argb(124, 20, 24, 62)
         val dawn = Color.argb(64, 255, 166, 92)
         val dusk = Color.argb(80, 240, 120, 60)
         val day = Color.argb(0, 0, 0, 0)
@@ -1201,40 +1269,139 @@ class WorldScene(
         }
     }
 
-    private fun drawDayNight(c: Canvas) {
+    /**
+     * 낮밤 조명. 시각에 맞는 어둠(새벽 주황 → 낮 → 노을 → 밤 남색)을 조명 맵으로 깔고,
+     * 가로등·창문·터널 등·반딧불·플레이어 주변에 부드러운 빛 구멍을 낸 뒤 전구색 번짐을 얹는다.
+     */
+    private fun drawLighting(c: Canvas, camXv: Float, camYv: Float) {
         val col = ambientColor()
-        if (Color.alpha(col) == 0) return
-        uiFill.color = col
-        c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiFill)
-    }
+        val alpha = Color.alpha(col)
+        if (alpha == 0) return
+        val k = (alpha / 124f).coerceIn(0f, 1f)
+        val lm = LightMaps.get(game.virtW, game.virtH)
+        lm.begin(col)
 
-    /** 밤 — 가로등/창문 은은한 빛 */
-    private fun drawNightGlow(c: Canvas, camXv: Float, camYv: Float) {
-        val twilight = state.worldTime >= 17.5f || state.worldTime < 5.5f
-        if (!twilight) return
         val x0 = (camXv / 32f).toInt().coerceAtLeast(0)
         val y0 = (camYv / 32f).toInt().coerceAtLeast(0)
         val x1 = ((camXv + game.virtW) / 32f).toInt().coerceAtMost(map.w - 1)
         val y1 = ((camYv + game.virtH) / 32f).toInt().coerceAtMost(map.h - 1)
-        for (y in y0..y1) {
-            for (x in x0..x1) {
-                val tile = map.t(x, y)
+        val ly0 = (y0 - 2).coerceAtLeast(0)
+        val ly1 = (y1 + 2).coerceAtMost(map.h - 1)
+        val lx0 = (x0 - 2).coerceAtLeast(0)
+        val lx1 = (x1 + 2).coerceAtMost(map.w - 1)
+        val flicker = 0.94f + sin(game.time * 7.3f) * 0.03f + sin(game.time * 13.1f) * 0.03f
+
+        // 1) 빛 구멍
+        for (y in ly0..ly1) {
+            for (x in lx0..lx1) {
                 val sx = x * 32f - camXv
                 val sy = y * 32f - camYv
-                if (tile == T.LAMP) {
-                    uiFill.color = Color.argb(46, 255, 214, 120)
-                    c.drawCircle(sx + 16f, sy + 8f, 15f, uiFill)
-                    uiFill.color = Color.argb(30, 255, 214, 120)
-                    c.drawCircle(sx + 16f, sy + 10f, 26f, uiFill)
-                    uiFill.color = Color.argb(16, 255, 214, 120)
-                    c.drawCircle(sx + 16f, sy + 12f, 38f, uiFill)
-                } else if (tile == T.HOUSE_WIN || tile == T.BLDG_WIN || tile == T.WALL_WIN) {
-                    uiFill.color = Color.argb(80, 255, 200, 110)
-                    c.drawRect(sx + 8f, sy + 8f, sx + 24f, sy + 24f, uiFill)
-                    uiFill.color = Color.argb(34, 255, 200, 110)
-                    c.drawRect(sx + 2f, sy + 2f, sx + 30f, sy + 30f, uiFill)
+                when (map.t(x, y)) {
+                    T.LAMP -> {
+                        lm.light(sx + 16f, sy + 10f, 70f, (255 * k).toInt())
+                        lm.light(sx + 16f, sy + 34f, 60f, 26f, (220 * k).toInt())      // 바닥 빛 웅덩이
+                    }
+                    T.HOUSE_WIN, T.BLDG_WIN, T.WALL_WIN -> lm.light(sx + 16f, sy + 20f, 40f, 34f, (205 * k).toInt())
+                    T.TUNNEL -> lm.light(sx + 16f, sy + 6f, 30f, (170 * k).toInt())
+                    else -> {}
                 }
             }
+        }
+        // 플레이어 주변은 은은하게 (밤에도 캐릭터가 묻히지 않게)
+        val px = (player.cx - camX) * WORLD_SCALE
+        val py = (player.cy - camY) * WORLD_SCALE - 8f
+        lm.light(px, py, 66f, (120 * k).toInt())
+        fx.fireflies(c, lm, true, camXv, camYv, game.virtW, game.virtH)
+        lm.end(c)
+
+        // 2) 전구색 빛 번짐
+        for (y in ly0..ly1) {
+            for (x in lx0..lx1) {
+                val sx = x * 32f - camXv
+                val sy = y * 32f - camYv
+                when (map.t(x, y)) {
+                    T.LAMP -> {
+                        Glow.draw(c, Glow.warm, sx + 16f, sy + 6f, 26f, 26f, (170 * k * flicker).toInt())
+                        Glow.draw(c, Glow.warm, sx + 16f, sy + 36f, 40f, 16f, (70 * k).toInt())
+                    }
+                    T.HOUSE_WIN, T.BLDG_WIN, T.WALL_WIN -> {
+                        uiFill.color = Color.argb((110 * k).toInt(), 255, 206, 120)
+                        c.drawRect(sx + 8f, sy + 8f, sx + 24f, sy + 22f, uiFill)
+                        Glow.draw(c, Glow.warm, sx + 16f, sy + 16f, 24f, 20f, (90 * k).toInt())
+                    }
+                    T.TUNNEL -> Glow.draw(c, Glow.warm, sx + 16f, sy + 4f, 12f, 12f, (150 * k * flicker).toInt())
+                    else -> {}
+                }
+            }
+        }
+        fx.fireflies(c, null, false, camXv, camYv, game.virtW, game.virtH)
+    }
+
+    // -------------------------------------------------------------------
+    // NPC 이름표 / 말풍선
+    // -------------------------------------------------------------------
+
+    private fun updateNpcEmotes(dt: Float) {
+        val night = state.isNight()
+        for (n in map.npcs) {
+            if (n.emoteT > 0f) {
+                n.emoteT -= dt
+                if (n.emoteT <= 0f) n.emote = null
+                continue
+            }
+            n.emoteCd -= dt
+            if (n.emoteCd > 0f) continue
+            n.emoteCd = 7f + rnd.nextFloat() * 8f
+            if (n.kind == NpcKind.PROFESSOR && state.questBird == null) continue   // "!" 말풍선이 우선
+            val rainy = weather == Weather.RAIN
+            val opts = when (n.kind) {
+                NpcKind.VILLAGER -> if (rainy) listOf("☔", "💧", "…") else listOf("♪", "🌸", "🐦")
+                NpcKind.KID -> if (night) listOf("🥱", "🌙") else if (rainy) listOf("☔", "💦") else listOf("♪", "!", "🦋", "😆")
+                NpcKind.ELDER -> if (night) listOf("💤", "🌙") else if (rainy) listOf("☔", "🍵") else listOf("…", "🍵", "☀️")
+                NpcKind.SHOP -> listOf("📷", "✨", "💰")
+                NpcKind.PROFESSOR -> listOf("🔍", "📖", "🐦")
+            }
+            n.emote = opts[rnd.nextInt(opts.size)]
+            n.emoteT = 2.6f
+        }
+    }
+
+    private fun drawNpcOverlays(c: Canvas) {
+        for (n in map.npcs) {
+            val sx = (n.x - camX) * WORLD_SCALE
+            val sy = (n.y - camY) * WORLD_SCALE
+            if (sx < -60f || sx > game.virtW + 60f || sy < -60f || sy > game.virtH + 60f) continue
+            var top = if (n.kind == NpcKind.PROFESSOR && state.questBird == null) sy - 26f else sy - 4f
+            val near = hypot(n.cx - player.cx, n.cy - player.cy) < 46f
+            if (near) {
+                // 이름표
+                uiText.textSize = 11f
+                val tw = uiText.measureText(n.name)
+                val cx = sx + 16f
+                uiFill.color = Color.argb(200, 58, 52, 74)
+                c.drawRoundRect(RectF(cx - tw / 2 - 6f, top - 15f, cx + tw / 2 + 6f, top), 7f, 7f, uiFill)
+                uiText.color = 0xFFF8EFDC.toInt()
+                c.drawText(n.name, cx - tw / 2, top - 4f, uiText)
+                top -= 18f
+            }
+            val em = n.emote ?: continue
+            val appear = ((2.6f - n.emoteT) / 0.2f).coerceIn(0f, 1f)
+            val fade = (n.emoteT / 0.3f).coerceIn(0f, 1f)
+            val a = (255 * minOf(appear, fade)).toInt()
+            val cx = sx + 16f
+            val by = top - 4f - (1f - appear) * 4f + sin(game.time * 3f) * 1.2f
+            uiFill.color = Color.argb(a, 253, 250, 240)
+            c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiFill)
+            val tail = Path()
+            tail.moveTo(cx - 4f, by - 1f); tail.lineTo(cx, by + 5f); tail.lineTo(cx + 4f, by - 1f); tail.close()
+            c.drawPath(tail, uiFill)
+            uiStroke.strokeWidth = 1.4f
+            uiStroke.color = Color.argb(a, 107, 79, 53)
+            c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiStroke)
+            uiText.textSize = 12f
+            uiText.color = Color.argb(a, 74, 55, 40)
+            val ew = uiText.measureText(em)
+            c.drawText(em, cx - ew / 2, by - 5f, uiText)
         }
     }
 
