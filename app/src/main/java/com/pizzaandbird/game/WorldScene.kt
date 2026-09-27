@@ -194,7 +194,7 @@ class WorldScene(
         val it = birds.iterator()
         while (it.hasNext()) {
             val b = it.next()
-            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult() * weather.fleeK)
+            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult() * weather.fleeK, state.bikeScareMult())
             if (b.state == 2 && !b.fleeCued) {
                 b.fleeCued = true
                 game.sfx(Audio.Sfx.BIRD_FLEE, 0.65f)   // 푸드덕! 도망
@@ -318,7 +318,7 @@ class WorldScene(
             val len = sqrt(vx * vx + vy * vy)
             if (len > 0.01f) { vx /= len; vy /= len }
             val sprint = input.isRun && !player.bike
-            var speed = if (player.bike) 97f else 55f
+            var speed = if (player.bike) 97f * state.bikeSpeedMult() else 55f
             if (sprint) speed *= 1.45f
             if (photoMode) speed *= 0.5f        // 카메라 모드에선 살금살금
             speed *= state.speedMult()          // 튼튼한 다리 스킬
@@ -395,7 +395,7 @@ class WorldScene(
         val sprinting = game.input.isRun && !player.bike && moving
         val hungerRate = when {
             sprinting -> 0.24f
-            player.bike && moving -> 0.22f
+            player.bike && moving -> 0.22f * state.bikeHungerMult()
             moving -> 0.14f
             else -> 0.035f
         } * state.hungerMult()                  // 튼튼한 체력 스킬
@@ -1037,6 +1037,9 @@ class WorldScene(
                     DialogOverlay.Choice("장비 가방(조립)") {
                         it.scene.openOverlay(GearBagOverlay(it.scene))
                     },
+                    DialogOverlay.Choice("자전거 상점 🚲") {
+                        it.scene.openOverlay(BikeShopOverlay(it.scene))
+                    },
                     DialogOverlay.Choice("장식 코너") {
                         it.scene.openOverlay(DecorShopOverlay(it.scene))
                     },
@@ -1079,7 +1082,10 @@ class WorldScene(
             player.bike = !player.bike
             state.onBike = player.bike
             game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
-            game.toast(if (player.bike) "자전거 탔다! 쌩~ 🚲" else "자전거에서 내렸어요")
+            game.toast(
+                if (player.bike) "${state.bike().name} 탔다! 쌩~ 🚲"
+                else "${state.bike().name}에서 내렸어요"
+            )
             return
         }
         if (input.justA) {
@@ -1333,7 +1339,7 @@ class WorldScene(
             }
             is Player -> {
                 val bmp: android.graphics.Bitmap = if (player.bike) {
-                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal)
+                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal, state.bikeStyle())
                 } else {
                     a.playerSet(state.gender, state.gearTier())
                         .clip(player.anim).frame(player.facing, player.frame)
