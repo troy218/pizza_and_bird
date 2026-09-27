@@ -140,6 +140,172 @@ object MainStory {
     fun current(s: GameState): Chapter? = if (s.mainQuestFinished) null else CHAPTERS.getOrNull(s.mainQuestStage)
 }
 
+/**
+ * 메인 퀘스트 자동 진행 어드바이저.
+ *
+ * "위치도 모르는데" — 현재 장의 목표를 풀어서 어디로 가야 하는지(·왜 거기인지)를
+ * 자동 계산한다. 메인 퀘스트 카드/대화를 누르면 이 결과로 바로 이동한다.
+ *
+ * 우선순위:
+ *  1. 컬렉션 미완료 — 남은 새가 가장 많이 출현하는 지역
+ *  2. 방문 부족 — 지역 루트 그래프(BFS) 기준 가장 가까운 미방문 지역
+ *  3. 레벨·라이퍼·3성 부족 — 아직 못 찍은 새가 가장 많은 지역
+ *
+ * 보리 박사는 모든 지역 광장에 상주하므로 목표 달성 시 "현재 지역"이 정답이다.
+ */
+object MainQuestAdvisor {
+
+    data class Advice(
+        val regionId: String,
+        val regionName: String,
+        val reason: String,      // 왜 여기인지 (메뉴 카드·박사 대화에 표시)
+        val tip: String,         // 도착하면 뭘 해야 하는지 (토스트/팁)
+        val alreadyThere: Boolean = false
+    )
+
+    // 미니맵이 매 프레임 요청하므로 상태가 바뀔 때까지 결과를 재사용한다.
+    private var cacheKey = ""
+    private var cacheValue: Advice? = null
+
+    fun advise(s: GameState): Advice? {
+        val chapter = MainStory.current(s) ?: return null
+        val key = listOf(
+            s.mainQuestStage, s.mainQuestFinished, s.level, s.birdCounts.size,
+            s.bestStars.values.count { it >= 3 }, s.visited.size, s.region
+        ).joinToString("|")
+        if (key == cacheKey) return cacheValue
+        val advice = compute(s, chapter)
+        cacheKey = key
+        cacheValue = advice
+        return advice
+    }
+
+    private fun compute(s: GameState, chapter: MainStory.Chapter): Advice {
+        // 목표 달성 — 지금 이곳이 정답 (보리 박사는 모든 지역의 광장에 있다)
+        if (chapter.isComplete(s)) {
+            val cur = Regions.byId[s.region] ?: Regions.ALL.first()
+            return Advice(
+                cur.id, cur.name,
+                "목표 달성 · 현재 지역의 광장에서 보리 박사에게 보고하세요",
+                "보리 박사는 중앙 광장 한가운데 있어요",
+                alreadyThere = true
+            )
+        }
+
+        // 지역별 새 풀 (낮+밤 통합 — 밤새도 여기서 나온다)
+        val pools = HashMap<String, Set<String>>()
+        for (r in Regions.ALL) {
+            pools[r.id] = (Birds.poolFor(r, false) + Birds.poolFor(r, true))
+                .mapTo(LinkedHashSet()) { it.id }
+        }
+        val freshCount = pools.mapValues { (_, ids) ->
+            ids.count { id -> (s.birdCounts[id] ?: 0) == 0 }
+        }
+
+        // 1) 컬렉션 미완료 — 남은 새가 나가는 지역
+        val col = chapter.collectionDef()
+        val missing = col?.species?.filterNot { s.hasBirdName(it) } ?: emptyList()
+        val missingDefs = missing.mapNotNull { Birds.byName[it] }
+        if (missing.isNotEmpty()) {
+            var best = Regions.ALL.first()
+            var bestHit = -1
+            var bestFresh = -1
+            for (r in Regions.ALL) {
+                val hit = missingDefs.count { it.id in pools[r.id]!! }
+                val fresh = freshCount[r.id]!!
+                if (hit > bestHit || (hit == bestHit && fresh > bestFresh)) {
+                    bestHit = hit; bestFresh = fresh; best = r
+                }
+            }
+            val hitDefs = missingDefs.filter { it.id in pools[best.id]!! }
+            if (hitDefs.isNotEmpty()) {
+                val names = hitDefs.take(3).joinToString("·") { it.name } +
+                    (if (hitDefs.size > 3) " 외" else "")
+                val habitats = hitDefs.flatMap { it.habitats }.distinct()
+                    .joinToString("·") { HabitatLabels[it] ?: it }
+                return Advice(
+                    best.id, best.name,
+                    "남은 새 ${missing.size}종 중 ${hitDefs.size}종이 여기 · $names",
+                    "(${habitats}) 구역에서 천천히 기다리면 새가 와요"
+                )
+            }
+            // (모든 지역에 남은 새가 나지 않는 이례적인 경우 — 3단계로 내려가 기록용 지역 추천)
+        }
+
+        // 2) 방문 부족 — 가장 가까운 미방문 지역
+        if (s.visited.size < chapter.minVisited) {
+            val nearest = nearestUnvisited(s, freshCount)
+            if (nearest != null) {
+                return Advice(
+                    nearest.id, nearest.name,
+                    "방문 ${s.visited.size}/${chapter.minVisited}곳 · 가장 가까운 미방문 지역",
+                    nearest.tip.ifBlank { "도착만 해도 방문 기록이 돼요" }
+                )
+            }
+        }
+
+        // 3) 레벨·라이퍼·3성 — 못 찍은 새가 많은 지역
+        var best = Regions.ALL.first()
+        var bestFresh = -1
+        for (r in Regions.ALL) {
+            val fresh = freshCount[r.id]!!
+            if (fresh > bestFresh) { bestFresh = fresh; best = r }
+        }
+        if (bestFresh <= 0) {
+            // 새를 이미 전부 본 극소수 — 지역 이동의 이득이 없다
+            val cur = Regions.byId[s.region] ?: Regions.ALL.first()
+            return Advice(
+                cur.id, cur.name,
+                "모든 새를 이미 봤어요 · 촬영으로만 경험치가 남아요",
+                "어디서든 계속 촬영하면 레벨이 오릅니다",
+                alreadyThere = true
+            )
+        }
+        val goals = buildList {
+            if (chapter.minLevel > 1) add("Lv.${s.level}/${chapter.minLevel}")
+            if (chapter.minLifers > 0 && s.birdCounts.size < chapter.minLifers)
+                add("라이퍼 ${s.birdCounts.size}/${chapter.minLifers}종")
+            if (chapter.minThreeStars > 0)
+                add("3성 ${s.bestStars.values.count { it >= 3 }}/${chapter.minThreeStars}종")
+        }.joinToString(" · ")
+        return Advice(
+            best.id, best.name,
+            "${if (goals.isEmpty()) "기록을 늘리기엔" else goals} · 여길 못 본 새가 ${bestFresh}종",
+            best.tip.ifBlank { "낯선 새를 하나씩 기록하면 레벨이 빠르게 올라요" }
+        )
+    }
+
+    /** 지역 루트 그래프(터널 연결)에서 가장 가까운 미방문 지역. 동점엔 새 기록 기회 많은 쪽. */
+    private fun nearestUnvisited(s: GameState, freshCount: Map<String, Int>): RegionDef? {
+        val dist = HashMap<String, Int>()
+        dist[s.region] = 0
+        val queue = ArrayDeque<String>()
+        queue.add(s.region)
+        while (queue.isNotEmpty()) {
+            val cur = queue.removeFirst()
+            val d = dist[cur]!!
+            for ((_, nid) in Regions.exits(cur)) {
+                if (nid !in dist) {
+                    dist[nid] = d + 1
+                    queue.add(nid)
+                }
+            }
+        }
+        var best: RegionDef? = null
+        var bestD = Int.MAX_VALUE
+        var bestFresh = -1
+        for (r in Regions.ALL) {
+            if (r.id in s.visited) continue
+            val d = dist[r.id] ?: continue
+            val fresh = freshCount[r.id]!!
+            if (d < bestD || (d == bestD && fresh > bestFresh)) {
+                bestD = d; bestFresh = fresh; best = r
+            }
+        }
+        return best
+    }
+}
+
 fun GameState.hasBirdName(name: String): Boolean {
     val def = Birds.byName[name] ?: return false
     return (birdCounts[def.id] ?: 0) > 0
