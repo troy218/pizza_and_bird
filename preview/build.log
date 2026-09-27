@@ -1,8 +1,9 @@
-# preview build 2026-09-27 04:48:53Z
-# commit: 6f68d01f0192fe4eb47936bcee6a4585b30cd734
+# preview build 2026-09-27 06:19:40Z
+# commit: 2590ad0c8d0f65469968f811bdc55983ad4ffa86
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
+WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
 ...
@@ -31,25 +32,25 @@
 > Task :app:mergeReleaseResources
 > Task :app:packageReleaseResources
 > Task :app:mergeExtDexRelease
-> Task :app:parseReleaseLocalResources
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
 > Task :app:mergeReleaseAssets
 > Task :app:compressReleaseAssets
+> Task :app:parseReleaseLocalResources
 > Task :app:extractReleaseVersionControlInfo
 > Task :app:collectReleaseDependencies
 > Task :app:sdkReleaseDependencyData
-> Task :app:processReleaseResources
 > Task :app:validateSigningRelease
-> Task :app:optimizeReleaseResources
 > Task :app:writeReleaseAppMetadata
 > Task :app:writeReleaseSigningConfigVersions
+> Task :app:processReleaseResources
+> Task :app:optimizeReleaseResources
 
 > Task :app:compileReleaseKotlin
-w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:180:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
-w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:183:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
 > Task :app:compileReleaseJavaWithJavac NO-SOURCE
 > Task :app:dexBuilderRelease
@@ -61,209 +62,209 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790484513066.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790489953162.json
 
-BUILD SUCCESSFUL in 21s
+BUILD SUCCESSFUL in 28s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-        bgmCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                  ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:253:23: error: cannot infer type for this parameter. Please specify it explicitly.
-        bgmCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:253:38: error: unresolved reference 'isPlaying'.
-        bgmCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                                     ^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:253:52: error: unresolved reference 'pause'.
-        bgmCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                                                   ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:254:19: error: cannot infer type for this parameter. Please specify it explicitly.
-        ambCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                  ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:254:19: error: unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T, R> T.let(block: (T) -> R): R
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-        ambCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                  ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:254:23: error: cannot infer type for this parameter. Please specify it explicitly.
-        ambCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:254:38: error: unresolved reference 'isPlaying'.
-        ambCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                                     ^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:254:52: error: unresolved reference 'pause'.
-        ambCh.mp?.let { try { if (it.isPlaying) it.pause() } catch (_: Exception) { } }
-                                                   ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:260:20: error: unresolved reference 'autoResume'.
-        try { pool.autoResume() } catch (_: Exception) { }
-                   ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:263:32: error: cannot infer type for this parameter. Please specify it explicitly.
-        if (musicOn) bgmCh.mp?.let { try { setVol(it, bgmCh.vol); it.start() } catch (_: Exception) { } }
-                               ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:263:32: error: unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T, R> T.let(block: (T) -> R): R
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-        if (musicOn) bgmCh.mp?.let { try { setVol(it, bgmCh.vol); it.start() } catch (_: Exception) { } }
-                               ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:263:36: error: cannot infer type for this parameter. Please specify it explicitly.
-        if (musicOn) bgmCh.mp?.let { try { setVol(it, bgmCh.vol); it.start() } catch (_: Exception) { } }
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:263:70: error: unresolved reference 'start'.
-        if (musicOn) bgmCh.mp?.let { try { setVol(it, bgmCh.vol); it.start() } catch (_: Exception) { } }
-                                                                     ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:264:30: error: cannot infer type for this parameter. Please specify it explicitly.
-        if (sfxOn) ambCh.mp?.let { try { setVol(it, ambCh.vol); it.start() } catch (_: Exception) { } }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:264:30: error: unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T, R> T.let(block: (T) -> R): R
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-        if (sfxOn) ambCh.mp?.let { try { setVol(it, ambCh.vol); it.start() } catch (_: Exception) { } }
-                             ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:264:34: error: cannot infer type for this parameter. Please specify it explicitly.
-        if (sfxOn) ambCh.mp?.let { try { setVol(it, ambCh.vol); it.start() } catch (_: Exception) { } }
-                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:264:68: error: unresolved reference 'start'.
-        if (sfxOn) ambCh.mp?.let { try { setVol(it, ambCh.vol); it.start() } catch (_: Exception) { } }
-                                                                   ^^^^^
-app/src/main/java/com/pizzaandbird/game/Game.kt:27:50: error: unresolved reference 'assets'.
-    val illustrations = SvgIllustrations(context.assets)
-                                                 ^^^^^^
-app/src/main/java/com/pizzaandbird/game/HomeScene.kt:65:28: error: unresolved reference 'R'.
-        game.audio.playBgm(R.raw.bgm_home)   // 🎵 신비로운 탐험
-                           ^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:342:31: error: too many arguments for 'fun scale(sx: Float, sy: Float): Unit'.
-        c.scale(scale, scale, cx, cy)
-                              ^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:342:35: error: too many arguments for 'fun scale(sx: Float, sy: Float): Unit'.
-        c.scale(scale, scale, cx, cy)
-                                  ^^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:8:19: error: unresolved reference 'SystemClock'.
-import android.os.SystemClock
-                  ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:18:24: error: unresolved reference 'SystemClock'.
-    val bornAt: Long = SystemClock.uptimeMillis()
-                       ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:1339:50: error: unresolved reference 'R'.
-                        scene.game.audio.playAmb(R.raw.amb_fire, 0.5f)   // 🔥 화덕 불 소리
-                                                 ^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:1656:27: error: too many arguments for 'fun scale(sx: Float, sy: Float): Unit'.
-        c.scale(pop, pop, w / 2f, h / 2f)
-                          ^^^^^^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:1656:35: error: too many arguments for 'fun scale(sx: Float, sy: Float): Unit'.
-        c.scale(pop, pop, w / 2f, h / 2f)
-                                  ^^^^^^
-app/src/main/java/com/pizzaandbird/game/Scenes.kt:47:28: error: unresolved reference 'R'.
-        game.audio.playBgm(R.raw.bgm_title)   // 🎵 신비로운 세계
-                           ^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:3:24: error: unresolved reference 'res'.
-import android.content.res.AssetManager
-                       ^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:9:16: error: unresolved reference 'util'.
-import android.util.Xml
-               ^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:10:12: error: unresolved reference 'xmlpull'.
-import org.xmlpull.v1.XmlPullParser
-           ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:17:44: error: unresolved reference 'AssetManager'.
-class SvgIllustrations(private val assets: AssetManager) {
-                                           ^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:27:16: error: unresolved reference 'open'.
-        assets.open(name).use { stream ->
-               ^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:27:27: error: cannot infer type for this parameter. Please specify it explicitly.
-        assets.open(name).use { stream ->
-                          ^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:27:33: error: cannot infer type for this parameter. Please specify it explicitly.
-        assets.open(name).use { stream ->
-                                ^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:28:26: error: unresolved reference 'Xml'.
-            val parser = Xml.newPullParser()
-                         ^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:34:29: error: unresolved reference 'XmlPullParser'.
-            while (event != XmlPullParser.END_DOCUMENT) {
-                            ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:35:30: error: unresolved reference 'XmlPullParser'.
-                if (event == XmlPullParser.START_TAG) {
-                             ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:80:13: error: 'return' is prohibited here.
-            return SvgDocument(viewWidth, viewHeight, shapes)
-            ^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:84:17: error: unresolved reference 'XmlPullParser'.
-    private fun XmlPullParser.attr(name: String, default: Float = 0f): Float =
+            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+             ^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:72:23: error: unresolved reference 'it'.
+            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+                      ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:72:52: error: unresolved reference 'it'.
+            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+                                                   ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:73:26: error: overload resolution ambiguity between candidates:
+fun <T, R : Comparable<R>> Array<out T>.sortedByDescending(crossinline selector: (T) -> R?): List<T>
+fun <R : Comparable<R>> BooleanArray.sortedByDescending(crossinline selector: (Boolean) -> R?): List<Boolean>
+fun <R : Comparable<R>> ByteArray.sortedByDescending(crossinline selector: (Byte) -> R?): List<Byte>
+fun <R : Comparable<R>> CharArray.sortedByDescending(crossinline selector: (Char) -> R?): List<Char>
+fun <R : Comparable<R>> DoubleArray.sortedByDescending(crossinline selector: (Double) -> R?): List<Double>
+fun <R : Comparable<R>> FloatArray.sortedByDescending(crossinline selector: (Float) -> R?): List<Float>
+fun <R : Comparable<R>> IntArray.sortedByDescending(crossinline selector: (Int) -> R?): List<Int>
+fun <R : Comparable<R>> LongArray.sortedByDescending(crossinline selector: (Long) -> R?): List<Long>
+fun <R : Comparable<R>> ShortArray.sortedByDescending(crossinline selector: (Short) -> R?): List<Short>
+fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T>
+fun <T, R : Comparable<R>> Sequence<T>.sortedByDescending(crossinline selector: (T) -> R?): Sequence<T>
+        val pick = files.sortedByDescending {
+                         ^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:74:17: error: unresolved reference 'it'.
+            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
+                ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:74:46: error: unresolved reference 'it'.
+            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
+                                             ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:74:76: error: unresolved reference 'it'.
+            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
+                                                                           ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:75:11: error: overload resolution ambiguity between candidates:
+fun <T> Array<out T>.firstOrNull(): T?
+fun BooleanArray.firstOrNull(): Boolean?
+fun ByteArray.firstOrNull(): Byte?
+fun CharArray.firstOrNull(): Char?
+fun DoubleArray.firstOrNull(): Double?
+fun FloatArray.firstOrNull(): Float?
+fun IntArray.firstOrNull(): Int?
+fun LongArray.firstOrNull(): Long?
+fun ShortArray.firstOrNull(): Short?
+fun <T> Iterable<T>.firstOrNull(): T?
+fun <T> List<T>.firstOrNull(): T?
+fun UByteArray.firstOrNull(): UByte?
+fun UIntArray.firstOrNull(): UInt?
+fun ULongArray.firstOrNull(): ULong?
+fun UShortArray.firstOrNull(): UShort?
+fun CharProgression.firstOrNull(): Char?
+fun IntProgression.firstOrNull(): Int?
+fun LongProgression.firstOrNull(): Long?
+fun UIntProgression.firstOrNull(): UInt?
+fun ULongProgression.firstOrNull(): ULong?
+fun <T> Sequence<T>.firstOrNull(): T?
+fun CharSequence.firstOrNull(): Char?
+        }.firstOrNull()
+          ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:76:27: error: unresolved reference 'Typeface'.
+        if (pick != null) Typeface.createFromAsset(ctx.assets, "font/$pick") else null
+                          ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:76:56: error: unresolved reference 'assets'.
+        if (pick != null) Typeface.createFromAsset(ctx.assets, "font/$pick") else null
+                                                       ^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:83:11: error: unresolved reference 'typeface'.
+        p.typeface = face(bold)
+          ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:88:30: error: unresolved reference 'Typeface'.
+    fun face(bold: Boolean): Typeface {
+                             ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:91:26: error: unresolved reference 'Typeface'.
+            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+                         ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:91:66: error: unresolved reference 'Typeface'.
+            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+                                                                 ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:91:85: error: unresolved reference 'Typeface'.
+            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+                                                                                    ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:92:21: error: unresolved reference 'Typeface'.
+            bold -> Typeface.create(b, Typeface.BOLD)
+                    ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:92:40: error: unresolved reference 'Typeface'.
+            bold -> Typeface.create(b, Typeface.BOLD)
+                                       ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:123:17: error: unresolved reference 'typeface'.
+                typeface = face(bold)
+                ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:125:17: error: unresolved reference 'letterSpacing'.
+                letterSpacing = track
                 ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:85:9: error: unresolved reference 'getAttributeValue'.
-        getAttributeValue(null, name)?.number() ?: default
-        ^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:95:27: error: unresolved reference 'parseColor'.
-        val color = Color.parseColor(this)
-                          ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:122:29: error: argument type mismatch: actual type is 'android.graphics.RectF', but 'kotlin.Float' was expected.
-            canvas.clipRect(bounds)
-                            ^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:122:29: error: no value passed for parameter 't'.
-            canvas.clipRect(bounds)
-                            ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:122:29: error: no value passed for parameter 'r'.
-            canvas.clipRect(bounds)
-                            ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:122:29: error: no value passed for parameter 'b'.
-            canvas.clipRect(bounds)
-                            ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/SvgIllustrations.kt:126:20: error: unresolved reference 'restoreToCount'.
-            canvas.restoreToCount(save)
-                   ^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:135:17: error: unresolved reference 'typeface'.
+                typeface = face(role.bold)
+                ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:137:17: error: unresolved reference 'letterSpacing'.
+                letterSpacing = role.track
+                ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:410:38: error: unresolved reference 'PorterDuffColorFilter'.
+    private val tints = HashMap<Int, PorterDuffColorFilter>()
+                                     ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:460:18: error: unresolved reference 'colorFilter'.
+        bmpPaint.colorFilter = tints.getOrPut(rgb) {
+                 ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:460:38: error: cannot infer type for this parameter. Please specify it explicitly.
+        bmpPaint.colorFilter = tints.getOrPut(rgb) {
+                                     ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:460:52: error: cannot infer type for this parameter. Please specify it explicitly.
+        bmpPaint.colorFilter = tints.getOrPut(rgb) {
+                                                   ^
+app/src/main/java/com/pizzaandbird/game/Type.kt:461:13: error: unresolved reference 'PorterDuffColorFilter'.
+            PorterDuffColorFilter(rgb, PorterDuff.Mode.SRC_IN)
+            ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:461:40: error: unresolved reference 'PorterDuff'.
+            PorterDuffColorFilter(rgb, PorterDuff.Mode.SRC_IN)
+                                       ^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:467:17: error: unresolved reference 'set'.
+            src.set(i * ADVANCE, 0, i * ADVANCE + GW, CELL_H)
+                ^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:479:25: error: unresolved reference 'WHITE'.
+        p.color = Color.WHITE
+                        ^^^^^
 app/src/main/java/com/pizzaandbird/game/UiKit.kt:9:19: error: unresolved reference 'SystemClock'.
 import android.os.SystemClock
                   ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:54:19: error: unresolved reference 'SystemClock'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:53:19: error: unresolved reference 'SystemClock'.
         val t = ((SystemClock.uptimeMillis() - bornAt).toFloat() / durMs).coerceIn(0f, 1f)
                   ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:116:42: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:115:42: error: unresolved reference 'TileMode'.
             CREAM_HI, CREAM_DEEP, Shader.TileMode.CLAMP
                                          ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:161:91: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:166:91: error: unresolved reference 'TileMode'.
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, top, bottom, Shader.TileMode.CLAMP)
                                                                                           ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:202:57: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:219:57: error: unresolved reference 'TileMode'.
             lighten(base, 34), darken(base, 16), Shader.TileMode.CLAMP
                                                         ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:242:116: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:271:116: error: unresolved reference 'TileMode'.
         fill.shader = LinearGradient(cx, cy - radius, cx, cy + radius, lighten(base, 26), darken(base, 14), Shader.TileMode.CLAMP)
                                                                                                                    ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:280:92: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:313:92: error: unresolved reference 'TileMode'.
             fill.shader = LinearGradient(fr.left, fr.top, fr.right, fr.top, c0, c1, Shader.TileMode.CLAMP)
                                                                                            ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:305:111: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:338:111: error: unresolved reference 'TileMode'.
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, lighten(bg, 22), darken(bg, 12), Shader.TileMode.CLAMP)
                                                                                                               ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:325:115: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:358:115: error: unresolved reference 'TileMode'.
         fill.shader = LinearGradient(cx, cy - radius, cx, cy + radius, lighten(base, 40), darken(base, 8), Shader.TileMode.CLAMP)
                                                                                                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/UiKit.kt:365:118: error: unresolved reference 'TileMode'.
+app/src/main/java/com/pizzaandbird/game/UiKit.kt:396:118: error: unresolved reference 'TileMode'.
         fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, 0xFF4A4258.toInt(), 0xFF322C40.toInt(), Shader.TileMode.CLAMP)
                                                                                                                      ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:117:28: error: unresolved reference 'R'.
+app/src/main/java/com/pizzaandbird/game/ViewRig.kt:573:17: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
+                intArrayOf(innerColor, innerColor, outerColor),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/ViewRig.kt:574:17: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
+                floatArrayOf(0f, innerStop.coerceIn(0.01f, 0.95f), 1f),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/ViewRig.kt:575:24: error: unresolved reference 'TileMode'.
+                Shader.TileMode.CLAMP
+                       ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/ViewRig.kt:583:16: error: unresolved reference 'setScale'.
+        matrix.setScale(radius, radius)
+               ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/ViewRig.kt:585:12: error: unresolved reference 'setLocalMatrix'.
+        sh.setLocalMatrix(matrix)
+           ^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Viewfinder.kt:10:25: error: unresolved reference 'Typeface'.
+import android.graphics.Typeface
+                        ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Viewfinder.kt:110:9: error: unresolved reference 'typeface'.
+        typeface = Typeface.MONOSPACE
+        ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Viewfinder.kt:110:20: error: unresolved reference 'Typeface'.
+        typeface = Typeface.MONOSPACE
+                   ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:168:28: error: unresolved reference 'R'.
         game.audio.playBgm(R.raw.bgm_world)   // 🎵 새가 날아가는 길
                            ^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:124:51: error: unresolved reference 'R'.
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:175:51: error: unresolved reference 'R'.
             state.isNight() -> game.audio.playAmb(R.raw.amb_wind, 0.2f)
                                                   ^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:125:63: error: unresolved reference 'R'.
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:176:63: error: unresolved reference 'R'.
             "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
                                                               ^
-app/src/main/java/com/pizzaandbird/game/WorldScene.kt:126:40: error: unresolved reference 'R'.
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:177:40: error: unresolved reference 'R'.
             else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
                                        ^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:1453:56: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+        if (viewRig.roll != 0f) c.rotate(viewRig.roll, hx, hy)
+                                                       ^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:1453:60: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+        if (viewRig.roll != 0f) c.rotate(viewRig.roll, hx, hy)
+                                                           ^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:1454:36: error: too many arguments for 'fun scale(sx: Float, sy: Float): Unit'.
+        if (z != 1f) c.scale(z, z, hx, hy)
+                                   ^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:1454:40: error: too many arguments for 'fun scale(sx: Float, sy: Float): Unit'.
+        if (z != 1f) c.scale(z, z, hx, hy)
+                                       ^^
+tools/preview/src/preview_main.kt:187:61: error: unresolved reference 'CameraGear'.
+        s.ownedGear.addAll(listOf("b_apsc_mid", "l_100400", CameraGear.ACC_STRAP))
+                                                            ^^^^^^^^^^
