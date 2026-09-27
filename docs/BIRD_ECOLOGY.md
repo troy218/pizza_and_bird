@@ -4,6 +4,12 @@
 
 - [1](http://www.birdskorea.org/Birds/Birding_in_Korea/BK-BK-Birdyear.shtml) Birds Korea, **The Korean Birdwatcher's Year**: 한국의 공원·성숙한 숲·하천·갯벌에 따른 조류 분포와 계절 이동을 설명한다. 까치·참새 같은 흔한 생활권 조류, 숲의 박새류/딱다구리류, 물가의 오리/왜가리 등을 지형 연동의 정성적 근거로 사용했다.
 - [2](https://ebird.org/science/status-and-trends/faq) Cornell Lab, **eBird Status and Trends FAQ**: 상대 풍부도는 표준화된 탐조 노력(현재 FAQ: 전문가의 1시간·2km 탐조, 종별 최적 시간대) 아래 발견되는 개체 수의 추정값이다. 모델에는 시간대·날씨·지역 서식지·고도·지형 등이 포함된다. 이를 게임의 실시간 출현 확률로 직접 환산할 수 없다.
+- [3] Robel et al. (1970), *J. Range Management* 23:29–33 — **로벨폴 시야차단량(visual obstruction)**: 식생이 시선을 얼마나 가리는지는 이산적인 유무가 아니라 연속적인 정도로 측정한다. 아래 지형지물 차폐 등급의 방법론적 근거.
+- [4] Stankowich & Blumstein (2005), *Animal Behaviour* 70:225–244 — **플라이트 이니시에이션 디스턴스(FID) 메타분석**: 체중·눈 크기·무리 크기·서식지 개방성이 도망 시작 거리를 예측하며, **숨을 곳(커버)이 가까울수록 FID가 짧아진다**.
+- [5] Fernández-Juricic et al. (2006), *J. Applied Ecology* — 피난처(escape cover)에 가까운 개체일수록 접근을 더 오래 허용하고, 개방된 노출 지대에서는 경계 시간이 길어진다.
+- [6] Dasmann (1964), *Wildlife Biology* 계열의 고전적 구분 — **숨을 곳 커버(hiding cover)** 와 **도피 커버(escape cover)**: 전자는 관찰자·포식자의 시선에서 몸을 감추는 짙은 식생, 후자는 위협이 닥치면 뛰어들어 버티는 구조물(나무·바위).
+- [7] Reymond (1985), *Vision Research*; Tucker (2000), *J. Exp. Biology* — **맹금류의 시각 능력**: 맹금의 시력은 사람의 2~8배이고, 틈이 있는 엄폐물 정도로는 원거리 접근을 눈치채지 못하게 만들 수 없다.
+- [8] Gill, *Ornithology* (W.H. Freeman) — **플러시 디스턴스의 서식지 의존성**: 구조가 복잡한 숲·갈대밭의 새는 탁 트인 개방지의 새보다 훨씬 가까이 접근을 허용한다.
 
 **아래 초 단위 간격·등급 비중·타일 거리·체류 시간은 실측 통계가 아니라 5분짜리 게임 하루에 맞춘 설계값이다.** eBird 자료를 다운로드/적합한 통계 모델이 아니다. 기존 598종의 과/서식지/계절/지역 데이터를 사용한 간략 모델이며, 모든 종의 미소서식지와 국내 관찰 빈도를 검증한 것은 아니다. 조석·수심·실제 개체군 크기·무리 행동은 아직 모델링하지 않는다. 물가 1타일을 얕은 물의 대용으로 사용하며, 숲새는 나뭇가지 위가 아니라 나무 주변 지면에 배치한다.
 
@@ -50,17 +56,57 @@
 - 55~120 월드 초 후 자연 이탈해 멈춰서 기다려도 같은 3마리가 영구적으로 자리를 차지하지 않는다. 촬영 모드의 기존 월드 감속 적용.
 - 흰뺨검둥오리·원앙·괭이갈매기 등 일부 텃새를 과 단위 철새 규칙이 숨기던 계절 분류 수정.
 
+## 지형지물 은엄폐
+
+`GameMap.concealmentAt`/`concealmentAlong`이 지형지물마다 다른 은폐(숨을 곳) 특성을, `FieldBird.update`가 그에 따른 도망 반경 감소를 계산한다. 예전에는 바위·나무·산·건물이면 어떤 것이든 −55%로 똑같았지만, 이제 **차폐 품질(지형지물 특성) × 은폐 효과(종군별 시각 능력)** 이 함께 반영된다. 방법론은 로벨 시야차단량처럼 차폐를 연속값으로 보고 [3], 커버가 FID를 줄이는 방향 [4][5]을 따르되, 수치는 게임 튜닝값이다.
+
+### 타일별 차폐 품질 (`GameMap.concealmentAt`)
+
+| 지형지물 | 차폐 | 생태학적 근거 |
+|---|---|---|
+| 갈대 군락 `REED` | 0.95 | 줄기가 밀생한 수생식생 — 새 눈높이에서 시야 차단이 거의 완전 [3]. 뜸부기·개개비류가 갈대 뒤에서 가장 가까이 접근을 허용하는 전형적인 숨을 곳 [8] |
+| 산·건물 등 `bulk` | 0.9 | 시선을 완전히 끊는 단단한 덩어리 — 단일 차폐면 사실상 완전 차단 |
+| 나무 `TREE` | 0.85 | 수관+굵은 줄기의 도피 커버 [6] — 몸통은 가리지만 줄기 사이 틈이 남음 |
+| 바위 `ROCK` | 0.8 | 지면 높이의 단단한 수평 차폐 — 머리 위로는 틈이 남아 위에서 내려다보는 맹금의 시선에는 약함 [7] |
+| 키 큰 풀 `TALLGRASS` | 0.4 | 로벨폴 기준 중간 수준의 부분 차폐 — 웅크린 자세만 가림 [3] |
+| 벤치·가로등·이정표·흙길·광장 | 0 | 숨기엔 키가 낮거나 틈이 없지 않다 — 숨을 곳 아님 |
+
+- **투과율 합성**: 여러 차폐가 겹치면 `1−(1−q₁)(1−q₂)…` — 키 큰 풀 두 겹(0.64)은 한 겹(0.4)보다 깊고, 바위+풀(0.88)은 바위 하나(0.8)보다 깊다. 한 칸은 시선이 여러 번 지나가도 한 번만 센다. 시선 거리 12px 미만은 판정하지 않는다.
+
+### 종군별 은폐 효과 (`BirdMovementProfile.coverEffect`)
+
+커버가 FID를 줄이는 정도는 종의 감각 능력에 따라 다르다 [4][7][8].
+
+| 무리 | coverEffect | 근거 |
+|---|---|---|
+| 도요·백로류 `WADER` | 1.15 | 탁 트인 물가에서 경계심이 강한 무리 — 은폐한 접근에 가장 둔감해진다 [5] |
+| 꿩·뜸부기·두루미 `GROUNDFORAGER` | 1.15 | 밀생 식생에서 사는 지상 무리 — 커버 효과가 크다 [8] |
+| 오리과 `WATERFOWL` | 1.1 | 수면 무리 — 은폐 접근 시 플러시 거리가 크게 줄어든다 [5] |
+| 명금류 `SONG_BIRD` | 1.0 | 기준 |
+| 제비·바닷새 `AERIAL` | 0.7 | 비행 중 경계 — 엄폐 효과 감소 |
+| 올빼미류 `OWL` | 0.55 | 야간 시력·동체 감지가 예민 — 부분 차폐가 잘 통하지 않음 |
+| 맹금류 `RAPTOR` | 0.45 | 사람의 2~8배 시력 [7] — 엄폐 효과가 반 토막 |
+
+실제 적용: `은폐 품질 = 차폐 × coverEffect`(0..1), 도망 반경 배율 = `1 − (1−0.45) × 은폐 품질` — 완전 은폐·기준 종에서 0.45(−55%, `FieldBird.HIDDEN_FLEE_K`)까지 점진적으로 줄고 최소 9월드px는 지킨다. 뷰파인더 라벨은 은폐 품질 0.25(`COVER_HIDDEN_MIN`) 이상에서 뜨며, 0.66 이상이면 `🌿 숨어있음`, 미만이면 `🌿 반쯤 숨어있음`으로 구분한다. 같은 바위 뒤라도 명금은 '숨어있고', 맹금은 '반쯤'이며 35px에서 도망치는 식으로 종마다 체감이 달라진다.
+
+> 위 차폐·효과 수치는 5분짜리 게임 하루에 맞춘 튜닝값이며, 실제 조류의 플라이트 이니시에이션 디스턴스 미터 수를 환산한 것이 아니다. 아종·개체별 차이와 무리 경보, 시선 방향(정면/후면 접근)에 따른 경계 비대칭은 모델링하지 않는다.
+
 ## 검증
 
-`tools/BirdEcologyTest.kt`: 합성 지형의 수면/물가/숲/광장/현관/경계 판정, 명시 지역 범위의 후보/타일 차단, 두루미·따오기 추천 탐조지 순위, 텃새 계절, 등급 질량 합, 시간대·강풍 효과, 고정 시드 대기시간 100,000개 표본을 검증한다. `tools/BirdMovementTest.kt`: 실제 체크리스트 종에서 7가지 움직임 유형 매핑과 프로필 값 범위를 확인한다.
+`tools/BirdEcologyTest.kt`: 합성 지형의 수면/물가/숲/광장/현관/경계 판정, 명시 지역 범위의 후보/타일 차단, 두루미·따오기 추천 탐조지 순위, 텃새 계절, 등급 질량 합, 시간대·강풍 효과, 고정 시드 대기시간 100,000개 표본을 검증한다. `tools/BirdMovementTest.kt`: 실제 체크리스트 종에서 7가지 움직임 유형 매핑과 프로필 값 범위, 종군별 은폐 효과(맹금 < 명금 < 도요) 대소 관계를 확인한다. `tools/CoverFleeTest.kt`: 지형지물 차폐 등급(갈대>산·건물>나무>바위>키 큰 풀>소품), 투과율 합성(0.4→0.64), 바위/갈대 안전 거리 경계, 맹금은 바위 뒤에서도 도망·도요는 버티는 종군 차이를 검증한다.
 
 ```sh
-# 기존 tools/typecheck.sh 환경 준비 후
+# tools/typecheck.sh 환경 준비 후 — Paint 등 안드로이드 스텁이 필요한 테스트는
+# 프리뷰 스텁(tools/preview/src)과 함께 컴파일한다 (android.jar 메서드는 Stub!로 죽는다)
 export JAVA_HOME=/tmp/kt/jdkwheel/jdk4py/java-runtime
 export PATH="$JAVA_HOME/bin:$PATH"
-CP=/tmp/kt/out:/tmp/kt/ap/android-33/android.jar
-/tmp/kt/k2/package/bin/kotlinc -cp "$CP" -d /tmp/kt/tests tools/BirdEcologyTest.kt
-java -Dfile.encoding=UTF-8 -cp "$CP:/tmp/kt/tests:/tmp/kt/k2/package/lib/kotlin-stdlib.jar" BirdEcologyTestKt
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+/tmp/kt/k2/package/bin/kotlinc $(find tools/preview/src -maxdepth 1 -name '*.kt') $SRCS \
+  tools/BirdEcologyTest.kt tools/BirdMovementTest.kt tools/CoverFleeTest.kt \
+  -d /tmp/kt/tests -jvm-target 17
+for t in BirdEcologyTestKt BirdMovementTestKt CoverFleeTestKt; do
+  java -Dfile.encoding=UTF-8 -cp "/tmp/kt/tests:/tmp/kt/k2/package/lib/kotlin-stdlib.jar" $t
+done
 ```
 
 전체 소스 컴파일을 막던 `WorldScene.kt`의 기존 중복/미완성 KDoc 조각도 제거했다. 기존 `MapTest.kt`는 이번 변경 전 Maps/Data와 변경 후 양쪽에서 동일하게 163건 실패(지도 연결/이정표/집 배치 등); 이번 탐조 변경에 포함하지 않았다. Android 기기 렌더링/실제 플레이 체감은 별도 확인이 필요하다.
