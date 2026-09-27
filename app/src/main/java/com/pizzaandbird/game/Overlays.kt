@@ -221,18 +221,32 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, t) in tabRects) {
-            if (r.contains(tap.x, tap.y)) { tab = t; resetArmed = false; return }
+            if (r.contains(tap.x, tap.y)) {
+                g.sfx(Audio.Sfx.TAP, 0.45f)
+                tab = t
+                resetArmed = false
+                return
+            }
         }
         for ((r, _, action) in btnRects) {
-            if (r.contains(tap.x, tap.y)) { action(); return }
+            if (r.contains(tap.x, tap.y)) {
+                g.sfx(Audio.Sfx.TAP, 0.5f)
+                action()
+                return
+            }
         }
         if (tab == Tab.BOOK && panelR.contains(tap.x, tap.y)) {
             // 도감 셀 탭 -> 새 정보
             for (def in Birds.ALL) {
                 val cell = bookCell(def) ?: continue
                 if (cell.contains(tap.x, tap.y)) {
+                    g.sfx(Audio.Sfx.TAP, 0.5f)
                     showBirdInfo(def)
                     return
                 }
@@ -1066,7 +1080,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         rowAt(c2, "🏠", "타이틀로 가기", "저장 후 타이틀 화면으로 돌아가요", false, null) {
             SaveManager.save(g.context, g.state)
             finished = true
-            g.scene = TitleScene(g)
+            g.fadeTo { g.scene = TitleScene(g) }
         }
         if (resetArmed) {
             rowAt(c2, "⚠️", "정말 처음부터 시작할까요?", "되돌릴 수 없어요! 다시 누르면 초기화돼요", true, null) {
@@ -1074,7 +1088,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 g.state.reset("seoul")
                 g.state.started = false
                 finished = true
-                g.scene = TitleScene(g)
+                g.fadeTo { g.scene = TitleScene(g) }
             }
         } else {
             rowAt(c2, "🗑", "처음부터 다시 시작", "저장 데이터를 모두 지우고 새로 시작해요", false, null) {
@@ -1232,7 +1246,11 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, id) in buyRects) {
             if (r.contains(tap.x, tap.y)) {
                 buy(id)
@@ -1362,9 +1380,14 @@ class DecorPickOverlay(
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, id) in pickRects) {
             if (r.contains(tap.x, tap.y)) {
+                scene.game.sfx(Audio.Sfx.TAP, 0.5f)
                 finished = true
                 onPick(id)
                 return
@@ -1446,7 +1469,11 @@ class HouseStyleOverlay(
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.contains(tap.x, tap.y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            finished = true
+            return
+        }
         for ((r, id) in styleRects) {
             if (!r.contains(tap.x, tap.y)) continue
             val style = HouseStyles.of(id)
@@ -1585,7 +1612,10 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
                         return
                     }
                 }
-                if (cancelRect.contains(tap.x, tap.y)) finished = true
+                if (cancelRect.contains(tap.x, tap.y)) {
+                    scene.game.sfx(Audio.Sfx.TAP, 0.5f)
+                    finished = true
+                }
             }
             1 -> {
                 if (input.justA || tap != null) stopBake()
@@ -2626,16 +2656,30 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
     private fun onTap(x: Float, y: Float) {
         val g = scene.game
-        if (closeR.contains(x, y)) { close(); return }
-        if (zoomInR.contains(x, y)) { zoomAt(1.4f, mapR.centerX(), mapR.centerY()); return }
-        if (zoomOutR.contains(x, y)) { zoomAt(1f / 1.4f, mapR.centerX(), mapR.centerY()); return }
+        if (closeR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            close()
+            return
+        }
+        if (zoomInR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
+            zoomAt(1.4f, mapR.centerX(), mapR.centerY())
+            return
+        }
+        if (zoomOutR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
+            zoomAt(1f / 1.4f, mapR.centerX(), mapR.centerY())
+            return
+        }
         if (resetR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
             scale = fitScale
             centerOn(KoreaMap.southBounds.centerX(), KoreaMap.southBounds.centerY())
             selected = null
             return
         }
         if (homeR.contains(x, y)) {
+            g.sfx(Audio.Sfx.TAP, 0.45f)
             val cur = Regions.byId[g.state.region]
             if (cur != null) {
                 scale = (fitScale * 3.2f).coerceAtMost(fitScale * 16f)

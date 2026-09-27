@@ -507,7 +507,8 @@ class Viewfinder(private val game: Game) {
     // ----- 상단 정보 바 -------------------------------------------------
 
     private fun drawTopBar(c: Canvas, w: Float) {
-        val k = enterT
+        val et = enterT
+        val k = et * et * (3f - 2f * et)   // smoothstep 등장
         val y = 26f - (1f - k) * 16f
         val alpha = (255 * k).toInt()
 
@@ -573,7 +574,8 @@ class Viewfinder(private val game: Game) {
         pcy: Float,
         rangeTiles: Float
     ) {
-        val k = enterT
+        val et = enterT
+        val k = et * et * (3f - 2f * et)   // smoothstep 등장
         val y = h - 92f + (1f - k) * 18f
         val boxW = 432f
         val boxH = 58f

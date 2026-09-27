@@ -21,6 +21,12 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/** 토스트 메시지가 머무는 시간(초) */
+private const val MESSAGE_LIFE = 2.8f
+
+/** 지역 배너가 머무는 시간(초) */
+private const val BANNER_LIFE = 2.6f
+
 /**
  * 화면 좌표(실제 해상도) 기반 HUD.
  * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
@@ -72,7 +78,7 @@ class Hud(private val game: Game) {
     private var bannerText: String? = null
     private var bannerT = 0f
 
-    private class Message(var text: String, var t: Float)
+    private class Message(var text: String, var t: Float, val life: Float)
 
     // ----- 페인트 캐시 -----
     private val fill = Paint()
@@ -284,7 +290,7 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun toast(msg: String) {
-        messages.add(Message(msg, 2.8f))
+        messages.add(Message(msg, MESSAGE_LIFE, MESSAGE_LIFE))
         if (messages.size > 3) messages.removeAt(0)
     }
 
@@ -409,7 +415,6 @@ class Hud(private val game: Game) {
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
     private fun questChipY(): Float = dp(12f) + dp(170f) + dp(22f)
-
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
@@ -423,14 +428,21 @@ class Hud(private val game: Game) {
 
         val a = game.assets
 
-        // 배고픔 — 아이콘 메달 + 그라데이션 바
+        // 배고픔 — 아이콘 메달 + 그라데이션 바 (위험하면 맥동해 알린다)
         val iy1 = top + dp(12f)
         val iconSz = dp(16f)
         fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
         c.drawCircle(left + dp(20f), iy1 + dp(8f), dp(11f), fill)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy1, left + dp(12f) + iconSz, iy1 + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger,
-            if (s.hunger < 25f) 0xFFE2574C.toInt() else 0xFFF2913C.toInt())
+        val hungerColor = when {
+            s.hunger >= 25f -> 0xFFF2913C.toInt()
+            s.hunger >= 15f -> 0xFFE2574C.toInt()
+            else -> blendToward(
+                0xFFE2574C.toInt(), 0xFFFFE9C9.toInt(),
+                (0.5f + 0.5f * sin(game.time * 6f)) * 0.5f
+            )
+        }
+        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
 
         // 행운
         val iy2 = iy1 + dp(22f)
@@ -476,9 +488,11 @@ class Hud(private val game: Game) {
         Type.text(c, "${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
 
         // 레벨 + 경험치 바
-        val ly = iy2 + dp(96f)
+        // 날씨 줄과 겹치지 않도록 그 아래에 배치
+        val ly = iy2 + dp(100f)
         Type.text(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK)
         Type.text(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT)
+
         // 바 (프리미엄 그라데이션)
         val bx = left + dp(12f)
         val bw = w - dp(24f)
@@ -501,7 +515,10 @@ class Hud(private val game: Game) {
     }
 
     private fun drawMessages(c: Canvas) {
+        val th = game.screenH.toFloat()
         var y = dp(20f) + if (photoModeHint) dp(62f) else 0f
+        // 등장한 배너가 토스트와 겹치지 않도록 아래로 밀어 낸다
+        if (bannerText != null && bannerT > 0f) y = maxOf(y, th * 0.24f + dp(40f))
         for (m in messages) {
             // 등장 슬라이드 + 페이드인/아웃
             val age = 2.8f - m.t
@@ -556,6 +573,12 @@ class Hud(private val game: Game) {
 
         val bcol = Color.argb(alpha, 248, 239, 220)
         val tp = Type.paintAt(26f, true, 0.04f, bcol)
+        // 좌우 HUD를 피해 폭이 넘치면 폰트를 줄여 한 줄에 맞춘다
+        val bwMax = (if (showStats) w - dp(360f) else w - dp(40f))
+            .coerceIn(dp(200f), (w - dp(40f)).coerceAtLeast(dp(200f)))
+        while (tp.measureText(bt) + dp(44f) > bwMax && tp.textSize > dp(16f)) {
+            tp.textSize -= dp(1f)
+        }
         val tw = tp.measureText(bt)
         val cx = w / 2f
         val cy = h * 0.24f
