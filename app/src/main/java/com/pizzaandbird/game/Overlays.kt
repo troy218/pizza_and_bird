@@ -2119,7 +2119,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         val shown = all.subList(from, minOf(from + perPage, all.size))
 
         var ty = panelR.top + dp(scene, 74f)
-        val rowH = dp(scene, 54f)
+        val rowH = dp(scene, 50f)
         for (gear in shown) {
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH - dp(scene, 5f))
             val look = when (gear) {
@@ -2361,7 +2361,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
     private var page = 0
     private var prevRect = RectF()
     private var nextRect = RectF()
-    private val perPage = 5
+    private val perPage = 4
 
     private fun owned(): List<CamGear> {
         val s = scene.game.state

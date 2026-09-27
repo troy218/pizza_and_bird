@@ -17,6 +17,7 @@ build/
 
 # 에셋 미리보기용 생성 이미지 (tools/preview_grass.py 실행 결과)
 tools/grass_preview.png
+tools/camera_preview.png
 
 # 파이썬 미리보기 도구
 __pycache__/
