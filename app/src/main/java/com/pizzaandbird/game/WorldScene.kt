@@ -351,6 +351,8 @@ class WorldScene(
                 (rnd.nextFloat() - 0.5f) * 8f, -5f, 0.32f,
                 Color.argb(110, 170, 150, 115), 2f, false
             )
+        }
+    }
 
     private fun moveBy(dx: Float, dy: Float) {
         val nx = player.x + dx
