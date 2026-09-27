@@ -1456,6 +1456,257 @@ class Assets(private val context: Context) {
         return grassPoses[k][li][ci]
     }
 
+    /** 투명한 소품 바위 — 바탕 타일은 GameMap이 그리므로 실루엣만 그린다. */
+    private fun extraRockArt(look: Int): Bitmap = tilePainter { cv, p, r ->
+        fun polygon(color: Int, vararg xy: Float) {
+            val shape = Path()
+            shape.moveTo(xy[0], xy[1])
+            var i = 2
+            while (i < xy.size) { shape.lineTo(xy[i], xy[i + 1]); i += 2 }
+            shape.close()
+            p.color = color
+            cv.drawPath(shape, p)
+        }
+        propShadow(cv, p, 16f, 27f, 11f, 3.3f)
+        when (look) {
+            0 -> { // 설악·한라의 뾰족한 화강암 노두
+                polygon(c(0xFF454D57), 2f, 26f, 5f, 14f, 11f, 17f, 18f, 5f, 24f, 11f, 30f, 26f)
+                polygon(c(0xFF828D98), 4f, 23f, 7f, 14f, 11f, 17f, 18f, 5f, 23f, 12f, 27f, 24f)
+                polygon(c(0xFFB5C0C7), 7f, 14f, 11f, 17f, 18f, 5f, 16f, 16f, 12f, 19f)
+                polygon(c(0xFF6B7580), 18f, 5f, 24f, 11f, 21f, 16f, 16f, 16f)
+                px(cv, p, 10f, 20f, 1.4f, 4f, c(0xFF414953))
+                px(cv, p, 21f, 16f, 1.4f, 6f, c(0xFF414953))
+                noise(cv, p, r, 5f, 9f, 28f, 25f, c(0xFFC7D0D6), 5, 1f, 1.8f)
+            }
+            1 -> { // 계곡의 둥근 물수리 자갈
+                p.color = c(0xFF626D76); cv.drawOval(RectF(3f, 19f, 13f, 27f), p)
+                p.color = c(0xFF89949A); cv.drawOval(RectF(4f, 18f, 12f, 25f), p)
+                p.color = c(0xFF4B555E); cv.drawOval(RectF(11f, 14f, 24f, 27f), p)
+                p.color = c(0xFF9BA7AC); cv.drawOval(RectF(12f, 13f, 23f, 24f), p)
+                p.color = c(0xFF626D76); cv.drawOval(RectF(22f, 20f, 30f, 27f), p)
+                p.color = c(0xFFB4BEC0); cv.drawOval(RectF(22f, 19f, 29f, 24f), p)
+                px(cv, p, 14f, 16f, 4f, 1.2f, c(0xFFD6DEDA))
+                px(cv, p, 6f, 20f, 3f, 1.2f, c(0xFFD1DAD5))
+            }
+            2 -> { // 제주 현무암 기둥 — 육각 기둥이 모여 있는 모양
+                polygon(c(0xFF25282A), 3f, 27f, 4f, 13f, 7f, 9f, 11f, 11f, 12f, 26f)
+                polygon(c(0xFF565A5A), 4f, 25f, 5f, 13f, 8f, 10f, 10f, 12f, 11f, 25f)
+                polygon(c(0xFF202426), 11f, 27f, 12f, 10f, 16f, 6f, 20f, 10f, 20f, 26f)
+                polygon(c(0xFF4D5252), 12f, 25f, 13f, 11f, 16f, 7f, 18f, 11f, 18f, 25f)
+                polygon(c(0xFF25282A), 19f, 27f, 20f, 15f, 24f, 11f, 28f, 14f, 29f, 27f)
+                polygon(c(0xFF616564), 21f, 25f, 21f, 15f, 24f, 12f, 27f, 15f, 27f, 25f)
+                px(cv, p, 7f, 15f, 1f, 8f, c(0xFF858985))
+                px(cv, p, 15f, 12f, 1f, 9f, c(0xFF858985))
+                px(cv, p, 24f, 17f, 1f, 6f, c(0xFF858985))
+            }
+            3 -> { // 동해 물결에 닳은 낮은 층리 바위
+                polygon(c(0xFF505B63), 2f, 26f, 5f, 19f, 10f, 18f, 15f, 20f, 22f, 16f, 29f, 21f, 30f, 27f)
+                polygon(c(0xFF89949A), 4f, 22f, 8f, 18f, 14f, 20f, 21f, 16f, 27f, 21f, 27f, 24f)
+                px(cv, p, 6f, 22f, 8f, 1.4f, c(0xFFB5BEC0))
+                px(cv, p, 17f, 20f, 8f, 1.4f, c(0xFFB5BEC0))
+                px(cv, p, 4f, 25f, 22f, 1.2f, c(0xFF3D474E))
+                // 조개껍데기와 물때
+                px(cv, p, 11f, 17f, 2f, 1.4f, c(0xFFF2E7CE))
+                px(cv, p, 12f, 16f, 1f, 1f, c(0xFFF2E7CE))
+                px(cv, p, 24f, 23f, 2f, 1f, c(0xFF6F8B58))
+            }
+            4 -> { // 숲의 이끼 낀 둥근 바위와 작은 고사리
+                p.color = c(0xFF4B5359); cv.drawOval(RectF(4f, 13f, 28f, 28f), p)
+                p.color = c(0xFF737F83); cv.drawOval(RectF(5f, 11f, 26f, 25f), p)
+                p.color = c(0xFF9AA59A); cv.drawOval(RectF(8f, 11f, 21f, 20f), p)
+                px(cv, p, 7f, 14f, 8f, 2f, c(0xFF739653))
+                px(cv, p, 9f, 12f, 5f, 2f, c(0xFF98B86C))
+                px(cv, p, 20f, 18f, 5f, 2f, c(0xFF5F824E))
+                for (i in 0..2) {
+                    px(cv, p, 2f + i * 2.3f, 24f - i * 2f, 1.2f, 5f + i * 2f, c(0xFF4F824A))
+                    px(cv, p, 1f + i * 2.3f, 24f - i * 2f, 2f, 1.2f, c(0xFF7FB15B))
+                }
+                noise(cv, p, r, 8f, 12f, 25f, 24f, c(0xFFB8C0AF), 5, 1f, 1.5f)
+            }
+            5 -> { // 평야의 따뜻한 사암 단층
+                polygon(c(0xFF69594D), 3f, 27f, 5f, 15f, 11f, 12f, 26f, 14f, 30f, 27f)
+                polygon(c(0xFFAD8967), 4f, 23f, 6f, 15f, 11f, 13f, 25f, 15f, 28f, 23f)
+                px(cv, p, 7f, 17f, 17f, 1.6f, c(0xFFD0B08A))
+                px(cv, p, 6f, 21f, 20f, 1.6f, c(0xFF8E6D56))
+                px(cv, p, 10f, 24f, 14f, 1.2f, c(0xFF785D4A))
+                px(cv, p, 11f, 14f, 7f, 2f, c(0xFFE0C39B))
+            }
+            else -> { // 조개 구멍이 패인 밝은 석회암
+                polygon(c(0xFF62655F), 3f, 27f, 4f, 15f, 9f, 11f, 15f, 14f, 21f, 9f, 29f, 16f)
+                polygon(c(0xFFB0B4A5), 5f, 24f, 6f, 15f, 10f, 12f, 15f, 15f, 21f, 10f, 27f, 17f)
+                polygon(c(0xFFD3D3BD), 10f, 13f, 15f, 15f, 21f, 10f, 26f, 16f, 25f, 23f, 18f, 25f)
+                p.color = c(0xFF667067); cv.drawCircle(11f, 19f, 1.8f, p); cv.drawCircle(22f, 19f, 1.4f, p)
+                p.color = c(0xFFEEEBD4); cv.drawCircle(10f, 18f, 0.8f, p); cv.drawCircle(21f, 18f, 0.8f, p)
+                px(cv, p, 7f, 25f, 15f, 1.2f, c(0xFF788176))
+            }
+        }
+    }
+
+    /** 지역별로 실루엣과 잎색을 바꾼 나무 소품 8종. */
+    private fun extraTreeArt(look: Int): Bitmap = tilePainter { cv, p, r ->
+        propShadow(cv, p, 16f, 28f, 10.5f, 3f)
+        when (look) {
+            0 -> { // 버드나무 — 긴 늘어진 가지
+                px(cv, p, 14f, 14f, 5f, 17f, c(0xFF65452E)); px(cv, p, 15.4f, 14f, 2f, 17f, c(0xFF9A7046))
+                p.color = c(0xFF315E3D); cv.drawCircle(16f, 10f, 10f, p)
+                p.color = c(0xFF5F9860); cv.drawCircle(12f, 8f, 6f, p); cv.drawCircle(21f, 10f, 6f, p)
+                for (i in 0..5) {
+                    val x = 6f + i * 4f
+                    val h = 7f + (i % 3) * 2f
+                    px(cv, p, x, 10f + (i % 2) * 2f, 1.5f, h, if (i % 2 == 0) c(0xFF477B4D) else c(0xFF76A65B))
+                }
+            }
+            1 -> { // 대숲 — 마디가 선명한 가는 대나무 여러 대
+                for ((x, h) in listOf(7 to 19, 12 to 26, 18 to 22, 24 to 28)) {
+                    px(cv, p, x.toFloat(), (30 - h).toFloat(), 2.2f, h.toFloat(), c(0xFF397343))
+                    px(cv, p, x + 0.7f, (31 - h).toFloat(), 0.7f, h - 2f, c(0xFF8CB45B))
+                    for (y in (30 - h + 5)..28 step 6) px(cv, p, x - 0.5f, y.toFloat(), 3.2f, 1.2f, c(0xFF285C37))
+                    px(cv, p, x - 4f, (30 - h + 4).toFloat(), 5f, 1.2f, c(0xFF4A884C))
+                    px(cv, p, x + 2f, (30 - h + 8).toFloat(), 5f, 1.2f, c(0xFF4A884C))
+                }
+            }
+            2 -> { // 동백나무 — 짙은 잎과 붉은 꽃
+                px(cv, p, 14f, 16f, 5f, 15f, c(0xFF60432D))
+                p.color = c(0xFF234D36); cv.drawCircle(16f, 12f, 12f, p)
+                p.color = c(0xFF36744A); cv.drawCircle(11f, 9f, 7f, p); cv.drawCircle(21f, 13f, 7f, p)
+                p.color = c(0xFFD94B45)
+                for ((x, y) in listOf(8f to 9f, 20f to 7f, 23f to 15f, 12f to 17f)) cv.drawRect(x, y, x + 3f, y + 3f, p)
+                px(cv, p, 8f, 9f, 1f, 2f, c(0xFFFFB06A)); px(cv, p, 20f, 7f, 1f, 2f, c(0xFFFFB06A))
+            }
+            3 -> { // 해풍에 한쪽으로 눕는 곰솔
+                px(cv, p, 13f, 19f, 5f, 12f, c(0xFF5D3A20))
+                val a = Path().apply { moveTo(16f, 1f); lineTo(30f, 13f); lineTo(24f, 14f); lineTo(31f, 21f); lineTo(20f, 19f); lineTo(25f, 29f); lineTo(7f, 28f); lineTo(14f, 19f); lineTo(5f, 20f); lineTo(12f, 12f); close() }
+                p.color = c(0xFF214D39); cv.drawPath(a, p)
+                px(cv, p, 13f, 9f, 9f, 1.4f, c(0xFF4A8553)); px(cv, p, 10f, 17f, 12f, 1.4f, c(0xFF4A8553))
+            }
+            4 -> { // 자작나무 — 가는 흰 줄기와 짙은 작은 수관
+                px(cv, p, 13f, 13f, 6f, 19f, c(0xFFF1EBD8)); px(cv, p, 15f, 13f, 2f, 19f, c(0xFFCEC8B5))
+                for ((x, y) in listOf(13f to 19f, 16f to 22f, 12f to 27f)) px(cv, p, x, y, 4f, 1.3f, c(0xFF494B45))
+                p.color = c(0xFF315E3D); cv.drawCircle(16f, 8f, 8f, p)
+                p.color = c(0xFF5F9655); cv.drawCircle(11f, 9f, 5f, p); cv.drawCircle(21f, 10f, 5f, p)
+            }
+            5 -> { // 은행나무 — 부채꼴처럼 펼쳐지는 노란 잎
+                px(cv, p, 14f, 16f, 5f, 16f, c(0xFF68482D))
+                p.color = c(0xFF8C8B36); cv.drawCircle(16f, 10f, 11f, p)
+                p.color = c(0xFFD2B849); cv.drawCircle(11f, 8f, 7f, p); cv.drawCircle(21f, 11f, 7f, p)
+                p.color = c(0xFFE9D46A)
+                for ((x, y) in listOf(7f to 7f, 13f to 4f, 20f to 6f, 22f to 13f, 11f to 14f)) cv.drawRect(x, y, x + 2.5f, y + 2f, p)
+                px(cv, p, 9f, 15f, 4f, 1f, c(0xFFA88D3E)); px(cv, p, 20f, 17f, 3f, 1f, c(0xFFA88D3E))
+            }
+            6 -> { // 과수원 — 둥근 잎 사이로 붉은 열매
+                px(cv, p, 14f, 16f, 5f, 16f, c(0xFF65442E))
+                p.color = c(0xFF315F38); cv.drawCircle(16f, 11f, 11f, p)
+                p.color = c(0xFF61914A); cv.drawCircle(11f, 9f, 6f, p); cv.drawCircle(21f, 12f, 6f, p)
+                p.color = c(0xFFD7483F)
+                for ((x, y) in listOf(8f to 12f, 19f to 8f, 22f to 15f, 13f to 7f)) cv.drawRect(x, y, x + 2.4f, y + 2.4f, p)
+                px(cv, p, 9f, 12f, 1f, 1f, c(0xFFFFB66A)); px(cv, p, 20f, 8f, 1f, 1f, c(0xFFFFB66A))
+            }
+            else -> { // 전나무 — 층층이 뾰족한 고산 상록수
+                px(cv, p, 14f, 18f, 4f, 14f, c(0xFF5E442E))
+                val path = Path()
+                p.color = c(0xFF1C4938)
+                path.moveTo(16f, 0f); path.lineTo(25f, 13f); path.lineTo(21f, 12f); path.lineTo(29f, 22f); path.lineTo(23f, 20f); path.lineTo(31f, 30f); path.lineTo(1f, 30f); path.lineTo(9f, 20f); path.lineTo(3f, 22f); path.lineTo(11f, 12f); path.lineTo(7f, 13f); path.close()
+                cv.drawPath(path, p)
+                px(cv, p, 12f, 9f, 7f, 1.2f, c(0xFF3E7950)); px(cv, p, 9f, 18f, 14f, 1.2f, c(0xFF3E7950)); px(cv, p, 6f, 27f, 20f, 1.2f, c(0xFF3E7950))
+            }
+        }
+    }
+
+    /** 층리 절벽 대신 쓸 수 있는 고산 화강암·검은 현무암 지형 타일. */
+    private fun extraMountainArt(volcanic: Boolean): Bitmap = tilePainter { cv, p, r ->
+        if (volcanic) {
+            vgrad(cv, p, 0f, 0f, 32f, 32f, c(0xFF545653), c(0xFF282C2C), 5)
+            for (x in intArrayOf(3, 9, 16, 23, 29)) {
+                val top = 2 + (x * 7 % 8)
+                px(cv, p, x.toFloat(), top.toFloat(), 3.4f, (32 - top).toFloat(), c(0xFF252928))
+                px(cv, p, x + 0.8f, top + 1f, 1f, 20f, c(0xFF747873))
+                px(cv, p, x + 2.3f, top + 4f, 1.1f, 24f, c(0xFF3B403E))
+            }
+            noise(cv, p, r, 0f, 0f, 32f, 32f, c(0xFF92948B), 9, 1f, 1.8f)
+        } else {
+            vgrad(cv, p, 0f, 0f, 32f, 32f, c(0xFF9EAAB1), c(0xFF535E68), 6)
+            val ridge = Path().apply {
+                moveTo(0f, 18f); lineTo(5f, 11f); lineTo(9f, 14f); lineTo(16f, 2f)
+                lineTo(21f, 9f); lineTo(25f, 7f); lineTo(32f, 17f); lineTo(32f, 32f); lineTo(0f, 32f); close()
+            }
+            p.color = c(0xFF77848C); cv.drawPath(ridge, p)
+            val face = Path().apply { moveTo(16f, 2f); lineTo(21f, 9f); lineTo(18f, 14f); lineTo(12f, 13f); close() }
+            p.color = c(0xFFC5CED2); cv.drawPath(face, p)
+            px(cv, p, 0f, 20f, 32f, 2f, c(0xFF5E6972))
+            noise(cv, p, r, 0f, 0f, 32f, 32f, c(0xFFBEC7C8), 8, 1f, 1.8f)
+        }
+    }
+
+    /** 계절·지형별 낮은 풀 무늬. */
+    private fun extraGroundArt(tile: T, look: Int): Bitmap = tilePainter { cv, p, r ->
+        when (tile) {
+            T.TALLGRASS -> {
+                grassBase(cv, p, r, c(0xFF94C36D))
+                if (look == 0) { // 해안 모래언덕의 가는 사초
+                    for ((x, h) in listOf(3 to 13, 7 to 18, 12 to 12, 18 to 20, 23 to 15, 28 to 18)) {
+                        px(cv, p, x.toFloat(), (32 - h).toFloat(), 1.4f, h.toFloat(), c(0xFF718E49))
+                        px(cv, p, x - 2f, (32 - h + 3).toFloat(), 3.4f, 1.2f, c(0xFFA9C56A))
+                    }
+                    px(cv, p, 6f, 12f, 2f, 3f, c(0xFFB99253)); px(cv, p, 24f, 9f, 2f, 3f, c(0xFFB99253))
+                } else { // 바람에 흔들린 억새 이삭
+                    for ((x, h) in listOf(4 to 20, 9 to 15, 15 to 22, 22 to 18, 28 to 14)) {
+                        px(cv, p, x.toFloat(), (32 - h).toFloat(), 1.5f, h.toFloat(), c(0xFF5F8249))
+                        px(cv, p, x - 1f, (32 - h - 3).toFloat(), 3f, 3f, c(0xFFD7C38A))
+                        px(cv, p, x - 3f, (32 - h - 2).toFloat(), 2.6f, 1f, c(0xFFE9D8A7))
+                    }
+                }
+            }
+            T.FLOWER -> {
+                grassBase(cv, p, r)
+                val flower = when (look) { 0 -> c(0xFFE87580); 1 -> c(0xFFF2D06B); else -> c(0xFF9A7BC2) }
+                val leaf = c(0xFF527C46)
+                if (look == 1) { // 유채꽃 군락
+                    for ((x, y) in listOf(4 to 11, 10 to 18, 16 to 8, 22 to 15, 28 to 10)) {
+                        px(cv, p, x.toFloat(), y.toFloat(), 1.3f, 12f, leaf)
+                        px(cv, p, x - 2f, y - 2f, 5f, 4f, flower)
+                        px(cv, p, x - 1f, y - 3f, 3f, 1.2f, c(0xFFFFE99A))
+                    }
+                } else if (look == 2) { // 산나리·붓꽃의 별 모양 꽃
+                    for ((x, y) in listOf(5 to 15, 14 to 9, 23 to 17)) {
+                        px(cv, p, x.toFloat(), y.toFloat(), 1.4f, 10f, leaf)
+                        px(cv, p, x - 3f, y - 2f, 7f, 3f, flower)
+                        px(cv, p, x - 1f, y - 4f, 3f, 7f, flower)
+                        px(cv, p, x + 1f, y - 1f, 1.2f, 1.2f, c(0xFFFFE89A))
+                    }
+                } else { // 동백과 진달래
+                    for ((x, y) in listOf(6 to 12, 17 to 17, 25 to 10, 11 to 22)) {
+                        px(cv, p, x.toFloat(), y.toFloat(), 1.2f, 7f, leaf)
+                        px(cv, p, x - 2f, y - 2f, 5f, 4f, flower)
+                        px(cv, p, x - 1f, y - 3f, 3f, 1.4f, c(0xFFFFC7BD))
+                    }
+                }
+            }
+            else -> grassBase(cv, p, r)
+        }
+    }
+
+    /** 습지·연못을 위한 갈대 변형: 부들 군락과 둥근 수련잎. */
+    private fun extraReedArt(lotus: Boolean): Bitmap = tilePainter { cv, p, r ->
+        grassBase(cv, p, r, c(0xFF8DBD67))
+        if (!lotus) {
+            for ((x, h) in listOf(4 to 20, 10 to 27, 17 to 23, 24 to 29, 29 to 18)) {
+                px(cv, p, x.toFloat(), (32 - h).toFloat(), 2f, h.toFloat(), c(0xFF577D42))
+                px(cv, p, x + 0.7f, (32 - h + 2).toFloat(), 0.8f, h - 3f, c(0xFFA4BF64))
+                px(cv, p, x - 0.5f, (32 - h - 4).toFloat(), 3f, 5f, c(0xFF81502F))
+                px(cv, p, x, (32 - h - 3).toFloat(), 1.4f, 3f, c(0xFFB27945))
+            }
+        } else {
+            for ((x, y, s) in listOf(Triple(5, 22, 8), Triple(17, 25, 10), Triple(25, 19, 7))) {
+                p.color = c(0xFF4D824C); cv.drawCircle(x.toFloat(), y.toFloat(), s.toFloat() / 2f, p)
+                p.color = c(0xFF83A957); cv.drawCircle((x - 1).toFloat(), (y - 1).toFloat(), s.toFloat() / 3f, p)
+                px(cv, p, x - 1f, y.toFloat(), 3f, 1f, c(0xFF527B47))
+            }
+            px(cv, p, 13f, 13f, 1.4f, 12f, c(0xFF648C4C))
+            p.color = c(0xFFE78B92); cv.drawCircle(14f, 12f, 2.5f, p)
+            px(cv, p, 13f, 10f, 3f, 1f, c(0xFFFFCED0))
+        }
+    }
+
     private fun buildTiles() {
         // T 값마다 변형(또는 애니메이션 프레임) 목록을 모은다.
         // 예전처럼 순서에 의존하지 않고 enum 키로 담아 두므로 어긋날 수가 없다.
@@ -1584,6 +1835,8 @@ begin(T.TALLGRASS)
             }
         )
 
+        add(extraGroundArt(T.TALLGRASS, 0), extraGroundArt(T.TALLGRASS, 1))
+
 begin(T.FLOWER)
         val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8))
         add(*Array(3) { i ->
@@ -1612,6 +1865,8 @@ begin(T.FLOWER)
                 }
             }
         })
+
+        add(extraGroundArt(T.FLOWER, 0), extraGroundArt(T.FLOWER, 1), extraGroundArt(T.FLOWER, 2))
 
 begin(T.PATH)
         for (i in 0 until 3) add(RoadArt.tile(Pave.DIRT, 255, i, false))
@@ -1733,10 +1988,11 @@ begin(T.REED)
             }
         )
 
+        add(extraReedArt(lotus = false), extraReedArt(lotus = true))
+
 begin(T.TREE)
         add(
             tilePainter { c, p, r ->   // 0: 참나무
-            grassBase(c, p, r)
             p.color = Color.argb(58, 26, 46, 28)
             c.drawOval(RectF(5f, 24f, 29f, 31f), p)
             // 기둥
@@ -1765,7 +2021,6 @@ begin(T.TREE)
             px(c, p, 22f, 17f, 2f, 1f, c(0xFF8A5A33))
             },
             tilePainter { c, p, r ->   // 1: 소나무
-            grassBase(c, p, r)
             p.color = Color.argb(58, 26, 46, 28)
             c.drawOval(RectF(6f, 25f, 28f, 31f), p)
             px(c, p, 14.4f, 20f, 4.4f, 11f, c(0xFF5D3A20))
@@ -1790,8 +2045,7 @@ begin(T.TREE)
             noise(c, p, r, 3f, 2f, 29f, 28f, c(0xFF67B572), 6, 1f, 1.4f)
             },
             tilePainter { c, p, r ->   // 2: 벚나무 (꽃)
-            grassBase(c, p, r)
-            p.color = Color.argb(52, 26, 46, 28)
+                        p.color = Color.argb(52, 26, 46, 28)
             c.drawOval(RectF(5f, 24f, 29f, 31f), p)
             px(c, p, 14f, 17f, 6f, 14f, c(0xFF5D3A20))
             px(c, p, 15f, 17f, 2.6f, 14f, c(0xFF8A5A33))
@@ -1813,8 +2067,7 @@ begin(T.TREE)
             px(c, p, 12f, 30f, 1.6f, 1.2f, c(0xFFF2A3B3))
             },
             tilePainter { c, p, r ->   // 3: 단풍나무
-            grassBase(c, p, r)
-            p.color = Color.argb(52, 26, 46, 28)
+                        p.color = Color.argb(52, 26, 46, 28)
             c.drawOval(RectF(5f, 24f, 29f, 31f), p)
             px(c, p, 13.6f, 16f, 6.4f, 15f, c(0xFF5D3A20))
             px(c, p, 14.8f, 16f, 2.8f, 15f, c(0xFF7A4E2B))
@@ -1836,10 +2089,11 @@ begin(T.TREE)
             px(c, p, 23f, 29f, 2f, 1.4f, c(0xFFD9534F))
         })
 
+        add(*Array(8) { i -> extraTreeArt(i) })
+
 begin(T.ROCK)
         add(
             tilePainter { c, p, r ->   // 0: 큰 바위
-                grassBase(c, p, r)
                 p.color = Color.argb(56, 26, 46, 28)
                 c.drawOval(RectF(4f, 24f, 28f, 31f), p)
                 // 바위 본체
@@ -1864,7 +2118,6 @@ begin(T.ROCK)
                 px(c, p, 25.4f, 25.4f, 1.6f, 1.2f, c(0xFFB0BAC2))
             },
             tilePainter { c, p, r ->   // 1: 바위 무리
-                grassBase(c, p, r)
                 p.color = Color.argb(52, 26, 46, 28)
                 c.drawOval(RectF(6f, 23f, 26f, 30f), p)
                 px(c, p, 8f, 15f, 16f, 11f, c(0xFF6B747E))
@@ -1883,6 +2136,8 @@ begin(T.ROCK)
                 noise(c, p, r, 8f, 13f, 24f, 24f, c(0xFF5D6772), 5, 1f, 1.4f)
             }
         )
+
+        add(*Array(7) { i -> extraRockArt(i) })
 
 begin(T.MOUNTAIN)
         add(
@@ -1928,6 +2183,8 @@ begin(T.MOUNTAIN)
                 noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFF68727E), 10, 1f, 2f)
             }
         )
+
+        add(extraMountainArt(volcanic = false), extraMountainArt(volcanic = true))
 
 begin(T.BLDG_WALL)
         add(tilePainter { c, p, r ->
@@ -2606,56 +2863,63 @@ begin(T.LAMP)
         pizzaIconBig = Bitmap.createScaledBitmap(
             pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
         )
+        // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
+        //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
+        //  C 치즈(baseColor) / L·S 치즈 밝기·그늘(파생) / R·r·G 토핑1 면·테·윤 / A·b 토핑2 면·테
         val pizza = listOf(
-            "......................",
-            ".....cccccccccc.....",
-            "...ccCCCCCCCCCCcc...",
-            "..cCCCRCCRCCRCCRCc..",
-            "..cCCCCCCCCCCCCCd...",
-            ".cCCRCCCCRCCCCCCCd..",
-            ".cCCCCRCCCRCCRCCd...",
-            ".cCCCCCCCCCCCCCCd...",
-            ".cCCRCCCCRCCCCRAd...",
-            ".cCCCCCCCCCCCCCd....",
-            ".cCCRCCCCRCCCCCd....",
-            ".dCCCCCCCCCCCAAd....",
-            "..ddddddddddd......",
-            "...dddddddddd......",
+            "..........hh..........",
+            ".....chhhhhhhhhhc.....",
+            "....hhTTCCCCCCRThh....",
+            "..ckkCRLLLACCGRRCkkc..",
+            "..hcCGRRLLLLCCrCCCch..",
+            ".ccTCCrLLLRCCCACGCTcc.",
+            ".ccSCGCCCGGRCCCRRRSkc.",
+            ".ccTRRRCCCrCGGCCrCTcc.",
+            "..ccSrCCbCCCRRrCCScc..",
+            "..dcccSCCCCCCCCScccd..",
+            "...dcccCcSSSSCCcccd...",
+            ".....dcLcccccCCcd.....",
+            ".......dddddddd.......",
             "......................"
         )
-        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
-        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다 (음영은 각 색에서 파생).
+        //  일반 피자: 통통한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 러스틱 크러스트 + 큼직한 토핑
         val pizzaOven = listOf(
             "......................",
-            ".....cckccccckc.....",
-            "...ckCCCCCCCCCCkc...",
-            "..cCCRRCCCCCRRCCCc..",
-            "..kCCRRCCACCRRCCd...",
-            ".cCCCCCCCCCCCCCCCd..",
-            ".cCRRCCCACCCRRCCk...",
-            ".kCRRCCCCCCCRRCCd...",
-            ".cCCCCCRRCCACCCCd...",
-            ".cCCACCRRCCCCCCd....",
-            ".cCCCCCCCCCRRCCk....",
-            ".dCCCCCCCCCRRCCd....",
-            "..dkddddddkdd......",
-            "...ddddkddddd......",
+            "........cckccc........",
+            "......cCCCCCCCkc......",
+            "....cCCLLLCCACCCkc....",
+            "...hCCLLLLCCCRRRrkc...",
+            "..cCCCCCACCCCRRRrCkc..",
+            "..cCCRRCCCCACCRRRrkc..",
+            "..ckCRRrCCACCCrCCCCc..",
+            "...cCCCCCRRrCCCCCSd...",
+            "...dCCCCCrrCCCCSSSd...",
+            "....dCCCCCCSSSSSCd....",
+            ".....dCCddkddddkd.....",
+            ".......ddddkddd.......",
             "......................"
         )
         pizzaArts = Array(Pizzas.ALL.size) { i ->
             val def = Pizzas.ALL[i]
+            val base = mapOf(
+                'T' to c(0xFFD8453A),
+                'C' to def.baseColor, 'L' to tone(def.baseColor, 1.18f), 'S' to tone(def.baseColor, 0.82f),
+                'R' to def.topColorA, 'r' to tone(def.topColorA, 0.72f), 'G' to tone(def.topColorA, 1.3f),
+                'A' to def.topColorB, 'b' to tone(def.topColorB, 0.72f)
+            )
             if (def.kind == PizzaKind.OVEN) {
                 sprite(
-                    pizzaOven, mapOf(
-                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
-                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    pizzaOven, base + mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45),
+                        'h' to c(0xFFEDC293), 'k' to c(0xFF5A3A2A)
                     )
                 )
             } else {
                 sprite(
-                    pizza, mapOf(
+                    pizza, base + mapOf(
                         'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
-                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                        'h' to c(0xFFF2C078), 'k' to c(0xFFBF7640)
                     )
                 )
             }

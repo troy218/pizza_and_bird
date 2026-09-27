@@ -14,10 +14,10 @@ import kotlin.random.Random
  * ③ 화면 연출(꽃잎·낙엽·색감)에 영향을 준다.
  */
 enum class Season(val id: String, val icon: String, val label: String, val description: String) {
-    SPRING("spring", "🌸", "봄", "여름 철새가 돌아오고 나그네새가 지나가요"),
-    SUMMER("summer", "🌿", "여름", "장마철 — 비가 잦고 여름 철새가 번식해요"),
-    AUTUMN("autumn", "🍁", "가을", "도요·물떼새와 기러기가 남쪽으로 이동해요"),
-    WINTER("winter", "❄", "겨울", "두루미·고니·독수리 같은 겨울 손님이 찾아와요");
+    SPRING("spring", "sparkle", "봄", "여름 철새가 돌아오고 나그네새가 지나가요"),
+    SUMMER("summer", "leaf", "여름", "장마철 — 비가 잦고 여름 철새가 번식해요"),
+    AUTUMN("autumn", "leaf", "가을", "도요·물떼새와 기러기가 남쪽으로 이동해요"),
+    WINTER("winter", "snow", "겨울", "두루미·고니·독수리 같은 겨울 손님이 찾아와요");
 
     companion object {
         const val DAYS_PER_SEASON = 7
@@ -27,7 +27,7 @@ enum class Season(val id: String, val icon: String, val label: String, val descr
 }
 
 fun GameState.season(): Season = Season.forDay(day)
-fun GameState.seasonLabel(): String = "${season().icon} ${season().label} ${Season.dayInSeason(day)}일째"
+fun GameState.seasonLabel(): String = "${season().label} ${Season.dayInSeason(day)}일째"
 
 /** 계절별 날씨 확률표 (맑음, 흐림, 비, 강풍, 눈). 합은 1. */
 fun seasonWeatherTable(season: Season): List<Pair<Weather, Float>> = when (season) {

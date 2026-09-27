@@ -555,6 +555,8 @@ object Birds {
         val text = "$name ${entry.englishName} ${entry.scientificName} $family $order"
 
         val seasons = when {
+            // Family-wide migration defaults must not hide these Korean resident birds.
+            name in setOf("흰뺨검둥오리", "원앙", "괭이갈매기", "왜가리", "쇠백로", "논병아리", "흰목물떼새", "검은머리물떼새") -> BirdSeason.ALL
             family in setOf("도요과", "물떼새과", "검은머리물떼새과", "장다리물떼새과", "호사도요과", "물꿩과", "제비물떼새과") ->
                 setOf(BirdSeason.SPRING, BirdSeason.AUTUMN)
             family == "오리과" || hasAny(text, "기러기", "고니", "두루미", "Crane", "Goose", "Swan", "Duck", "Teal") ->
@@ -921,7 +923,7 @@ class PizzaDef(
     /** "마르게리타 화덕피자" / "불고기 피자" */
     val fullName: String get() = "$name ${kind.suffix}"
 
-    /** 난이도 표시 "●●●○○" */
+    /** 난이도 점 문자열은 저장/도메인 레이어 호환용으로 유지한다. 화면은 SVG 별을 사용한다. */
     fun difficultyDots(): String = "●".repeat(difficulty.coerceIn(1, 5)) + "○".repeat(5 - difficulty.coerceIn(1, 5))
 }
 

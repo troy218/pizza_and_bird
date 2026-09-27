@@ -179,6 +179,17 @@ class Hud(private val game: Game) {
     private val serifBold = Typeface.create(Typeface.SERIF, Typeface.BOLD)
     private var routeDashFx: DashPathEffect? = null
 
+    // 미니맵 그라디언트 캐시 — 위치·크기가 그대로면 셰이더를 다시 만들지 않는다.
+    private var brassShader: RadialGradient? = null
+    private var brassKx = 0f; private var brassKy = 0f; private var brassKr = -1f
+    private var faceShader: RadialGradient? = null
+    private var faceKx = 0f; private var faceKy = 0f; private var faceKr = -1f
+    private var depthShader: RadialGradient? = null
+    private var depthKx = 0f; private var depthKy = 0f; private var depthKr = -1f
+    private var litShader: RadialGradient? = null
+    private var litKx = 0f; private var litKy = 0f; private var litKr = -1f
+    private var litKc = 0; private var litKrim = 0
+
     private val GLASS_RATIO = 0.745f
 
     private fun routeDash(): DashPathEffect {
@@ -455,7 +466,7 @@ class Hud(private val game: Game) {
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
         }
         if (questLabel != null) {
-            drawChip(c, questChipX(), questChipY(), "🔍 $questLabel")
+            drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel")
         }
         if (showControls) drawControls(c)
         drawBanner(c)
@@ -528,13 +539,18 @@ class Hud(private val game: Game) {
         val clockIcon = if (night) a.moonIcon else a.sunIcon
         c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
         Type.text(c, s.timeLabel(), left + dp(30f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-        Type.text(c, "📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
+        UiKit.icon(c, game, "camera", RectF(left + dp(79f), iy2 + dp(59f), left + dp(93f), iy2 + dp(73f)))
+        Type.text(c, s.photos.toString(), left + dp(98f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
 
-        // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
+        // 계절/날씨 아이콘도 글꼴이 아닌 SVG로 고정한다.
         val weather = s.weather()
-        Type.text(c, "${s.season().icon}${s.season().label} · ${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
+        val season = s.season()
+        UiKit.icon(c, game, season.icon, RectF(left + dp(11f), iy2 + dp(82f), left + dp(25f), iy2 + dp(96f)))
+        Type.text(c, season.label, left + dp(29f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
+        UiKit.icon(c, game, weather.icon, RectF(left + dp(61f), iy2 + dp(82f), left + dp(75f), iy2 + dp(96f)))
+        Type.text(c, weather.label, left + dp(79f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
 
         // 레벨 + 경험치 바
         // 날씨 줄과 겹치지 않도록 그 아래에 배치
@@ -691,9 +707,8 @@ class Hud(private val game: Game) {
         // 메인 아이콘: 근처 상호작용 대상이 있으면 그 아이콘, 없으면 기본 주먹
         text.textSize = TypeScale.px(dp(21f))
         text.color = 0xFFF8EFDC.toInt()
-        val mainIcon = contextIcon ?: "👊"
-        val miTw = text.measureText(mainIcon)
-        c.drawText(mainIcon, mainCx - miTw / 2, mainCy - (text.descent() + text.ascent()) / 2f, text)
+        val mainIcon = contextIcon ?: "check"
+        UiKit.iconCenter(c, game, mainIcon, mainCx, mainCy, dp(24f))
 
         // ------------------------------------------------------------
         // 3) 아크 버튼 (메인 버튼 중심 부채꼴)
@@ -706,7 +721,7 @@ class Hud(private val game: Game) {
             onBike -> 0xFF9F7FC8.toInt()
             else -> Color.argb(220, 74, 74, 88)
         }, pressedB)
-        drawGlyph(c, bikeCx, bikeCy, "🚲", dp(17f))
+        UiKit.iconCenter(c, game, "bike", bikeCx, bikeCy, dp(24f))
 
         // 카메라 (📷)
         val camPressed = Ctrl.CAM in active
@@ -784,7 +799,7 @@ class Hud(private val game: Game) {
                 },
                 punchPressed
             )
-            drawGlyph(c, punchCx, punchCy, "👊", dp(16f))
+            UiKit.iconCenter(c, game, "fist", punchCx, punchCy, dp(22f))
         }
 
         // ------------------------------------------------------------
@@ -1050,14 +1065,6 @@ class Hud(private val game: Game) {
         return p
     }
 
-    /** 버튼 중앙에 글자/이모지 그리기 */
-    private fun drawGlyph(c: Canvas, cx: Float, cy: Float, glyph: String, size: Float, color: Int = 0xFFF8EFDC.toInt()) {
-        text.textSize = TypeScale.px(size)
-        text.color = color
-        val tw = text.measureText(glyph)
-        c.drawText(glyph, cx - tw / 2, cy - (text.descent() + text.ascent()) / 2f, text)
-    }
-
     // ------------------------------------------------------------------
     // 원형 미니맵 — 황동 회중 나침반 + 낡은 종이 해도
     // ------------------------------------------------------------------
@@ -1088,17 +1095,44 @@ class Hud(private val game: Game) {
 
     private fun drawBrassDisc(c: Canvas, cx: Float, cy: Float, r: Float) {
         fx.style = Paint.Style.FILL
-        fx.shader = RadialGradient(
-            cx - r * 0.40f, cy - r * 0.48f, r * 1.45f,
-            intArrayOf(
-                0xFFF8E8B8.toInt(), 0xFFE6C068.toInt(), 0xFFC48E40.toInt(),
-                0xFF845C2C.toInt(), 0xFF56381E.toInt()
-            ),
-            floatArrayOf(0f, 0.22f, 0.50f, 0.78f, 1f),
-            Shader.TileMode.CLAMP
-        )
+        fx.shader = brassDiscShader(cx, cy, r)
         c.drawCircle(cx, cy, r, fx)
         fx.shader = null
+    }
+
+    /** 놋쇠 디스크 그라디언트 (위치·크기가 같으면 재사용) */
+    private fun brassDiscShader(cx: Float, cy: Float, r: Float): RadialGradient {
+        var sh = brassShader
+        if (sh == null || brassKx != cx || brassKy != cy || brassKr != r) {
+            sh = RadialGradient(
+                cx - r * 0.40f, cy - r * 0.48f, r * 1.45f,
+                intArrayOf(
+                    0xFFF8E8B8.toInt(), 0xFFE6C068.toInt(), 0xFFC48E40.toInt(),
+                    0xFF845C2C.toInt(), 0xFF56381E.toInt()
+                ),
+                floatArrayOf(0f, 0.22f, 0.50f, 0.78f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            brassShader = sh
+            brassKx = cx; brassKy = cy; brassKr = r
+        }
+        return sh
+    }
+
+    /** 나침반 종이 위 청색 톤 그라디언트 (재사용) */
+    private fun compassFaceShader(cx: Float, cy: Float, glass: Float): RadialGradient {
+        var sh = faceShader
+        if (sh == null || faceKx != cx || faceKy != cy || faceKr != glass) {
+            sh = RadialGradient(
+                cx - glass * 0.12f, cy - glass * 0.18f, glass * 1.05f,
+                intArrayOf(Color.argb(132, 62, 118, 142), Color.argb(168, 48, 96, 124)),
+                floatArrayOf(0f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            faceShader = sh
+            faceKx = cx; faceKy = cy; faceKr = glass
+        }
+        return sh
     }
 
     private fun drawCompassFace(c: Canvas, cx: Float, cy: Float, r: Float, glass: Float, showNames: Boolean) {
@@ -1109,15 +1143,11 @@ class Hud(private val game: Game) {
         c.clipPath(clipPath)
 
         val paper = paperBitmap()
-        c.drawBitmap(paper, null, RectF(cx - glass, cy - glass, cx + glass, cy + glass), paperPaint)
+        tmpRect.set(cx - glass, cy - glass, cx + glass, cy + glass)
+        c.drawBitmap(paper, null, tmpRect, paperPaint)
 
         fx.style = Paint.Style.FILL
-        fx.shader = RadialGradient(
-            cx - glass * 0.12f, cy - glass * 0.18f, glass * 1.05f,
-            intArrayOf(Color.argb(132, 62, 118, 142), Color.argb(168, 48, 96, 124)),
-            floatArrayOf(0f, 1f),
-            Shader.TileMode.CLAMP
-        )
+        fx.shader = compassFaceShader(cx, cy, glass)
         c.drawCircle(cx, cy, glass, fx)
         fx.shader = null
 
@@ -1240,10 +1270,8 @@ class Hud(private val game: Game) {
                 fx.style = Paint.Style.FILL
                 fx.shader = null
                 fx.color = Color.argb(210, 244, 232, 204)
-                c.drawRoundRect(
-                    RectF(x - tw / 2f - dp(2f), ty - dp(8f), x + tw / 2f + dp(2f), ty + dp(2.5f)),
-                    dp(2f), dp(2f), fx
-                )
+                tmpRect.set(x - tw / 2f - dp(2f), ty - dp(8f), x + tw / 2f + dp(2f), ty + dp(2.5f))
+                c.drawRoundRect(tmpRect, dp(2f), dp(2f), fx)
                 c.drawText(nm, x - tw / 2f, ty, ip)
             }
         }
@@ -1295,9 +1323,7 @@ class Hud(private val game: Game) {
                 ink.color = Color.argb(((1f - pulse) * 170f).toInt(), 242, 182, 60)
                 ink.pathEffect = null
                 c.drawCircle(x, y, dot + dp(1.2f) + pulse * dp(5.5f), ink)
-                val sp = Type.paintAt(8.5f, true, 0.02f, 0xFF5A3D12.toInt())
-                val star = "★"
-                c.drawText(star, x - sp.measureText(star) / 2f, y + dp(3f), sp)
+                UiKit.iconCenter(c, game, "star", x, y, dp(9f))
             }
         }
     }
@@ -1330,12 +1356,7 @@ class Hud(private val game: Game) {
 
     private fun drawGlassDepth(c: Canvas, cx: Float, cy: Float, glass: Float) {
         fx.style = Paint.Style.FILL
-        fx.shader = RadialGradient(
-            cx, cy, glass,
-            intArrayOf(0x00000000, 0x00000000, Color.argb(58, 48, 32, 18)),
-            floatArrayOf(0f, 0.70f, 1f),
-            Shader.TileMode.CLAMP
-        )
+        fx.shader = glassDepthShader(cx, cy, glass)
         c.drawCircle(cx, cy, glass, fx)
         fx.shader = null
 
@@ -1345,7 +1366,24 @@ class Hud(private val game: Game) {
         ink.color = Color.argb(if (Ctrl.MAP in game.input.activeControls()) 150 else 92, 255, 255, 255)
         ink.pathEffect = null
         val inset = glass * 0.80f
-        c.drawArc(RectF(cx - inset, cy - inset, cx + inset, cy + inset), 206f + sway, 64f, false, ink)
+        tmpRect.set(cx - inset, cy - inset, cx + inset, cy + inset)
+        c.drawArc(tmpRect, 206f + sway, 64f, false, ink)
+    }
+
+    /** 유리 심도 그라디언트 (재사용) */
+    private fun glassDepthShader(cx: Float, cy: Float, glass: Float): RadialGradient {
+        var sh = depthShader
+        if (sh == null || depthKx != cx || depthKy != cy || depthKr != glass) {
+            sh = RadialGradient(
+                cx, cy, glass,
+                intArrayOf(0x00000000, 0x00000000, Color.argb(58, 48, 32, 18)),
+                floatArrayOf(0f, 0.70f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            depthShader = sh
+            depthKx = cx; depthKy = cy; depthKr = glass
+        }
+        return sh
     }
 
     private fun drawBezelMarks(c: Canvas, cx: Float, cy: Float, r: Float, glass: Float) {
@@ -1454,15 +1492,27 @@ class Hud(private val game: Game) {
         clipPath.addCircle(cx, cy, r, Path.Direction.CW)
         c.clipPath(clipPath)
         fx.style = Paint.Style.FILL
-        fx.shader = RadialGradient(
-            cx, cy + glass * 0.04f, r,
-            intArrayOf(center, 0x00000000, rim),
-            floatArrayOf(0f, 0.40f, 1f),
-            Shader.TileMode.CLAMP
-        )
+        fx.shader = instrumentLightShader(cx, cy + glass * 0.04f, r, center, rim)
         c.drawCircle(cx, cy, r, fx)
         fx.shader = null
         c.restore()
+    }
+
+    /** 계기등 그라디언트 (위치·크기·색이 같으면 재사용 — 낮/밤 구분색 포함) */
+    private fun instrumentLightShader(cx: Float, cy: Float, r: Float, center: Int, rim: Int): RadialGradient {
+        var sh = litShader
+        if (sh == null || litKx != cx || litKy != cy || litKr != r || litKc != center || litKrim != rim) {
+            sh = RadialGradient(
+                cx, cy, r,
+                intArrayOf(center, 0x00000000, rim),
+                floatArrayOf(0f, 0.40f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            litShader = sh
+            litKx = cx; litKy = cy; litKr = r
+            litKc = center; litKrim = rim
+        }
+        return sh
     }
 
     private fun paperBitmap(): Bitmap {

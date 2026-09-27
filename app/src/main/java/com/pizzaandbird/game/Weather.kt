@@ -7,11 +7,11 @@ enum class Weather(
     val label: String,
     val description: String
 ) {
-    SUNNY("sunny", "☀", "맑음", "하늘을 나는 새가 활발해요"),
-    CLOUDY("cloudy", "☁", "흐림", "숲새가 편안하게 활동해요"),
-    RAIN("rain", "☂", "비", "물새가 모습을 드러내요"),
-    WIND("wind", "≋", "강풍", "맹금과 제비가 바람을 타요"),
-    SNOW("snow", "❄", "눈", "추위를 견디는 새가 찾아와요");
+    SUNNY("sunny", "sun", "맑음", "하늘을 나는 새가 활발해요"),
+    CLOUDY("cloudy", "cloud", "흐림", "숲새가 편안하게 활동해요"),
+    RAIN("rain", "rain", "비", "물새가 모습을 드러내요"),
+    WIND("wind", "wind", "강풍", "맹금과 제비가 바람을 타요"),
+    SNOW("snow", "snow", "눈", "추위를 견디는 새가 찾아와요");
 
     companion object {
         fun fromId(id: String): Weather = values().firstOrNull { it.id == id } ?: SUNNY
