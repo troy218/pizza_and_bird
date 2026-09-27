@@ -103,7 +103,7 @@ object Ach {
 | bike_1000k | 바퀴로 천 리 | 자전거 누적 1,000km 환산 |
 | region_5 | 다섯 고을 손님 | 방문 지역 5 |
 | region_all | 서른두 곳 지도 | 방문 지역 32 전부 |
-| night_owl | 부엉이의 친구 | 밤(19:30~04:30) 촬영 20회 |
+| owl_friend | 부엉이의 친구 | 밤(계절별 해뜸·해짐 기준, DayCycle.isNightAt) 촬영 20회 |
 | rain_day | 빗속의 망원경 | 비 날씨 촬영 10회 (tick 시 weather·photos 델타) |
 | snow_day | ★ 눈 속의 증거 | 눈 날씨 3성 촬영 |
 | money_1m | 첫 백만장자 | 현재 골드 ₩1,000,000 달성 |
