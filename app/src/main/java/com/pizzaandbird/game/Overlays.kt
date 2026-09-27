@@ -286,6 +286,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private var questSubTab = 0
     private var questTaskPage = 0
     private var achievementPage = 0
+    private val albumPhotoPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private var panelR = RectF()
 
     override fun handleInput(input: Input) {
@@ -1395,12 +1396,13 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), fillP)
             val bmp = PhotoArchive.image(g.context, record.fileName) // 없으면 백그라운드 로딩 중
             if (bmp != null) {
-                val k = maxOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
+                // 썸네일에서도 수평선/양옆 배경을 잘라내지 않는다.
+                val k = minOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
                 val dw = bmp.width * k
                 val dh = bmp.height * k
                 c.save(); c.clipRect(photoR)
                 c.drawBitmap(bmp, null, RectF(photoR.centerX() - dw / 2f, photoR.centerY() - dh / 2f,
-                    photoR.centerX() + dw / 2f, photoR.centerY() + dh / 2f), Paint(Paint.FILTER_BITMAP_FLAG))
+                    photoR.centerX() + dw / 2f, photoR.centerY() + dh / 2f), albumPhotoPaint)
                 c.restore()
             } else {
                 val def = Birds.byId[record.birdId]
@@ -3346,6 +3348,7 @@ class PhotoResultOverlay(
     private var cuedStars = false
     private var cuedNew = false
     private var cuedQuest = false
+    private val photoPaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
     override fun update(dt: Float) {
         t += dt
@@ -3397,10 +3400,15 @@ class PhotoResultOverlay(
         dim(c, scene, 172)
 
         val inset = dp(scene, 11f)
-        val maxW = minOf(w * 0.62f, dp(scene, 340f))
+        val landscape = capturedPhoto != null
+        val photoAspect = capturedPhoto?.let { it.height.toFloat() / it.width } ?: 0.74f
+        val maxW = if (landscape) minOf(w * 0.82f, dp(scene, 520f)) else minOf(w * 0.62f, dp(scene, 340f))
         val maxH = h * 0.76f
-        val cardW = minOf(maxW, maxH / 1.26f)
-        val cardH = cardW * 1.26f
+        // 원근 풍경의 양옆을 잘라내지 않는 가로 인화지. 캡션/별점 공간은 그대로 확보한다.
+        val footer = dp(scene, 96f)
+        val cardW = if (landscape) minOf(maxW, (maxH - inset - footer) / photoAspect + inset * 2f)
+            else minOf(maxW, maxH / 1.26f)
+        val cardH = if (landscape) (cardW - inset * 2f) * photoAspect + inset + footer else cardW * 1.26f
         val cx = w / 2f
         val cy = h * 0.5f - dp(scene, 6f)
 
@@ -3431,7 +3439,7 @@ class PhotoResultOverlay(
 
         // 사진
         val photoW = cardW - inset * 2f
-        val photoH = minOf(photoW * 0.74f, cardH - inset - dp(scene, 96f))
+        val photoH = minOf(photoW * photoAspect, cardH - inset - footer)
         val photo = RectF(card.left + inset, card.top + inset, card.left + inset + photoW, card.top + inset + photoH)
         drawPhoto(c, photo)
         // EXIF 스트립 — 어떤 설정으로 찍혔는지
@@ -3587,18 +3595,19 @@ class PhotoResultOverlay(
     /** 인화지 속 풍경 + 새 */
     private fun drawPhoto(c: Canvas, r: RectF) {
         val a = scene.game.assets
-        // 촬영 시점에 월드 타일/지형물/날씨와 방향별 큰 새를 함께 렌더해 저장한 실제 게임 사진.
-        // 화면 비율이 달라도 중앙 피사체를 유지하는 center-crop으로 인화한다.
+        // 새 눈높이에서 원근 투영한 촬영 원본. 수평선과 양옆 풍경까지 사진집과 똑같이 보존한다.
         val saved = capturedPhoto
         if (saved != null) {
-            val scale = maxOf(r.width() / saved.width.toFloat(), r.height() / saved.height.toFloat())
+            val scale = minOf(r.width() / saved.width.toFloat(), r.height() / saved.height.toFloat())
             val dw = saved.width * scale
             val dh = saved.height * scale
             val dx = r.centerX() - dw / 2f
             val dy = r.centerY() - dh / 2f
             c.save()
             c.clipRect(r)
-            c.drawBitmap(saved, null, RectF(dx, dy, dx + dw, dy + dh), Paint(Paint.FILTER_BITMAP_FLAG))
+            fillP.color = 0xFF27383D.toInt()
+            c.drawRect(r, fillP)
+            c.drawBitmap(saved, null, RectF(dx, dy, dx + dw, dy + dh), photoPaint)
             c.restore()
             return
         }
