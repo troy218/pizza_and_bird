@@ -124,7 +124,7 @@ object NavigationSmoke {
         verify(g.scene.overlay is DialogOverlay, "Shop shortcut only shows a hidden toast, not a shop menu")
         val hub = g.scene.overlay as DialogOverlay
         for ((index, expected) in listOf(CameraShopOverlay::class.java, GearBagOverlay::class.java,
-            BikeShopOverlay::class.java, DecorShopOverlay::class.java).withIndex()) {
+            BikeShopOverlay::class.java, DecorShopOverlay::class.java, CharmOverlay::class.java).withIndex()) {
             open(hub)
             choice(hub, index)
             verify(expected.isInstance(g.scene.overlay), "Shop destination $expected did not open")

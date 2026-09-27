@@ -998,6 +998,10 @@ class Canvas {
 
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
 
+    fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float,
+                      rx: Float, ry: Float, paint: Paint) =
+        drawRoundRect(RectF(left, top, right, bottom), rx, ry, paint)
+
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
         GfxStats.drawRoundRect++
         record("rrect", rect.left, rect.top, rect.right, rect.bottom, paint)

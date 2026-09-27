@@ -658,6 +658,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        Charms.equipped(state)?.let { item ->
+            Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
+                sy + if (item.id == "rain") 12f else 22f, 8f, game.time)
+        }
         // 집 안에서도 카메라는 목에 걸고 다닌다
         val camDir = when (player.facing) {
             Dir.E -> 2

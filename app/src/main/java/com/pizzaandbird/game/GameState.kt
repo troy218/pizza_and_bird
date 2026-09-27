@@ -23,6 +23,8 @@ class GameState {
     var inHome = false             // 현재 집 안에 있는지
     var money = 0                  // 용돈(원)
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
+    val ownedCharms = LinkedHashSet<String>()
+    var charmId = ""
     var luck = 50f                 // 행운 수치 (높을수록 희귀새 출현)
     val pizzas = IntArray(Pizzas.ALL.size * 3)   // [피자id*3 + 품질] 피자 개수
 
@@ -429,7 +431,7 @@ class GameState {
     }
 
     /** 희귀새 출현 계산에 쓰는 실효 행운 (장식 + 자전거 + 감성 장비) */
-    fun effectiveLuck(): Float = (luck + decorLuck() + bikeLuck() + gearLuck()).coerceAtMost(100f)
+    fun effectiveLuck(): Float = (luck + decorLuck() + bikeLuck() + gearLuck() + (Charms.equipped(this)?.luck(this) ?: 0)).coerceAtMost(100f)
 
     // ------------------ 자전거 ------------------
 
@@ -488,6 +490,8 @@ class GameState {
         // 첫 정착지는 항상 서울. 다른 지역은 여행 후 집을 매입한다.
         money = 30000
         hunger = 100f
+        ownedCharms.clear()
+        charmId = ""
         luck = 50f
         for (i in pizzas.indices) pizzas[i] = 0
         // 첫 장비는 물려받은 컴팩트 카메라 한 대
@@ -558,6 +562,8 @@ class GameState {
         put("inHome", inHome)
         put("money", money)
         put("hunger", hunger.toDouble())
+        put("ownedCharms", JSONArray().apply { ownedCharms.forEach { put(it) } })
+        put("charmId", charmId)
         put("luck", luck.toDouble())
         put("ownedGear", JSONArray().apply { ownedGear.forEach { put(it) } })
         put("useIlc", useIlc)
@@ -631,6 +637,11 @@ class GameState {
             s.inHome = j.optBoolean("inHome", false)
             s.money = j.optInt("money", 0)
             s.hunger = j.optDouble("hunger", 100.0).toFloat()
+            val charms = j.optJSONArray("ownedCharms")
+            if (charms != null) for (i in 0 until charms.length()) {
+                Charms.of(charms.optString(i))?.let { s.ownedCharms.add(it.id) }
+            }
+            s.charmId = j.optString("charmId", "").takeIf { it in s.ownedCharms } ?: ""
             s.luck = j.optDouble("luck", 50.0).toFloat()
             // ---- 카메라 장비 ----
             val og = j.optJSONArray("ownedGear")
