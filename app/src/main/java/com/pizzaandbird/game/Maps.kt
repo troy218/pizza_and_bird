@@ -1,5 +1,6 @@
 package com.pizzaandbird.game
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -75,6 +76,9 @@ enum class T(
 // 지도
 // ---------------------------------------------------------------------------
 
+/** 지면 캐시 한 장의 크기: 8×8 타일 = 256×256 px (ARGB8888 256 KiB). */
+private const val GROUND_CHUNK_TILES = 8
+
 data class TunnelInfo(
     val dir: Dir,
     val targetId: String,
@@ -107,6 +111,24 @@ class GameMap(
     private val waterPaint by lazy { tintedPaint(mapStyle.waterFilter) }
     private val shorePaint by lazy { tintedPaint(mapStyle.shoreFilter) }
     private val stonePaint by lazy { tintedPaint(mapStyle.stoneFilter) }
+
+    // 지면·포장·데칼은 맵이 만들어진 후 변하지 않는다. 물이 없는 청크만 처음 보일 때
+    // 래스터화해 두면 매 프레임 수백 장의 타일 대신 화면당 몇 장만 그리면 된다.
+    // 물이 있는 청크는 원래 코드로 그려 물결·포말·반짝임 애니메이션을 보존한다.
+    // 40×30 맵 전체를 방문해도 캐시는 약 4.7 MiB (씬 교체 시 함께 해제).
+    private val groundChunkCols = (w + GROUND_CHUNK_TILES - 1) / GROUND_CHUNK_TILES
+    private val groundChunks = arrayOfNulls<Bitmap>(groundChunkCols * ((h + GROUND_CHUNK_TILES - 1) / GROUND_CHUNK_TILES))
+    private val animatedGroundChunks = BooleanArray(groundChunks.size) { index ->
+        val sx = index % groundChunkCols * GROUND_CHUNK_TILES
+        val sy = index / groundChunkCols * GROUND_CHUNK_TILES
+        var containsWater = false
+        for (y in sy until minOf(sy + GROUND_CHUNK_TILES, h)) {
+            for (x in sx until minOf(sx + GROUND_CHUNK_TILES, w)) {
+                if (ground[y][x] == T.WATER.ordinal) containsWater = true
+            }
+        }
+        containsWater
+    }
 
     private fun tintedPaint(filter: Int): Paint = Paint().apply {
         isFilterBitmap = false
@@ -219,6 +241,95 @@ class GameMap(
         return T.ALL[tiles[y][x]].bulk
     }
 
+    /** 정적인 타일에는 래스터화된 청크를, 애니메이션 물이 있는 청크에는 기존 타일 패스를 사용. */
+    private fun drawGround(c: Canvas, a: Assets, camX: Float, camY: Float,
+                           x0: Int, y0: Int, x1: Int, y1: Int, time: Float, waterFrame: Int) {
+        if (x0 > x1 || y0 > y1) return
+        for (cy in y0 / GROUND_CHUNK_TILES..y1 / GROUND_CHUNK_TILES) {
+            for (cx in x0 / GROUND_CHUNK_TILES..x1 / GROUND_CHUNK_TILES) {
+                val index = cy * groundChunkCols + cx
+                val sx = cx * GROUND_CHUNK_TILES
+                val sy = cy * GROUND_CHUNK_TILES
+                if (animatedGroundChunks[index]) {
+                    for (y in maxOf(y0, sy)..minOf(y1, sy + GROUND_CHUNK_TILES - 1)) {
+                        for (x in maxOf(x0, sx)..minOf(x1, sx + GROUND_CHUNK_TILES - 1)) {
+                            drawGroundTile(c, a, x, y, camX, camY, time, waterFrame)
+                        }
+                    }
+                } else {
+                    val bmp = groundChunks[index] ?: buildGroundChunk(a, sx, sy).also { groundChunks[index] = it }
+                    c.drawBitmap(bmp, sx * 32f - camX, sy * 32f - camY, a.sprPaint)
+                }
+            }
+        }
+    }
+
+    private fun buildGroundChunk(a: Assets, sx: Int, sy: Int): Bitmap {
+        val xEnd = minOf(sx + GROUND_CHUNK_TILES, w)
+        val yEnd = minOf(sy + GROUND_CHUNK_TILES, h)
+        val bmp = Bitmap.createBitmap((xEnd - sx) * 32, (yEnd - sy) * 32, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        for (y in sy until yEnd) for (x in sx until xEnd) {
+            drawGroundTile(canvas, a, x, y, sx * 32f, sy * 32f, 0f, 0)
+        }
+        return bmp
+    }
+
+    /** 지면 → 포장 → 데칼 순서는 캐시와 움직이는 물 모두 동일해야 한다. */
+    private fun drawGroundTile(c: Canvas, a: Assets, x: Int, y: Int,
+                               camX: Float, camY: Float, time: Float, waterFrame: Int) {
+        val fx = x * 32f - camX
+        val fy = y * 32f - camY
+        val tv = tiles[y][x]
+        val tile = T.ALL[tv]
+        val pv = paving[y][x]
+
+        // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
+        if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
+            val gv = ground[y][x]
+            val gTile = T.ALL[gv]
+            val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
+            else a.tiles[gv][artVariant(a, gTile, x, y)]
+            c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
+
+            // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
+            if (gTile == T.WATER && pv == Pave.NONE) {
+                val ph = time * 2.8f + x * 1.15f + y * 0.85f
+                if (y > 0 && groundAt(x, y - 1) != T.WATER) foamEdge(c, fx, fy, fx + 32f, fy, ph)
+                if (y < h - 1 && groundAt(x, y + 1) != T.WATER) foamEdge(c, fx, fy + 32f, fx + 32f, fy + 32f, ph + 1.7f)
+                if (x > 0 && groundAt(x - 1, y) != T.WATER) foamEdgeV(c, fx, fy, fx, fy + 32f, ph + 0.9f)
+                if (x < w - 1 && groundAt(x + 1, y) != T.WATER) foamEdgeV(c, fx + 32f, fy, fx + 32f, fy + 32f, ph + 2.3f)
+                // 물 반짝임 (별 반짝임 십자)
+                if ((x * 7 + y * 13) % 6 == 0) {
+                    val tw = (sin(time * 2.6f + x * 1.7f + y * 2.3f) + 1f) / 2f
+                    if (tw > 0.62f) {
+                        val k = (tw - 0.62f) / 0.38f
+                        val sx = fx + 8f + ((x * 11 + y * 5) % 16)
+                        val sy = fy + 7f + ((x * 3 + y * 9) % 18)
+                        val al = (110 + 130 * k).toInt()
+                        sparkle.color = Color.argb(al, 255, 255, 255)
+                        c.drawRect(sx, sy - 2.2f, sx + 1.6f, sy + 3.8f, sparkle)
+                        c.drawRect(sx - 2.2f, sy, sx + 3.8f, sy + 1.6f, sparkle)
+                        sparkle.color = Color.argb(al / 2, 255, 255, 255)
+                        c.drawRect(sx - 4f, sy, sx + 5.6f, sy + 1.2f, sparkle)
+                    }
+                }
+            }
+        }
+
+        // 2) 포장면 (이웃 모양에 맞춰 자동 생성 + 캐시)
+        if (pv != Pave.NONE) {
+            val sandy = T.ALL[ground[y][x]] == T.SAND
+            val variant = if (pv == Pave.STONE) (y and 1) else ((x * 5 + y * 11) % 3)
+            c.drawBitmap(a.roadTile(pv, paveMask(x, y), variant, sandy), fx, fy, a.sprPaint)
+        }
+
+        // 3) 데칼 (광장 문양 / 빗물받이)
+        val d = decals[y][x]
+        if (d in 1..9) c.drawBitmap(a.medallion[d - 1], fx, fy, a.sprPaint)
+        else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
+    }
+
     /**
      * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
      *
@@ -236,61 +347,7 @@ class GameMap(
         val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
         val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2      // 가정용 오븐 불빛 깜빡임
 
-        for (y in y0..y1) {
-            for (x in x0..x1) {
-                val fx = x * 32f - camX
-                val fy = y * 32f - camY
-                val tv = tiles[y][x]
-                val tile = T.ALL[tv]
-                val pv = paving[y][x]
-
-                // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-                if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
-                    val gv = ground[y][x]
-                    val gTile = T.ALL[gv]
-                    val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
-                    else a.tiles[gv][artVariant(a, gTile, x, y)]
-                    c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
-
-                    // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
-                    if (gTile == T.WATER && pv == Pave.NONE) {
-                        val ph = time * 2.8f + x * 1.15f + y * 0.85f
-                        if (y > 0 && groundAt(x, y - 1) != T.WATER) foamEdge(c, fx, fy, fx + 32f, fy, ph)
-                        if (y < h - 1 && groundAt(x, y + 1) != T.WATER) foamEdge(c, fx, fy + 32f, fx + 32f, fy + 32f, ph + 1.7f)
-                        if (x > 0 && groundAt(x - 1, y) != T.WATER) foamEdgeV(c, fx, fy, fx, fy + 32f, ph + 0.9f)
-                        if (x < w - 1 && groundAt(x + 1, y) != T.WATER) foamEdgeV(c, fx + 32f, fy, fx + 32f, fy + 32f, ph + 2.3f)
-                        // 물 반짝임 (별 반짝임 십자)
-                        if ((x * 7 + y * 13) % 6 == 0) {
-                            val tw = (sin(time * 2.6f + x * 1.7f + y * 2.3f) + 1f) / 2f
-                            if (tw > 0.62f) {
-                                val k = (tw - 0.62f) / 0.38f
-                                val sx = fx + 8f + ((x * 11 + y * 5) % 16)
-                                val sy = fy + 7f + ((x * 3 + y * 9) % 18)
-                                val al = (110 + 130 * k).toInt()
-                                sparkle.color = Color.argb(al, 255, 255, 255)
-                                c.drawRect(sx, sy - 2.2f, sx + 1.6f, sy + 3.8f, sparkle)
-                                c.drawRect(sx - 2.2f, sy, sx + 3.8f, sy + 1.6f, sparkle)
-                                sparkle.color = Color.argb(al / 2, 255, 255, 255)
-                                c.drawRect(sx - 4f, sy, sx + 5.6f, sy + 1.2f, sparkle)
-                            }
-                        }
-                    }
-                }
-
-                // 2) 포장면 (이웃 모양에 맞춰 자동 생성 + 캐시)
-                if (pv != Pave.NONE) {
-                    val sandy = T.ALL[ground[y][x]] == T.SAND
-                    val variant = if (pv == Pave.STONE) (y and 1) else ((x * 5 + y * 11) % 3)
-                    c.drawBitmap(a.roadTile(pv, paveMask(x, y), variant, sandy), fx, fy, a.sprPaint)
-                }
-
-                // 3) 데칼 (광장 문양 / 빗물받이)
-                val d = decals[y][x]
-                if (d in 1..9) c.drawBitmap(a.medallion[d - 1], fx, fy, a.sprPaint)
-                else if (d == 10) c.drawBitmap(a.drain, fx, fy, a.sprPaint)
-
-            }
-        }
+        drawGround(c, a, camX, camY, x0, y0, x1, y1, time, waterFrame)
 
         // 3.5) 햇빛 그림자 — 해의 위치(시각)에 따라 나무·가로등·이정표의 긴 그림자가 돌아간다
         if (sunAlpha > 0 && sunLen > 0f) {

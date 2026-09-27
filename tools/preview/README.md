@@ -136,8 +136,12 @@ java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 `world_resume_smoke` 는 `Game.render()` 의 "가리는 오버레이(가방·지도·상점…)가 떠 있는 동안
 월드를 20Hz 로만 갱신한다" 최적화가 세 가지를 지키는지 검사한다 — 가방이 떠 있는 동안 월드가
 매 프레임 그려지지 않는지, 닫은 **다음 프레임**에 월드가 다시 그려지는지(오래된 화면을 붙여
-보여주지 않는지), 그 뒤에도 계속 갱신되는지. 판정은 `GfxStats.drawBitmap` 횟수(월드를 그리면
-약 2000회, 건너뛰면 HUD 정도만)로 한다.
+보여주지 않는지), 그 뒤에도 계속 갱신되는지. 판정은 `GfxStats.drawBitmap` 횟수로 한다.
+
+`mobile_perf_smoke.kt` 는 자동 화질(지속 부하만 감지·수동 설정 존중·HUD 실해상도 유지),
+지면 청크 캐시의 호출 감소, 물 애니메이션과 화면 밖 풀 culling/재진입을 확인한다.
+위 컴파일 명령에 `tools/preview/mobile_perf_smoke.kt`를 추가하고
+`com.pizzaandbird.preview.MobilePerfSmoke`를 실행하면 된다.
 
 ### 스크린샷 결정성
 
