@@ -1565,26 +1565,23 @@ class Hud(private val game: Game) {
         c.drawCircle(gx, gy, dp(1.7f), fx)
     }
 
-    /** 해 질 녘·밤에는 나침반 유리에 노을/등잔 빛이 돈다. 한낮에는 그리지 않는다. */
+    /**
+     * 해 질 녘·밤에는 나침반 유리에 노을/등잔 빛이 돈다. 한낮에는 그리지 않는다.
+     * 세기·색 모두 DayCycle 의 연속 곡선을 따라가므로 시각이 흐르면 유리 위 색도 같이 흐른다.
+     */
     private fun drawInstrumentLight(c: Canvas, cx: Float, cy: Float, r: Float, glass: Float) {
         val h = game.state.worldTime
-        val night = h >= 19.5f || h < 4.5f
-        val dusk = h >= 17f && h < 19.5f
-        val dawn = h >= 4.5f && h < 7.2f
-        if (!night && !dusk && !dawn) return
+        val dark = DayCycle.darkness(h)
+        val gold = DayCycle.golden(h)
+        val k = maxOf(dark, gold)
+        if (k < 0.05f) return
 
-        val center: Int
-        val rim: Int
-        if (night) {
-            center = Color.argb(42, 255, 188, 112)
-            rim = Color.argb(82, 12, 22, 48)
-        } else if (dusk) {
-            center = Color.argb(22, 255, 160, 80)
-            rim = Color.argb(46, 170, 72, 36)
-        } else {
-            center = Color.argb(20, 255, 176, 110)
-            rim = Color.argb(36, 196, 110, 64)
-        }
+        // 노을빛(금빛)과 밤빛(등잔+남색 테)을 섞는다
+        val sun = DayCycle.sunlightColor(h)
+        val centerA = (16f + 30f * dark + 10f * gold).toInt().coerceIn(0, 60)
+        val center = Color.argb(centerA, Color.red(sun), Color.green(sun), Color.blue(sun))
+        val amb = DayCycle.ambient(h)
+        val rim = Color.argb((84f * k).toInt().coerceIn(0, 96), Color.red(amb), Color.green(amb), Color.blue(amb))
         c.save()
         clipPath.reset()
         clipPath.addCircle(cx, cy, r, Path.Direction.CW)

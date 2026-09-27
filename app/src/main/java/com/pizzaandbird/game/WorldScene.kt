@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RadialGradient
@@ -147,6 +149,8 @@ class WorldScene(
     // 새벽/노을 빛줄기 그라디언트 — 높이가 변할 때만 다시 만든다.
     private var shaftShader: LinearGradient? = null
     private var shaftShaderH = -1f
+    private var shaftTint = 0
+    private var shaftFilter: PorterDuffColorFilter? = null
 
     init {
         state.region = region.id
@@ -216,6 +220,7 @@ class WorldScene(
         map.season = state.season()
         grass.setSeason(state.season())
         fx.season = state.season()
+        DayCycle.season = state.season()      // 계절마다 해 뜨고 지는 시각이 달라진다
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
@@ -353,6 +358,7 @@ class WorldScene(
         map.season = seasonNow
         grass.setSeason(seasonNow)
         fx.season = seasonNow
+        DayCycle.season = seasonNow
         seasonFx.update(dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(), state.isNight())
 
         updatePlayer(dt)
@@ -1221,11 +1227,12 @@ class WorldScene(
         c.drawColor(0xFF8FC9DF.toInt())
         val hour = state.worldTime
         val dl = daylight(hour)
-        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        val sunT = DayCycle.sunDirX(hour)
+        val stretchP = DayCycle.shadowStretch(hour)
         map.draw(
             c, game.assets, camPhotoX, camPhotoY, w, h, game.time,
-            sunDx = sunT * 20f,
-            sunLen = 11f + kotlin.math.abs(sunT) * 13f,
+            sunDx = sunT * 20f * stretchP,
+            sunLen = (9f + kotlin.math.abs(sunT) * 11f) * stretchP,
             sunAlpha = (50f * dl * weather.shadowK).toInt()
         )
         fx.drawGround(c, camPhotoX, camPhotoY, w, h)
@@ -2409,7 +2416,8 @@ class WorldScene(
         // 햇빛 그림자: 아침엔 서쪽, 저녁엔 동쪽으로 길게 (흐리거나 비 오면 옅게)
         val hour = state.worldTime
         val dl = daylight(hour)
-        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        val sunT = DayCycle.sunDirX(hour)
+        val stretch = DayCycle.shadowStretch(hour)
         val sunAlpha = (54f * dl * weather.shadowK).toInt()
 
         // 지면은 흔들림·기울기로 가장자리가 비지 않게 PAD 만큼 넓게 그린다
@@ -2420,7 +2428,7 @@ class WorldScene(
         map.signViewerY = (player.y + 13f) * WORLD_SCALE
         map.draw(
             c, game.assets, camXv - padX, camYv - padY, padW, padH, game.time,
-            sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
+            sunDx = sunT * 22f * stretch, sunLen = (10f + abs(sunT) * 12f) * stretch, sunAlpha = sunAlpha
         )
         fx.drawGround(c, camXv - padX, camYv - padY, padW, padH)
 
@@ -2891,32 +2899,12 @@ class WorldScene(
     // 낮/밤
     // -------------------------------------------------------------------
 
-    private fun lerpC(c0: Int, c1: Int, t: Float): Int {
-        val tt = t.coerceIn(0f, 1f)
-        return Color.argb(
-            (Color.alpha(c0) + (Color.alpha(c1) - Color.alpha(c0)) * tt).toInt(),
-            (Color.red(c0) + (Color.red(c1) - Color.red(c0)) * tt).toInt(),
-            (Color.green(c0) + (Color.green(c1) - Color.green(c0)) * tt).toInt(),
-            (Color.blue(c0) + (Color.blue(c1) - Color.blue(c0)) * tt).toInt()
-        )
-    }
-
-    private fun ambientColor(): Int {
-        val h = state.worldTime
-        val night = Color.argb(124, 20, 24, 62)
-        val dawn = Color.argb(64, 255, 166, 92)
-        val dusk = Color.argb(80, 240, 120, 60)
-        val day = Color.argb(0, 0, 0, 0)
-        return when {
-            h < 4f -> night
-            h < 6f -> lerpC(night, dawn, (h - 4f) / 2f)
-            h < 7.5f -> lerpC(dawn, day, (h - 6f) / 1.5f)
-            h < 17f -> day
-            h < 18.5f -> lerpC(day, dusk, (h - 17f) / 1.5f)
-            h < 20f -> lerpC(dusk, night, (h - 18.5f) / 1.5f)
-            else -> night
-        }
-    }
+    /**
+     * 화면 전체에 얹는 시간대 색. [DayCycle] 의 태양 고도 곡선을 그대로 쓴다 —
+     * 여명(남색) → 보랏빛 박명 → 동틀 녘 금빛 → 한낮(무색) → 노을 → 땅거미 → 밤.
+     * 날씨(비·눈·흐림)는 같은 함수 안에서 한 톤 더 어둡고 차갑게 만든다.
+     */
+    private fun ambientColor(): Int = DayCycle.ambient(state.worldTime, weather)
 
     /**
      * 낮밤 조명. 시각에 맞는 어둠(새벽 주황 -> 낮 -> 노을 -> 밤 남색)을 조명 맵으로 깔고,
@@ -2925,8 +2913,10 @@ class WorldScene(
     private fun drawLighting(c: Canvas, camXv: Float, camYv: Float) {
         val col = ambientColor()
         val alpha = Color.alpha(col)
-        if (alpha == 0) return
-        val k = (alpha / 124f).coerceIn(0f, 1f)
+        if (alpha <= 1) return
+        // 점등 세기도 연속적으로 — 해가 기울기 시작하면 가로등이 서서히 살아난다
+        val k = DayCycle.lightK(state.worldTime, weather)
+        if (k <= 0.01f) return
         // 줌·기울기로 가장자리가 새지 않게 라이트맵도 PAD 만큼 크게 잡고 -PAD 위치에 덮는다.
         // 크기는 최대 줌아웃 기준으로 '고정'한다 — 매 프레임 크기가 변하면 비트맵을 새로 만들게 된다.
         val lm = LightMaps.get(LIGHT_W, LIGHT_H)
@@ -2999,36 +2989,40 @@ class WorldScene(
         fx.fireflies(c, null, false, camXv, camYv, game.virtW, game.virtH)
     }
 
-    /** 새벽/노을: 하늘에서 내려오는 따뜻한 빛줄기 */
+    /**
+     * 동틀 녘·노을에 하늘에서 내려오는 빛줄기.
+     * 세기는 태양 고도(=황금시간 곡선), 색은 그 순간의 직사광 색을 실시간으로 따라간다.
+     * 그라디언트는 흰빛 한 벌만 만들어 두고 컬러필터로 물들여 매 프레임 재생성하지 않는다.
+     */
     private fun drawWarmShafts(c: Canvas) {
         val vw = game.virtW.toFloat()
         val vh = game.virtH.toFloat()
         val h = state.worldTime
-        val warm = when {
-            h >= 5.5f && h < 7.5f -> (1f - abs(h - 6.5f))          // 새벽
-            h >= 17f && h < 19f -> (1f - abs(h - 18f))              // 노을
-            else -> 0f
+        val warm = DayCycle.golden(h) * weather.shadowK
+        if (warm <= 0.02f) return
+        val a = (58f * warm).toInt().coerceIn(0, 255)
+        var sh = shaftShader
+        if (sh == null || shaftShaderH != vh) {
+            sh = LinearGradient(
+                0f, 0f, 0f, vh * 0.72f,
+                Color.argb(255, 255, 255, 255), Color.argb(0, 255, 255, 255),
+                Shader.TileMode.CLAMP
+            )
+            shaftShader = sh
+            shaftShaderH = vh
         }
-        if (warm > 0.02f) {
-            val a = (52f * warm).toInt().coerceIn(0, 255)
-            // 그라디언트는 한 번만 만들고, 밝기는 페인트 알파로 조절한다 —
-            // 새벽/노을 동안 매 프레임 LinearGradient를 새로 만들지 않는다.
-            var sh = shaftShader
-            if (sh == null || shaftShaderH != vh) {
-                sh = LinearGradient(
-                    0f, 0f, 0f, vh * 0.72f,
-                    Color.argb(255, 255, 178, 96), Color.argb(0, 255, 178, 96),
-                    Shader.TileMode.CLAMP
-                )
-                shaftShader = sh
-                shaftShaderH = vh
-            }
-            glowFill.shader = sh
-            glowFill.alpha = a
-            c.drawRect(0f, 0f, vw, vh, glowFill)
-            glowFill.alpha = 255
-            glowFill.shader = null
+        val tint = DayCycle.sunlightColor(h)
+        if (tint != shaftTint) {
+            shaftTint = tint
+            shaftFilter = PorterDuffColorFilter(tint, PorterDuff.Mode.MULTIPLY)
         }
+        glowFill.shader = sh
+        glowFill.colorFilter = shaftFilter
+        glowFill.alpha = a
+        c.drawRect(0f, 0f, vw, vh, glowFill)
+        glowFill.alpha = 255
+        glowFill.colorFilter = null
+        glowFill.shader = null
     }
 
     /** 비네트 — 화면 가장자리를 은은하게 어둡게 */
