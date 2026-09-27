@@ -346,7 +346,7 @@ class GameState {
     /** 지금까지 획득한 숙련 포인트 총량 (사용 + 보유) */
     fun skillInvested(): Int = skillPoints + skills.values.sum()
 
-    /** 사진용품점 '탐조 강습' 비용 — 살수록 비싸진다 (돈으로 SP 구매) */
+    /** 본점 카메라샵의 '탐조 강습' 비용 — 살수록 비싸진다 (돈으로 SP 구매) */
     fun trainingCost(): Int = 800 + skillInvested() * 500
 
     // ------------------ 낮/밤 ------------------

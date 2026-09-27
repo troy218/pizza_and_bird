@@ -2341,29 +2341,7 @@ class WorldScene(
             DialogOverlay(
                 this, "${shop.shopName} · 사장 ${shop.keeper}",
                 body,
-                buildList {
-                    add(DialogOverlay.Choice("카메라 진열대") {
-                        it.scene.openOverlay(CameraShopOverlay(it.scene))
-                    })
-                    add(DialogOverlay.Choice("장비 가방(조립)") {
-                        it.scene.openOverlay(GearBagOverlay(it.scene))
-                    })
-                    if (shop.flagship) {
-                        add(DialogOverlay.Choice("자전거 상점") {
-                            it.scene.openOverlay(BikeShopOverlay(it.scene))
-                        })
-                        add(DialogOverlay.Choice("장식 코너") {
-                            it.scene.openOverlay(DecorShopOverlay(it.scene))
-                        })
-                    } else {
-                        val near = CameraShops.flagship
-                        val nearName = Regions.byId[near.regionId]?.name ?: "서울"
-                        add(DialogOverlay.Choice("자전거·장식은 $nearName 본점") {
-                            game.toast("🚲 $nearName ${near.spot.label} · 본점에만 있는 코너야")
-                        })
-                    }
-                    add(DialogOverlay.Choice("그냥 볼게요"))
-                }
+                shopChoices(this, shop)
             )
         )
     }

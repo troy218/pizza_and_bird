@@ -554,8 +554,14 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val s = g.state
         val here = CameraShops.shop(s.region)
         if (here != null) {
-            g.toast("📷 ${here.shopName} · ${here.spot.label}")
-            g.toast("특화 ${here.specialty}" + (if (here.saleLabel.isNotEmpty()) " · ${here.saleLabel}" else ""))
+            val sale = if (here.saleLabel.isNotEmpty()) "\n\n${here.saleLabel}" else ""
+            scene.openOverlay(
+                DialogOverlay(
+                    scene, "${here.shopName} · 사장 ${here.keeper}",
+                    "\"${here.greeting}\"" + "\n\n특화 ${here.specialty} · ${here.spot.label}$sale",
+                    shopChoices(scene, here)
+                )
+            )
             return
         }
         val near = CameraShops.nearestShop(s.region)
@@ -572,6 +578,11 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                         g.toast("🚲 $nearName ${near.spot.label}로 출발!")
                         finished = true
                         fastTravel(g, near.regionId)
+                    },
+                    DialogOverlay.Choice("🧭 걸어서 $nearName 가게까지") {
+                        val keeper = NpcRoster.shopkeeperFor(near.regionId)
+                        if (keeper != null) QuestNavigation.startPersonTrip(g, scene, keeper)
+                        finished = true
                     },
                     DialogOverlay.Choice("다음에 갈게요")
                 )
@@ -800,7 +811,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         // 자주 쓰는 바로가기는 작은 화면에서도 첫 페이지에 남긴다.
         val cells = listOf(
             Triple("search", "퀘스트", s.questBird?.let { Birds.byId[it]?.name } ?: "퀘스트 열기 ›"),
-            Triple("camera", "사진용품점", if (NpcRoster.hasShop(s.region)) "상점 열기 ›" else "${NpcRoster.shopRegionName} ›"),
+            Triple("camera", "카메라샵", cameraShopCellText(s.region)),
             Triple("calendar", "시각", "${s.timeLabel()} · 사진 ${s.photos}장"),
             Triple("house", "우리 집", Regions.byId[s.homeRegion]?.name ?: "?"),
             Triple("pin", "위치", "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}"),
@@ -2389,7 +2400,7 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
 }
 
 // ---------------------------------------------------------------------------
-// 장식 상점 (사진용품점 장식 코너)
+// 장식 상점 (서울 본점의 장식 코너)
 // ---------------------------------------------------------------------------
 
 class DecorShopOverlay(scene: Scene) : Overlay(scene) {
@@ -5141,15 +5152,30 @@ private fun gearSubLine(gear: CamGear): String = when (gear) {
     is CamAccessory -> gear.desc
 }
 
-/** 가게 주인과 가방 바로가기가 같은 진열대를 연다. */
-fun shopChoices(scene: Scene): List<DialogOverlay.Choice> = listOf(
-    DialogOverlay.Choice("카메라 진열대") { scene.openOverlay(CameraShopOverlay(scene)) },
-    DialogOverlay.Choice("장비 가방(조립)") { scene.openOverlay(GearBagOverlay(scene)) },
-    DialogOverlay.Choice("자전거 상점") { scene.openOverlay(BikeShopOverlay(scene)) },
-    DialogOverlay.Choice("장식 코너") { scene.openOverlay(DecorShopOverlay(scene)) },
-    DialogOverlay.Choice("행운 장신구") { scene.openOverlay(CharmOverlay(scene, shop = true)) },
-    DialogOverlay.Choice("그냥 볼게요")
-)
+/**
+ * 가게 주인과 상태 창이 함께 여는 코너 목록 — 진열대와 장비 가방은 어디나 열리지만,
+ * 자전거·장식·행운 장신구는 **서울 본점 전용** 코너다 (`CityShop.flagship`).
+ */
+fun shopChoices(scene: Scene, shop: CityShop? = null): List<DialogOverlay.Choice> {
+    val out = ArrayList<DialogOverlay.Choice>(6)
+    out.add(DialogOverlay.Choice("카메라 진열대") { scene.openOverlay(CameraShopOverlay(scene)) })
+    out.add(DialogOverlay.Choice("장비 가방(조립)") { scene.openOverlay(GearBagOverlay(scene)) })
+    if (shop == null || shop.flagship) {
+        out.add(DialogOverlay.Choice("자전거 상점") { scene.openOverlay(BikeShopOverlay(scene)) })
+        out.add(DialogOverlay.Choice("장식 코너") { scene.openOverlay(DecorShopOverlay(scene)) })
+        out.add(DialogOverlay.Choice("행운 장신구") { scene.openOverlay(CharmOverlay(scene, shop = true)) })
+    } else {
+        val near = CameraShops.flagship
+        val nearName = Regions.byId[near.regionId]?.name ?: "서울"
+        out.add(
+            DialogOverlay.Choice("자전거·장식은 $nearName 본점") {
+                scene.game.toast("🚲 " + nearName + " " + near.spot.label + " — 본점에 있는 코너야")
+            }
+        )
+    }
+    out.add(DialogOverlay.Choice("그냥 볼게요"))
+    return out
+}
 
 class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : Overlay(scene) {
     /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
@@ -5361,7 +5387,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         textP.textSize = textDp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText(
-            if (here != null) "${here.shopName} ($cityName)" else "사진용품점 진열대",
+            if (here != null) "${here.shopName} ($cityName)" else "카메라샵 없는 동네 · 진열대 미리보기",
             panelR.left + dp(scene, 14f), panelR.top + dp(scene, 24f), textP
         )
         textP.textSize = textDp(scene, 10f)

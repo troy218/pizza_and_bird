@@ -249,8 +249,10 @@ class RegionSelectScene(game: Game) : Scene(game) {
             chips.add(HeroChip(HabitatLabels[hab] ?: hab, UiKit.PASTEL_MINT, 0xFF3E5A34.toInt()))
         }
         chips.add(HeroChip(reg.season, UiKit.PASTEL_SKY, 0xFF2E4F6B.toInt()))
-        if (reg.id == NpcRoster.SHOP_REGION) {
-            chips.add(HeroChip("사진용품점", UiKit.PASTEL_LILAC, 0xFF5A4A7A.toInt()))
+        val regShop = CameraShops.shop(reg.id)
+        if (regShop != null) {
+            val chip = if (regShop.flagship) "카메라샵 본점 · 전 라인업" else "카메라샵 · ${regShop.specialty}"
+            chips.add(HeroChip(chip, UiKit.PASTEL_LILAC, 0xFF5A4A7A.toInt()))
         }
         if (reg.id == NpcRoster.PROFESSOR_REGION) {
             chips.add(HeroChip("보리 박사", UiKit.PASTEL_PEACH, 0xFF7A4A22.toInt()))
