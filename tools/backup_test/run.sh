@@ -21,7 +21,7 @@ rm -rf "$OUT" && mkdir -p "$OUT"
   "$SRC/Backup.kt" "$SRC/GameState.kt" "$SRC/Weather.kt" "$SRC/Data.kt" \
   "$SRC/Cameras.kt" "$SRC/Quests.kt" "$SRC/KoreaMap.kt" \
   "$SRC/BirdChecklist.kt" "$SRC/BirdEncyclopedia.kt" \
-  "$SRC/Season.kt" \
+  "$SRC/Season.kt" "$SRC/BirdPhotography.kt" \
   tools/backup_test/*.kt 2>&1 | grep -v "^warning:" | head -40
 
 KOTLIN_LIB="$(dirname "$(readlink -f "$KOTLINC")")/../lib"

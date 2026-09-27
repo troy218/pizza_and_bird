@@ -62,6 +62,14 @@ class Path {
         xs.add(x); ys.add(y)
     }
 
+    fun cubicTo(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) {
+        xs.add(x3); ys.add(y3)
+    }
+
+    fun quadTo(x1: Float, y1: Float, x2: Float, y2: Float) {
+        xs.add(x2); ys.add(y2)
+    }
+
     fun close() {}
 
     fun reset() {
@@ -105,7 +113,39 @@ class Paint(flags: Int = 0) {
     }
 }
 
-class Canvas {
+class Rect(var left: Int = 0, var top: Int = 0, var right: Int = 0, var bottom: Int = 0) {
+    fun width(): Int = right - left
+    fun height(): Int = bottom - top
+    fun isEmpty(): Boolean = width() <= 0 || height() <= 0
+}
+
+class Matrix {
+    fun setScale(sx: Float, sy: Float) {}
+}
+
+class Bitmap private constructor(val width: Int, val height: Int) {
+    enum class Config { ARGB_8888, RGB_565 }
+    enum class CompressFormat { JPEG, PNG, WEBP }
+    val byteCount: Int get() = width * height * 4
+    private val px = IntArray(width * height)
+    fun getPixel(x: Int, y: Int): Int = px.getOrElse(y * width + x) { 0 }
+    fun setPixel(x: Int, y: Int, color: Int) { val i = y * width + x; if (i in px.indices) px[i] = color }
+    fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean = true
+    companion object {
+        fun createBitmap(w: Int, h: Int, config: Config): Bitmap = Bitmap(w, h)
+        fun createBitmap(src: Bitmap, x: Int, y: Int, w: Int, h: Int): Bitmap = Bitmap(w, h)
+        fun createBitmap(src: Bitmap, x: Int, y: Int, w: Int, h: Int, m: Matrix?, filter: Boolean): Bitmap = Bitmap(w, h)
+        fun createScaledBitmap(src: Bitmap, w: Int, h: Int, filter: Boolean): Bitmap = Bitmap(w, h)
+    }
+}
+
+object BitmapFactory {
+    fun decodeFile(path: String): Bitmap? = null
+    fun decodeStream(stream: java.io.InputStream): Bitmap? = null
+}
+
+class Canvas(private val target: Bitmap? = null) {
+    constructor() : this(null)
     fun save(): Int = 0
     fun restore() {}
     fun translate(dx: Float, dy: Float) {}
@@ -113,6 +153,11 @@ class Canvas {
     fun rotate(deg: Float) {}
     fun rotate(deg: Float, px: Float, py: Float) {}
     fun drawOval(l: Float, t: Float, r: Float, b: Float, paint: Paint) {}
+    fun drawOval(oval: RectF, paint: Paint) {}
+    fun drawRect(r: RectF, paint: Paint) {}
+    fun drawRoundRect(r: RectF, rx: Float, ry: Float, paint: Paint) {}
+    fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) {}
+    fun drawBitmap(bm: Bitmap, l: Float, t: Float, paint: Paint?) {}
     fun drawPath(path: Path, paint: Paint) {}
     fun drawRect(l: Float, t: Float, r: Float, b: Float, paint: Paint) {}
     fun drawColor(color: Int) {}

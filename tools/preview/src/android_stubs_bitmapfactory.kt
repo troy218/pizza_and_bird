@@ -18,6 +18,7 @@ class BitmapFactory {
         var inJustDecodeBounds: Boolean = false
         var outWidth: Int = 0
         var outHeight: Int = 0
+        var inPreferredConfig: Bitmap.Config? = null
     }
 
     companion object {

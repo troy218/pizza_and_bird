@@ -95,6 +95,9 @@ class Game(val context: Context) {
     private var overlayLayerCanvas: Canvas? = null
     private val overlayFadePaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
+    /** 렌더 합성용 스크래치 사각형 — 프레임마다 할당하지 않도록 재사용 */
+    private val screenDstRect = RectF()
+
     val density: Float = context.resources.displayMetrics.density
 
     init {
@@ -279,7 +282,8 @@ class Game(val context: Context) {
         wc.restore()
         // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())
-        val dst = RectF(
+        val dst = screenDstRect
+        dst.set(
             viewOffX, viewOffY,
             viewOffX + virtW * viewScale, viewOffY + virtH * viewScale
         )

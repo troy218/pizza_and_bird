@@ -31,6 +31,7 @@ class AssetManager {
 
 open class Context {
     val assets: AssetManager = AssetManager()
+    val filesDir: java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "pb_backup_test")
 
     fun getSharedPreferences(name: String, mode: Int): SharedPreferences = FakePrefs.newPrefs(name)
 

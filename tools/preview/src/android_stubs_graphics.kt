@@ -589,10 +589,22 @@ class Paint {
 
 class Bitmap private constructor(val image: BufferedImage) {
     enum class Config { ARGB_8888 }
+    enum class CompressFormat { JPEG, PNG, WEBP }
 
     val width: Int get() = image.width
     val height: Int get() = image.height
     val isRecycled: Boolean = false
+    val byteCount: Int get() = width * height * 4
+
+    fun recycle() {}
+
+    fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean =
+        try {
+            javax.imageio.ImageIO.write(image, "png", stream)
+            true
+        } catch (_: Exception) {
+            false
+        }
 
     fun setPixel(x: Int, y: Int, c: Int) {
         if (x in 0 until width && y in 0 until height) image.setRGB(x, y, c)

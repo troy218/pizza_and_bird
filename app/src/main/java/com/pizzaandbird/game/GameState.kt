@@ -7,7 +7,8 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v5: 8칸 집 꾸미기 레이아웃/세트 효과를 포함한다. 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
+ * 세이브 형식 v5: 8칸 집 꾸미기 레이아웃/세트 효과와 방향·자세·지역·시간·날씨가
+ * 포함된 촬영 사진집 메타데이터를 추가했다. 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
  *   화면 연출(몰입 카메라) 설정 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
  *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
  * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
@@ -33,6 +34,7 @@ class GameState {
     var tcId: String? = null                    // 장착한 텔레컨버터
     val birdCounts = LinkedHashMap<String, Int>()   // 도감: 새별 촬영 횟수
     val bestStars = LinkedHashMap<String, Int>()    // 도감: 새별 최고 별점
+    val photoAlbum = ArrayList<BirdPhotoRecord>()   // 사진집: 실제 지형+방향+자세가 남은 촬영본
     val visited = LinkedHashSet<String>()           // 방문한 지역
     val ownedHomes = LinkedHashSet<String>()        // 매입한 지역별 집
     val ownedHouseStyles = LinkedHashSet<String>()  // 구매한 인테리어 스타일
@@ -491,6 +493,7 @@ class GameState {
         invalidateRig()
         birdCounts.clear()
         bestStars.clear()
+        photoAlbum.clear()
         visited.clear()
         homeRegion = START_REGION_ID
         region = START_REGION_ID
@@ -578,6 +581,7 @@ class GameState {
         put("pizzas", JSONArray().apply { pizzas.forEach { put(it) } })
         put("birdCounts", JSONObject(birdCounts as Map<*, *>))
         put("bestStars", JSONObject(bestStars as Map<*, *>))
+        put("photoAlbum", JSONArray().apply { photoAlbum.forEach { put(it.toJSON()) } })
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
@@ -726,6 +730,13 @@ class GameState {
                     s.bestStars[k] = bs.optInt(k, 0)
                 }
             }
+            val pa = j.optJSONArray("photoAlbum")
+            if (pa != null) {
+                val start = (pa.length() - PhotoArchive.MAX_PHOTOS).coerceAtLeast(0)
+                for (i in start until pa.length()) {
+                    BirdPhotoRecord.fromJSON(pa.optJSONObject(i) ?: continue)?.let { s.photoAlbum.add(it) }
+                }
+            }
             val vs = j.optJSONArray("visited")
             if (vs != null) {
                 for (i in 0 until vs.length()) s.visited.add(vs.optString(i))
@@ -814,6 +825,7 @@ object SaveManager {
 
     fun clear(ctx: Context) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+        PhotoArchive.clear(ctx)
     }
 
     // [P05] 백업 코드가 같은 prefs를 읽을 수 있도록 노출 — 기존 save/load/has/clear 는 무수정
