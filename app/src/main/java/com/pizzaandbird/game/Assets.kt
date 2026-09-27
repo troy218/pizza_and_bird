@@ -112,8 +112,10 @@ class Assets(private val context: Context) {
     // 앉은 자세 스프라이트는 종별로 *처음 필요할 때* 만들어 캐시한다.
     // (예전엔 시작 시 598종을 전부 만들어 앱이 켜질 때까지 한참 걸렸다)
     private val birdCache = LinkedHashMap<String, Bitmap>()
+    private val birdCacheWithPhoto = HashSet<String>()
     private data class BirdPoseKey(val id: String, val facing: BirdFacing, val pose: BirdPose)
     private val birdPoseCache = LinkedHashMap<BirdPoseKey, Bitmap>()
+    private val birdPoseCacheWithPhoto = HashSet<BirdPoseKey>()
     private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
     private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
     // 새 사진 기준색 캐시 — 미리 읽기 스레드와 게임 스레드가 함께 본다.
@@ -122,8 +124,9 @@ class Assets(private val context: Context) {
     /**
      * 새 사진 기준색을 미리 계산해 두는 전용 스레드.
      *
-     * 기준색은 그 새를 처음 그릴 때 사진(jpg)을 한 번 풀어 계산하는데, 도감 '다음' 을
-     * 누른 그 프레임에 이 디코드가 끼면 버튼이 잠깐 멈춘다. 미리 계산해 두면 그땐 캐시만 본다.
+     * 사진(jpg)을 읽고 기준색을 구하는 일은 여기서만 한다. 게임 스레드는 그동안
+     * BirdArt 기본색으로 그렸다가 기준색이 준비되면 캐시를 교체한다.
+     * 도감 페이지/필드 스폰 첫 프레임에 JPEG 디코드가 끼지 않도록 한다.
      */
     private val birdPaletteQueue = LinkedBlockingQueue<String>()
     private val birdPalettePending = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
@@ -132,7 +135,7 @@ class Assets(private val context: Context) {
         while (true) {
             val id = birdPaletteQueue.take()
             try {
-                Birds.byId[id]?.let { birdReferencePalette(it) }
+                Birds.byId[id]?.let { computeBirdReferencePalette(it) }
             } catch (_: Exception) {
             } finally {
                 birdPalettePending.remove(id)
@@ -1141,12 +1144,19 @@ class Assets(private val context: Context) {
     private fun buildBirdPose(d: BirdDef, facing: BirdFacing, pose: BirdPose): Bitmap =
         DetailedBirdRenderer.render(d, facing, pose, birdReferencePalette(d))
 
-    /**
-     * assets/birds/{번호}.jpg의 중앙 피사체 색 군집을 작은 비트맵으로 읽는다.
-     * 배경색 오염을 줄이기 위해 BirdArt 기준색과 가까운 상위 군집을 고르고 34%만 혼합한다.
-     * 따라서 사진의 실제 깃색을 반영하면서 숲/하늘 배경이 몸 전체를 물들이지는 않는다.
-     */
+    /** 그리기 경로: 사진이 아직 준비되지 않았으면 기본색을 쓰고 백그라운드에 요청한다. */
     private fun birdReferencePalette(d: BirdDef): BirdRenderPalette {
+        birdReferencePalettes[d.id]?.let { return it }
+        prefetchBirdPalette(d.id)
+        return BirdRenderPalette(d.art.body, d.art.belly, d.art.wing, d.art.head,
+            d.art.accent, d.art.beak, d.art.leg)
+    }
+
+    /**
+     * 로더(또는 부팅 스레드) 전용: assets/birds/{번호}.jpg의 중앙 피사체 색 군집을 읽는다.
+     * 배경색 오염을 줄이기 위해 BirdArt 기준색과 가까운 상위 군집을 고르고 34%만 혼합한다.
+     */
+    private fun computeBirdReferencePalette(d: BirdDef): BirdRenderPalette {
         birdReferencePalettes[d.id]?.let { return it }
         val bases = intArrayOf(d.art.body, d.art.belly, d.art.wing, d.art.head, d.art.accent)
         val counts = HashMap<Int, Int>()
@@ -3655,28 +3665,44 @@ begin(T.LAMP)
 
     /** 새 비트맵 (안전 접근) — 기본 왼쪽 옆모습. */
     fun bird(id: String): Bitmap {
-        birdCache[id]?.let { return it }
         val def = Birds.byId[id] ?: Birds.ALL.first()
+        val ready = birdReferencePalettes.containsKey(def.id)
+        // 처음엔 기본색으로 바로 그리고, 사진 기준색이 로딩되면 다음 접근에서 교체한다.
+        birdCache[def.id]?.let { if (!ready || def.id in birdCacheWithPhoto) return it }
         val bmp = buildBird(def)
         birdCache[def.id] = bmp
-        birdPoseCache[BirdPoseKey(def.id, BirdFacing.LEFT, BirdPose.PERCHED)] = bmp
+        val key = BirdPoseKey(def.id, BirdFacing.LEFT, BirdPose.PERCHED)
+        birdPoseCache[key] = bmp
+        if (ready) {
+            birdCacheWithPhoto.add(def.id)
+            birdPoseCacheWithPhoto.add(key)
+        }
         return bmp
     }
 
     /** 방향과 행동이 모두 반영된 필드/촬영용 새. 598종 × 자세는 실제로 필요할 때만 생성한다. */
     fun birdPose(id: String, facing: BirdFacing, pose: BirdPose = BirdPose.PERCHED): Bitmap {
         val def = Birds.byId[id] ?: Birds.ALL.first()
-        val key = BirdPoseKey(def.id, facing, pose)
-        birdPoseCache[key]?.let { return it }
         if (facing == BirdFacing.LEFT && pose == BirdPose.PERCHED) return bird(def.id)
-        return buildBirdPose(def, facing, pose).also { birdPoseCache[key] = it }
+        val key = BirdPoseKey(def.id, facing, pose)
+        val ready = birdReferencePalettes.containsKey(def.id)
+        birdPoseCache[key]?.let { if (!ready || key in birdPoseCacheWithPhoto) return it }
+        return buildBirdPose(def, facing, pose).also {
+            birdPoseCache[key] = it
+            if (ready) birdPoseCacheWithPhoto.add(key)
+        }
+    }
+
+    /** 부팅 스레드에서만: 첫 화면에 보이는 새는 정확한 사진 기준색으로 바로 준비한다. */
+    fun preloadBird(id: String): Bitmap {
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        computeBirdReferencePalette(def)
+        return bird(def.id)
     }
 
     /** 이 목록의 종을 미리 만들어 둔다 (장면 전환 뒤 스폰 렉을 막고 싶을 때) */
     fun prewarmBirds(defs: Collection<BirdDef>) {
-        for (d in defs) {
-            if (d.id !in birdCache) birdCache[d.id] = buildBird(d)
-        }
+        for (d in defs) bird(d.id)
     }
 
     /** 오른쪽을 바라보는 새 — 단순 반전이 아니라 방향 캐시의 실제 자세를 사용한다. */

@@ -148,7 +148,7 @@ class Intent(val action: String? = null) {
 }
 
 open class Context {
-    val filesDir: java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "pb_preview")
+    open val filesDir: java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "pb_preview")
     companion object {
         const val VIBRATOR_SERVICE = "vibrator"
         const val CLIPBOARD_SERVICE = "clipboard"

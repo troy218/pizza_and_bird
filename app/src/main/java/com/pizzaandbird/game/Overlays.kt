@@ -22,9 +22,9 @@ abstract class Overlay(val scene: Scene) {
      * true 면 이 오버레이가 화면 대부분을 덮어, 뒤 월드가 두드러지지 않는다
      * (가방·지도·상점처럼 큰 패널이 뜨는 화면).
      *
-     * true 인 동안 Game.render() 는 월드 비트맵을 매 프레임 다시 그리지 않고
-     * 몇 프레임에 한 번만 갱신한다. 월드는 프레임마다 수천 번 drawBitmap 을 하므로,
-     * 메뉴가 떠 있는 동안 이것을 줄이는 것이 버튼이 붙는 지를 살리는 핵심이다.
+     * true 인 동안 Game.render() 는 마지막 월드 비트맵을 재사용한다.
+     * 월드 업데이트도 오버레이가 열려 있으면 멈추므로, 메뉴 입력 도중 수천 번의
+     * drawBitmap 이 간헐적으로 끼어들지 않는다. 닫힌 첫 프레임에는 다시 그린다.
      * (부분창 대화상자처럼 뒤 화면이 그대로 보이는 오버레이는 false 로 둔다)
      */
     open val coversWorld: Boolean get() = false
@@ -128,12 +128,15 @@ class DialogOverlay(
         if (choices.isEmpty()) listOf(Choice("확인")) else choices
 
     private var choiceRects: List<RectF> = emptyList()
+    private var drawnShift = 0f
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
         if (tap != null) {
+            // 버튼은 등장 애니메이션 동안 아래에 보인다. 마지막 렌더의 이동량으로 판정한다.
+            val y = tap.y - drawnShift
             for (i in choiceRects.indices) {
-                if (choiceRects[i].contains(tap.x, tap.y)) {
+                if (choiceRects[i].contains(tap.x, y)) {
                     pick(i)
                     return
                 }
@@ -183,7 +186,8 @@ class DialogOverlay(
 
         // 등장: 아래에서 위로 부드럽게
         c.save()
-        c.translate(0f, enterShift())
+        drawnShift = enterShift()
+        c.translate(0f, drawnShift)
         panel(c, r, scene)
 
         if (title.isNotEmpty()) {
@@ -228,7 +232,7 @@ class DialogOverlay(
 // ---------------------------------------------------------------------------
 
 class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
     init {
@@ -1379,8 +1383,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             val photoR = RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 27f))
             fillP.color = 0xFF25252B.toInt()
             c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), fillP)
-            PhotoArchive.prefetch(g.context, record.fileName)   // 넘길 때 프레임을 지키기 위한 선행 디코드
-            val bmp = PhotoArchive.load(g.context, record.fileName)
+            val bmp = PhotoArchive.image(g.context, record.fileName) // 없으면 백그라운드 로딩 중
             if (bmp != null) {
                 val k = maxOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
                 val dw = bmp.width * k
@@ -1771,7 +1774,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
  * 흔들림은 4단계로 줄이거나 완전히 끌 수 있다. 바꾸면 바로 저장된다.
  */
 class CameraFxOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -1888,7 +1891,7 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class DecorShopOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2051,7 +2054,7 @@ class DecorPickOverlay(
     private val slot: Int,
     private val onPick: (Int) -> Unit
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2184,7 +2187,7 @@ class DecorPickOverlay(
 // ---------------------------------------------------------------------------
 
 class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2332,7 +2335,7 @@ class HouseStyleOverlay(
     scene: Scene,
     private val onApply: (String) -> Unit
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2454,7 +2457,7 @@ class HouseStyleOverlay(
 // ---------------------------------------------------------------------------
 
 class BikeShopOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -2796,7 +2799,7 @@ class BakeOverlay(
     private val dough: Dough = Dough.CLASSIC,
     private val topping: Ingredients.ToppingDef? = null
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -3812,7 +3815,7 @@ class LevelUpOverlay(
     private val fromLevel: Int,
     private val toLevel: Int
 ) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -3899,7 +3902,7 @@ class LevelUpOverlay(
  * 손가락으로 끌어 이동, 두 손가락으로 확대/축소, 지역을 누르면 상세 정보.
  */
 class MapOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -4603,7 +4606,7 @@ private fun gearSubLine(gear: CamGear): String = when (gear) {
 }
 
 class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -4862,7 +4865,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
 // ---------------------------------------------------------------------------
 
 class GearBagOverlay(scene: Scene) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 
@@ -5060,7 +5063,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
 // ---------------------------------------------------------------------------
 
 class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene) {
-    /** 전체 화면 패널 — 뒤 월드 갱신은 20Hz 로 낮춰도 된다 */
+    /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
 

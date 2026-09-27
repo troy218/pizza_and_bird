@@ -79,8 +79,7 @@ object InputSmoke {
             }
         }
         world.openOverlay(modal)
-        repeat(8) { frame(g) }   // 오버레이 등장 연출(0.09초) 동안은 입력을 막는다
-        tap(g, g.hud.mainCx, g.hud.mainCy)
+        tap(g, g.hud.mainCx, g.hud.mainCy) // 첫 프레임부터 모달이 HUD 입력을 가로챈다
         check(modalTap != null && !pressedUnderlyingA)
         world.closeOverlay()
 
