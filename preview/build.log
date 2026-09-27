@@ -1,101 +1,12 @@
-# preview build 2026-09-27 08:35:10Z
-# commit: b3722bbbe6a3123b070d4a7c2e8f77f49eaf2be2
-# gradle exit code: 0
->> 프리뷰 컴파일 (게임 소스 + 스텁)...
->> 프리뷰 렌더링...
-# status: ok
+# preview build 2026-09-27 13:44:51Z
+# commit: a9175ae3a17593b46f238d55166d06a6bb87afe5
+# gradle exit code: unknown
+>> kotlin 컴파일러 다운로드 중...
+ERROR: kotlinc 다운로드 실패
+# status: no-compiler
+WARN: 프리뷰 갱신 실패(no-compiler) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
 ...
-> Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:mergeReleaseJniLibFolders
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
-> Task :app:buildKotlinToolingMetadata
-> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:checkReleaseAarMetadata
-> Task :app:generateReleaseResValues
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :app:processReleaseMainManifest
-> Task :app:processReleaseManifest
-> Task :app:processReleaseManifestForPackage
-> Task :app:javaPreCompileRelease
-> Task :app:desugarReleaseFileDependencies
-> Task :app:mergeReleaseStartupProfile
-> Task :app:mergeReleaseResources
-> Task :app:packageReleaseResources
-> Task :app:mergeExtDexRelease
-> Task :app:mergeReleaseArtProfile
-> Task :app:mergeReleaseShaders
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:parseReleaseLocalResources
-> Task :app:mergeReleaseAssets
-> Task :app:processReleaseResources
-> Task :app:compressReleaseAssets
-> Task :app:extractReleaseVersionControlInfo
-> Task :app:optimizeReleaseResources
-> Task :app:collectReleaseDependencies
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-> Task :app:compileReleaseKotlin
-w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
-w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
-
-> Task :app:compileReleaseJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderRelease
-> Task :app:mergeReleaseGlobalSynthetics
-> Task :app:mergeDexRelease
-> Task :app:processReleaseJavaRes
-> Task :app:compileReleaseArtProfile
-> Task :app:mergeReleaseJavaResource
-> Task :app:packageRelease
-> Task :app:createReleaseApkListingFileRedirect
-> Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790498066246.json
-
-BUILD SUCCESSFUL in 45s
-40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-  + 01_tiles.png
-  + 02_sprites.png
-  + 03_birds.png
-  + 04_title.png
-  + 05_region_select.png
-  + 06_world_seoul_day.png
-  + 07_world_seoul_sunset.png
-  + 08_world_seoul_night.png
-  + 09_world_sokcho.png
-  + 10_world_chuncheon.png
-  + 11_world_busan.png
-  + 12_world_jeju.png
-  + 13_photo_mode.png
-  + 14_home_day.png
-  + 15_home_night.png
-  + 16_dialog.png
-  + 17_menu_tab1.png
-  + 17_menu_tab2.png
-  + 17_menu_tab3.png
-  + 17_menu_tab4.png
-  + 17_menu_tab5.png
-  + 17_menu_tab6.png
-  + 21_bake_topping.png
-  + 22_bake_gauge.png
-  + 23_bake_result.png
-  + 24_photo_result.png
-  + 25_map_overlay.png
-  + 26_decor_shop.png
-  + 27_decor_pick.png
-  + 28_ultrawide_title_20x9.png
-  + 29_ultrawide_world_20x9.png
-preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out
