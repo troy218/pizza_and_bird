@@ -1,12 +1,103 @@
-# preview build 2026-09-27 13:44:51Z
-# commit: a9175ae3a17593b46f238d55166d06a6bb87afe5
-# gradle exit code: unknown
+# preview build 2026-09-27 13:52:30Z
+# commit: 70c4a9b49a05e871410e77d0faeae7cd30faac60
+# gradle exit code: 0
 >> kotlin 컴파일러 다운로드 중...
-ERROR: kotlinc 다운로드 실패
-# status: no-compiler
-WARN: 프리뷰 갱신 실패(no-compiler) — 기존 스크린샷을 보존합니다.
+>> 프리뷰 컴파일 (게임 소스 + 스텁)...
+>> 프리뷰 렌더링...
+# status: ok
 
 ----- gradle build log (error lines + last 120) -----
 ...
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:mergeDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:processDebugManifestForPackage
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:mergeDebugJniLibFolders
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:mergeLibDexDebug
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeExtDexDebug
+> Task :app:compileDebugKotlin
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790517083773.json
+
+BUILD SUCCESSFUL in 1m 10s
+33 actionable tasks: 33 executed
 
 ----- preview render log (last 200 lines) -----
+  + 01_tiles.png
+  + 02_sprites.png
+  + 03_birds.png
+  + 04_title.png
+  + 05_region_select.png
+  + 06_world_seoul_day.png
+  + 07_world_seoul_sunset.png
+  + 08_world_seoul_night.png
+  + 09_world_sokcho.png
+  + 10_world_chuncheon.png
+  + 11_world_busan.png
+  + 12_world_jeju.png
+  + 13_photo_mode.png
+  + 14_home_day.png
+  + 15_home_night.png
+  + 16_dialog.png
+  + 17_menu_tab1.png
+  + 17_menu_tab2.png
+  + 17_menu_tab3.png
+  + 17_menu_tab4.png
+  + 17_menu_tab5.png
+  + 17_menu_tab6.png
+  + 17_menu_tab7.png
+  + 17_menu_tab8.png
+  + 33_achievement_stats.png
+  + 34_achievement_detail.png
+  + 35_achievement_unlock_toast.png
+  + 21_bake_topping.png
+  + 22_bake_gauge.png
+  + 23_bake_result.png
+  + 24_photo_result.png
+  + 25_map_overlay.png
+  + 26_decor_shop.png
+  + 27_decor_pick.png
+  + 30_backup_code.png
+  + 31_backup_restore_idle.png
+  + 32_backup_restore_confirm.png
+  + 28_ultrawide_title_20x9.png
+  + 29_ultrawide_world_20x9.png
+preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out
