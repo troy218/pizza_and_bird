@@ -79,7 +79,14 @@ open class Context {
         return android.graphics.drawable.VectorArtDrawable.load(name)
     }
 
-    open fun getSharedPreferences(name: String, mode: Int): SharedPreferences = InMemorySharedPreferences()
+    private val prefsCache = java.util.concurrent.ConcurrentHashMap<String, SharedPreferences>()
+
+    /** 앱 패키지명 (P9 TypeScale이 prefs 이름을 만들 때 사용) */
+    open val packageName: String = "com.pizzaandbird.game"
+
+    /** Android와 동일하게 이름당 하나의 prefs 인스턴스를 반환한다 (게임 전체에서 같은 저장소). */
+    open fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+        prefsCache.computeIfAbsent(name) { InMemorySharedPreferences() }
 
     open fun getSystemService(name: String): Any? = null
 
