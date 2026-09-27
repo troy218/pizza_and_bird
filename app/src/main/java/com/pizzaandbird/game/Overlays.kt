@@ -457,11 +457,13 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private fun drawSettings(c: Canvas) {
         val g = scene.game
+        val s = g.state
         val x = panelR.left + dp(scene, 18f)
         var ty = contentTop() + dp(scene, 16f)
+        val colW = dp(scene, 170f)
 
         fun button(label: String, action: () -> Unit) {
-            val br = RectF(x, ty, x + dp(scene, 170f), ty + dp(scene, 32f))
+            val br = RectF(x, ty, x + colW, ty + dp(scene, 32f))
             drawButton(c, scene, br, label, 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12.5f)
             btnRects.add(Triple(br, label, action))
             ty += dp(scene, 42f)
@@ -488,10 +490,60 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             }
         }
 
+        // ----- 조이스틱 설정 (가로가 넉넉하면 오른쪽 칸에) -----
+        fun toggle(bx: Float, by: Float, w: Float, label: String, desc: String, on: Boolean, action: () -> Unit) {
+            val h = dp(scene, 28f)
+            val r = RectF(bx, by, bx + w, by + h)
+            fillP.color = if (on) 0xFF6FBA6B.toInt() else 0xFFE4D8C0.toInt()
+            c.drawRoundRect(r, h / 2, h / 2, fillP)
+            strokeP.color = 0xFFB5651D.toInt()
+            strokeP.strokeWidth = dp(scene, 1.6f)
+            c.drawRoundRect(r, h / 2, h / 2, strokeP)
+            val kr = h * 0.36f
+            val kx = if (on) r.right - kr - dp(scene, 5f) else r.left + kr + dp(scene, 5f)
+            fillP.color = 0xFFFDF6E8.toInt()
+            c.drawCircle(kx, r.centerY(), kr, fillP)
+            strokeP.color = 0xFF6B4F35.toInt()
+            strokeP.strokeWidth = dp(scene, 1.4f)
+            c.drawCircle(kx, r.centerY(), kr, strokeP)
+            textP.textSize = dp(scene, 11.5f)
+            textP.color = if (on) 0xFFFDF6E8.toInt() else 0xFF6B4F35.toInt()
+            c.drawText(label, r.left + dp(scene, 12f), r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(desc, r.left + dp(scene, 2f), r.bottom + dp(scene, 11f), textP)
+            btnRects.add(Triple(r, label, action))
+        }
+
+        val wide = panelR.width() > dp(scene, 420f)
+        val sx = if (wide) x + colW + dp(scene, 28f) else x
+        var sy = if (wide) contentTop() + dp(scene, 16f) else ty + dp(scene, 2f)
+        val stW = if (wide) dp(scene, 196f) else colW + dp(scene, 26f)
+
+        textP.textSize = dp(scene, 12f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText("🕹️ 조이스틱", sx, sy + dp(scene, 10f), textP)
+        sy += dp(scene, 20f)
+
+        toggle(sx, sy, stW, "움직이는 스틱", "왼쪽 아래를 끌면 그 자리에 스틱이 생겨요", s.floatStick) {
+            s.floatStick = !s.floatStick
+            g.hud.releaseStick()
+            SaveManager.save(g.context, s)
+            g.toast(if (s.floatStick) "움직이는 스틱 켬 🕹️" else "고정 스틱만 쓸게요")
+        }
+        sy += dp(scene, 46f)
+        toggle(sx, sy, stW, "민 만큼 속도", "살짝 밀면 살금살금, 끝까지 밀면 쌩쌩", s.analogStick) {
+            s.analogStick = !s.analogStick
+            SaveManager.save(g.context, s)
+            g.toast(if (s.analogStick) "아날로그 이동 켬 — 스틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
+        }
+
+        if (!wide) ty = sy + dp(scene, 40f)
+
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF8A7360.toInt()
         ty += dp(scene, 6f)
-        c.drawText("Pizza and Bird v0.2.1-beta01", x, ty, textP)
+        c.drawText("Pizza and Bird v0.2.2-beta01", x, ty, textP)
         ty += dp(scene, 15f)
         c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", x, ty, textP)
         ty += dp(scene, 15f)

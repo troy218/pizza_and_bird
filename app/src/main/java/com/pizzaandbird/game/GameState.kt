@@ -43,6 +43,10 @@ class GameState {
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
+    // ----- 조작 설정 (진행 상황이 아닌 개인 설정 — '처음부터 다시' 해도 유지) -----
+    var floatStick = true        // 움직이는 조이스틱: 왼쪽 아래를 드래그하면 그 자리에 스틱
+    var analogStick = true       // 아날로그 이동: 스틱을 민 만큼 속도 조절
+
     // ------------------------------------------------------------------
 
     val pizzaCount: Int get() = pizzas.sum()
@@ -195,6 +199,8 @@ class GameState {
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
+        put("floatStick", floatStick)
+        put("analogStick", analogStick)
     }
 
     companion object {
@@ -278,6 +284,9 @@ class GameState {
                     if (id >= 0) s.decorOwned.add(id)
                 }
             }
+            // v0.2.2 조이스틱 설정 (없으면 새 기본값 = 켬)
+            s.floatStick = j.optBoolean("floatStick", true)
+            s.analogStick = j.optBoolean("analogStick", true)
             return s
         }
     }

@@ -191,9 +191,8 @@ class WorldScene(
 
     private fun updatePlayer(dt: Float) {
         val input = game.input
-        var dx = input.dirX
-        var dy = input.dirY
-        if (photoMode) { dx *= 0.5f; dy *= 0.5f }
+        val dx = input.dirX
+        val dy = input.dirY
         val moving = abs(dx) > 0.01f || abs(dy) > 0.01f
         player.moving = moving
         if (moving) {
@@ -207,10 +206,12 @@ class WorldScene(
             val sprint = input.isRun && !player.bike
             var speed = if (player.bike) 97f else 55f
             if (sprint) speed *= 1.45f
+            if (photoMode) speed *= 0.5f        // 카메라 모드에선 살금살금
             if (state.hunger <= 0f) speed *= 0.55f
+            speed *= input.moveScale            // 스틱을 민 만큼 (아날로그 설정)
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt * (if (sprint) 1.4f else 1f)
+            player.animT += dt * (if (sprint) 1.4f else 1f) * (0.55f + 0.45f * input.moveScale)
         } else {
             player.animT = 0f
         }

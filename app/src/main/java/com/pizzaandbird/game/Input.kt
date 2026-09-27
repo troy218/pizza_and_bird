@@ -27,11 +27,15 @@ class Input(private val game: Game) {
     /** 탭/드래그 구분 임계값 (실제 화면 px) */
     private val tapDragPx = 22f
 
+    /** 움직이는 스틱: 이 거리만큼 끌면 그 자리에 조이스틱이 잡힌다 (dp) */
+    private val stickGrabPx: Float get() = 11f * game.density
+
     private val lock = Any()
     private val pointerPos = HashMap<Int, PointF>()
     private val pointerCtrl = HashMap<Int, Ctrl>()
     private val pointerDown = HashMap<Int, PointF>()
     private val pointerDragged = HashSet<Int>()
+    private val stickCandidates = HashSet<Int>()   // 드래그하면 스틱이 될 손가락
     private val queue = ArrayList<QEv>()
     private val keys = HashMap<Int, Boolean>()
     private var tapScreen: PointF? = null
@@ -39,6 +43,8 @@ class Input(private val game: Game) {
     // ----- 프레임 상태 (게임 스레드 전용) -----
     var dirX = 0f
     var dirY = 0f
+    var moveMag = 0f            // 스틱을 민 정도 0~1
+    var moveScale = 1f          // 이동 속도 배율 (아날로그 스틱이면 0.5~1.0)
     var justA = false
     var justB = false
     var justCam = false
@@ -98,18 +104,37 @@ class Input(private val game: Game) {
                         // 월드 탭은 떼는 순간에 반응 (드래그와 구분)
                         pointerDown[ev.id] = PointF(ev.x, ev.y)
                         pointerDragged.remove(ev.id)
+                        // 왼쪽 아래를 누르면 '스틱 후보' — 끌면 그 자리에 조이스틱이 생긴다
+                        if (game.hud.inStickZone(ev.x, ev.y)) stickCandidates.add(ev.id)
                     }
                 }
                 K.MOVE -> {
                     pointerPos[ev.id]?.set(ev.x, ev.y)
-                    if (pointerCtrl[ev.id] == Ctrl.NONE) {
+                    if (ev.id in stickCandidates) {
+                        val d = pointerDown[ev.id]
+                        val overStick = game.hud.controlAt(ev.x, ev.y) == Ctrl.DPAD
+                        if (d != null) {
+                            val ddx = ev.x - d.x
+                            val ddy = ev.y - d.y
+                            val g = stickGrabPx
+                            if (overStick || ddx * ddx + ddy * ddy > g * g) {
+                                // 스틱 확정! (탭이 아니었으므로 월드 탭으로는 처리하지 않는다)
+                                stickCandidates.remove(ev.id)
+                                pointerCtrl[ev.id] = Ctrl.DPAD
+                                if (!overStick) game.hud.grabStickAt(d.x, d.y)
+                                pointerDown.remove(ev.id)
+                                pointerDragged.remove(ev.id)
+                                game.haptic()
+                            }
+                        }
+                    } else if (pointerCtrl[ev.id] == Ctrl.NONE) {
                         val d = pointerDown[ev.id]
                         if (d != null) {
                             val ddx = ev.x - d.x
                             val ddy = ev.y - d.y
                             if (ddx * ddx + ddy * ddy > tapDragPx * tapDragPx) pointerDragged.add(ev.id)
                         }
-                        // D패드만 손가락을 미끄러져서 잡을 수 있게 (버튼 실수 방지)
+                        // 조이스틱만 손가락을 미끄러져서 잡을 수 있게 (버튼 실수 방지)
                         if (game.hud.controlAt(ev.x, ev.y) == Ctrl.DPAD) {
                             pointerCtrl[ev.id] = Ctrl.DPAD
                             pointerDown.remove(ev.id)
@@ -126,12 +151,16 @@ class Input(private val game: Game) {
                     pointerCtrl.remove(ev.id)
                     pointerDown.remove(ev.id)
                     pointerDragged.remove(ev.id)
+                    stickCandidates.remove(ev.id)
+                    if (ctrl == Ctrl.DPAD && !stickHeld()) game.hud.releaseStick()
                 }
                 K.CANCEL -> {
                     pointerPos.remove(ev.id)
                     pointerCtrl.remove(ev.id)
                     pointerDown.remove(ev.id)
                     pointerDragged.remove(ev.id)
+                    stickCandidates.remove(ev.id)
+                    if (!stickHeld()) game.hud.releaseStick()
                 }
                 K.KEY -> {
                     if (ev.act == KeyEvent.ACTION_DOWN) {
@@ -171,6 +200,9 @@ class Input(private val game: Game) {
         if (len > 1f) { dx /= len; dy /= len }
         dirX = dx
         dirY = dy
+        moveMag = len.coerceIn(0f, 1f)
+        // 아날로그 스틱: 살짝 밀면 살살, 끝까지 밀면 최고 속도
+        moveScale = if (game.state.analogStick && moveMag > 0f) 0.5f + 0.5f * moveMag else 1f
 
         // 달리기 홀드 (버튼 또는 Shift)
         isRun = Ctrl.RUN in activeControls() ||
@@ -222,7 +254,10 @@ class Input(private val game: Game) {
         synchronized(lock) { return pointerCtrl.values.toSet() }
     }
 
-    /** D패드를 잡은 포인터 위치 (없으면 패드 중앙) */
+    /** 조이스틱을 아직 잡고 있는 손가락이 있는지 */
+    private fun stickHeld(): Boolean = pointerCtrl.values.any { it == Ctrl.DPAD }
+
+    /** 조이스틱을 잡은 포인터 위치 (없으면 스틱 중앙) */
     fun dpadTouchPoint(): PointF {
         synchronized(lock) {
             for ((id, p) in pointerPos) {

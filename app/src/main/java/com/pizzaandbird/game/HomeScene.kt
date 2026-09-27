@@ -82,10 +82,10 @@ class HomeScene(game: Game) : Scene(game) {
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
             val vx = if (len > 0.01f) dx / len else 0f
             val vy = if (len > 0.01f) dy / len else 0f
-            val speed = if (state.hunger <= 0f) 34f else 55f
+            val speed = (if (state.hunger <= 0f) 34f else 55f) * input.moveScale
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt
+            player.animT += dt * (0.55f + 0.45f * input.moveScale)
         } else {
             player.animT = 0f
         }
