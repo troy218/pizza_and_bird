@@ -448,8 +448,13 @@ class Hud(private val game: Game) {
         // 피자 / 카메라
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
         Type.text(c, "×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), Role.LABEL, Type.INK)
-        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(58f), iy2 + dp(42f), left + dp(58f) + dp(17f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        Type.text(c, "Lv.${s.cameraLevel}", left + dp(79f), iy2 + dp(53f), Role.LABEL, Type.INK)
+        val rig = s.rig()
+        c.drawBitmap(
+            a.camIcon(rig.look), null,
+            RectF(left + dp(52f), iy2 + dp(41f), left + dp(52f) + dp(19f), iy2 + dp(41f) + dp(15.5f)),
+            a.sprPaint
+        )
+        Type.text(c, "${rig.teleMm}mm", left + dp(75f), iy2 + dp(53f), Role.LABEL, Type.INK)
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(94f))
 
@@ -631,9 +636,9 @@ class Hud(private val game: Game) {
             photoModeHint -> 0xFFE2574C.toInt()
             else -> Color.argb(220, 74, 74, 88)
         }, camPressed)
-        val cam = game.assets.cameraIcon
-        val cw = cam.width * (dp(20f) / 20f)
-        val ch = cam.height * (dp(20f) / 16f)
+        val cam = game.assets.camIcon(game.state.rig().look)
+        val cw = dp(20f)
+        val ch = dp(20f * 18f / 22f)
         c.drawBitmap(cam, null, RectF(camBCx - cw / 2, camBCy - ch / 2, camBCx + cw / 2, camBCy + ch / 2), game.assets.sprPaint)
 
         // 카메라 모드: 촬영 중임을 알리는 붉은 펄스 링 + 회전하는 점선 아크
@@ -717,7 +722,7 @@ class Hud(private val game: Game) {
         }
     }
 
-    /** 원형 아크 버튼 몸통 (v0.3.4: 그림자 + 글로스 입체감, 눌리면 오므림) */
+    /** 원형 아크 버튼 몸통 (v0.4.1: 그림자 + 글로스 입체감, 눌리면 오므림) */
     private fun drawArcButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, pressed: Boolean = false) {
         val pr = if (pressed) r * 0.93f else r
         val oy = if (pressed) dp(1.5f) else 0f
@@ -745,7 +750,7 @@ class Hud(private val game: Game) {
     }
 
     // ------------------------------------------------------------------
-    // 조이스틱 (v0.3.4 디자인)
+    // 조이스틱 (v0.4.1 디자인)
     // ------------------------------------------------------------------
 
     private fun drawJoystick(c: Canvas) {

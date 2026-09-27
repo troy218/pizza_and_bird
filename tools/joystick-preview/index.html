@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🕹️ Pizza and Bird — 조이스틱 디자인 업그레이드 미리보기 (v0.3.4)</title>
+<title>🕹️ Pizza and Bird — 조이스틱 디자인 업그레이드 미리보기 (v0.4.1)</title>
 <style>
   :root { --cream:#F8EFDC; --brown:#6B4F35; --amber:#F2D06B; --paper:#F3E7CE; --ink:#4A3728; }
   * { box-sizing: border-box; }
@@ -44,7 +44,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>🕹️ 조이스틱 디자인 업그레이드 <span class="tag">v0.3.4</span></h1>
+  <h1>🕹️ 조이스틱 디자인 업그레이드 <span class="tag">v0.4.1</span></h1>
   <p class="sub">듀랑고식 조작 구조(플로팅 스틱 + 육각 메인 + 부채꼴 아크) 위에서 <b>조이스틱 비주얼/손맛</b>을 업그레이드했습니다. 화면 왼쪽 아래를 <b>끌어서</b> 만져보세요 — 움직임 없이 떼면 월드 탭(상호작용)으로 동작해요.</p>
 
   <div class="stage"><canvas id="game" width="960" height="540"></canvas></div>
@@ -70,7 +70,7 @@
     </div>
 
     <div class="card">
-      <h2>✨ 바뀐 점 (v0.2.1 플랫 스틱 → v0.3.4)</h2>
+      <h2>✨ 바뀐 점 (v0.2.1 플랫 스틱 → v0.4.1)</h2>
       <ul>
         <li><b>유리 베이스 + 금속 림</b> — 그라데이션 링, 안쪽 홈 2중 라인, 눈금 32개(4방위 강조)</li>
         <li><b>3D 스틱 캡</b> — 스페큘러/하단 음영/접촉 그림자, 민 방향으로 축이 기울어짐</li>
@@ -110,7 +110,7 @@
 <script>
 "use strict";
 // ===========================================================================
-// Pizza and Bird — 조이스틱 디자인 미리보기 (Hud.kt v0.3.4 포팅)
+// Pizza and Bird — 조이스틱 디자인 미리보기 (Hud.kt v0.4.1 포팅)
 // ===========================================================================
 const D = 1.5;                       // 미리보기용 density (960x540 ≈ 800x360dp 폰)
 const dp = v => v * D;
@@ -369,7 +369,7 @@ function drawJoystickOld(c, cx, cy, R, knobR) {
 }
 
 // ===========================================================================
-// 버튼 (듀랑고 구조 + v0.3.4 입체감)
+// 버튼 (듀랑고 구조 + v0.4.1 입체감)
 // ===========================================================================
 function drawArcButton(c, cx, cy, r, color, pressed, plain) {
   const pr = pressed && !plain ? r * 0.93 : r, oy = pressed && !plain ? dp(1.5) : 0;
