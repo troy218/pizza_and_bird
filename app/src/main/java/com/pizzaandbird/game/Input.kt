@@ -268,7 +268,10 @@ class Input(private val game: Game) {
         return t
     }
 
-    /** 가상 월드 좌표 탭 (씬이 소비) */
+    /**
+     * 가상 월드 좌표 탭 (씬이 소비).
+     * Game.screenToWorld 가 씬의 카메라 오프셋과 망원 배율(CameraRig.zoom)까지 역변환해 준다.
+     */
     fun consumeTapWorld(): PointF? {
         val t = tapScreen
         tapScreen = null

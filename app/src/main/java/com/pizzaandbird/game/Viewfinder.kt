@@ -139,21 +139,25 @@ class Viewfinder(private val game: Game) {
     // 그리기
     // ------------------------------------------------------------------
 
+    /**
+     * @param zoom 월드에 적용된 망원 배율 (CameraRig.zoom) — 표식이 실제 화면 위치에 맞도록 함께 반영한다.
+     */
     fun draw(
         c: Canvas,
         birds: List<FieldBird>,
         playerCx: Float,
         playerCy: Float,
         camX: Float,
-        camY: Float
+        camY: Float,
+        zoom: Float = 1f
     ) {
         val w = game.virtW.toFloat()
         val h = game.virtH.toFloat()
         val rig = state.rig()
         val rangeTiles = rig.reach
-        val rangePx = rangeTiles * 16f * WORLD_SCALE
-        val px = (playerCx - camX) * WORLD_SCALE
-        val py = (playerCy - camY) * WORLD_SCALE
+        val rangePx = rangeTiles * 16f * WORLD_SCALE * zoom
+        val px = sx(playerCx, camX, zoom)
+        val py = sy(playerCy, camY, zoom)
 
         // 카메라 색감 (약간 차갑게)
         fill.color = Color.argb(16, 42, 60, 92)
@@ -163,12 +167,12 @@ class Viewfinder(private val game: Game) {
 
         drawRange(c, px, py, rangePx, rangeTiles, rig.minDist * 16f * WORLD_SCALE, rig.minDist)
 
-        val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles)
+        val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles, zoom)
         if (focus?.def?.id != focusId) {
             focusId = focus?.def?.id
             focusT = 0f
         }
-        drawBirdMarks(c, birds, focus, playerCx, playerCy, camX, camY, rangeTiles)
+        drawBirdMarks(c, birds, focus, playerCx, playerCy, camX, camY, rangeTiles, zoom)
         drawFrame(c, w, h)
 
         drawTopBar(c, w)
@@ -183,6 +187,17 @@ class Viewfinder(private val game: Game) {
             hudLine(c, w / 2f, h * 0.60f + bob, "새를 탭해 촬영하세요", 15f, Color.argb(a, 255, 250, 235), false)
             hudLine(c, w / 2f, h * 0.60f + 22f + bob, "카메라 버튼을 다시 누르면 나갑니다", 11.5f, Color.argb((a * 0.75f).toInt(), 226, 220, 206), false)
         }
+    }
+
+    /** 월드 논리 좌표 → 화면 좌표 (월드가 화면 중앙 기준으로 zoom 배 확대돼 있다) */
+    private fun sx(wx: Float, camX: Float, zoom: Float): Float {
+        val hx = game.virtW / 2f
+        return hx + ((wx - camX) * WORLD_SCALE - hx) * zoom
+    }
+
+    private fun sy(wy: Float, camY: Float, zoom: Float): Float {
+        val hy = game.virtH / 2f
+        return hy + ((wy - camY) * WORLD_SCALE - hy) * zoom
     }
 
     // ----- 배경 연출 ---------------------------------------------------
@@ -340,7 +355,8 @@ class Viewfinder(private val game: Game) {
 
     /** 조준 중인 새: 사거리 안에서 가장 가까운 새 (없으면 1.45배까지 후보로 삼아 안내) */
     private fun pickFocus(
-        birds: List<FieldBird>, pcx: Float, pcy: Float, camX: Float, camY: Float, rangeTiles: Float
+        birds: List<FieldBird>, pcx: Float, pcy: Float, camX: Float, camY: Float,
+        rangeTiles: Float, zoom: Float
     ): FieldBird? {
         var best: FieldBird? = null
         var bestD = Float.MAX_VALUE
@@ -348,8 +364,8 @@ class Viewfinder(private val game: Game) {
         val h = game.virtH.toFloat()
         for (b in birds) {
             if (b.state == 2) continue
-            val sx = (b.cx - camX) * WORLD_SCALE
-            val sy = (b.cy - camY) * WORLD_SCALE
+            val sx = sx(b.cx, camX, zoom)
+            val sy = sy(b.cy, camY, zoom)
             if (sx < 34f || sx > w - 34f || sy < 84f || sy > h - 76f) continue
             val d = hypot(b.cx - pcx, b.cy - pcy) / 16f
             if (d > rangeTiles * 1.45f) continue
@@ -366,17 +382,18 @@ class Viewfinder(private val game: Game) {
         pcy: Float,
         camX: Float,
         camY: Float,
-        rangeTiles: Float
+        rangeTiles: Float,
+        zoom: Float
     ) {
         for (b in birds) {
             if (b.state == 2) continue
-            val sx = (b.cx - camX) * WORLD_SCALE
-            val sy = (b.cy - camY) * WORLD_SCALE
+            val sx = sx(b.cx, camX, zoom)
+            val sy = sy(b.cy, camY, zoom)
             if (sx < -40f || sx > game.virtW + 40f || sy < -40f || sy > game.virtH + 40f) continue
             val dTiles = hypot(b.cx - pcx, b.cy - pcy) / 16f
             val inRange = dTiles <= rangeTiles
             if (b === focus) {
-                drawFocusBox(c, b, sx, sy, dTiles, rangeTiles, inRange)
+                drawFocusBox(c, b, sx, sy, dTiles, rangeTiles, inRange, zoom)
             } else if (inRange) {
                 // 사거리 안의 다른 새: 별점 예상만 조그맣게
                 val ratio = dTiles / rangeTiles
@@ -384,7 +401,7 @@ class Viewfinder(private val game: Game) {
                 val txt = "★".repeat(stars) + "☆".repeat(3 - stars)
                 text.textSize = 11.5f
                 val tw = text.measureText(txt)
-                val by = sy - b.sprH * WORLD_SCALE * 0.5f - 24f
+                val by = sy - b.sprH * WORLD_SCALE * 0.5f * zoom - 24f
                 fill.color = Color.argb(140, 16, 14, 24)
                 c.drawRoundRect(RectF(sx - tw / 2f - 6f, by - 11f, sx + tw / 2f + 6f, by + 6f), 5f, 5f, fill)
                 stroke.color = Color.argb(150, Color.red(col), Color.green(col), Color.blue(col))
@@ -404,13 +421,14 @@ class Viewfinder(private val game: Game) {
         sy: Float,
         dTiles: Float,
         rangeTiles: Float,
-        inRange: Boolean
+        inRange: Boolean,
+        zoom: Float
     ) {
         val ratio = (dTiles / rangeTiles).coerceAtLeast(0.001f)
         val (stars, col) = zone(ratio)
         val pulse = if (inRange) 1f + sin(clock * 5.5f) * 0.02f else 1f + sin(clock * 3f) * 0.05f
-        val halfW = (b.sprW * WORLD_SCALE * 0.5f + 13f) * pulse
-        val halfH = (b.sprH * WORLD_SCALE * 0.5f + 13f) * pulse
+        val halfW = (b.sprW * WORLD_SCALE * 0.5f * zoom + 13f) * pulse
+        val halfH = (b.sprH * WORLD_SCALE * 0.5f * zoom + 13f) * pulse
         val box = RectF(sx - halfW, sy - halfH, sx + halfW, sy + halfH)
 
         // 어두운 보조 사각형 (초점 영역 강조)

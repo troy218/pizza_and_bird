@@ -8,7 +8,7 @@ import org.json.JSONObject
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
  * 세이브 형식 v4: 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
- * 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6)을 추가했다.
+ *   화면 연출(몰입 카메라) 설정 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
  *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
  * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
@@ -82,6 +82,14 @@ class GameState {
     // ----- 조작 설정 (진행 상황이 아닌 개인 설정 — '처음부터 다시' 해도 유지) -----
     var floatStick = true        // 움직이는 조이스틱: 왼쪽 아래를 드래그하면 그 자리에 스틱
     var analogStick = true       // 아날로그 이동: 스틱을 민 만큼 속도 조절
+
+    // 화면 연출 (몰입 카메라) — 멀미(3D Motion Sickness)에 민감하면 끌 수 있다 ----------
+    var camShake = 2           // 카메라 흔들림 0 끔 / 1 약하게 / 2 보통 / 3 강하게
+    var camBob = true          // 헤드 밥 & 바디 스웨이 (걸음 주기 출렁임)
+    var camBlur = true         // 잔상 & 속도선 (모션 블러 느낌)
+    var camFov = true          // 다이내믹 시야각 (달리기 광각 / 카메라 모드 망원)
+    var camDof = true          // 다이내믹 포커싱 (심도 — 초점 밖 어둡게)
+    var camLead = true         // 예측 배치 (진행 방향 앞쪽을 더 보여주기)
 
     // ------------------------------------------------------------------
 
@@ -482,6 +490,7 @@ class GameState {
         exp = 0
         skillPoints = 0
         skills.clear()
+        // 화면 연출(camShake/camBob/...)은 플레이어 취향이라 새 게임에서도 유지한다.
     }
 
     // ------------------------------------------------------------------
@@ -541,6 +550,12 @@ class GameState {
         put("ownedBikeParts", JSONArray().apply { ownedBikeParts.forEach { put(it) } })
         put("floatStick", floatStick)
         put("analogStick", analogStick)
+        put("camShake", camShake)
+        put("camBob", camBob)
+        put("camBlur", camBlur)
+        put("camFov", camFov)
+        put("camDof", camDof)
+        put("camLead", camLead)
     }
 
     companion object {
@@ -706,6 +721,14 @@ class GameState {
             // v0.4.1 조이스틱 설정 (없으면 새 기본값 = 켬)
             s.floatStick = j.optBoolean("floatStick", true)
             s.analogStick = j.optBoolean("analogStick", true)
+
+            // 옛 세이브에는 화면 연출 설정이 없다 → 기본값(보통/전부 켬)으로 시작
+            s.camShake = j.optInt("camShake", 2).coerceIn(0, 3)
+            s.camBob = j.optBoolean("camBob", true)
+            s.camBlur = j.optBoolean("camBlur", true)
+            s.camFov = j.optBoolean("camFov", true)
+            s.camDof = j.optBoolean("camDof", true)
+            s.camLead = j.optBoolean("camLead", true)
             return s
         }
     }

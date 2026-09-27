@@ -83,7 +83,13 @@ class Game(val context: Context) {
     fun screenToWorld(p: PointF): PointF {
         val v = screenToVirtual(p)
         val camera = scene.cameraOffset()
-        return PointF(v.x / WORLD_SCALE + camera.x, v.y / WORLD_SCALE + camera.y)
+        // 월드가 화면 중앙 기준으로 확대돼 있으면(카메라 모드 망원 등) 그만큼 되돌린다
+        val z = scene.camera()?.zoom ?: 1f
+        val hx = virtW / 2f
+        val hy = virtH / 2f
+        val ux = if (z == 1f) v.x else hx + (v.x - hx) / z
+        val uy = if (z == 1f) v.y else hy + (v.y - hy) / z
+        return PointF(ux / WORLD_SCALE + camera.x, uy / WORLD_SCALE + camera.y)
     }
 
     /** 짧은 햅틱 피드백 (버튼 누름 등) — 탭 효과음도 함께 */
@@ -201,6 +207,25 @@ class Game(val context: Context) {
     /** 페이드 전환 (액션은 화면이 완전히 어두워진 순간 실행) */
     fun fadeTo(action: () -> Unit) {
         if (transition == null) transition = Transition(action)
+    }
+
+    // ---------------------------------------------------------------------
+    // 화면 연출 단축 호출 — 오버레이/미니게임에서도 현재 씬의 카메라를 흔들 수 있다.
+    // ---------------------------------------------------------------------
+
+    /** 충격 (0~1) */
+    fun shake(amount: Float) {
+        scene.camera()?.shake(amount)
+    }
+
+    /** 시야각 펀치 (+확대 / -축소) */
+    fun punchZoom(amount: Float) {
+        scene.camera()?.punchZoom(amount)
+    }
+
+    /** 방향성 킥 */
+    fun kick(dirX: Float, dirY: Float, peakPx: Float) {
+        scene.camera()?.kick(dirX, dirY, peakPx)
     }
 
     fun toast(msg: String) = hud.toast(msg)

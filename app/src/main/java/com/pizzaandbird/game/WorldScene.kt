@@ -9,6 +9,7 @@ import android.graphics.RectF
 import java.util.Random
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.ln
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -44,9 +45,39 @@ class WorldScene(
     private var pendingOverlay: Overlay? = null
     private var snapDelay = 0f
 
+    /** 화면 움직임 리그 — 셰이크 · 헤드밥 · 시야각 · 레이트 트래킹 (촬영 장비 rig 와 별개) */
+    val viewRig = ViewRig(state)
+    private val streaks = SpeedStreaks()
+    private val speedVignette = SpeedVignette()
+    private val focusMask = RadialMask()
+
+    /** 캔버스 원점에 대응하는 월드 좌표 (줌·흔들림·헤드밥이 모두 반영된 그리기 기준) */
     private var camX = 0f
     private var camY = 0f
+    /** 탭 좌표 역변환용 — drawWorld가 쓰는 카메라 기준점 (줌은 Game.screenToWorld가 함께 반영) */
     override fun cameraOffset(): PointF = PointF(camX, camY)
+
+    // 이동 속도 (논리 px/s) — 예측 배치 · 속도 연출 · 잔상에 쓰인다
+    private var velX = 0f
+    private var velY = 0f
+    private var prevSpeed = 0f
+    private var lastDirX = 0f
+    private var lastDirY = 1f
+    private var bumpCd = 0f
+
+    // 카메라 모드 피사체 추적 (다이내믹 포커싱)
+    private var focusBird: FieldBird? = null
+    private var subjX = 0f
+    private var subjY = 0f
+    private var focusK = 0f
+    private var focusR = 0f
+
+    // 잔상(모션 블러)용 위치 링버퍼
+    private val ghostX = FloatArray(GHOSTS)
+    private val ghostY = FloatArray(GHOSTS)
+    private var ghostHead = 0
+    private var ghostFill = 0
+    private var ghostT = 0f
     private var spawnTimer = 1.5f
     private var hungerAcc = 0f
     private var luckAcc = 0f
@@ -112,7 +143,19 @@ class WorldScene(
         spawnCats()
 
         // 카메라 초기 스냅
-        updateCamera(snap = true)
+        // 카메라 초기 스냅 (보간 없이 바로 제자리)
+        subjX = player.cx
+        subjY = player.cy
+        for (i in 0 until GHOSTS) {
+            ghostX[i] = player.x
+            ghostY[i] = player.y
+        }
+        viewRig.snap(
+            player.cx, player.cy, 1f,
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE
+        )
+        syncCamera()
 
         game.hud.showControls = true
         game.hud.showStats = true
@@ -143,7 +186,8 @@ class WorldScene(
         game.hud.update(dt)
         if (overlay != null) {
             game.audio.stopSteps()
-            return   // 대화상자/메뉴 중에는 세계 정지
+            idleCamera(dt)   // 세계는 멈춰도 카메라 여운은 이어진다
+            return
         }
 
         // 촬영 결과 카드를 닫으면 닫혀 있던 셔터가 다시 열린다
@@ -189,8 +233,11 @@ class WorldScene(
             }
         }
 
+        // 히트스톱 — 결정적인 순간(셔터)엔 세상만 잠깐 느려진다
+        val wdt = viewRig.worldDt(dt)
+
         // 새
-        val birdDt = if (photoMode) dt * 0.35f else dt
+        val birdDt = if (photoMode) wdt * 0.35f else wdt
         val it = birds.iterator()
         while (it.hasNext()) {
             val b = it.next()
@@ -198,12 +245,13 @@ class WorldScene(
             if (b.state == 2 && !b.fleeCued) {
                 b.fleeCued = true
                 game.sfx(Audio.Sfx.BIRD_FLEE, 0.65f)   // 푸드덕! 도망
+                onBirdFlush(b)                          // 가까우면 놀라서 화면도 흔들린다
             }
             if (b.gone) it.remove()
         }
 
         // 고양이
-        for (cat in cats) cat.update(dt, map)
+        for (cat in cats) cat.update(wdt, map)
 
         // 새 스폰
         spawnTimer -= dt
@@ -226,13 +274,26 @@ class WorldScene(
             }
         }
 
-        // 카메라
-        updateCamera(snap = false, dt = dt)
+        // ---- 카메라 (몰입 리그) ----
+        updateFocus(dt)
+        updateGhosts(dt)
+        viewRig.update(
+            dt,
+            focusX(), focusY(),
+            velX, velY,
+            gait(),
+            teleZoom(),
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE,
+            allowRoll = !photoMode
+        )
+        syncCamera()
+        streaks.update(dt, velX, velY, viewRig.speedFx, game.virtW.toFloat(), game.virtH.toFloat())
 
-        // 디테일 연출 & NPC 말풍선
+        // 디테일 연출 & NPC 말풍선 (보이는 영역은 카메라 리그가 알려 준다)
         fx.update(
-            dt, game.time, state.worldTime, camX, camY,
-            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE, player.cx, player.cy
+            dt, game.time, state.worldTime, viewRig.x, viewRig.y,
+            viewRig.viewW, viewRig.viewH, player.cx, player.cy
         )
         updateNpcEmotes(dt)
 
@@ -264,20 +325,136 @@ class WorldScene(
         }
     }
 
-    private fun updateCamera(snap: Boolean, dt: Float = 0f) {
-        val halfW = game.virtW / (2f * WORLD_SCALE)
-        val halfH = game.virtH / (2f * WORLD_SCALE)
-        val mapW = map.w * 16f
-        val mapH = map.h * 16f
-        val tx = (player.cx - halfW).coerceIn(0f, (mapW - halfW * 2f).coerceAtLeast(0f))
-        val ty = (player.cy - halfH).coerceIn(0f, (mapH - halfH * 2f).coerceAtLeast(0f))
-        if (snap) {
-            camX = tx; camY = ty
-        } else {
-            val k = (dt * 8f).coerceIn(0f, 1f)
-            camX += (tx - camX) * k
-            camY += (ty - camY) * k
+    // -------------------------------------------------------------------
+    // 카메라 리그 보조 (Camera.kt)
+    // -------------------------------------------------------------------
+
+    override fun camera(): ViewRig = viewRig
+
+    /** 오버레이가 열린 동안: 흔들림·줌 펀치만 잦아들게 굴린다 */
+    private fun idleCamera(dt: Float) {
+        viewRig.update(
+            dt, player.cx, player.cy, 0f, 0f, Gait.IDLE, teleZoom(),
+            map.w * 16f, map.h * 16f,
+            game.virtW / WORLD_SCALE, game.virtH / WORLD_SCALE,
+            allowRoll = !photoMode
+        )
+        syncCamera()
+    }
+
+    /** 현재 이동 상태 — 헤드밥 주기·시야각·예측 거리를 정한다 */
+    private fun gait(): Gait = when {
+        !player.moving -> Gait.IDLE
+        player.bike -> Gait.BIKE
+        game.input.isRun -> Gait.RUN
+        else -> Gait.WALK
+    }
+
+    /**
+     * 카메라 모드 망원 배율 — 실제로 장착한 렌즈의 환산 초점거리를 따라간다.
+     * 50mm 표준이면 거의 그대로, 600mm 초망원이면 확실히 당겨진다 (로그 곡선).
+     */
+    private fun teleZoom(): Float {
+        if (!photoMode) return 1f
+        val mm = state.rig().teleMm.coerceIn(20, 1600).toFloat()
+        val k = ((ln(mm) - ln(50f)) / (ln(1200f) - ln(50f))).coerceIn(0f, 1f)
+        return 1.03f + 0.19f * k
+    }
+
+    /** 카메라가 바라보는 지점 — 카메라 모드에서는 피사체 쪽으로 살짝 치우친다 */
+    private fun focusX(): Float = player.cx + (subjX - player.cx) * 0.34f * focusK
+    private fun focusY(): Float = player.cy + (subjY - player.cy) * 0.34f * focusK
+
+    /**
+     * 캔버스 원점(0,0)에 대응하는 월드 좌표를 다시 계산한다.
+     * 월드는 화면 중앙 기준으로 zoom 배율만큼 확대/축소되므로,
+     * 보이는 영역의 좌상단이 화면 좌상단에 오도록 보정해 둔다.
+     */
+    private fun syncCamera() {
+        val z = viewRig.zoom
+        val hx = game.virtW / 2f
+        val hy = game.virtH / 2f
+        camX = (viewRig.x * WORLD_SCALE - hx + game.virtW / (2f * z)) / WORLD_SCALE
+        camY = (viewRig.y * WORLD_SCALE - hy + game.virtH / (2f * z)) / WORLD_SCALE
+    }
+
+    /** 확대 전 캔버스 좌표 → 실제 화면 좌표 */
+    private fun projX(ux: Float): Float {
+        val hx = game.virtW / 2f
+        return hx + (ux - hx) * viewRig.zoom
+    }
+
+    private fun projY(uy: Float): Float {
+        val hy = game.virtH / 2f
+        return hy + (uy - hy) * viewRig.zoom
+    }
+
+    /**
+     * 다이내믹 포커싱 — 사거리 안에서 가장 가까운 새를 자동으로 붙잡고(트래킹),
+     * 초점 반경을 부드럽게 좁힌다(포커스 풀).
+     */
+    private fun updateFocus(dt: Float) {
+        var best: FieldBird? = null
+        var bestD = Float.MAX_VALUE
+        if (photoMode) {
+            val range = state.rig().reach * 16f
+            for (b in birds) {
+                if (b.state == 2) continue
+                val d = hypot(b.cx - player.cx, b.cy - player.cy)
+                if (d <= range && d < bestD) {
+                    best = b
+                    bestD = d
+                }
+            }
         }
+        focusBird = best
+        // 새로 붙잡는 순간에는 그 자리에서 시작해야 초점이 화면을 가로질러 날아가지 않는다
+        if (best != null && focusK < 0.02f) {
+            subjX = best.cx
+            subjY = best.cy
+        }
+        val tx = best?.cx ?: player.cx
+        val ty = best?.cy ?: player.cy
+        val k = CamFx.smoothK(dt, 0.2f)
+        subjX += (tx - subjX) * k
+        subjY += (ty - subjY) * k
+        focusK += ((if (photoMode && best != null) 1f else 0f) - focusK) * CamFx.smoothK(dt, 0.3f)
+
+        val rTarget = when {
+            !photoMode -> 0f
+            best == null -> 150f
+            else -> 30f + (bestD / 16f) * 6f
+        }
+        focusR += (rTarget - focusR) * CamFx.smoothK(dt, 0.26f)
+    }
+
+    /** 잔상(모션 블러)용 과거 위치 기록 */
+    private fun updateGhosts(dt: Float) {
+        ghostT -= dt
+        if (ghostT > 0f) return
+        ghostT = 0.035f
+        ghostX[ghostHead] = player.x
+        ghostY[ghostHead] = player.y
+        ghostHead = (ghostHead + 1) % GHOSTS
+        if (ghostFill < GHOSTS) ghostFill++
+    }
+
+    /** 새가 푸드덕 날아오르는 순간 — 가까울수록 놀라서 화면이 흔들린다 */
+    private fun onBirdFlush(b: FieldBird) {
+        val d = hypot(b.cx - player.cx, b.cy - player.cy)
+        val k = (1f - d / 80f).coerceIn(0f, 1f)
+        if (k <= 0.02f) return
+        viewRig.shake(0.08f + 0.17f * k)
+        viewRig.kick(player.cx - b.cx, player.cy - b.cy, 1.2f * k)
+    }
+
+    /** 셔터 — 플래시 + 손떨림 킥 + 짧은 히트스톱 + 줌 펀치 */
+    private fun shutterFx() {
+        viewRig.flashScreen(0.55f)      // 뷰파인더 셔터막 연출과 겹치므로 은은하게
+        viewRig.shake(0.3f)
+        viewRig.kick(0f, -1f, 1.6f)
+        viewRig.punchZoom(0.05f)
+        viewRig.freeze(0.09f)
     }
 
     private fun updateWeather(dt: Float) {
@@ -309,6 +486,8 @@ class WorldScene(
         val dy = input.dirY
         val moving = abs(dx) > 0.01f || abs(dy) > 0.01f
         player.moving = moving
+        if (bumpCd > 0f) bumpCd -= dt
+        var blocked = false
         if (moving) {
             if (abs(dx) > abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
             else if (abs(dy) > 0.01f) player.facing = if (dy > 0) Dir.S else Dir.N
@@ -324,9 +503,13 @@ class WorldScene(
             speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
             speed *= input.moveScale            // 스틱을 민 만큼 (아날로그 설정)
-            moveBy(vx * speed * dt, 0f)
-            moveBy(0f, vy * speed * dt)
+            if (!moveBy(vx * speed * dt, 0f)) blocked = true
+            if (!moveBy(0f, vy * speed * dt)) blocked = true
             lastSpeed = speed
+            velX = vx * speed
+            velY = vy * speed
+            lastDirX = vx
+            lastDirY = vy
 
             // 발걸음 (지형별 발자국·풀잎·물 튀김)
             stepT -= dt
@@ -341,7 +524,35 @@ class WorldScene(
         } else {
             lastSpeed = 0f
             stepT = 0f
+            velX = 0f
+            velY = 0f
         }
+
+        // ---- 카메라에 전달할 '몸으로 느끼는' 사건들 ----
+        val sp = hypot(velX, velY)
+        // 1) 벽·바위에 부딪힘 — 자전거일수록 크게 '쿵'
+        if (blocked && sp > 30f && bumpCd <= 0f) {
+            bumpCd = 0.42f
+            viewRig.shake(if (player.bike) 0.34f else 0.14f)
+            viewRig.kick(-lastDirX, -lastDirY, if (player.bike) 2.6f else 1.1f)
+            if (player.bike) {
+                game.sfx(Audio.Sfx.BIKE_BRAKE, 0.5f)
+                for (i in 0 until 4) {
+                    addParticle(
+                        player.cx, player.y + 15f,
+                        (rnd.nextFloat() - 0.5f) * 26f, -12f - rnd.nextFloat() * 8f,
+                        0.45f, Color.argb(120, 150, 132, 104), 3f, false
+                    )
+                }
+            }
+        }
+        // 2) 급정거 — 관성으로 몸이 앞으로 쏠린다
+        if (prevSpeed > 72f && sp < 6f) {
+            viewRig.kick(lastDirX, lastDirY, 1.7f)
+            viewRig.shake(0.08f)
+        }
+        prevSpeed = sp
+
         updatePlayerAnim(dt)
     }
 
@@ -381,13 +592,17 @@ class WorldScene(
         }
     }
 
-    private fun moveBy(dx: Float, dy: Float) {
+    /** 이동 시도. 벽에 막히면 false */
+    private fun moveBy(dx: Float, dy: Float): Boolean {
+        if (dx == 0f && dy == 0f) return true
         val nx = player.x + dx
         val ny = player.y + dy
         if (!map.solidBox(nx, ny)) {
             player.x = nx
             player.y = ny
+            return true
         }
+        return false
     }
 
     private fun updateStats(dt: Float) {
@@ -450,6 +665,9 @@ class WorldScene(
         state.py = player.y
         SaveManager.save(game.context, state)
         if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
+        // 터널로 빨려 들어가는 느낌 — 살짝 광각으로 벌어지며 흔들린다
+        viewRig.punchZoom(-0.055f)
+        viewRig.shake(0.2f)
         game.sfx(Audio.Sfx.WHOOSH, 0.8f)
         game.audio.stopSteps()
         game.fadeTo {
@@ -509,6 +727,7 @@ class WorldScene(
             if (tooClose) continue
             birds.add(FieldBird(def, bx, by))
             if (def.tier.star >= 3) {
+                viewRig.punchZoom(0.03f)              // 희귀새 등장 — 숨을 죽이듯 살짝 당겨진다
                 game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
                 game.sfx(Audio.Sfx.NOTIFY, 0.7f)
             }
@@ -600,6 +819,10 @@ class WorldScene(
 
         val prevLevel = state.level
         val levelsGained = state.addExp(expGain)
+        if (levelsGained > 0) {
+            viewRig.punchZoom(0.06f)
+            viewRig.shake(0.22f)
+        }
 
         // 깃털 파티클
         for (i in 0 until 4) {
@@ -619,6 +842,7 @@ class WorldScene(
 
         // 셔터가 닫힌 뒤(0.15초) 결과 카드(폴라로이드)가 뜬다
         viewfinder.shot()
+        shutterFx()                 // 손떨림 · 히트스톱 · 줌 펀치
         game.haptic()
         pendingOverlay = PhotoResultOverlay(
             this, b.def, stars, isNew, prev + 1, questLine,
@@ -720,40 +944,42 @@ class WorldScene(
         ambientT = 0.28f
         val ambientCount = particles.count { it.max > 1.5f }
         if (ambientCount >= 22) return
-        val halfW = game.virtW / (2f * WORLD_SCALE)
-        val halfH = game.virtH / (2f * WORLD_SCALE)
+        val viewX = viewRig.x
+        val viewY = viewRig.y
+        val viewW = viewRig.viewW
+        val viewH = viewRig.viewH
         when (ambientKind()) {
             "rain" -> addParticle(
-                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
                 Color.argb(150, 100, 160, 210), 1.5f, false
             )
             "wind" -> addParticle(
-                camX - 8f, camY + rnd.nextFloat() * halfH * 2f,
+                viewX - 8f, viewY + rnd.nextFloat() * viewH,
                 55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
                 Color.argb(150, 210, 220, 205), 2f, true
             )
             "leaf" -> addParticle(
-                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,
                 if (rnd.nextBoolean()) Color.argb(170, 111, 174, 87) else Color.argb(170, 200, 140, 70), 3f, true
             )
             "petal" -> addParticle(
-                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
                 Color.argb(150, 242, 163, 179), 3f, true
             )
             "snow" -> addParticle(
-                camX + rnd.nextFloat() * halfW * 2f, camY - 8f,
+                viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 (rnd.nextFloat() - 0.5f) * 6f, 8f + rnd.nextFloat() * 5f, 5f,
                 Color.argb(190, 240, 246, 252), 2.6f, true
             )
             "sparkle" -> addParticle(
-                camX + rnd.nextFloat() * halfW * 2f, camY + rnd.nextFloat() * halfH * 2f,
+                viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
                 0f, -3f, 1.8f, Color.argb(160, 250, 250, 255), 2.2f, false
             )
             "firefly" -> addParticle(
-                camX + rnd.nextFloat() * halfW * 2f, camY + rnd.nextFloat() * halfH * 2f,
+                viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
                 (rnd.nextFloat() - 0.5f) * 8f, (rnd.nextFloat() - 0.5f) * 6f, 3f,
                 Color.argb(220, 247, 222, 96), 2.6f, true
             )
@@ -1081,6 +1307,9 @@ class WorldScene(
         if (input.justB) {
             player.bike = !player.bike
             state.onBike = player.bike
+            // 올라타고 내릴 때의 체중 이동
+            viewRig.kick(0f, if (player.bike) -1f else 1f, 1.2f)
+            viewRig.punchZoom(if (player.bike) -0.02f else 0.02f)
             game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
             game.toast(
                 if (player.bike) "${state.bike().name} 탔다! 쌩~ 🚲"
@@ -1106,6 +1335,7 @@ class WorldScene(
                 return
             }
             nearestCat()?.let { cat ->
+                viewRig.kick(0f, 1f, 0.5f)
                 state.luck = (state.luck + 1f).coerceAtMost(100f)
                 game.sfx(Audio.Sfx.SPARKLE, 0.5f, 1.15f)
                 for (i in 0 until 3) {
@@ -1129,6 +1359,7 @@ class WorldScene(
             game.toast("주민·이정표·벤치·고양이에게 다가가 육각 메인 버튼을 눌러보세요!")
             return
         }
+        // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
         val tap = input.consumeTapWorld()
         if (tap != null) {
             if (photoMode) {
@@ -1166,6 +1397,9 @@ class WorldScene(
     private fun setPhotoMode(on: Boolean) {
         if (photoMode == on) return
         photoMode = on
+        // 뷰파인더에 눈을 붙이는 느낌 — 망원으로 당겨지며 초점이 잡힌다
+        viewRig.punchZoom(if (on) 0.022f else -0.022f)
+        streaks.clear()
         game.hud.photoModeHint = on
         game.hud.showStats = !on
         game.hud.showMinimap = !on
@@ -1199,22 +1433,45 @@ class WorldScene(
 
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFF3A3040.toInt())
+        val vw = game.virtW.toFloat()
+        val vh = game.virtH.toFloat()
+        val hx = vw / 2f
+        val hy = vh / 2f
+        val z = viewRig.zoom
         val camXv = camX * WORLD_SCALE
         val camYv = camY * WORLD_SCALE
+        val seeW = vw / z              // 실제로 보이는 가상 px 폭 (줌아웃하면 더 넓다)
+        val seeH = vh / z
+        // 보이는 폭이 화면과 다른 만큼(줌 인/아웃) + 흔들림·기울기 여유(PAD)까지 더 그린다
+        val padX = abs(seeW - vw) / 2f + PAD
+        val padY = abs(seeH - vh) / 2f + PAD
+        val padW = (seeW + padX * 2f).toInt()
+        val padH = (seeH + padY * 2f).toInt()
+
+        // ---- 월드 패스: 시야각(줌) + 기울기(셰이크)를 화면 중앙 기준으로 적용 ----
+        c.save()
+        if (viewRig.roll != 0f) c.rotate(viewRig.roll, hx, hy)
+        if (z != 1f) c.scale(z, z, hx, hy)
+
         // 햇빛 그림자: 아침엔 서쪽, 저녁엔 동쪽으로 길게 (흐리거나 비 오면 옅게)
         val hour = state.worldTime
         val dl = daylight(hour)
         val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
         val sunAlpha = (54f * dl * weather.shadowK).toInt()
+
+        // 지면은 흔들림·기울기로 가장자리가 비지 않게 PAD 만큼 넓게 그린다
+        c.save()
+        c.translate(-padX, -padY)
         map.draw(
-            c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time,
+            c, game.assets, camXv - padX, camYv - padY, padW, padH, game.time,
             sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
         )
-        fx.drawGround(c, camXv, camYv, game.virtW, game.virtH)
+        fx.drawGround(c, camXv - padX, camYv - padY, padW, padH)
 
         // 살아있는 풀 — 뒤쪽 레이어(캐릭터보다 위). 밑동이 발보다 위인 풀잎들.
         val feetY = player.y + 13f
-        grass.draw(c, game.assets, camXv, camYv, game.virtW.toFloat(), game.virtH.toFloat(), feetY, GrassField.LAYER_BACK)
+        grass.draw(c, game.assets, camXv - padX, camYv - padY, padW.toFloat(), padH.toFloat(), feetY, GrassField.LAYER_BACK)
+        c.restore()
         drawCloudShadows(c, camXv, camYv)
 
         // 엔티티 (y 정렬)
@@ -1227,17 +1484,77 @@ class WorldScene(
         for (e in ents) drawEntity(c, e)
 
         // 살아있는 풀 — 앞쪽 레이어. 캐릭터가 풀밭을 헤치며 걷는 깊이감
-        grass.draw(c, game.assets, camXv, camYv, game.virtW.toFloat(), game.virtH.toFloat(), feetY, GrassField.LAYER_FRONT)
+        c.save()
+        c.translate(-padX, -padY)
+        grass.draw(c, game.assets, camXv - padX, camYv - padY, padW.toFloat(), padH.toFloat(), feetY, GrassField.LAYER_FRONT)
+        c.restore()
 
         drawParticles(c, camXv, camYv)
-        fx.drawAir(c, camXv, camYv, game.virtW, game.virtH)
-        fx.drawWeather(c, game.virtW, game.virtH)
+        c.save()
+        c.translate(-padX, -padY)
+        fx.drawAir(c, camXv - padX, camYv - padY, padW, padH)
+        c.restore()
         drawLighting(c, camXv, camYv)
         drawNpcOverlays(c)
+        c.restore()
+
+        // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
+        fx.drawWeather(c, game.virtW, game.virtH)
+        if (viewRig.speedFx > 0.02f) {
+            speedVignette.draw(c, vw, vh, viewRig.speedFx)
+            streaks.draw(c, velX, velY, viewRig.speedFx)
+        }
         if (photoMode) {
-            viewfinder.draw(c, birds, player.cx, player.cy, camX, camY)
+            drawDepthOfField(c, vw, vh)
+            viewfinder.draw(c, birds, player.cx, player.cy, camX, camY, z)
             viewfinder.drawShutter(c)
         }
+        if (viewRig.flash > 0.001f) {
+            uiFill.color = Color.argb((235 * viewRig.flash).toInt().coerceIn(0, 255), 255, 252, 244)
+            c.drawRect(0f, 0f, vw, vh, uiFill)
+        }
+    }
+
+    /**
+     * 다이내믹 포커싱(심도) — 초점 반경 밖을 부드럽게 눌러 시선을 피사체로 모은다.
+     * 렌즈(카메라 등급)가 좋을수록 심도가 얕아진다.
+     */
+    private fun drawDepthOfField(c: Canvas, vw: Float, vh: Float) {
+        if (!state.camDof) return
+        // 밝은 렌즈(작은 F값)일수록 얕은 심도 — 배경이 더 많이 날아간다
+        val bokeh = ((8f - state.rig().apTele) / 6f).coerceIn(0f, 1f)
+        val hasSubject = focusBird != null
+        val cx = if (hasSubject) projX((subjX - camX) * WORLD_SCALE) else projX((player.cx - camX) * WORLD_SCALE)
+        val cy = if (hasSubject) projY((subjY - camY) * WORLD_SCALE) else projY((player.cy - camY) * WORLD_SCALE)
+        val r = if (hasSubject) {
+            (focusR * WORLD_SCALE * viewRig.zoom * (2.8f - 0.5f * bokeh)).coerceIn(90f, 520f)
+        } else {
+            430f
+        }
+        val a = (64f + 52f * bokeh) * (0.45f + 0.55f * focusK)
+        focusMask.draw(
+            c, cx, cy, r, vw, vh,
+            Color.argb(0, 9, 9, 18),
+            Color.argb(a.toInt().coerceIn(0, 255), 9, 9, 18),
+            0.44f
+        )
+    }
+
+    /** 잔상(모션 블러) — 빠르게 움직일 때 지나온 자리에 옅은 분신을 남긴다 */
+    private fun drawGhosts(c: Canvas, bmp: android.graphics.Bitmap) {
+        val k = viewRig.speedFx
+        if (!state.camBlur || k < 0.08f || ghostFill < GHOSTS) return
+        val a = game.assets
+        for (i in 1..2) {
+            val idx = ((ghostHead - i * 2) % GHOSTS + GHOSTS) % GHOSTS
+            val gx = (ghostX[idx] - camX) * WORLD_SCALE
+            val gy = (ghostY[idx] - camY) * WORLD_SCALE
+            val alpha = ((78 - i * 26) * k).toInt().coerceIn(0, 255)
+            if (alpha <= 3) continue
+            a.sprPaint.alpha = alpha
+            c.drawBitmap(bmp, gx, gy, a.sprPaint)
+        }
+        a.sprPaint.alpha = 255
     }
 
     /** 발밑 타일이 풀숲이면 1(키 큰 풀) / 2(갈대), 아니면 0 */
@@ -1355,6 +1672,7 @@ class WorldScene(
                 }
                 val half = 10f * k
                 c.drawOval(RectF(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k), a.shadowPaint)
+                drawGhosts(c, bmp)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
                 // 장착한 카메라를 몸에 겹쳐 그린다 (촬영 모드면 눈높이로 들어올린다)
@@ -1470,13 +1788,23 @@ class WorldScene(
         val alpha = Color.alpha(col)
         if (alpha == 0) return
         val k = (alpha / 124f).coerceIn(0f, 1f)
-        val lm = LightMaps.get(game.virtW, game.virtH)
+        // 줌·기울기로 가장자리가 새지 않게 라이트맵도 PAD 만큼 크게 잡고 -PAD 위치에 덮는다.
+        // 크기는 최대 줌아웃 기준으로 '고정'한다 — 매 프레임 크기가 변하면 비트맵을 새로 만들게 된다.
+        val lm = LightMaps.get(LIGHT_W, LIGHT_H)
+        val lw = LIGHT_W
+        val lh = LIGHT_H
+        val lpx = (LIGHT_W - game.virtW) / 2f     // 화면보다 큰 만큼 가운데 정렬
+        val lpy = (LIGHT_H - game.virtH) / 2f
         lm.begin(col)
+        c.save()
+        c.translate(-lpx, -lpy)
+        val lcx = camXv - lpx          // 라이트맵 좌상단에 대응하는 월드(가상px) 좌표
+        val lcy = camYv - lpy
 
-        val x0 = (camXv / 32f).toInt().coerceAtLeast(0)
-        val y0 = (camYv / 32f).toInt().coerceAtLeast(0)
-        val x1 = ((camXv + game.virtW) / 32f).toInt().coerceAtMost(map.w - 1)
-        val y1 = ((camYv + game.virtH) / 32f).toInt().coerceAtMost(map.h - 1)
+        val x0 = (lcx / 32f).toInt().coerceAtLeast(0)
+        val y0 = (lcy / 32f).toInt().coerceAtLeast(0)
+        val x1 = ((lcx + lw) / 32f).toInt().coerceAtMost(map.w - 1)
+        val y1 = ((lcy + lh) / 32f).toInt().coerceAtMost(map.h - 1)
         val ly0 = (y0 - 2).coerceAtLeast(0)
         val ly1 = (y1 + 2).coerceAtMost(map.h - 1)
         val lx0 = (x0 - 2).coerceAtLeast(0)
@@ -1486,8 +1814,8 @@ class WorldScene(
         // 1) 빛 구멍
         for (y in ly0..ly1) {
             for (x in lx0..lx1) {
-                val sx = x * 32f - camXv
-                val sy = y * 32f - camYv
+                val sx = x * 32f - lcx
+                val sy = y * 32f - lcy
                 when (map.t(x, y)) {
                     T.LAMP -> {
                         lm.light(sx + 16f, sy + 10f, 70f, (255 * k).toInt())
@@ -1500,11 +1828,12 @@ class WorldScene(
             }
         }
         // 플레이어 주변은 은은하게 (밤에도 캐릭터가 묻히지 않게)
-        val px = (player.cx - camX) * WORLD_SCALE
-        val py = (player.cy - camY) * WORLD_SCALE - 8f
+        val px = player.cx * WORLD_SCALE - lcx
+        val py = player.cy * WORLD_SCALE - lcy - 8f
         lm.light(px, py, 66f, (120 * k).toInt())
-        fx.fireflies(c, lm, true, camXv, camYv, game.virtW, game.virtH)
+        fx.fireflies(c, lm, true, lcx, lcy, lw, lh)
         lm.end(c)
+        c.restore()
 
         // 2) 전구색 빛 번짐
         for (y in ly0..ly1) {
@@ -1595,6 +1924,17 @@ class WorldScene(
         }
     }
 
+    companion object {
+        /** 흔들림·기울기로 화면 가장자리가 비지 않도록 한 타일만큼 더 그리는 여유분(가상 px) */
+        private const val PAD = 32f
+
+        /** 잔상용 위치 링버퍼 길이 */
+        private const val GHOSTS = 6
+
+        /** 조명 맵은 최대 줌아웃(0.9)까지 덮을 수 있게 고정 크기로 잡는다 */
+        const val LIGHT_W = 1130
+        const val LIGHT_H = 664
+    }
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
     }

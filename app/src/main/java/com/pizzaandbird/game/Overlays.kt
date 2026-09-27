@@ -1068,6 +1068,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             g.toast(if (g.state.analogStick) "아날로그 이동 켬 — 틱을 민 만큼 걸어요" else "일정 속도로 걸어요")
         }
 
+        rowAt(0, "🎥", "화면 연출 (몰입감)",
+            "흔들림·헤드밥·잔상·심도 — 멀미가 있다면 여기서 꺼요", false, null) {
+            scene.openOverlay(CameraFxOverlay(scene))
+        }
+
         // 2열(화면이 좁으면 1열 이어서): 저장/타이틀/초기화
         val c2 = if (wide) 1 else 0
         rowAt(c2, "💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false, null) {
@@ -1108,6 +1113,124 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 c.drawText("조이스틱은 왼쪽 아래 어디든 잡으면 그 자리에 생겨요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 화면 연출 (몰입 카메라) — 멀미 대응 설정
+// ---------------------------------------------------------------------------
+
+/**
+ * 카메라 연출 6종을 켜고 끄는 화면.
+ * 3D 멀미(모션 시크니스)에 민감한 사람도 편하게 놀 수 있도록,
+ * 흔들림은 4단계로 줄이거나 완전히 끌 수 있다. 바꾸면 바로 저장된다.
+ */
+class CameraFxOverlay(scene: Scene) : Overlay(scene) {
+
+    private val rowRects = ArrayList<Pair<RectF, () -> Unit>>()
+    private var closeRect = RectF()
+    private var panelR = RectF()
+
+    override fun handleInput(input: Input) {
+        val tap = input.consumeTapScreen()
+        if (input.justB || input.justBack) { finished = true; return }
+        if (tap == null) return
+        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        for ((r, action) in rowRects) {
+            if (r.contains(tap.x, tap.y)) {
+                action()
+                SaveManager.save(scene.game.context, scene.game.state)
+                scene.game.haptic()
+                scene.game.sfx(Audio.Sfx.TAP, 0.6f)
+                return
+            }
+        }
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val st = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 150)
+
+        val pw = minOf(w * 0.86f, dp(scene, 430f))
+        val ph = minOf(h * 0.94f, dp(scene, 480f))
+        panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
+        panel(c, panelR, scene)
+
+        val closeCx = panelR.right - dp(scene, 25f)
+        val closeCy = panelR.top + dp(scene, 23f)
+        closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
+        UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
+
+        textP.textSize = dp(scene, 15f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("🎥 화면 연출", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("화면이 살아 움직이게 하는 연출들이에요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
+        UiKit.divider(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 56f))
+
+        rowRects.clear()
+        val left = panelR.left + dp(scene, 12f)
+        val right = panelR.right - dp(scene, 12f)
+        val top0 = panelR.top + dp(scene, 62f)
+        val footH = dp(scene, 34f)
+        val gap = dp(scene, 5f)
+        val rowH = (((panelR.bottom - dp(scene, 10f) - footH) - top0 - gap * 5f) / 6f)
+            .coerceIn(dp(scene, 34f), dp(scene, 50f))
+        var ty = top0
+
+        fun row(icon: String, label: String, sub: String, value: String, on: Boolean, action: () -> Unit) {
+            val r = RectF(left, ty, right, ty + rowH)
+            UiKit.card(c, g, r, 10f, false, if (on) 0xFF8FBF7F.toInt() else 0xFFC9A87B.toInt(), 1.5f)
+            UiKit.iconCircle(
+                c, g, left + dp(scene, 22f), r.centerY(), dp(scene, 13f), icon, 14f,
+                if (on) 0xFF6FBA6B.toInt() else 0xFFB9AA95.toInt()
+            )
+            textP.textSize = dp(scene, 12.5f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(label, left + dp(scene, 42f), r.centerY() - dp(scene, 1f), textP)
+            textP.textSize = dp(scene, 9f)
+            textP.color = 0xFF8A7360.toInt()
+            c.drawText(sub, left + dp(scene, 42f), r.centerY() + dp(scene, 12f), textP)
+
+            textP.textSize = dp(scene, 10.5f)
+            val vw = textP.measureText(value) + dp(scene, 20f)
+            UiKit.badge(
+                c, g,
+                RectF(right - dp(scene, 10f) - vw, r.centerY() - dp(scene, 10f), right - dp(scene, 10f), r.centerY() + dp(scene, 10f)),
+                value, if (on) 0xFF6FBA6B.toInt() else 0xFFC0B2A0.toInt(), 0xFFFDF8EC.toInt(), 10.5f
+            )
+            rowRects.add(r to action)
+            ty += rowH + gap
+        }
+
+        row("📳", "카메라 흔들림", "타격·충돌·셔터의 충격을 화면으로", CamFx.shakeLabel(st), st.camShake > 0) {
+            st.camShake = (st.camShake + 1) % CamFx.SHAKE_LABELS.size
+            g.shake(0.5f)                       // 바꾼 강도를 바로 체감해 볼 수 있게
+        }
+        row("🚶", "헤드 밥 · 바디 스웨이", "걸음 리듬에 맞춰 화면이 출렁여요", CamFx.onOff(st.camBob), st.camBob) {
+            st.camBob = !st.camBob
+        }
+        row("💨", "잔상 · 속도선", "달리기·자전거에서 속도가 느껴지게", CamFx.onOff(st.camBlur), st.camBlur) {
+            st.camBlur = !st.camBlur
+        }
+        row("🔭", "시야각 변동 (FOV)", "빠르면 넓게, 카메라 모드에선 망원으로", CamFx.onOff(st.camFov), st.camFov) {
+            st.camFov = !st.camFov
+            if (st.camFov) g.punchZoom(0.06f)
+        }
+        row("🌙", "심도 · 초점 흐림", "카메라 모드에서 초점 밖을 어둡게", CamFx.onOff(st.camDof), st.camDof) {
+            st.camDof = !st.camDof
+        }
+        row("🧭", "예측 배치", "가는 방향의 앞쪽을 더 보여줘요", CamFx.onOff(st.camLead), st.camLead) {
+            st.camLead = !st.camLead
+        }
+
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText("💡 3D 멀미가 있다면 흔들림을 '끔'으로 두세요. 바로 저장돼요.", left + dp(scene, 2f), ty + dp(scene, 14f), textP)
     }
 }
 
@@ -1834,6 +1957,12 @@ class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : 
             else -> 1
         }
         lostPizza = !scene.game.state.addPizza(pizzaId, resultQ)
+        // 화덕의 충격을 몸으로 — 걸작일수록 크게 울린다
+        when (resultQ) {
+            2 -> { scene.game.shake(0.3f); scene.game.punchZoom(0.05f) }
+            1 -> scene.game.shake(0.16f)
+            else -> scene.game.kick(0f, 1f, 1.4f)
+        }
         SaveManager.save(scene.game.context, scene.game.state)
         scene.game.audio.stopAmb()   // 불 소리 끄기
         when (resultQ) {
