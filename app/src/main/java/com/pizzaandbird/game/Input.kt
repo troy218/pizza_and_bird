@@ -6,7 +6,7 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, DPAD, A, B, CAM, MENU }
+enum class Ctrl { NONE, DPAD, A, B, CAM, MENU, RUN, EAT, MAP }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -34,6 +34,7 @@ class Input(private val game: Game) {
     private val pointerDragged = HashSet<Int>()
     private val queue = ArrayList<QEv>()
     private val keys = HashMap<Int, Boolean>()
+    private var tapScreen: PointF? = null
 
     // ----- 프레임 상태 (게임 스레드 전용) -----
     var dirX = 0f
@@ -43,7 +44,9 @@ class Input(private val game: Game) {
     var justCam = false
     var justMenu = false
     var justBack = false
-    private var tapScreen: PointF? = null
+    var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
+    var justMap = false       // 큰 지도 (미니맵 탭)
+    var isRun = false         // 달리기 홀드 (🏃 버튼 / Shift 키)
 
     fun onTouchEvent(e: MotionEvent): Boolean {
         synchronized(lock) {
@@ -140,6 +143,7 @@ class Input(private val game: Game) {
                             KeyEvent.KEYCODE_X -> justB = true
                             KeyEvent.KEYCODE_C -> justCam = true
                             KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
+                            KeyEvent.KEYCODE_E -> justEat = true
                             KeyEvent.KEYCODE_BACK -> justBack = true
                         }
                     } else if (ev.act == KeyEvent.ACTION_UP) {
@@ -167,14 +171,22 @@ class Input(private val game: Game) {
         if (len > 1f) { dx /= len; dy /= len }
         dirX = dx
         dirY = dy
+
+        // 달리기 홀드 (버튼 또는 Shift)
+        isRun = Ctrl.RUN in activeControls() ||
+                keys[KeyEvent.KEYCODE_SHIFT_LEFT] == true ||
+                keys[KeyEvent.KEYCODE_SHIFT_RIGHT] == true
     }
 
     private fun press(ctrl: Ctrl) {
         when (ctrl) {
-            Ctrl.A -> justA = true
-            Ctrl.B -> justB = true
-            Ctrl.CAM -> justCam = true
-            Ctrl.MENU -> justMenu = true
+            Ctrl.A -> { justA = true; game.haptic() }
+            Ctrl.B -> { justB = true; game.haptic() }
+            Ctrl.CAM -> { justCam = true; game.haptic() }
+            Ctrl.MENU -> { justMenu = true; game.haptic() }
+            Ctrl.EAT -> { justEat = true; game.haptic() }
+            Ctrl.MAP -> { justMap = true; game.haptic() }
+            Ctrl.RUN -> game.haptic()
             else -> {}
         }
     }
@@ -200,6 +212,8 @@ class Input(private val game: Game) {
         justCam = false
         justMenu = false
         justBack = false
+        justEat = false
+        justMap = false
         tapScreen = null
     }
 

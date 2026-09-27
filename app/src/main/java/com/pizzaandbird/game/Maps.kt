@@ -1,15 +1,17 @@
 package com.pizzaandbird.game
 
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import java.util.Random
-import kotlin.math.abs
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 // ---------------------------------------------------------------------------
 // 타일
 // ---------------------------------------------------------------------------
 
-/** 맵 타일. solid = 걸을 수 없음 */
+/** 맵 타일. solid = 걸을 수 없음 (표시 순서 = Assets.tiles 순서!) */
 enum class T(val solid: Boolean) {
     GRASS(false),
     TALLGRASS(false),
@@ -36,7 +38,10 @@ enum class T(val solid: Boolean) {
     OVEN(true),             // 화덕
     BED(true),
     BOX(true),
-    DECOR(false);           // 장식 슬롯 (추후 소품)
+    DECOR(false),           // 장식 슬롯
+    SIGN(true),             // 터널 이정표
+    BENCH(true),            // 벤치
+    LAMP(true);             // 가로등 (밤에 빛남)
 
     companion object {
         val ALL = values()
@@ -81,21 +86,44 @@ class GameMap(
     /** 발(스프라이트 좌상단+13px)이 밟고 있는 타일 */
     fun feetTile(px: Float, py: Float): T = t(((px + 8f) / 16f).toInt(), ((py + 13f) / 16f).toInt())
 
+    /**
+     * 타일 렌더링 (32px 타일, 카메라는 가상 해상도 좌표).
+     * 물/화덕은 애니메이션, 물가에는 거품이 인다.
+     */
     fun draw(c: Canvas, a: Assets, camX: Float, camY: Float, vw: Int, vh: Int, time: Float) {
-        val x0 = (camX / 16f).toInt().coerceAtLeast(0)
-        val y0 = (camY / 16f).toInt().coerceAtLeast(0)
-        val x1 = ((camX + vw) / 16f).toInt().coerceAtMost(w - 1)
-        val y1 = ((camY + vh) / 16f).toInt().coerceAtMost(h - 1)
-        val waterFrame = ((time * 1.8f).toInt() % 2)
+        val x0 = (camX / 32f).toInt().coerceAtLeast(0)
+        val y0 = (camY / 32f).toInt().coerceAtLeast(0)
+        val x1 = ((camX + vw) / 32f).toInt().coerceAtMost(w - 1)
+        val y1 = ((camY + vh) / 32f).toInt().coerceAtMost(h - 1)
+        val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
+        val ovenFrame = ((time * 3.4f).toInt() % 2 + 2) % 2
         for (y in y0..y1) {
             for (x in x0..x1) {
                 val tv = tiles[y][x]
-                val bmp = when (T.ALL[tv]) {
-                    T.WATER -> a.tiles[tv][waterFrame]
+                val tile = T.ALL[tv]
+                val bmp = when (tile) {
+                    T.WATER -> a.tiles[tv][minOf(waterFrame, a.tiles[tv].size - 1)]
+                    T.OVEN -> a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
                     else -> a.tiles[tv][a.tileVariant(tv, x, y)]
                 }
-                c.drawBitmap(bmp, x * 16f - camX, y * 16f - camY, a.sprPaint)
+                c.drawBitmap(bmp, x * 32f - camX, y * 32f - camY, a.sprPaint)
+
+                // 물가 거품 (물 타일 가장자리)
+                if (tile == T.WATER) {
+                    val fx = x * 32f - camX
+                    val fy = y * 32f - camY
+                    if (y > 0 && t(x, y - 1) != T.WATER) c.drawRect(fx, fy, fx + 32f, fy + 3.2f, foamPaint)
+                    if (y < h - 1 && t(x, y + 1) != T.WATER) c.drawRect(fx, fy + 28.8f, fx + 32f, fy + 32f, foamPaint)
+                    if (x > 0 && t(x - 1, y) != T.WATER) c.drawRect(fx, fy, fx + 3.2f, fy + 32f, foamPaint)
+                    if (x < w - 1 && t(x + 1, y) != T.WATER) c.drawRect(fx + 28.8f, fy, fx + 32f, fy + 32f, foamPaint)
+                }
             }
+        }
+    }
+
+    companion object {
+        private val foamPaint = Paint().apply {
+            color = Color.argb(150, 226, 244, 250)
         }
     }
 }
@@ -206,7 +234,9 @@ object MapBuilder {
         val npcs = listOf(
             Npc(NpcKind.PROFESSOR, 17, 13),
             Npc(NpcKind.SHOP, 23, 13),
-            Npc(NpcKind.VILLAGER, 20, 18)
+            Npc(NpcKind.VILLAGER, 20, 18),
+            Npc(NpcKind.KID, 18, 17),
+            Npc(NpcKind.ELDER, 25, 15)
         )
         for (n in npcs) {
             reserved[n.tileY][n.tileX] = true
@@ -242,6 +272,40 @@ object MapBuilder {
                     t[y][x] = T.WATER.ordinal; reserved[y][x] = true
                 } else if (d <= 1.6f && t[y][x] == T.GRASS.ordinal) {
                     t[y][x] = T.REED.ordinal; reserved[y][x] = true
+                }
+            }
+        }
+
+        // 9.5 광장 시설 — 벤치 / 가로등(도시) / 터널 이정표
+        for ((bx, by) in listOf(18 to 12, 24 to 18)) {
+            t[by][bx] = T.BENCH.ordinal; reserved[by][bx] = true
+        }
+        if (region.city) {
+            for ((lx, ly) in listOf(17 to 12, 25 to 12, 17 to 17, 25 to 17)) {
+                t[ly][lx] = T.LAMP.ordinal; reserved[ly][lx] = true
+            }
+        }
+        for ((d, _) in exits) {
+            when (d) {
+                Dir.N -> { t[1][22] = T.SIGN.ordinal; reserved[1][22] = true; reserved[1][21] = true; reserved[1][23] = true }
+                Dir.S -> { t[h - 4][22] = T.SIGN.ordinal; reserved[h - 4][22] = true; reserved[h - 4][21] = true; reserved[h - 4][23] = true; reserved[h - 5][22] = true }
+                Dir.W -> { t[13][2] = T.SIGN.ordinal; reserved[13][2] = true; reserved[13][3] = true; reserved[12][2] = true }
+                Dir.E -> { t[13][w - 3] = T.SIGN.ordinal; reserved[13][w - 3] = true; reserved[13][w - 4] = true; reserved[12][w - 3] = true }
+            }
+        }
+
+        // 9.7 나무 숲 (작은 그루브)
+        repeat(3) {
+            val gx = 5 + rnd.nextInt(w - 10)
+            val gy = 5 + rnd.nextInt(h - 10)
+            val gr = 2 + rnd.nextInt(2)
+            for (y in gy - gr..gy + gr) for (x in gx - gr..gx + gr) {
+                if (x < 2 || y < 2 || x >= w - 2 || y >= h - 2) continue
+                if (reserved[y][x] || t[y][x] != T.GRASS.ordinal) continue
+                val dx = x - gx; val dy = y - gy
+                if (dx * dx + dy * dy <= gr * gr && rnd.nextFloat() < 0.8f) {
+                    t[y][x] = T.TREE.ordinal
+                    reserved[y][x] = true
                 }
             }
         }
@@ -288,6 +352,7 @@ object MapBuilder {
         t[h - 1][6] = T.HOUSE_DOOR.ordinal
         // 창문
         t[1][2] = T.WALL_WIN.ordinal
+        t[1][5] = T.WALL_WIN.ordinal
         t[1][8] = T.WALL_WIN.ordinal
         // 화덕 (기본 제공!)
         t[2][9] = T.OVEN.ordinal; t[2][10] = T.OVEN.ordinal
@@ -296,7 +361,7 @@ object MapBuilder {
         t[2][2] = T.BED.ordinal; t[2][3] = T.BED.ordinal
         // 이사 박스
         t[6][2] = T.BOX.ordinal
-        // 장식 슬롯 (추후 소품 업데이트)
+        // 장식 슬롯 (DECOR 0,1,2 순서로 HomeScene과 매칭)
         t[2][5] = T.DECOR.ordinal
         t[2][7] = T.DECOR.ordinal
         t[5][11] = T.DECOR.ordinal
@@ -309,7 +374,7 @@ object MapBuilder {
 // 엔티티
 // ---------------------------------------------------------------------------
 
-enum class NpcKind { PROFESSOR, SHOP, VILLAGER }
+enum class NpcKind { PROFESSOR, SHOP, VILLAGER, KID, ELDER }
 
 class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
     val x: Float get() = tileX * 16f
@@ -322,7 +387,61 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
             NpcKind.PROFESSOR -> "보리 박사"
             NpcKind.SHOP -> "사진용품점"
             NpcKind.VILLAGER -> "동네 주민"
+            NpcKind.KID -> "꼬마"
+            NpcKind.ELDER -> "할머니"
         }
+}
+
+/** 골목을 거니는 고양이 */
+class Cat(var x: Float, var y: Float) {
+    var state = 0                 // 0 앉아있기, 1 걷기
+    var idleT = 1.5f
+    var fromX = 0f; var fromY = 0f
+    var toX = 0f; var toY = 0f
+    var hopT = 0f
+    var faceLeft = true
+
+    val cx: Float get() = x + 14f
+    val cy: Float get() = y + 12f
+
+    fun update(dt: Float, map: GameMap) {
+        when (state) {
+            0 -> {
+                idleT -= dt
+                if (idleT <= 0f) {
+                    val dirs = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)
+                    val (ddx, ddy) = dirs[(Math.random() * dirs.size).toInt()]
+                    val nx = x + ddx * 16f
+                    val ny = y + ddy * 16f
+                    val tx = ((nx + 14f) / 16f).toInt()
+                    val ty = ((ny + 14f) / 16f).toInt()
+                    if (map.walkableTile(tx, ty)) {
+                        fromX = x; fromY = y
+                        toX = nx; toY = ny
+                        hopT = 0f
+                        state = 1
+                        if (ddx != 0) faceLeft = ddx < 0
+                    } else {
+                        idleT = 1f
+                    }
+                }
+            }
+            1 -> {
+                hopT += dt / 0.55f
+                if (hopT >= 1f) {
+                    x = toX; y = toY
+                    state = 0
+                    idleT = 1.5f + (Math.random() * 3f).toFloat()
+                } else {
+                    x = fromX + (toX - fromX) * hopT
+                    y = fromY + (toY - fromY) * hopT
+                }
+            }
+        }
+    }
+
+    val frame: Int get() = if (state == 1) 1 + ((hopT * 3f).toInt() % 2) else 0
+    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 2f) else 0f
 }
 
 /** 플레이어 */

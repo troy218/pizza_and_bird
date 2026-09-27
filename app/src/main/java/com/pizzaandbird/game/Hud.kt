@@ -10,9 +10,9 @@ import kotlin.math.sqrt
 
 /**
  * 화면 좌표(실제 해상도) 기반 HUD.
- * - 좌상단: 배고픔/행운/돈/피자/카메라 패널
- * - 우상단: 원형 한국 지도 미니맵
- * - 하단: D패드 + A/B/카메라/메뉴 버튼
+ * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
+ * - 우상단: 원형 한국 지도 미니맵 (탭하면 큰 지도)
+ * - 하단: D패드 + A/B/카메라/메뉴/달리기/간식 버튼
  */
 class Hud(private val game: Game) {
 
@@ -33,9 +33,13 @@ class Hud(private val game: Game) {
     var bCx = 0f; var bCy = 0f; var bR = 0f
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f
     var menuCx = 0f; var menuCy = 0f; var menuR = 0f
+    var runCx = 0f; var runCy = 0f; var runR = 0f
+    var eatCx = 0f; var eatCy = 0f; var eatR = 0f
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f
 
     private val messages = ArrayList<Message>()
+    private var bannerText: String? = null
+    private var bannerT = 0f
 
     private class Message(var text: String, var t: Float)
 
@@ -72,26 +76,33 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun layout(w: Int, h: Int) {
-        dpadR = dp(52f)
-        dpadCx = dp(24f) + dpadR
+        dpadR = dp(54f)
+        dpadCx = dp(26f) + dpadR
         dpadCy = h - dp(24f) - dpadR
 
-        aR = dp(25f)
+        aR = dp(27f)
         aCx = w - dp(26f) - aR
         aCy = h - dp(26f) - aR
 
-        bR = dp(19f)
-        bCx = aCx - aR - dp(12f) - bR
+        bR = dp(21f)
+        bCx = aCx - aR - dp(8f) - bR
         bCy = h - dp(22f) - bR
 
-        // 카메라/메뉴 버튼은 A/B와 충분히 떨어뜨려 오인입력 방지
         camBR = dp(21f)
-        camBCx = w - dp(22f) - camBR
-        camBCy = aCy - aR - dp(20f) - camBR
+        camBCx = aCx
+        camBCy = aCy - aR - dp(12f) - camBR
+
+        runR = dp(19f)
+        runCx = camBCx - camBR - dp(8f) - runR
+        runCy = camBCy + dp(2f)
+
+        eatR = dp(19f)
+        eatCx = runCx - runR - dp(8f) - eatR
+        eatCy = camBCy + dp(2f)
 
         menuR = dp(16f)
-        menuCx = bCx - dp(20f) - menuR
-        menuCy = camBCy + dp(36f)
+        menuCx = bCx - bR - dp(10f) - menuR
+        menuCy = bCy + dp(6f)
 
         mmR = dp(58f)
         mmCx = w - dp(16f) - mmR
@@ -108,18 +119,21 @@ class Hud(private val game: Game) {
     }
 
     fun controlAt(x: Float, y: Float): Ctrl {
-        if (!showControls) return Ctrl.NONE
+        if (!showControls) {
+            // 컨트롤이 숨겨져 있어도 미니맵은 탭 가능
+            if (showMinimap && inCircle(x, y, mmCx, mmCy, mmR * 0.96f)) return Ctrl.MAP
+            return Ctrl.NONE
+        }
         if (inCircle(x, y, dpadCx, dpadCy, dpadR * 1.12f)) return Ctrl.DPAD
-        if (inCircle(x, y, aCx, aCy, aR * 1.25f)) return Ctrl.A
+        if (inCircle(x, y, aCx, aCy, aR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bCx, bCy, bR * 1.25f)) return Ctrl.B
-        if (inCircle(x, y, camBCx, camBCy, camBR * 1.35f)) return Ctrl.CAM
-        if (inCircle(x, y, menuCx, menuCy, menuR * 1.3f)) return Ctrl.MENU
+        if (inCircle(x, y, camBCx, camBCy, camBR * 1.25f)) return Ctrl.CAM
+        if (inCircle(x, y, runCx, runCy, runR * 1.3f)) return Ctrl.RUN
+        if (inCircle(x, y, eatCx, eatCy, eatR * 1.3f)) return Ctrl.EAT
+        if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
+        if (showMinimap && inCircle(x, y, mmCx, mmCy, mmR * 0.96f)) return Ctrl.MAP
         return Ctrl.NONE
     }
-
-    /** 미니맵 원형 영역 판정 (탭 시 큰 지도 열기) */
-    fun inMinimap(x: Float, y: Float): Boolean =
-        showMinimap && inCircle(x, y, mmCx, mmCy, mmR)
 
     fun dpadVector(p: PointF): PointF {
         val dx = p.x - dpadCx
@@ -131,12 +145,17 @@ class Hud(private val game: Game) {
     }
 
     // ------------------------------------------------------------------
-    // 메시지(토스트)
+    // 메시지(토스트) / 배너
     // ------------------------------------------------------------------
 
     fun toast(msg: String) {
         messages.add(Message(msg, 2.8f))
         if (messages.size > 3) messages.removeAt(0)
+    }
+
+    fun banner(msg: String) {
+        bannerText = msg
+        bannerT = 2.6f
     }
 
     fun update(dt: Float) {
@@ -146,6 +165,7 @@ class Hud(private val game: Game) {
             m.t -= dt
             if (m.t <= 0f) it.remove()
         }
+        if (bannerT > 0f) bannerT -= dt
     }
 
     // ------------------------------------------------------------------
@@ -165,18 +185,19 @@ class Hud(private val game: Game) {
         }
         if (showControls) drawControls(c)
         if (photoModeHint) drawPhotoHint(c)
+        drawBanner(c)
         drawMessages(c)
     }
 
-    private fun questChipX(): Float = dp(16f) + dp(150f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(104f) + dp(20f)
+    private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
+    private fun questChipY(): Float = dp(12f) + dp(126f) + dp(18f)
 
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
-        val w = dp(152f)
-        val h = dp(100f)
+        val w = dp(162f)
+        val h = dp(126f)
 
         // 패널
         fill.color = Color.argb(216, 248, 239, 220)
@@ -192,25 +213,34 @@ class Hud(private val game: Game) {
         val iy1 = top + dp(12f)
         val iconSz = dp(16f)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy1, left + dp(12f) + iconSz, iy1 + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(100f), dp(12f), s.hunger,
+        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger,
             if (s.hunger < 25f) 0xFFE2574C.toInt() else 0xFFF2913C.toInt())
 
         // 행운
         val iy2 = iy1 + dp(22f)
         c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), iy2, left + dp(12f) + iconSz, iy2 + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), iy2 + dp(2f), dp(100f), dp(12f), s.luck, 0xFF6FBA6B.toInt())
+        drawBar(c, left + dp(36f), iy2 + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
 
         // 돈
         text.color = 0xFF4A3728.toInt()
         text.textSize = dp(14f)
-        c.drawText("₩ ${fmtMoney(s.money)}", left + dp(12f), iy2 + dp(38f), text)
+        c.drawText("₩ ${fmtMoney(s.money)}", left + dp(12f), iy2 + dp(36f), text)
 
         // 피자 / 카메라
         text.textSize = dp(12f)
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(44f), left + dp(12f) + dp(14f), iy2 + dp(44f) + dp(14f)), a.sprPaint)
-        c.drawText("×${s.pizzaCount}", left + dp(30f), iy2 + dp(55f), text)
-        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(52f), iy2 + dp(44f), left + dp(52f) + dp(15f), iy2 + dp(44f) + dp(13f)), a.sprPaint)
-        c.drawText("Lv.${s.cameraLevel}", left + dp(70f), iy2 + dp(55f), text)
+        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
+        c.drawText("×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), text)
+        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(54f), iy2 + dp(42f), left + dp(54f) + dp(17f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
+        c.drawText("Lv.${s.cameraLevel}", left + dp(76f), iy2 + dp(53f), text)
+
+        // 시각 + 사진
+        val night = s.isNight()
+        val clockIcon = if (night) a.moonIcon else a.sunIcon
+        c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
+        text.textSize = dp(11.5f)
+        text.color = 0xFF6B5A48.toInt()
+        c.drawText(s.timeLabel(), left + dp(30f), iy2 + dp(73f), text)
+        c.drawText("📷 ${s.photos}", left + dp(76f), iy2 + dp(73f), text)
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {
@@ -259,8 +289,31 @@ class Hud(private val game: Game) {
         }
     }
 
+    private fun drawBanner(c: Canvas) {
+        val bt = bannerText ?: return
+        if (bannerT <= 0f) return
+        val w = game.screenW.toFloat()
+        val h = game.screenH.toFloat()
+        val fadeIn = (bannerT - 2.1f).coerceIn(0f, 1f)      // 마지막 0.5초 페이드아웃
+        val alpha = (255 * fadeIn).toInt()
+
+        text.textSize = dp(26f)
+        text.color = Color.argb(alpha, 248, 239, 220)
+        val tw = text.measureText(bt)
+        val cx = w / 2f
+        val cy = h * 0.24f
+        val r = RectF(cx - tw / 2 - dp(20f), cy - dp(24f), cx + tw / 2 + dp(20f), cy + dp(24f))
+        fill.color = Color.argb((alpha * 0.72f).toInt(), 43, 38, 58)
+        c.drawRoundRect(r, dp(16f), dp(16f), fill)
+        stroke.color = Color.argb((alpha * 0.9f).toInt(), 242, 208, 107)
+        stroke.strokeWidth = dp(2f)
+        c.drawRoundRect(r, dp(16f), dp(16f), stroke)
+        val ty = cy - (text.descent() + text.ascent()) / 2f
+        c.drawText(bt, cx - tw / 2, ty, text)
+    }
+
     private fun drawPhotoHint(c: Canvas) {
-        drawChip(c, game.screenW / 2f, dp(24f), "📷 새를 탭해서 촬영! (뒤로가기: 카메라 모드 종료)")
+        drawChip(c, game.screenW / 2f, dp(24f), "카메라 모드! 새를 탭해서 촬영하세요")
     }
 
     // ------------------------------------------------------------------
@@ -277,7 +330,7 @@ class Hud(private val game: Game) {
         stroke.strokeWidth = dp(2f)
         c.drawCircle(dpadCx, dpadCy, dpadR, stroke)
 
-        val tri = dp(9f)
+        val tri = dp(10f)
         val inn = dpadR * 0.62f
         fun triAt(cx: Float, cy: Float, dirX: Float, dirY: Float, on: Boolean) {
             fill.color = if (on) 0xFFF2D06B.toInt() else Color.argb(200, 248, 239, 220)
@@ -298,19 +351,50 @@ class Hud(private val game: Game) {
         if (Ctrl.DPAD in active) {
             fill.color = Color.argb(120, 242, 208, 107)
             val v = dpadVector(game.input.dpadTouchPoint())
-            c.drawCircle(dpadCx + v.x * inn, dpadCy + v.y * inn, dp(9f), fill)
+            c.drawCircle(dpadCx + v.x * inn, dpadCy + v.y * inn, dp(10f), fill)
         }
 
-        // A
-        drawButton(c, aCx, aCy, aR, if (Ctrl.A in active) 0xFFD99B26.toInt() else 0xFFF2B63C.toInt(), "A", dp(17f))
-        // B
-        drawButton(c, bCx, bCy, bR, if (Ctrl.B in active) 0xFF9F7FC8.toInt() else 0xFFC3A3E8.toInt(), "B", dp(13f))
+        // A (상호작용)
+        drawButton(c, aCx, aCy, aR, if (Ctrl.A in active) 0xFFD99B26.toInt() else 0xFFF2B63C.toInt(), "A", dp(18f))
+        // B (자전거)
+        drawButton(c, bCx, bCy, bR, if (Ctrl.B in active) 0xFF9F7FC8.toInt() else 0xFFC3A3E8.toInt(), "B", dp(14f))
         // 카메라
         drawButton(c, camBCx, camBCy, camBR, if (photoModeHint) 0xFFE2574C.toInt() else Color.argb(220, 74, 74, 88), null, 0f)
         val cam = game.assets.cameraIcon
-        val cw = cam.width * (dp(19f) / 14f)
-        val ch = cam.height * (dp(19f) / 14f)
+        val cw = cam.width * (dp(20f) / 20f)
+        val ch = cam.height * (dp(20f) / 16f)
         c.drawBitmap(cam, null, RectF(camBCx - cw / 2, camBCy - ch / 2, camBCx + cw / 2, camBCy + ch / 2), game.assets.sprPaint)
+
+        // 달리기 (») — 누르고 있으면 강조
+        val running = game.input.isRun
+        drawButton(
+            c, runCx, runCy, runR,
+            if (running) 0xFFF2D06B.toInt() else if (Ctrl.RUN in active) 0xFFD9A03C.toInt() else Color.argb(220, 74, 74, 88),
+            null, 0f
+        )
+        text.textSize = dp(17f)
+        text.color = if (running) 0xFF4A3728.toInt() else Color.argb(230, 248, 239, 220)
+        val runLabel = "»"
+        c.drawText(runLabel, runCx - text.measureText(runLabel) / 2, runCy - (text.descent() + text.ascent()) / 2, text)
+
+        // 간식 (🍕) — 피자 개수 표시
+        val pizzaN = game.state.pizzaCount
+        drawButton(
+            c, eatCx, eatCy, eatR,
+            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (pizzaN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
+            null, 0f
+        )
+        val pz = game.assets.pizzaIcon
+        val psz = dp(20f)
+        c.drawBitmap(pz, null, RectF(eatCx - psz / 2, eatCy - psz / 2, eatCx + psz / 2, eatCy + psz / 2), game.assets.sprPaint)
+        if (pizzaN > 0) {
+            fill.color = 0xFF6B4F35.toInt()
+            c.drawCircle(eatCx + eatR * 0.62f, eatCy - eatR * 0.62f, dp(8.5f), fill)
+            text.textSize = dp(10f)
+            text.color = 0xFFF8EFDC.toInt()
+            c.drawText("$pizzaN", eatCx + eatR * 0.62f - text.measureText("$pizzaN") / 2, eatCy - eatR * 0.62f - (text.descent() + text.ascent()) / 2, text)
+        }
+
         // 메뉴 (≡)
         drawButton(c, menuCx, menuCy, menuR, if (Ctrl.MENU in active) 0xFF9F7FC8.toInt() else Color.argb(220, 74, 74, 88), null, 0f)
         linePaint.color = Color.argb(220, 248, 239, 220)
@@ -318,14 +402,18 @@ class Hud(private val game: Game) {
         for (i in -1..1) {
             c.drawLine(menuCx - dp(6f), menuCy + i * dp(4f), menuCx + dp(6f), menuCy + i * dp(4f), linePaint)
         }
+
+        // 미니맵 살짝 강조 (탭 가능 힌트)
+        if (showMinimap && Ctrl.MAP in active) {
+            stroke.color = 0xFFF2D06B.toInt()
+            stroke.strokeWidth = dp(3f)
+            c.drawCircle(mmCx, mmCy, mmR + dp(3f), stroke)
+        }
     }
 
     private fun drawButton(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, label: String?, labelSize: Float) {
         fill.color = color
         c.drawCircle(cx, cy, r, fill)
-        // 상단 하이라이트 (입체감)
-        fill.color = Color.argb(55, 255, 255, 255)
-        c.drawCircle(cx - r * 0.16f, cy - r * 0.22f, r * 0.66f, fill)
         stroke.color = Color.argb(190, 248, 239, 220)
         stroke.strokeWidth = dp(2f)
         c.drawCircle(cx, cy, r, stroke)

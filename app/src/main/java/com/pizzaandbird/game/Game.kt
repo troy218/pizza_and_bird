@@ -8,13 +8,16 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 
+/** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 32px 렌더 */
+const val WORLD_SCALE = 2f
+
 /**
- * 게임 전역 컨텍스트: 씬 관리, 가상 해상도(480x270) 스케일링, 페이드 전환.
+ * 게임 전역 컨텍스트: 씬 관리, 가상 해상도(960x540) 스케일링, 페이드 전환.
  */
 class Game(val context: Context) {
 
-    val virtW = 480
-    val virtH = 270
+    val virtW = 960
+    val virtH = 540
 
     val worldBitmap: Bitmap = Bitmap.createBitmap(virtW, virtH, Bitmap.Config.ARGB_8888)
     val worldCanvas = Canvas(worldBitmap)
@@ -46,8 +49,19 @@ class Game(val context: Context) {
         scene.onLayout()
     }
 
+    /** 화면 좌표 -> 월드 논리 좌표 (월드는 WORLD_SCALE배로 그려진다) */
     fun screenToWorld(p: PointF): PointF =
-        PointF((p.x - viewOffX) / viewScale, (p.y - viewOffY) / viewScale)
+        PointF((p.x - viewOffX) / viewScale / WORLD_SCALE, (p.y - viewOffY) / viewScale / WORLD_SCALE)
+
+    /** 짧은 햅틱 피드백 (버튼 누름 등) */
+    @Suppress("DEPRECATION")
+    fun haptic() {
+        try {
+            val v = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            v?.vibrate(10L)
+        } catch (_: Exception) {
+        }
+    }
 
     // ---------------------------------------------------------------------
 
@@ -95,6 +109,9 @@ class Game(val context: Context) {
     }
 
     fun toast(msg: String) = hud.toast(msg)
+
+    /** 지역 도착 배너 */
+    fun banner(msg: String) = hud.banner(msg)
 
     /** 게임 종료 확인 */
     fun openExitConfirm() {

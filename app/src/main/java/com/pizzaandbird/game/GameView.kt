@@ -7,7 +7,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 
 /**
- * 게임 뷰: SurfaceView + 게임 스레드 (고정 가상 해상도 480x270).
+ * 게임 뷰: SurfaceView + 게임 스레드 (고정 가상 해상도 960x540).
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
