@@ -264,7 +264,30 @@ class TitleScene(game: Game) : Scene(game) {
 }
 
 /** 스폰 위치 종류 */
-enum class SpawnKind { SAVED, TUNNEL, HOME }
+enum class SpawnKind { SAVED, TUNNEL, HOME, FAST }
+
+/**
+ * 메인 퀘스트 자동 진행 — 지정 지역으로 빨리 이동한다.
+ *
+ * 일반 이동은 터널 경유지만, 메인 퀘스트를 누르면 "어디로 가야 하는지 모르겠는"
+ * 플레이어의 짐을 덜어 주기 위해 자전거를 타고(페이드 + 바람 SFX) 해당 지역
+ * 중앙 광장 — 보리 박사 바로 옆 — 에 도착한다.
+ */
+fun fastTravel(game: Game, regionId: String) {
+    val target = Regions.byId[regionId] ?: return
+    val s = game.state
+    if (s.region == target.id && !s.inHome) return
+    s.inHome = false
+    s.onBike = false      // 도착 후 바로 촬영할 수 있게(자전거는 새를 놀라게 하므로)
+    s.px = 0f
+    s.py = 0f             // WorldScene init 가 실제 스폰 좌표로 다시 쓴다
+    game.audio.stopSteps()
+    game.sfx(Audio.Sfx.WHOOSH, 0.85f)
+    game.fadeTo {
+        game.scene = WorldScene(game, target.id, SpawnKind.FAST)
+        SaveManager.save(game.context, game.state)   // 즉시 영속 — 강제 종료해도 못 간다
+    }
+}
 
 /** 첫 플레이 시 아바타 선택 화면. 카드는 가상 캔버스(화면비 적응), 버튼은 실제 화면 좌표로 그린다. */
 class CharacterSelectScene(game: Game) : Scene(game) {
@@ -290,9 +313,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val t1 = Type.paintPx(30f, true, 0.05f, Type.BROWN)
         val s1 = "여행할 캐릭터를 골라 주세요"
         c.drawText(s1, cx - t1.measureText(s1) / 2f, 115f, t1)
-        val t2 = Type.paintPx(16f, false, 0f, Type.SOFT)
-        val s2 = "선택한 캐릭터는 게임 내내 함께 여행해요"
-        c.drawText(s2, cx - t2.measureText(s2) / 2f, 145f, t2)
         fun card(r: RectF, label: String, selected: Boolean, bmp: android.graphics.Bitmap) {
             p.color = if (selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt()
             c.drawRoundRect(r, 18f, 18f, p)
@@ -309,9 +329,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val femaleIdle = game.assets.playerSet("female", 0).idle
         card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
         card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
-        val t3 = Type.paintPx(15f, false, 0f, Type.SOFT)
-        val s3 = "캐릭터를 탭해서 선택한 뒤 계속하기를 누르세요"
-        c.drawText(s3, cx - t3.measureText(s3) / 2f, 448f, t3)
     }
 
     override fun drawHud(c: Canvas) {
