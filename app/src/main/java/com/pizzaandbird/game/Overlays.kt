@@ -3963,6 +3963,15 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
     private fun sx(nx: Float) = offX + nx * scale
     private fun sy(ny: Float) = offY + ny * scale
 
+    /**
+     * 지역 마커 = 랜드마크 배지 지름. 각 지역마다 하나씩 놓인 랜드마크를
+     * 지도 위에서 크게 읽히도록 그린다 (확대할수록 더 커진다).
+     */
+    private fun landmarkBadgeSize(): Float {
+        val zoom = if (fitScale > 0f) (scale / fitScale).coerceAtLeast(1f) else 1f
+        return dp(scene, (22f + 7f * (zoom - 1f)).coerceAtMost(44f))
+    }
+
     private fun layout() {
         val g = scene.game
         val w = g.screenW.toFloat()
@@ -4005,7 +4014,8 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
     private fun regionAt(x: Float, y: Float): RegionDef? {
         var best: RegionDef? = null
-        var bestD = dp(scene, 26f)
+        // 랜드마크 배지 안쪽을 눌러야 고르도록 — 배지 크기에 맞춘다
+        var bestD = landmarkBadgeSize() / 2f + dp(scene, 14f)
         for (reg in Regions.ALL) {
             val dx = sx(reg.mmX) - x
             val dy = sy(reg.mmY) - y
@@ -4271,32 +4281,80 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val showAllNames = scale > fitScale * 1.5f
         // 메인 퀘스트 자동 진행 — 추천 지역 위에 금색 ★ 표시
         val mainAdv = MainQuestAdvisor.advise(s)
+        // 1차: 랜드마크 배지만 — 뒤 지역이 앞 지역 라벨을 덮지 않도록 배지를 먼저 깐다
         for (reg in Regions.ALL) {
             val x = sx(reg.mmX)
             val y = sy(reg.mmY)
-            val outside = x < mapR.left - dp(scene, 40f) || x > mapR.right + dp(scene, 40f) ||
-                    y < mapR.top - dp(scene, 40f) || y > mapR.bottom + dp(scene, 40f)
+            val outside = x < mapR.left - dp(scene, 56f) || x > mapR.right + dp(scene, 56f) ||
+                    y < mapR.top - dp(scene, 56f) || y > mapR.bottom + dp(scene, 56f)
             if (outside) continue
 
             val visited = reg.id in s.visited
             val isCurrent = reg.id == s.region
-            val hasOwnedHome = s.ownsHome(reg.id)
-            val r = dp(scene, if (isCurrent) 8f else 6f)
+            val lm = Landmarks.forRegion(reg.id)
+            val bd = landmarkBadgeSize()
+            val r = bd / 2f
 
             if (isCurrent) {
                 strokeP.color = Color.argb(150, 226, 87, 76)
                 strokeP.strokeWidth = dp(scene, 2f)
                 c.drawCircle(x, y, r + dp(scene, 4f) + dp(scene, 2f) * sin(g.time * 4f), strokeP)
             }
-            fillP.color = when {
-                isCurrent -> 0xFFE2574C.toInt()
-                visited -> reg.kind.color
-                else -> Color.argb(150, 120, 116, 108)
+
+            if (lm != null) {
+                // 각 지역마다 하나씩 세운 랜드마크 — 배지에 담아 크게 표현한다
+                fillP.color = Color.argb(66, 30, 22, 12)
+                c.drawCircle(x, y + dp(scene, 2f), r, fillP)
+                fillP.color = if (visited) 0xFFFFF8E8.toInt() else 0xFFE7E2D6.toInt()
+                c.drawCircle(x, y, r, fillP)
+                // 지역 성격 링 (선택 시 진한 갈색 테두리로 강조)
+                strokeP.color = when {
+                    selected?.id == reg.id -> 0xFF4A3728.toInt()
+                    visited -> reg.kind.color
+                    else -> Color.argb(235, 158, 154, 144)
+                }
+                strokeP.strokeWidth = dp(scene, if (visited) 2.2f else 1.8f)
+                c.drawCircle(x, y, r - strokeP.strokeWidth / 2f, strokeP)
+                // 랜드마크 아이콘
+                UiKit.iconCenter(c, g, lm.emoji, x, y, bd * 0.68f)
+                // 미방문은 흐리게 — 방문해야 제 모습을 드러낸다
+                if (!visited) {
+                    fillP.color = Color.argb(105, 74, 70, 62)
+                    c.drawCircle(x, y, r, fillP)
+                }
+            } else {
+                // (랜드마크 없는 지역 — 예전 점 마커 유지)
+                fillP.color = when {
+                    isCurrent -> 0xFFE2574C.toInt()
+                    visited -> reg.kind.color
+                    else -> Color.argb(150, 120, 116, 108)
+                }
+                c.drawCircle(x, y, r, fillP)
+                strokeP.color = if (selected?.id == reg.id) 0xFF4A3728.toInt() else Color.argb(220, 255, 255, 255)
+                strokeP.strokeWidth = dp(scene, if (selected?.id == reg.id) 2.6f else 1.4f)
+                c.drawCircle(x, y, r, strokeP)
             }
-            c.drawCircle(x, y, r, fillP)
-            strokeP.color = if (selected?.id == reg.id) 0xFF4A3728.toInt() else Color.argb(220, 255, 255, 255)
-            strokeP.strokeWidth = dp(scene, if (selected?.id == reg.id) 2.6f else 1.4f)
-            c.drawCircle(x, y, r, strokeP)
+
+            // 현재 위치 — 빨간 고리는 배지 바깥에 두어 아이콘을 가리지 않는다
+            if (isCurrent && lm != null) {
+                strokeP.color = 0xFFE2574C.toInt()
+                strokeP.strokeWidth = dp(scene, 2.4f)
+                c.drawCircle(x, y, r + dp(scene, 1.2f), strokeP)
+            }
+        }
+
+        // 2차: 라벨·집·별 — 배지 위에 얹어 어떤 지역이든 이름이 가리지 않게 한다
+        for (reg in Regions.ALL) {
+            val x = sx(reg.mmX)
+            val y = sy(reg.mmY)
+            val outside = x < mapR.left - dp(scene, 56f) || x > mapR.right + dp(scene, 56f) ||
+                    y < mapR.top - dp(scene, 56f) || y > mapR.bottom + dp(scene, 56f)
+            if (outside) continue
+
+            val visited = reg.id in s.visited
+            val isCurrent = reg.id == s.region
+            val hasOwnedHome = s.ownsHome(reg.id)
+            val r = landmarkBadgeSize() / 2f
 
             if (hasOwnedHome) {
                 textP.textSize = textDp(scene, 11f)
@@ -4312,7 +4370,8 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 c.drawCircle(x, y, r + dp(scene, 3f) + pulse * dp(scene, 7f), strokeP)
                 textP.textSize = dp(scene, 15f)
                 textP.color = 0xFF8A5A12.toInt()
-                UiKit.iconCenter(c, g, "star", x, y - r - dp(scene, 10f), dp(scene, 18f))
+                // 집 아이콘이랑 겹치지 않게 별은 더 위로
+                UiKit.iconCenter(c, g, "star", x, y - r - dp(scene, if (hasOwnedHome) 24f else 10f), dp(scene, 18f))
             }
 
             // 출구 번호 뱃지는 링크(터널) 위에만 표시 — 현재 지역 점 주변(마을 중앙)에는 그리지 않는다
