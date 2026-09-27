@@ -2430,7 +2430,7 @@ class Cat(var x: Float, var y: Float) {
     var pouncing = false
     var pounceCued = false
     var pounceT = 0f
-    /** 잡아먹거나 길이 막힌 뒤 잠시 쉬는 시간 */
+    /** 새를 놀라게 한 뒤나 길이 막힌 뒤 잠시 쉬는 시간 */
     var calmT = 0f
     /** 지금 노리는 새 (알림이 같은 새에 반복되지 않게) */
     var preyId: String? = null

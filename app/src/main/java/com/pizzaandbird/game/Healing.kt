@@ -50,7 +50,7 @@ object Healing {
         Herb("roseHip", "해당화 열매", "🌹", 0xFFD8505E.toInt(), Season.AUTUMN, "coast", 3, 5, "바닷바람을 맞고 자란 새콤한 열매"),
         Herb("yeongji", "영지버섯", "🍄", 0xFFB76B86.toInt(), Season.AUTUMN, "mountain", 5, 2, "발견만으로도 운이 좋은 것"),
         Herb("gondeure", "곤드레", "🌾", 0xFF6A8B5F.toInt(), Season.SUMMER, "mountain", 2, 9, "밥과 잘 어울려요"),
-        Herb("dongbaek", "동백꽃잎", "🌺", 0xFFD0425A.toInt(), Season.SPRING, "coast", 3, 3, "겨울 끝자락에 떨어져요"),
+        Herb("dongbaek", "동백꽃잎", "🌺", 0xFFD0425A.toInt(), Season.WINTER, "coast", 3, 3, "겨울 끝자락에 떨어져요"),
         Herb("buckwheat", "메밀꽃", "🤍", 0xFFF0ECD8.toInt(), Season.AUTUMN, "field", 2, 4, "하얗게 피어난 소금밭"),
         Herb("dandelion", "민들레 홀씨", "🌬", 0xFFF6F1C4.toInt(), null, "field", 1, 3, "불면 날아가요")
     )
@@ -70,20 +70,35 @@ object Healing {
     fun catTreats(state: GameState): Int = ensureState(state).optInt("treats", 0)
     fun catLove(state: GameState): Int = ensureState(state).optInt("catLove", 0)
 
-    fun feedCat(state: GameState): Boolean {
+    data class FeedResult(val fed: Boolean, val gift: Herb?)
+
+    fun feedCat(state: GameState): FeedResult {
         val h = ensureState(state)
         val t = h.optInt("treats", 0)
-        if (t <= 0) return false
+        if (t <= 0) return FeedResult(false, null)
         h.put("treats", t - 1)
         var love = h.optInt("catLove", 0)
         love = (love + 3 + (Math.random() * 4).toInt()).coerceAtMost(100)
         h.put("catLove", love)
+        // 35% 확률로 고양이가 작은 선물을 물어다 준다 — 실제 허브 아이템 지급
+        var gift: Herb? = null
         if (Math.random() < 0.35) {
-            state.luck = (state.luck + 1f).coerceAtMost(100f)
-            h.put("giftCat", h.optInt("giftCat", 0) + 1)
-            unlock(state, "cat_gift")
+            val season = state.season()
+            val candidates = HERBS.filter { it.season == null || it.season == season }
+            gift = candidates.randomOrNull()
+            if (gift != null) {
+                addHerb(state, gift.id)
+                h.put("giftCat", h.optInt("giftCat", 0) + 1)
+                unlock(state, "cat_gift")
+            }
         }
-        return true
+        return FeedResult(true, gift)
+    }
+
+    /** 고양이 때리기 등 친밀도가 깎이는 사건용 */
+    fun addCatLove(state: GameState, delta: Int) {
+        val h = ensureState(state)
+        h.put("catLove", (h.optInt("catLove", 0) + delta).coerceIn(0, 100))
     }
 
     fun catFollowLevel(state: GameState): Int = when {
@@ -345,8 +360,9 @@ object Healing {
         state.hunger = (state.hunger + best.hungerBonus).coerceIn(0f, 100f)
         state.luck = (state.luck + best.luckBonus).coerceIn(0f, 100f)
         unlock(state, "first_tea")
-        val tasted = HERBS.count { (map[it.id] ?: 0) > 0 || ensureState(state).optBoolean("tasted_${it.id}", false) }
+        // 맛본 기록을 먼저 남기고 센다 (마지막 한 개를 마셨을 때 누락되던 off-by-one 수정)
         ensureState(state).put("tasted_${best.id}", true)
+        val tasted = HERBS.count { (map[it.id] ?: 0) > 0 || ensureState(state).optBoolean("tasted_${it.id}", false) }
         if (tasted >= 10) unlock(state, "tea_variety")
         return best
     }
@@ -414,6 +430,17 @@ object Healing {
     fun bumpToday(state: GameState, key: String, delta: Int = 1) {
         val h = ensureState(state)
         h.put(key, h.optInt(key, 0) + delta)
+    }
+
+    /** 지금까지 직접 주운 허브 누적 (선물·보상 제외 — 채집 기념 판정용) */
+    fun totalHerbsPicked(state: GameState): Int = ensureState(state).optInt("herbsTotal", 0)
+
+    /** 자전거 주행 누적 — 3분(180초) 타면 장거리 라이더 해금 */
+    fun trackBikeRide(state: GameState, dt: Float) {
+        val h = ensureState(state)
+        val secs = h.optDouble("bikeSecs", 0.0) + dt.toDouble()
+        h.put("bikeSecs", secs)
+        if (secs >= 180.0) unlock(state, "bicycle_ride")
     }
 
     // -------------------------------------------------------------------

@@ -492,6 +492,12 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     }
 
     private fun sleepNow() {
+        // 이미 아침이면 잘 수 없다 — 같은 아침에 반복 수면으로 행운·간식을 무한정 받는 허점 방지
+        if (state.worldTime in 7.2f..12f) {
+            game.toast("밖이 환해요! 새를 보러 나가요 — 잠은 해 질 녘에…")
+            game.sfx(Audio.Sfx.FAIL, 0.4f)
+            return
+        }
         // 잠들기 전 오늘의 일기 작성
         val wName = state.weather().label
         val entry = Healing.writeToday(state, wName)

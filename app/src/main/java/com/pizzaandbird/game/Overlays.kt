@@ -591,6 +591,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             Triple("pin", "위치", "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}"),
             Triple("house", "주택", "${s.ownedHomes.size}채 · 인테리어 ${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}"),
             Triple("book", "도감", "${s.birdCounts.size}/${Birds.ALL.size}종"),
+            Triple("search", "의뢰", if (s.activeQuests.isEmpty()) "없음" else "${s.activeQuests.size}/3 · ${s.activeQuests.first().title}"),
             Triple("calendar", "플레이", timeStr),
             Triple("bike", "자전거", "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else "")),
             Triple("pizza", "피자", "${s.pizzaCount}개 · 화덕 ${s.pizzaCountOfKind(PizzaKind.OVEN)} · 일반 ${s.pizzaCountOfKind(PizzaKind.REGULAR)} · 장식 ${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}")
@@ -718,8 +719,13 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 74f), textP)
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
-        val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
-            ?: "서브 사진 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락"
+        val side = if (s.activeQuests.isEmpty()) {
+            "탐조 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락 (최대 3개)"
+        } else {
+            val first = s.activeQuests.first()
+            val extra = if (s.activeQuests.size > 1) " 외 ${s.activeQuests.size - 1}개" else ""
+            "탐조 의뢰(${s.activeQuests.size}/3): ${first.title}$extra"
+        }
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
         y = mainR.bottom + dp(scene, 7f)
 
@@ -1468,7 +1474,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val summaries = listOf(
             "🚶 ${String.format(java.util.Locale.US, "%.1f", stats.walkKm)} km  ·  🚲 ${String.format(java.util.Locale.US, "%.1f", stats.bikeKm)} km",
             "📷 ${stats.photos}장  ·  🐦 ${stats.discoveredSpecies}종  ·  🗺 ${stats.visitedRegions}/${Regions.ALL.size}곳",
-            "🍕 약 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
+            "🍕 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
         )
         var summaryY = top + dp(scene, 39f)
         for (line in summaries) {
@@ -2856,7 +2862,7 @@ class BakeOverlay(
         val tap = input.consumeTapScreen()
         when (step) {
             0 -> {
-                if (input.justB || input.justBack) { finished = true; return }
+                if (input.justB || input.justBack) { cancelBake(); return }
                 if (tap == null) return
                 // [P07] 하단 서브탭: 🍕 메뉴 / ✈ 특산
                 for ((r, special) in kindTabRects) {
@@ -2881,8 +2887,7 @@ class BakeOverlay(
                     }
                 }
                 if (cancelRect.contains(tap.x, tap.y)) {
-                    scene.game.sfx(Audio.Sfx.TAP, 0.5f)
-                    finished = true
+                    cancelBake()
                 }
             }
             1 -> {
@@ -2894,9 +2899,27 @@ class BakeOverlay(
         }
     }
 
+    /** 굽기 전 취소 — 도우는 아직 불에 들어가지 않았으니 결제금을 돌려준다 */
+    private fun cancelBake() {
+        val g = scene.game
+        if (dough.price > 0) {
+            g.state.money += dough.price
+            SaveManager.save(g.context, g.state)
+            g.toast("${dough.icon} ${dough.label} 취소 — ${won(dough.price)} 환불됐어요")
+        }
+        g.sfx(Audio.Sfx.TAP, 0.5f)
+        finished = true
+    }
+
     /** [P07] 굽기 시작 — 특산 재료는 재고를 먼저 소모하고, 없으면 막는다 */
     private fun startBake(tp: Ingredients.ToppingDef?, id: Int = -1) {
         val g = scene.game
+        // 가방이 가득이면 굽기 전에 막는다 — 재료만 날리고 피자를 잃는 일 방지
+        if (g.state.pizzaCount >= g.state.pizzaCapEff()) {
+            g.toast("피자 가방이 가득 찼어요! 먼저 한 판 먹고 오세요 🍕")
+            g.sfx(Audio.Sfx.FAIL, 0.55f)
+            return
+        }
         val selectedId = tp?.pizzaId ?: id
         if (!g.state.isPizzaUnlocked(selectedId)) {
             g.toast("🔒 아직 발견하지 못한 피자 레시피예요. 메인 이야기를 진행해 보세요!")
