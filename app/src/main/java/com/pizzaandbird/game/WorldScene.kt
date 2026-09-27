@@ -337,6 +337,8 @@ class WorldScene(
             }
             if (tooClose) continue
             birds.add(FieldBird(def, bx, by))
+            if (def.tier.star >= 3) game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+            if (state.questBird == def.id) game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
             return
         }
     }
@@ -875,17 +877,31 @@ class WorldScene(
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
             is FieldBird -> {
-                val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
+                val flying = e.state == 2
+                val bmp = if (flying) {
+                    val wingFrame = ((e.fleeT * 11f).toInt() and 1)
+                    a.birdFlight(e.def.id, wingFrame, e.faceLeft)
+                } else if (e.faceLeft) {
+                    a.bird(e.def.id)
+                } else {
+                    a.birdFlipped(e.def.id)
+                }
                 val bx = (e.x - camX) * WORLD_SCALE
                 val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
-                c.drawOval(
-                    RectF(
-                        bx + bmp.width * 0.1f, (e.cy - camY) * WORLD_SCALE + 6f,
-                        bx + bmp.width * 0.9f, (e.cy - camY) * WORLD_SCALE + 13f
-                    ),
-                    a.shadowPaint
-                )
-                if (e.state == 2) {
+                // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
+                if (!flying || e.fleeT < 0.32f) {
+                    val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
+                    val shadowCx = bx + bmp.width * 0.5f
+                    val shadowHalf = bmp.width * 0.4f * shadowK
+                    c.drawOval(
+                        RectF(
+                            shadowCx - shadowHalf, (e.cy - camY) * WORLD_SCALE + 7f,
+                            shadowCx + shadowHalf, (e.cy - camY) * WORLD_SCALE + 12f
+                        ),
+                        a.shadowPaint
+                    )
+                }
+                if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
                     a.sprPaint.alpha = alpha
                     c.drawBitmap(bmp, bx, by, a.sprPaint)
@@ -901,10 +917,10 @@ class WorldScene(
                     player.bike && player.facing == Dir.W -> a.bikeSideL
                     player.bike && player.facing == Dir.N -> a.bikeUp
                     player.bike && player.facing == Dir.S -> a.bikeDown
-                    player.facing == Dir.E -> a.playerSide[frame]
-                    player.facing == Dir.W -> a.playerSideL[frame]
-                    player.facing == Dir.N -> a.playerUp[frame]
-                    else -> a.playerDown[frame]
+                    player.facing == Dir.E -> if (state.gender == "female") a.femaleSide[frame] else a.playerSide[frame]
+                    player.facing == Dir.W -> if (state.gender == "female") a.femaleSideL[frame] else a.playerSideL[frame]
+                    player.facing == Dir.N -> if (state.gender == "female") a.femaleUp[frame] else a.playerUp[frame]
+                    else -> if (state.gender == "female") a.femaleDown[frame] else a.playerDown[frame]
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE
