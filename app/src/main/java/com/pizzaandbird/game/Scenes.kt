@@ -41,6 +41,18 @@ class TitleScene(game: Game) : Scene(game) {
     private var t = 0f
     private var startRect = RectF()
     private var contRect = RectF()
+    private val titlePaint = Paint()
+    private val skyBands = intArrayOf(
+        0xFF7FD4E8.toInt(), 0xFF8FDCEA.toInt(), 0xFFA4E4EE.toInt(),
+        0xFFBCEAF0.toInt(), 0xFFD4F2EC.toInt()
+    )
+    private val decoSpots = arrayOf(
+        1 to 13, 5 to 14, 9 to 13, 14 to 15, 18 to 13, 22 to 14, 26 to 13, 28 to 15,
+        3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16,
+        31 to 13, 34 to 15, 37 to 14, 40 to 16
+    )
+    private val treeFractions = floatArrayOf(0.0625f, 0.3125f, 0.5833f, 0.8542f)
+    private val ovenBounds = RectF()
 
     init {
         game.hud.showControls = false
@@ -59,17 +71,13 @@ class TitleScene(game: Game) : Scene(game) {
     }
 
     override fun drawWorld(c: Canvas) {
-        val p = Paint()
+        val p = titlePaint
         val a = game.assets
         val W = game.virtW.toFloat()          // 화면비 적응 가상 너비
         val ox = (W - 960f) / 2f              // 16:9 구도를 중앙 유지하기 위한 오프셋
         val span = W + 160f                   // 구름/새 반복 범위
 
         // 하늘 그라데이션(밴드)
-        val skyBands = intArrayOf(
-            0xFF7FD4E8.toInt(), 0xFF8FDCEA.toInt(), 0xFFA4E4EE.toInt(),
-            0xFFBCEAF0.toInt(), 0xFFD4F2EC.toInt()
-        )
         for (i in skyBands.indices) {
             p.color = skyBands[i]
             c.drawRect(0f, i * 76f, W, (i + 1) * 76f, p)
@@ -125,22 +133,19 @@ class TitleScene(game: Game) : Scene(game) {
             }
         }
         // 꽃/풀숲 포인트
-        val decoSpots = listOf(
-            1 to 13, 5 to 14, 9 to 13, 14 to 15, 18 to 13, 22 to 14, 26 to 13, 28 to 15,
-            3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16,
-            31 to 13, 34 to 15, 37 to 14, 40 to 16
-        ).filter { it.first < maxCol }
-        for ((i, pair) in decoSpots.withIndex()) {
-            val (col, row) = pair
-            val bmp = if (i % 3 == 2) tall[i % tall.size] else flowers[i % flowers.size]
+        var visibleSpotIndex = 0
+        for (i in decoSpots.indices) {
+            val (col, row) = decoSpots[i]
+            if (col >= maxCol) continue
+            val bmp = if (visibleSpotIndex % 3 == 2) tall[visibleSpotIndex % tall.size] else flowers[visibleSpotIndex % flowers.size]
             c.drawBitmap(bmp, col * 32f, row * 32f, a.sprPaint)
+            visibleSpotIndex++
         }
 
         // 지평선 나무 (화면비에 따라 분포)
         val trees = a.tiles[T.TREE.ordinal]
-        val treeFx = listOf(0.0625f, 0.3125f, 0.5833f, 0.8542f)
-        for ((i, fx) in treeFx.withIndex()) {
-            c.drawBitmap(trees[i % trees.size], fx * W, 352f, a.sprPaint)
+        for (i in treeFractions.indices) {
+            c.drawBitmap(trees[i % trees.size], treeFractions[i] * W, 352f, a.sprPaint)
         }
         val pines = trees.size
         if (pines > 1) c.drawBitmap(trees[1], 0.719f * W, 356f, a.sprPaint)
@@ -151,7 +156,8 @@ class TitleScene(game: Game) : Scene(game) {
         c.drawBitmap(pz, 384f + ox, 336f + bob, a.sprPaint)
         p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
         c.drawCircle(658f + ox, 380f, 43f, p)
-        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f + ox, 334f, 696f + ox, 424f))
+        ovenBounds.set(620f + ox, 334f, 696f + ox, 424f)
+        game.illustrations.draw(c, "wood_fired_oven.svg", ovenBounds)
         val bird = a.bird("sparrow")
         c.drawBitmap(bird, 296f + ox, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
         val fb = sin(t * 2.6f + 1f) * 7f
