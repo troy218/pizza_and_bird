@@ -223,7 +223,12 @@ class WorldScene(
         state.px = player.x
         state.py = player.y
         state.onBike = player.bike
-        game.hud.questLabel = state.questBird?.let { "의뢰: ${Birds.byId[it]?.name ?: "?"} 사진" }
+        game.hud.questLabel = when {
+            state.questBird != null -> "서브: ${Birds.byId[state.questBird!!]?.name ?: "?"} 사진"
+            state.mainQuestFinished -> null
+            state.mainQuestStarted -> MainStory.current(state)?.let { "메인: ${it.title}" }
+            else -> "메인: 보리 박사를 만나기"
+        }
 
         saveT -= dt
         if (saveT <= 0f) {
@@ -704,18 +709,27 @@ class WorldScene(
         when (npc.kind) {
             NpcKind.PROFESSOR -> talkProfessor()
             NpcKind.SHOP -> talkShop()
-            NpcKind.VILLAGER -> openOverlay(
-                DialogOverlay(
-                    this, npc.name, "\"${map.region.villager}\"",
-                    listOf(DialogOverlay.Choice("안녕하세요!"))
-                )
-            )
+            NpcKind.VILLAGER -> {
+                val storyHint = when (state.mainQuestStage) {
+                    0, 1 -> "멀리 가기 전에도 창밖의 새부터 천천히 보면 좋아요."
+                    2 -> "숲에서 나무 구멍을 발견해도 가까이 들여다보면 안 돼요. 둥지일 수 있거든요."
+                    3 -> "물가 새는 건너편에서 봐도 충분히 아름다워요."
+                    4 -> "철새가 쉬는 곳에서는 무리 쪽으로 걷지 않는 게 이 동네 약속이에요."
+                    5 -> "갯벌에는 사람 눈에 안 보이는 새들의 식탁이 아주 많대요."
+                    else -> "희귀새 위치를 바로 퍼뜨리기 전에 새가 안전할지 한 번 생각해 주세요."
+                }
+                openOverlay(DialogOverlay(this, npc.name,
+                    "\"${map.region.villager}\n$storyHint\"",
+                    listOf(DialogOverlay.Choice("기억할게요"))))
+            }
             NpcKind.KID -> {
                 val lines = listOf(
                     "우와, 카메라 멋져요! 저도 크면 탐조할 거예요!",
                     "저기요, 저 새 이름 알아요? 어… 까먹었어요.",
                     "자전거 타면 빨리 가지만 금방 배고파져요!",
-                    "박사님이 뭔가 찾고 있었어요. 가보실래요?"
+                    "박사님이 낡은 새 수첩을 들고 찾고 있었어요. 가보실래요?",
+                    "새 둥지를 찾으면 비밀로 해 줘야 해요. 새끼가 놀라잖아요!",
+                    "저는 도감 숫자보다 새 이름을 하나 제대로 아는 게 더 좋아요."
                 )
                 openOverlay(
                     DialogOverlay(
@@ -729,7 +743,9 @@ class WorldScene(
                     "요즘 젊은이들은 참 부지런해요.",
                     "옛날엔 이 동네에 두루미가 많이 왔었지…",
                     "피자도 잘 먹고 다니게. 몸이 자본이야.",
-                    "해 지기 전에 들어가게. 밤엔 부엉이가 나온다네."
+                    "해 지기 전에 들어가게. 밤엔 부엉이가 나온다네.",
+                    "자네 할머니도 새를 많이 보려 하기보다 오래 보려 했지.",
+                    "귀한 새를 봤다면 발자국을 남기지 않는 게 가장 좋은 자랑이라네."
                 )
                 openOverlay(
                     DialogOverlay(
@@ -742,43 +758,121 @@ class WorldScene(
     }
 
     private fun talkProfessor() {
+        val main = MainStory.current(state)
+        val mainLabel = when {
+            state.mainQuestFinished -> "메인 이야기 (완료)"
+            !state.mainQuestStarted -> "메인 이야기 시작"
+            main?.isComplete(state) == true -> "메인 이야기 (보고!)"
+            else -> "메인 이야기"
+        }
+        val sideLabel = if (state.questBird == null) "사진 의뢰 받기" else "사진 의뢰 확인"
+        openOverlay(
+            DialogOverlay(
+                this, "보리 박사",
+                when {
+                    state.mainQuestFinished -> "\"우리의 지도는 완성됐지만 새들의 계절은 계속되지. 사진 의뢰도, 도장 깨기도 언제든 찾아오게.\""
+                    !state.mainQuestStarted -> "\"마침 잘 왔네. 자네 가족이 남긴 낡은 탐조 수첩에 관한 이야기가 있어. 물론 급한 일은 아니니 사진 의뢰부터 해도 좋고.\""
+                    else -> "\"메인 기록과 사진 의뢰는 서로 별개일세. 마음 가는 순서대로 천천히 하게.\""
+                },
+                buildList {
+                    add(DialogOverlay.Choice(mainLabel) { showMainStory() })
+                    add(DialogOverlay.Choice(sideLabel) { showSideQuest() })
+                    add(DialogOverlay.Choice("다음에 올게요"))
+                }
+            )
+        )
+    }
+
+    private fun showMainStory() {
+        if (state.mainQuestFinished) {
+            openOverlay(DialogOverlay(this, "함께 사는 지도",
+                "메인 퀘스트는 만렙에서 완결됐어요. 서브 의뢰와 컬렉션은 계속 자유롭게 즐길 수 있습니다."))
+            return
+        }
+        val chapter = MainStory.current(state) ?: return
+        val ready = chapter.isComplete(state)
+        val objective = chapter.objective(state)
+        openOverlay(
+            DialogOverlay(
+                this, chapter.title,
+                "\"${chapter.intro}\"\n\n목표: $objective" + if (ready) "\n✓ 기록을 정리할 준비가 됐어요." else "",
+                buildList {
+                    if (!state.mainQuestStarted) {
+                        add(DialogOverlay.Choice("수첩을 이어 쓸게요") { completeMainChapter(chapter) })
+                    } else if (ready) {
+                        add(DialogOverlay.Choice("기록을 보여드릴게요") { completeMainChapter(chapter) })
+                    } else {
+                        add(DialogOverlay.Choice("목표를 기억할게요"))
+                    }
+                    add(DialogOverlay.Choice("사진 의뢰 보기") { showSideQuest() })
+                }
+            )
+        )
+    }
+
+    private fun completeMainChapter(chapter: MainStory.Chapter) {
+        // 열린 대화 도중 상태가 바뀌었더라도 중복 보상은 지급하지 않는다.
+        if (MainStory.current(state) !== chapter) return
+        if (state.mainQuestStarted && !chapter.isComplete(state)) return
+        state.mainQuestStarted = true
+        state.money += chapter.rewardMoney
+        val levels = state.addExp(chapter.rewardExp)
+        state.mainQuestStage++
+        if (state.mainQuestStage >= MainStory.CHAPTERS.size) state.mainQuestFinished = true
+        SaveManager.save(game.context, state)
+        game.sfx(Audio.Sfx.REWARD, 0.9f)
+        val reward = buildString {
+            if (chapter.rewardMoney > 0) append("\n보상 ${won(chapter.rewardMoney)}")
+            if (chapter.rewardExp > 0) append(" · 경험치 +${chapter.rewardExp}")
+            if (levels > 0) append(" · 레벨 업!")
+        }
+        openOverlay(
+            DialogOverlay(
+                this, if (state.mainQuestFinished) "메인 퀘스트 완결" else "장 완료",
+                "\"${chapter.complete}\"$reward",
+                listOf(DialogOverlay.Choice(if (state.mainQuestFinished) "그래도 탐조는 계속된다" else "다음 장을 향해"))
+            )
+        )
+    }
+
+    /** 무작위 사진 의뢰는 메인 스토리 진행도와 무관하게 언제든 수락·포기할 수 있다. */
+    private fun showSideQuest() {
         val cur = state.questBird
         if (cur == null) {
-            val pool = Birds.poolFor(map.region, false)   // 의뢰는 언제든 찍을 수 있는 낮새 위주
+            val pool = Birds.poolFor(map.region, false)
             if (pool.isEmpty()) return
             val unphoto = pool.filter { (state.birdCounts[it.id] ?: 0) == 0 && it.tier.star <= 2 }
             val candidates = if (unphoto.isNotEmpty() && rnd.nextDouble() < 0.55) unphoto else pool
             val def = candidates[rnd.nextInt(candidates.size)]
             openOverlay(
                 DialogOverlay(
-                    this, "보리 박사",
-                    "\"반가워! 나는 조류학자 보리 박사네.\n이 지역에 ${def.name}가 나타났다는 소문이 있어.\n사진 한 장 부탁하네! 보수는 ${won(def.reward)}.\"",
+                    this, "보리 박사의 사진 의뢰",
+                    "\"이 지역에 ${def.name}가 나타났다는 소문이 있어.\n메인 기록과 상관없이 사진 한 장 부탁하네!\n보수는 ${won(def.reward)}.\"",
                     listOf(
                         DialogOverlay.Choice("맡겨주세요!") {
                             state.questBird = def.id
                             state.questReward = def.reward
                             SaveManager.save(game.context, state)
-                            game.toast("의뢰 접수: ${def.name} 사진 📷")
+                            game.toast("서브 의뢰 접수: ${def.name} 사진 📷")
                             game.sfx(Audio.Sfx.NOTIFY, 0.8f)
                         },
-                        DialogOverlay.Choice("다음에요…")
-                    )
+                        DialogOverlay.Choice("다른 일을 할게요"))
                 )
             )
         } else {
             val def = Birds.byId[cur]
             openOverlay(
                 DialogOverlay(
-                    this, "보리 박사",
-                    "\"아직 ${def?.name ?: "그 새"} 사진인가?\n카메라를 들고 조용히 다가가 보게.\n의뢰 포기는 아래 버튼으로 하게나.\"",
+                    this, "진행 중인 사진 의뢰",
+                    "\"아직 ${def?.name ?: "그 새"} 사진인가?\n시간 제한은 없으니 원하는 때에 찍어 오게.\n포기해도 메인 이야기에는 영향이 없네.\"",
                     listOf(
-                        DialogOverlay.Choice("열심히 찍어볼게요!"),
+                        DialogOverlay.Choice("계속할게요"),
                         DialogOverlay.Choice("의뢰 포기하기") {
                             state.questBird = null
                             state.questReward = 0
-                            game.toast("의뢰를 포기했어요…")
-                        }
-                    )
+                            SaveManager.save(game.context, state)
+                            game.toast("사진 의뢰를 포기했어요. 언제든 새 의뢰를 받을 수 있어요.")
+                        })
                 )
             )
         }
@@ -1017,16 +1111,20 @@ class WorldScene(
                     a.shadowPaint
                 )
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
-                // 의뢰 가능 표시
-                if (e.kind == NpcKind.PROFESSOR && state.questBird == null) {
-                    val bx = sx + 16f
-                    val by = sy - 12f
-                    bubbleFill.color = 0xFFF2D06B.toInt()
-                    c.drawCircle(bx, by, 9f, bubbleFill)
-                    c.drawCircle(bx, by, 9f, bubbleStroke)
-                    tinyPaint.textSize = 14f
-                    val tw = tinyPaint.measureText("!")
-                    c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
+                // 메인 보고 가능 또는 새 서브 의뢰가 있으면 느낌표 표시
+                if (e.kind == NpcKind.PROFESSOR) {
+                    val mainReady = !state.mainQuestFinished &&
+                        (!state.mainQuestStarted || MainStory.current(state)?.isComplete(state) == true)
+                    if (mainReady || state.questBird == null) {
+                        val bx = sx + 16f
+                        val by = sy - 12f
+                        bubbleFill.color = 0xFFF2D06B.toInt()
+                        c.drawCircle(bx, by, 9f, bubbleFill)
+                        c.drawCircle(bx, by, 9f, bubbleStroke)
+                        tinyPaint.textSize = 14f
+                        val tw = tinyPaint.measureText("!")
+                        c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
+                    }
                 }
             }
             is Cat -> {
