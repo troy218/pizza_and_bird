@@ -19,6 +19,8 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.StubText
 import android.view.KeyEvent
+import com.pizzaandbird.game.Ach
+import com.pizzaandbird.game.AchievementDetailOverlay
 import com.pizzaandbird.game.Assets
 import com.pizzaandbird.game.Backup
 import com.pizzaandbird.game.BackupOverlay
@@ -41,6 +43,7 @@ import com.pizzaandbird.game.RegionSelectScene
 import com.pizzaandbird.game.SaveManager
 import com.pizzaandbird.game.Scene
 import com.pizzaandbird.game.SpawnKind
+import com.pizzaandbird.game.StatsOverlay
 import com.pizzaandbird.game.T
 import com.pizzaandbird.game.TitleScene
 import com.pizzaandbird.game.WorldScene
@@ -372,6 +375,22 @@ object PreviewMain {
             setField(menu, "tab", tab)
             renderScreen(game, "17_menu_tab${i + 1}")
         }
+
+        // [P06] 업적의 상세 통계·해금 팝업·실제 tick 경유 토스트 캡처.
+        scene.closeOverlay()
+        scene.openOverlay(StatsOverlay(scene) {})
+        simulate(game, 0.25f)
+        renderScreen(game, "33_achievement_stats")
+        scene.closeOverlay()
+        scene.openOverlay(AchievementDetailOverlay(scene, Ach.ALL.first()) {})
+        renderScreen(game, "34_achievement_detail")
+        scene.closeOverlay()
+        getField<MutableList<*>>(game.hud, "messages").clear()
+        s.photos = 100
+        Thread.sleep(1_050L) // Ach.tick 의 1초 스로틀 다음에 shot_100 을 해금한다.
+        Ach.tick(game.scene as WorldScene, s)
+        game.hud.update(0.3f) // 토스트 등장 페이드
+        renderScreen(game, "35_achievement_unlock_toast")
 
         // 피자 굽기 (v0.4: 피자 12종 — 화덕/일반 계열)
         scene.closeOverlay()

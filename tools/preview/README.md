@@ -91,6 +91,24 @@ java -cp "tools/preview/out/classes-ui:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.UiOpacitySmoke
 ```
 
+### 업적 거리/저장 및 UI 스모크 테스트
+
+실제 `Ach.onMove`·`Ach.tick`으로 거리 업적 해금, `GameState` 무변경,
+`feat_stats_v1` 저장/재로딩을 확인하고, 메뉴 탭·통계 페이지·상세 팝업·목록 페이지 이동을 터치로 검증합니다.
+
+```bash
+PREVIEW_STUBS=$(find tools/preview/src -maxdepth 1 -name '*.kt' ! -name 'android_stubs_missing_*.kt')
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc $PREVIEW_STUBS tools/preview/achievement_smoke.kt \
+  tools/preview/achievement_ui_smoke.kt $SRCS \
+  -d tools/preview/out/classes-ach -jvm-target 17
+java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.AchievementSmoke
+java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.AchievementUiSmoke
+```
+
 ### 출력물
 
 | 파일 | 내용 |
@@ -103,7 +121,13 @@ java -cp "tools/preview/out/classes-ui:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 | `06~12_world_*.png` | 지역별 월드 (낮/노을/밤 포함) |
 | `13_photo_mode.png` | 카메라(탐조) 모드 |
 | `14~15_home_*.png` | 집 내부 (낮/밤) |
-| `16~27_*.png` | 대화/메뉴 4탭/피자 굽기 3단계/사진 결과/지도/장식 상점 |
+| `16_dialog.png` | 대화 |
+| `17_menu_tab1~8.png` | 메뉴 탭 (업적 포함) |
+| `21~27_*.png` | 피자 굽기 3단계/사진 결과/지도/장식 상점 |
+| `30~32_*.png` | 백업 코드 만들기/복원 |
+| `33_achievement_stats.png` | 업적 통계 상세 |
+| `34_achievement_detail.png` | 업적 상세 및 해금 날짜 |
+| `35_achievement_unlock_toast.png` | 실제 업적 해금 토스트 |
 
 > 게임 동작의 기준은 어디까지나 Kotlin 쪽 코드다. 이 파이프라인은 실제 코드를
 > 실행하므로 화면은 실기기와 동일한 알고리즘으로 그려진다.
