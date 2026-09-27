@@ -443,11 +443,13 @@ app/src/main/java/com/pizzaandbird/game/
 ├── Viewfinder.kt        카메라 뷰파인더 (프레임·비네트·AF 박스·거리 게이지·셔터 연출)
 ├── HomeScene.kt         집 내부 (화덕=화덕피자·오븐=일반 피자·침대·인테리어 4종·이사·장식 8칸)
 ├── Hud.kt               스탯 바(배고픔/행운/돈/시각·날씨·레벨) + 황동 나침반 미니맵 + 아날로그 조이스틱(v0.4.1 디자인)/육각·아크 버튼
+├── PizzaSlices.kt       피자 "한 조각" 일러스트 20종 로더 — `assets/pizza_slices/*.svg` (피자 팔레트와 1:1)
 └── Overlays.kt          대화상자 / 메뉴 6탭(피자 탭은 화덕·일반 서브탭) / 피자 굽기 3단계 / 카메라 상점·장비 가방 / 장식 상점 / 자전거 상점(모델·도색·부속품) / 폴라로이드 사진 결과 / 확대 가능한 전국 지도
 
 tools/make_icons.py      런처 아이콘 생성 (갤럭시 스쿼클 적응형, 순수 Python, 의존성 0)
 tools/build_fonts.py     내장 글꼴(주아·고운돋움) 서브셋 생성 — assets/font 갱신
 tools/generate_bird_checklist.py  공식 조류목록 Kotlin 데이터 생성
+tools/gen_pizza_slices.py    피자 "한 조각" 일러스트 20종 생성 → assets/pizza_slices/ 갱신 (`--preview` 로 검수 시트 이미지)
 tools/MapTest.kt         맵 로직 검증 스크립트 (144개 맵 조합 + 길 연결성 자동 테스트)
 tools/preview/           미리보기 (길 디자인 · 캐릭터 애니메이션 시트/GIF — tools/preview/README.md)
 tools/preview_viewfinder.py  뷰파인더/인화 프리뷰 이미지 생성 (게임 코드 영향 없음)
@@ -533,7 +535,7 @@ tools/typecheck.sh       안드로이드 SDK 없이 Kotlin 소스만 빠르게 �
 ### 콘텐츠 추가 방법
 - **새 목록 갱신**: `한반도_조류_전체목록_2025.txt` 갱신 후 `python3 tools/generate_bird_checklist.py` 실행 → `Birds.ALL`/도감/스폰/박사 의뢰에 자동 반영 (`active = "night"`로 밤새 지정 가능)
 - **지역 추가**: `Regions.ALL` + `LINKS`에 연결 추가 → 맵은 절차 생성 (지역당 각 방향 최대 1개 터널)
-- **피자 종류**: `Pizzas.ALL`에 `PizzaDef`를 추가 (`kind`로 화덕피자/일반 피자 지정, id는 세이브 인덱스이므로 **끝에만 추가**). 아이콘은 바탕색·토핑색 2가지만 적으면 계열별 템플릿으로 자동 생성
+- **피자 종류**: `Pizzas.ALL`에 `PizzaDef`를 추가 (`kind`로 화덕피자/일반 피자 지정, id는 세이브 인덱스이므로 **끝에만 추가**). 아이콘은 바탕색·토핑색 2가지만 적으면 계열별 템플릿으로 자동 생성. **"한 조각" 일러스트**는 `python3 tools/gen_pizza_slices.py` 로 다시 만들면 `assets/pizza_slices/` 가 20종 전부 갱신된다 (`--preview` 를 붙이면 `art/preview/pizza_slices.png` 검수 이미지까지 생성)
 - **장식 소품**: `Decors.ALL`에 id를 추가하고 `Assets.buildDecorArt`에 같은 순서의 32px 아트를 추가. 컬렉션 보너스는 `Decors.SETS`에서 정의
 - **카메라 장비**: `Cameras.kt`의 `CameraGear.COMPACTS / BODIES / LENSES / TELECONVS / ACCESSORIES`에 항목 추가 → 상점·장비 가방·아이콘·인게임 스프라이트에 자동 반영 (`CamLook`으로 생김새 지정)
 - **새 동네 사람**: `NpcRoster.kt`의 `CAST`에 `NpcPerson`(이름·별명·지역 id·`NpcLook`·`NpcSpot`·대사·이모트)을 추가

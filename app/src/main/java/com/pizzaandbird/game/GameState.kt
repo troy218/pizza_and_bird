@@ -162,22 +162,25 @@ class GameState {
     }
 
     /**
-     * 아무 피자나 가장 좋은 것부터 먹기 (먹은 피자 id 반환, 없으면 null).
-     * 같은 품질이면 배고픔 회복이 큰 피자를 먼저 먹는다 (간식 버튼용).
+     * 지금 당장 먹게 될 피자 id — **먹지 않고 보기만** 한다 (없으면 null).
+     * 간식(HUD) 버튼에 "이 조각을 먹게 된다"는 그림을 띄우는 데 쓴다.
      */
-    fun eatBest(): Int? {
+    fun bestPizzaId(): Int? {
         for (q in 2 downTo 0) {
             var best: PizzaDef? = null
             for (p in Pizzas.ALL) {
                 if (pizzas[pizzaIdx(p.id, q)] > 0 && (best == null || p.hungerBonus > best.hungerBonus)) best = p
             }
-            if (best != null) {
-                eat(best.id)
-                return best.id
-            }
+            if (best != null) return best.id
         }
         return null
     }
+
+    /**
+     * 아무 피자나 가장 좋은 것부터 먹기 (먹은 피자 id 반환, 없으면 null).
+     * 같은 품질이면 배고픔 회복이 큰 피자를 먼저 먹는다 (간식 버튼용).
+     */
+    fun eatBest(): Int? = bestPizzaId()?.also { eat(it) }
 
     // ------------------ 카메라 장비 ------------------
 

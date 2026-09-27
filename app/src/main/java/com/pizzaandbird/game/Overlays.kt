@@ -104,14 +104,6 @@ private fun drawStationArt(c: Canvas, scene: Scene, kind: PizzaKind, bounds: Rec
     }
 }
 
-/** 피자 아이콘을 폭 w에 맞춰 (비율 유지) 그린다 */
-private fun drawPizzaArt(c: Canvas, scene: Scene, pizzaId: Int, cx: Float, cy: Float, w: Float) {
-    val a = scene.game.assets
-    val bmp = a.pizzaArt(pizzaId)
-    val h = w * bmp.height / bmp.width
-    c.drawBitmap(bmp, null, RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f), a.sprPaint)
-}
-
 // ---------------------------------------------------------------------------
 // 대화 상자
 // ---------------------------------------------------------------------------
@@ -1061,13 +1053,15 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             cuteCard(c, r, if (total > 0) UiKit.lighten(kind.tint, 84) else UiKit.CARD_HI,
                 if (total > 0) kind.tint else UiKit.BROWN_LINE, if (total > 0) 2f else 1.5f, stitched = cellH >= dp(scene, 44f))
 
-            // 피자 아이콘 (종류별) — 칸이 크면 피자도 크게, 보유 중이면 접시 후광
+            // 피자 "한 조각" 일러스트 (종류별 색) — 칸이 크면 조각도 크게, 보유 중이면 접시 후광
             val artW = minOf(dp(scene, 60f), cellH - dp(scene, 12f)).coerceAtLeast(dp(scene, 30f))
+            val artSz = minOf(artW, (cellH - dp(scene, 12f)).coerceAtLeast(dp(scene, 24f)))
+            val artCx = r.left + dp(scene, 8f) + artW / 2f
             if (total > 0) {
                 fillP.color = Color.argb(70, 255, 255, 255)
-                c.drawCircle(r.left + dp(scene, 8f) + artW / 2f, r.centerY(), artW * 0.56f, fillP)
+                c.drawCircle(artCx, r.centerY(), artSz * 0.62f, fillP)
             }
-            drawPizzaArt(c, scene, p.id, r.left + dp(scene, 8f) + artW / 2f, r.centerY(), artW)
+            PizzaSlices.drawAt(c, g, p.id, artCx, r.centerY(), artSz)
 
             val tx = r.left + dp(scene, 8f) + artW + dp(scene, 8f)
             val btnW = dp(scene, 58f)
@@ -3027,9 +3021,9 @@ class BakeOverlay(
                     )
                     UiKit.card(c, g, cr, 10f, spec, kind.tint, 2f)
 
-                    // 아이콘 (왼쪽) + 이름/효과/난이도 (오른쪽)
+                    // 아이콘 (왼쪽) — 피자 "한 조각" 일러스트 + 이름/효과/난이도 (오른쪽)
                     val isz = minOf(dp(scene, 36f), cardH - dp(scene, 14f))
-                    drawPizzaArt(c, scene, p.id, cr.left + dp(scene, 8f) + isz / 2f, cr.centerY(), isz)
+                    PizzaSlices.drawAt(c, g, p.id, cr.left + dp(scene, 8f) + isz / 2f, cr.centerY(), isz)
                     val tx = cr.left + dp(scene, 8f) + isz + dp(scene, 6f)
                     val textW = cr.right - dp(scene, 6f) - tx
                     // 보유 수 배지 (오른쪽 위) — [P07] 특산은 "✈ 특산" 뱃지
@@ -3130,6 +3124,11 @@ class BakeOverlay(
                     (if (at != null) " · ${at.icon} 재료" else "")
                 drawFitText(c, scene, sub, r.centerX() - minOf(textP.measureText(sub), r.width() - dp(scene, 24f)) / 2,
                     r.top + dp(scene, 41f), r.width() - dp(scene, 24f), 9.5f)
+
+                // 굽고 있는 피자 "한 조각" — 게이지 위 빈 자리에 크게 띄워
+                // 어떤 피자를 굽는지 색으로 바로 보이게 한다 (게이지 커서 삼각형 윗부분과 겹치지 않는 높이)
+                val sliceSz = minOf(dp(scene, 50f), r.width() * 0.28f)
+                PizzaSlices.drawAt(c, g, p.id, r.centerX(), r.top + dp(scene, 70f), sliceSz)
 
                 // 게이지 — 글로스 + 걸작존 글로우 + 프리미엄 커서
                 val gx = r.left + dp(scene, 26f)

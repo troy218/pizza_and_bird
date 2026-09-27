@@ -902,9 +902,15 @@ class Hud(private val game: Game) {
             if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (pizzaN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
             Ctrl.EAT in active
         )
-        val pz = game.assets.pizzaIcon
-        val psz = dp(20f)
-        c.drawBitmap(pz, null, RectF(eatCx - psz / 2, eatCy - psz / 2, eatCx + psz / 2, eatCy + psz / 2), game.assets.sprPaint)
+        // 먹게 될 피자가 있으면 그 피자의 "한 조각"을, 없으면 기본 피자 아이콘
+        val nextPizza = if (pizzaN > 0) game.state.bestPizzaId() else null
+        val psz = dp(if (nextPizza != null) 22f else 20f)
+        if (nextPizza != null) {
+            PizzaSlices.drawAt(c, game, nextPizza, eatCx, eatCy, psz)
+        } else {
+            val pz = game.assets.pizzaIcon
+            c.drawBitmap(pz, null, RectF(eatCx - psz / 2, eatCy - psz / 2, eatCx + psz / 2, eatCy + psz / 2), game.assets.sprPaint)
+        }
         if (pizzaN > 0) {
             val bx = eatCx + eatR * 0.62f
             val by = eatCy - eatR * 0.62f
