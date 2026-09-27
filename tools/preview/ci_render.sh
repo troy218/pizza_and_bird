@@ -31,13 +31,15 @@ fi
 
 # ---------------------------------------------------------------- kotlinc
 KC="tools/preview/.kotlinc"
-if [ ! -x "$KC/bin/kotlinc" ]; then
+KCBIN="$KC/kotlinc/bin/kotlinc"
+if [ ! -x "$KCBIN" ]; then
   echo ">> kotlin 컴파일러 다운로드 중..." >> preview/build.log
   rm -rf "$KC"
   mkdir -p "$KC"
   if curl -fsSL --retry 3 -o /tmp/kc.zip \
       https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip; then
-    unzip -q /tmp/kc.zip -d "$KC" && rm -f /tmp/kc.zip
+    unzip -q /tmp/kc.zip -d "$KC" && rm -f /tmp/kc.zip \
+      || echo "ERROR: kotlinc 압축 해제 실패" >> preview/build.log
   else
     echo "ERROR: kotlinc 다운로드 실패" >> preview/build.log
   fi
@@ -45,24 +47,27 @@ fi
 
 # ---------------------------------------------------------------- fonts
 mkdir -p tools/preview/fonts
-for f in NotoSansKR-Regular.ttf NotoSansKR-Bold.ttf; do
-  if [ ! -s "tools/preview/fonts/$f" ]; then
-    curl -fsSL --retry 3 -o "tools/preview/fonts/$f" \
-      "https://notofonts.github.io/korean/fonts/NotoSansKR/hinted/ttf/$f" \
-      || echo "WARN: 폰트 다운로드 실패 ($f)" >> preview/build.log
-  fi
-done
+if [ ! -s "tools/preview/fonts/NotoSansKR-Regular.ttf" ] || [ ! -s "tools/preview/fonts/NotoSansKR-Bold.ttf" ]; then
+  curl -fsSL --retry 3 -o /tmp/font.tgz \
+    "https://registry.npmjs.org/@expo-google-fonts/noto-sans-kr/-/noto-sans-kr-0.4.3.tgz" \
+    && tar xzf /tmp/font.tgz -C tools/preview/fonts --strip-components=1 \
+        package/NotoSansKR_400Regular.ttf package/NotoSansKR_700Bold.ttf \
+    && mv -f tools/preview/fonts/NotoSansKR_400Regular.ttf tools/preview/fonts/NotoSansKR-Regular.ttf \
+    && mv -f tools/preview/fonts/NotoSansKR_700Bold.ttf tools/preview/fonts/NotoSansKR-Bold.ttf \
+    && rm -f /tmp/font.tgz \
+    || echo "WARN: 폰트 다운로드 실패 (npm @expo-google-fonts/noto-sans-kr)" >> preview/build.log
+fi
 
 # ---------------------------------------------------------------- compile & render
 STATUS="ok"
-if [ -x "$KC/bin/kotlinc" ]; then
+if [ -x "$KCBIN" ]; then
   SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
     ! -name 'MainActivity.kt' ! -name 'GameView.kt')
   echo ">> 프리뷰 컴파일 (게임 소스 + 스텁)..." >> preview/build.log
-  if "$KC/bin/kotlinc" tools/preview/src/*.kt $SRCS \
+  if "$KCBIN" tools/preview/src/*.kt $SRCS \
       -d "$OUT/classes-preview" -jvm-target 17 > "$OUT/render.log" 2>&1; then
     echo ">> 프리뷰 렌더링..." >> preview/build.log
-    if java -cp "$OUT/classes-preview:$KC/lib/kotlin-stdlib.jar" \
+    if java -cp "$OUT/classes-preview:$KC/kotlinc/lib/kotlin-stdlib.jar" \
       com.pizzaandbird.preview.PreviewMain "$OUT" >> "$OUT/render.log" 2>&1; then
       echo "$SHA" > "$OUT/.last_ok"
     else
