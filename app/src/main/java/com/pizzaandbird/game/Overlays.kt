@@ -2822,6 +2822,7 @@ class BakeOverlay(
 
     // [P07] 일반 메뉴는 기본 12종 — 특산 피자(id 12~19)는 아래 "✈ 특산" 탭에서만 고른다
     private val menu: List<PizzaDef> = Pizzas.ofKind(kind).filter { !Ingredients.isSpecial(it.id) }
+    private val availableMenu: List<PizzaDef> get() = menu.filter { scene.game.state.isPizzaUnlocked(it.id) }
 
     /** [P07] 지금 굽는 피자 (특산 탭에서 고르면 특산 피자) */
     private val def: PizzaDef get() = if (activeTopping != null) activeTopping!!.pizza else Pizzas.of(pizzaId)
@@ -2888,6 +2889,12 @@ class BakeOverlay(
     /** [P07] 굽기 시작 — 특산 재료는 재고를 먼저 소모하고, 없으면 막는다 */
     private fun startBake(tp: Ingredients.ToppingDef?, id: Int = -1) {
         val g = scene.game
+        val selectedId = tp?.pizzaId ?: id
+        if (!g.state.isPizzaUnlocked(selectedId)) {
+            g.toast("🔒 아직 발견하지 못한 피자 레시피예요. 메인 이야기를 진행해 보세요!")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
+            return
+        }
         if (tp != null) {
             if (!Ingredients.consume(g.context, tp.id)) {
                 g.toast("${tp.icon} ${tp.label} 재료가 없어요! 아래 '재료 사들이기'로 먼저 사 오세요 (${won(tp.price)})")
@@ -2993,8 +3000,13 @@ class BakeOverlay(
                 val gapY = dp(scene, 8f)
                 val top = r.top + dp(scene, 48f)
                 val bottomArea = r.bottom - dp(scene, 62f)
-                val list = if (spec) listOf(tp!!.pizza) else menu
-                val rows = (list.size + cols - 1) / cols
+                val list = if (spec) listOf(tp!!.pizza) else availableMenu
+                if (list.isEmpty()) {
+                    textP.textSize = textDp(scene, 12f)
+                    textP.color = 0xFF8A7360.toInt()
+                    c.drawText("📖 메인 이야기를 진행하면 새 레시피를 발견해요!", r.left + dp(scene, 18f), r.centerY(), textP)
+                }
+                val rows = ((list.size + cols - 1) / cols).coerceAtLeast(1)
                 val cardW = (r.width() - dp(scene, 14f) * 2 - gapX * (cols - 1)) / cols
                 val cardH = (((bottomArea - top) - gapY * (rows - 1)) / rows).coerceAtMost(dp(scene, 96f))
                 // [P07] 행이 적으면(특산 1종) 세로 가운데로 — 윗공간만 비어 보이는 것 방지
@@ -3018,7 +3030,7 @@ class BakeOverlay(
                     val have = g.state.pizzaCountOf(p.id)
                     var badgeW = 0f
                     run {
-                        val badge = if (spec) "✈ 특산" else if (have > 0) "×$have" else null
+                        val badge = if (spec && !g.state.isPizzaUnlocked(p.id)) "🔒 이야기 해금" else if (spec) "✈ 특산" else if (have > 0) "×$have" else null
                         if (badge != null) {
                             textP.textSize = textDp(scene, 9f)
                             badgeW = textP.measureText(badge) + dp(scene, 10f)
@@ -3038,7 +3050,7 @@ class BakeOverlay(
                     c.drawText(dLabel, tx, cr.top + dp(scene, 44f), textP)
                     textP.color = 0xFFE8830C.toInt()
                     c.drawText(p.difficultyDots(), tx + textP.measureText(dLabel), cr.top + dp(scene, 44f), textP)
-                    if (spec) specialRects.add(cr to 0) else menuRects.add(cr to p.id)
+                    if (spec) { if (g.state.isPizzaUnlocked(p.id)) specialRects.add(cr to 0) } else menuRects.add(cr to p.id)
                 }
 
                 // [P07] 특산 탭 — 카드 옆에 팬트리(재료 사들이기) 패널
@@ -3061,7 +3073,7 @@ class BakeOverlay(
                     specialRects.add(br to 1)
                     textP.textSize = dp(scene, 9f)
                     textP.color = if (stock > 0) 0xFF4E8A4E.toInt() else 0xFF8A7360.toInt()
-                    val useTxt = if (stock > 0) "왼쪽 카드를 탭하면 재료 1개 사용!" else "재료가 있어야 구울 수 있어요"
+                    val useTxt = if (!g.state.isPizzaUnlocked(tp.pizzaId)) "메인 이야기를 진행하면 레시피 해금!" else if (stock > 0) "왼쪽 카드를 탭하면 재료 1개 사용!" else "재료가 있어야 구울 수 있어요"
                     c.drawText(useTxt, br.right + dp(scene, 10f), pr.bottom - dp(scene, 18f), textP)
                     textP.textSize = dp(scene, 9f)
                     textP.color = 0xFF8A7360.toInt()
