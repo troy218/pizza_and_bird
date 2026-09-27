@@ -25,6 +25,7 @@ class HomeScene(game: Game) : Scene(game) {
         textSize = 14f
     }
     private val uiFill = Paint()
+    private val glowFill = Paint().apply { isAntiAlias = true }
 
     // 상호작용 대상 위치 (월드 px)
     private val ovenX = 10f * 16f
@@ -289,7 +290,7 @@ class HomeScene(game: Game) : Scene(game) {
         // 플레이어
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
-        c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+        c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
         val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
         val bmp = when (player.facing) {
             Dir.E -> a.playerSide[frame]
@@ -319,12 +320,23 @@ class HomeScene(game: Game) : Scene(game) {
                 val (tx, ty) = decorTiles[i]
                 val lx = (tx - camX) * WORLD_SCALE + 16f
                 val ly = (ty - camY) * WORLD_SCALE + 10f
-                uiFill.color = Color.argb(46, 255, 214, 120)
-                c.drawCircle(lx, ly, 26f, uiFill)
-                uiFill.color = Color.argb(28, 255, 214, 120)
-                c.drawCircle(lx, ly, 44f, uiFill)
+                glowFill.shader = android.graphics.RadialGradient(
+                    lx, ly, 46f,
+                    intArrayOf(
+                        Color.argb(64, 255, 216, 130),
+                        Color.argb(30, 255, 205, 115),
+                        Color.argb(0, 255, 196, 100)
+                    ),
+                    floatArrayOf(0f, 0.42f, 1f),
+                    android.graphics.Shader.TileMode.CLAMP
+                )
+                c.drawCircle(lx, ly, 46f, glowFill)
+                glowFill.shader = null
             }
         }
+
+        // 비네트
+        c.drawBitmap(a.vignette, null, RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()), a.sprPaint)
 
         // 가까운 상호작용 대상 힌트
         val near = nearestInteract()

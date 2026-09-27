@@ -3,9 +3,12 @@ package com.pizzaandbird.game
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
 import java.util.Random
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -46,7 +49,8 @@ class WorldScene(
     // 파티클
     private class Pt(
         var x: Float, var y: Float, var vx: Float, var vy: Float,
-        var life: Float, var max: Float, var col: Int, var size: Float, var sway: Boolean
+        var life: Float, var max: Float, var col: Int, var size: Float, var sway: Boolean,
+        var glow: Boolean = false
     )
 
     private val particles = ArrayList<Pt>()
@@ -69,6 +73,7 @@ class WorldScene(
         pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
     }
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
+    private val glowFill = Paint().apply { isAntiAlias = true }
     private val uiFill = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
@@ -418,9 +423,12 @@ class WorldScene(
     // 파티클
     // -------------------------------------------------------------------
 
-    private fun addParticle(x: Float, y: Float, vx: Float, vy: Float, life: Float, col: Int, size: Float, sway: Boolean) {
+    private fun addParticle(
+        x: Float, y: Float, vx: Float, vy: Float, life: Float, col: Int, size: Float,
+        sway: Boolean, glow: Boolean = false
+    ) {
         if (particles.size > 60) return
-        particles.add(Pt(x, y, vx, vy, life, life, col, size, sway))
+        particles.add(Pt(x, y, vx, vy, life, life, col, size, sway, glow))
     }
 
     private fun updateParticles(dt: Float) {
@@ -435,12 +443,18 @@ class WorldScene(
         }
     }
 
-    private fun ambientKind(): String = when {
-        region.id == "sokcho" || region.id == "jeju" -> "snow"
-        "coast" in region.habitats -> "sparkle"
-        "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
-        "forest" in region.habitats -> "leaf"
-        else -> "petal"
+    private fun ambientKind(): String {
+        if (state.isNight()) return when {
+            region.id == "sokcho" || region.id == "jeju" -> "snow"
+            "coast" in region.habitats -> "sparkle"
+            else -> "firefly"
+        }
+        return when {
+            region.id == "sokcho" || region.id == "jeju" -> "snow"
+            "coast" in region.habitats -> "sparkle"
+            "forest" in region.habitats -> "leaf"
+            else -> "petal"
+        }
     }
 
     private fun spawnAmbient(dt: Float) {
@@ -474,7 +488,7 @@ class WorldScene(
             "firefly" -> addParticle(
                 camX + rnd.nextFloat() * halfW * 2f, camY + rnd.nextFloat() * halfH * 2f,
                 (rnd.nextFloat() - 0.5f) * 8f, (rnd.nextFloat() - 0.5f) * 6f, 3f,
-                Color.argb(220, 247, 222, 96), 2.6f, true
+                Color.argb(230, 247, 222, 96), 2.6f, true, glow = true
             )
         }
     }
@@ -826,6 +840,7 @@ class WorldScene(
         drawParticles(c, camXv, camYv)
         drawDayNight(c)
         drawNightGlow(c, camXv, camYv)
+        drawVignette(c)
         if (photoMode) drawPhotoOverlay(c)
     }
 
@@ -851,10 +866,7 @@ class WorldScene(
                 val bob = if ((sin(game.time * 2.4f + e.tileX).toInt() % 2) == 0) -1.5f else 0f
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE + bob
-                c.drawOval(
-                    RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f),
-                    a.shadowPaint
-                )
+                c.drawBitmap(a.softShadow, null, RectF(sx + 2f, sy + 22f, sx + 30f, sy + 34f), a.sprPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 의뢰 가능 표시
                 if (e.kind == NpcKind.PROFESSOR && state.questBird == null) {
@@ -872,19 +884,20 @@ class WorldScene(
                 val bmp = if (e.faceLeft) a.catFrames[e.frame] else a.catFramesL[e.frame]
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
-                c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
+                c.drawBitmap(a.softShadow, null, RectF(sx + 2f, (e.cy - camY) * WORLD_SCALE + 3f, sx + 28f, (e.cy - camY) * WORLD_SCALE + 15f), a.sprPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
             is FieldBird -> {
                 val bmp = if (e.faceLeft) a.bird(e.def.id) else a.birdFlipped(e.def.id)
                 val bx = (e.x - camX) * WORLD_SCALE
                 val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
-                c.drawOval(
+                c.drawBitmap(
+                    a.softShadow, null,
                     RectF(
-                        bx + bmp.width * 0.1f, (e.cy - camY) * WORLD_SCALE + 6f,
-                        bx + bmp.width * 0.9f, (e.cy - camY) * WORLD_SCALE + 13f
+                        bx - 4f, (e.cy - camY) * WORLD_SCALE + 3f,
+                        bx + bmp.width + 4f, (e.cy - camY) * WORLD_SCALE + 15f
                     ),
-                    a.shadowPaint
+                    a.sprPaint
                 )
                 if (e.state == 2) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
@@ -909,7 +922,7 @@ class WorldScene(
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE
-                c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+                c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
             }
         }
@@ -929,13 +942,37 @@ class WorldScene(
     private fun drawParticles(c: Canvas, camXv: Float, camYv: Float) {
         for (p in particles) {
             val k = (p.life / p.max).coerceIn(0f, 1f)
+            val sx = p.x * WORLD_SCALE - camXv
+            val sy = p.y * WORLD_SCALE - camYv
+            if (p.glow) {
+                // 반딧불 후광 (서서히 깜빡임)
+                val pulse = 0.65f + 0.35f * sin((p.max - p.life) * 5f + p.x)
+                val ga = (56f * k * pulse).toInt().coerceIn(0, 255)
+                glowFill.shader = RadialGradient(
+                    sx + p.size / 2f, sy + p.size / 2f, p.size * 2.6f,
+                    intArrayOf(
+                        Color.argb(ga, Color.red(p.col), Color.green(p.col), Color.blue(p.col)),
+                        Color.argb(ga / 3, Color.red(p.col), Color.green(p.col), Color.blue(p.col)),
+                        Color.argb(0, Color.red(p.col), Color.green(p.col), Color.blue(p.col))
+                    ),
+                    floatArrayOf(0f, 0.45f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+                c.drawCircle(sx + p.size / 2f, sy + p.size / 2f, p.size * 2.6f, glowFill)
+                glowFill.shader = null
+            }
             uiFill.color = Color.argb(
                 (Color.alpha(p.col) * k).toInt().coerceIn(0, 255),
                 Color.red(p.col), Color.green(p.col), Color.blue(p.col)
             )
-            val sx = p.x * WORLD_SCALE - camXv
-            val sy = p.y * WORLD_SCALE - camYv
             c.drawRect(sx, sy, sx + p.size, sy + p.size, uiFill)
+            if (p.glow) {
+                uiFill.color = Color.argb(
+                    (230 * k).toInt().coerceIn(0, 255),
+                    255, 250, 220
+                )
+                c.drawRect(sx + p.size * 0.3f, sy + p.size * 0.3f, sx + p.size * 0.85f, sy + p.size * 0.85f, uiFill)
+            }
         }
     }
 
@@ -971,10 +1008,49 @@ class WorldScene(
     }
 
     private fun drawDayNight(c: Canvas) {
+        val vw = game.virtW.toFloat()
+        val vh = game.virtH.toFloat()
         val col = ambientColor()
-        if (Color.alpha(col) == 0) return
-        uiFill.color = col
-        c.drawRect(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat(), uiFill)
+        if (Color.alpha(col) != 0) {
+            // 기본 틴트 (상하 그라데이션 — 위쪽이 살짝 더 짙게)
+            val topC = Color.argb(
+                (Color.alpha(col) * 1.18f).toInt().coerceIn(0, 255),
+                Color.red(col) * 92 / 100, Color.green(col) * 92 / 100, Color.blue(col)
+            )
+            glowFill.shader = LinearGradient(
+                0f, 0f, 0f, vh,
+                topC, col,
+                Shader.TileMode.CLAMP
+            )
+            c.drawRect(0f, 0f, vw, vh, glowFill)
+            glowFill.shader = null
+        }
+        // 새벽/노을: 하늘에서 내려오는 따뜻한 빛줄기
+        val h = state.worldTime
+        val warm = when {
+            h >= 5.5f && h < 7.5f -> (1f - abs(h - 6.5f))          // 새벽
+            h >= 17f && h < 19f -> (1f - abs(h - 18f))              // 노을
+            else -> 0f
+        }
+        if (warm > 0.02f) {
+            val a = (52f * warm).toInt().coerceIn(0, 255)
+            glowFill.shader = LinearGradient(
+                0f, 0f, 0f, vh * 0.72f,
+                Color.argb(a, 255, 178, 96), Color.argb(0, 255, 178, 96),
+                Shader.TileMode.CLAMP
+            )
+            c.drawRect(0f, 0f, vw, vh, glowFill)
+            glowFill.shader = null
+        }
+    }
+
+    /** 비네트 — 화면 가장자리를 은은하게 어둡게 */
+    private fun drawVignette(c: Canvas) {
+        c.drawBitmap(
+            game.assets.vignette, null,
+            RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()),
+            vignettePaint
+        )
     }
 
     /** 밤 — 가로등/창문 은은한 빛 */
@@ -991,20 +1067,43 @@ class WorldScene(
                 val sx = x * 32f - camXv
                 val sy = y * 32f - camYv
                 if (tile == T.LAMP) {
-                    uiFill.color = Color.argb(46, 255, 214, 120)
-                    c.drawCircle(sx + 16f, sy + 8f, 15f, uiFill)
-                    uiFill.color = Color.argb(30, 255, 214, 120)
-                    c.drawCircle(sx + 16f, sy + 10f, 26f, uiFill)
-                    uiFill.color = Color.argb(16, 255, 214, 120)
-                    c.drawCircle(sx + 16f, sy + 12f, 38f, uiFill)
+                    lampGlow(c, sx + 16f, sy + 9f, 42f, 0.9f)
                 } else if (tile == T.HOUSE_WIN || tile == T.BLDG_WIN || tile == T.WALL_WIN) {
-                    uiFill.color = Color.argb(80, 255, 200, 110)
-                    c.drawRect(sx + 8f, sy + 8f, sx + 24f, sy + 24f, uiFill)
-                    uiFill.color = Color.argb(34, 255, 200, 110)
-                    c.drawRect(sx + 2f, sy + 2f, sx + 30f, sy + 30f, uiFill)
+                    glowFill.shader = LinearGradient(
+                        sx + 16f, sy + 6f, sx + 16f, sy + 30f,
+                        Color.argb(105, 255, 204, 118), Color.argb(18, 255, 204, 118),
+                        Shader.TileMode.CLAMP
+                    )
+                    c.drawRect(sx + 4f, sy + 4f, sx + 28f, sy + 30f, glowFill)
+                    glowFill.shader = null
+                    uiFill.color = Color.argb(120, 255, 214, 130)
+                    c.drawRect(sx + 9f, sy + 9f, sx + 23f, sy + 23f, uiFill)
+                    uiFill.color = Color.argb(50, 255, 214, 130)
+                    c.drawRect(sx + 5f, sy + 5f, sx + 27f, sy + 27f, uiFill)
                 }
             }
         }
+    }
+
+    /** 가로등 방사형 광원 */
+    private fun lampGlow(c: Canvas, cx: Float, cy: Float, radius: Float, strength: Float) {
+        val a1 = (70f * strength).toInt().coerceIn(0, 255)
+        val a2 = (34f * strength).toInt().coerceIn(0, 255)
+        glowFill.shader = RadialGradient(
+            cx, cy, radius,
+            intArrayOf(
+                Color.argb(a1, 255, 216, 130),
+                Color.argb(a2, 255, 205, 115),
+                Color.argb(0, 255, 196, 100)
+            ),
+            floatArrayOf(0f, 0.4f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        c.drawCircle(cx, cy, radius, glowFill)
+        glowFill.shader = null
+        // 랜턴 심지 강조
+        uiFill.color = Color.argb((110f * strength).toInt().coerceIn(0, 255), 255, 240, 190)
+        c.drawCircle(cx, cy - 3f, 6f, uiFill)
     }
 
     // -------------------------------------------------------------------
@@ -1069,5 +1168,12 @@ class WorldScene(
 
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
+    }
+
+    companion object {
+        private val vignettePaint = Paint().apply {
+            isAntiAlias = true
+            isFilterBitmap = true
+        }
     }
 }
