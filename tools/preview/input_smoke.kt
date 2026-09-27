@@ -69,12 +69,16 @@ object InputSmoke {
 
         // 모달이 떠 있으면 HUD A 버튼 위의 터치도 모달에만 전달되어야 한다.
         var modalTap: PointF? = null
+        var pressedUnderlyingA = false
         val modal = object : Overlay(world) {
-            override fun handleInput(input: Input) { modalTap = input.consumeTapScreen() }
+            override fun handleInput(input: Input) {
+                modalTap = input.consumeTapScreen()
+                pressedUnderlyingA = input.justA
+            }
         }
         world.openOverlay(modal)
         tap(g, g.hud.aCx, g.hud.aCy)
-        check(modalTap != null && !g.input.justA)
+        check(modalTap != null && !pressedUnderlyingA)
         world.closeOverlay()
 
         val mapOverlay = MapOverlay(world)
