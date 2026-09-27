@@ -86,13 +86,14 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         game.banner(landmark.name)
 
         game.audio.playBgm(R.raw.bgm_home)
-        game.audio.stopAmb()
+        applyIndoorAmbience()   // 비 오는 날엔 지붕 빗소리, 맑으면 창밖 계절 소리
     }
 
     override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        applyIndoorAmbience()
         if (overlay != null) {
             game.audio.stopSteps()
             updateRig(dt, 0f, 0f, Gait.IDLE)
