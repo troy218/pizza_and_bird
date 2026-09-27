@@ -1,5 +1,6 @@
 package com.pizzaandbird.game
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -347,6 +348,8 @@ class WorldScene(
         streaks.update(dt, velX, velY, viewRig.speedFx, game.virtW.toFloat(), game.virtH.toFloat())
 
         // 디테일 연출 & NPC 말풍선 (보이는 영역은 카메라 리그가 알려 준다)
+        // 화면 크기는 따로 등록한다 — 화면 공간 비/눈 입자가 월드 시야·줌에 끌려다니지 않게
+        fx.setScreen(game.virtW.toFloat(), game.virtH.toFloat())
         fx.update(
             dt, game.time, state.worldTime, viewRig.x, viewRig.y,
             viewRig.viewW, viewRig.viewH, player.cx, player.cy
@@ -797,17 +800,55 @@ class WorldScene(
                 if (hypot(b.x - bx, b.y - by) < 40f) { tooClose = true; break }
             }
             if (tooClose) continue
-            birds.add(FieldBird(def, bx, by))
-            if (def.tier.star >= 3) {
-                viewRig.punchZoom(0.03f)              // 희귀새 등장 — 숨을 죽이듯 살짝 당겨진다
-                game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
-                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
-            }
-            if (state.questBird == def.id) {
-                game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
-                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
-            }
+            val fieldBird = FieldBird(def, bx, by)
+            val firstPose = game.assets.birdPose(def.id, fieldBird.facing, fieldBird.renderPose)
+            fieldBird.sprW = (firstPose.width / WORLD_SCALE).toInt().coerceAtLeast(12)
+            fieldBird.sprH = (firstPose.height / WORLD_SCALE).toInt().coerceAtLeast(12)
+            // 커진 정밀 스프라이트도 기존 타일의 발 위치/중심에 정확히 착지시킨다.
+            fieldBird.x = bx + 8f - fieldBird.sprW / 2f
+            fieldBird.y = by + 9f - fieldBird.sprH
+            birds.add(fieldBird)
+            announceSpawn(def)
             return
+        }
+    }
+
+    /**
+     * 나타난 새의 등급(Tier)에 따라 알림 연출을 다르게 준다.
+     * 흔함일수록 조용하게, 희귀·전설일수록 화면·소리·문구가 점점 극적으로 커진다.
+     */
+    private fun announceSpawn(def: BirdDef) {
+        when (def.tier) {
+            Tier.COMMON -> {
+                // 흔한 새 — 주의를 끌지 않게 가벼운 지저귐만 (토스트 없음)
+                game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.45f)
+            }
+            Tier.UNCOMMON -> {
+                // 보통 새 — 짧은 토스트와 지저귐
+                game.toast("🐤 ${def.name} 발견 — ${def.tier.starText()}")
+                game.sfx(Audio.Sfx.BIRD_CHIRP2, 0.65f)
+                viewRig.punchZoom(0.015f)
+            }
+            Tier.RARE -> {
+                // 희귀새 — 숨을 죽이듯 화면이 살짝 당겨지고 알림음
+                viewRig.punchZoom(0.03f)
+                game.toast("✨ 조심하세요… 희귀한 ${def.name}가 나타났어요! ${def.tier.starText()}")
+                game.sfx(Audio.Sfx.NOTIFY, 0.8f)
+            }
+            Tier.LEGEND -> {
+                // 전설 — 배너 + 반짝 + 화면 당김/떨림으로 최대한 극적으로
+                viewRig.punchZoom(0.06f)
+                viewRig.shake(0.28f)
+                game.banner("🌟 전설의 ${def.name} 출현! 🌟")
+                game.toast("전설급 ${def.name} — 절대 놓치지 마세요! 📷 ${def.tier.starText()}")
+                game.sfx(Audio.Sfx.SPARKLE, 1f)
+                game.sfx(Audio.Sfx.NOTIFY, 0.9f)
+            }
+        }
+        if (state.questBird == def.id) {
+            game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+            // 흔함·보통이라 알림음이 약했다면 의뢰 알림음을 확실히 준다
+            if (def.tier.star < 3) game.sfx(Audio.Sfx.NOTIFY, 0.7f)
         }
     }
 
@@ -896,6 +937,33 @@ class WorldScene(
             viewRig.shake(0.22f)
         }
 
+        // 셔터 순간의 방향/자세와 현재 지형을 한 프레임으로 굳혀 사진집에 저장한다.
+        // 이후 새가 날아가거나 다른 지역으로 이동해도 이 사진은 그대로 남는다.
+        val photographedFacing = b.facing
+        val photographedPose = b.renderPose
+        val capturedPhoto = captureHabitatPhoto(b, photographedFacing, photographedPose)
+        val photoId = "${System.currentTimeMillis()}_${state.photos}"
+        val photoFile = PhotoArchive.save(game.context, photoId, capturedPhoto)
+        val photoRecord = BirdPhotoRecord(
+            id = photoId,
+            birdId = b.def.id,
+            stars = stars,
+            regionId = region.id,
+            day = state.day,
+            time = state.worldTime,
+            weatherId = state.weatherId,
+            facing = photographedFacing,
+            pose = photographedPose,
+            fileName = photoFile,
+            camera = rig.title,
+            distance = distTiles
+        )
+        state.photoAlbum.add(photoRecord)
+        while (state.photoAlbum.size > PhotoArchive.MAX_PHOTOS) {
+            val removed = state.photoAlbum.removeAt(0)
+            PhotoArchive.delete(game.context, removed.fileName)
+        }
+
         // 깃털 파티클
         for (i in 0 until 4) {
             addParticle(
@@ -927,9 +995,105 @@ class WorldScene(
             prevLevel = prevLevel,
             reachTiles = rig.reach,
             exif = rig.exifLine(dark),
-            notes = notes
+            notes = notes,
+            capturedPhoto = capturedPhoto,
+            birdFacing = photographedFacing,
+            birdPose = photographedPose
         )
         snapDelay = 0.15f
+    }
+
+    /**
+     * 로데오 스템피드식 기념사진: 피사체는 중앙에 크게, 셔터를 누른 실제 타일/도로/물가/
+     * 건물/나무는 그대로 배경에 담는다. 결과 비트맵은 사진집 파일로 보존된다.
+     */
+    private fun captureHabitatPhoto(b: FieldBird, facing: BirdFacing, pose: BirdPose): Bitmap {
+        val w = 720
+        val h = 405
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bitmap)
+        val p = Paint().apply { isAntiAlias = false }
+        val camPhotoX = b.cx * WORLD_SCALE - w * 0.5f
+        val camPhotoY = b.cy * WORLD_SCALE - h * 0.60f
+
+        c.drawColor(0xFF8FC9DF.toInt())
+        val hour = state.worldTime
+        val dl = daylight(hour)
+        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        map.draw(
+            c, game.assets, camPhotoX, camPhotoY, w, h, game.time,
+            sunDx = sunT * 20f,
+            sunLen = 11f + kotlin.math.abs(sunT) * 13f,
+            sunAlpha = (50f * dl * weather.shadowK).toInt()
+        )
+        fx.drawGround(c, camPhotoX, camPhotoY, w, h)
+        grass.draw(
+            c, game.assets, camPhotoX, camPhotoY, w.toFloat(), h.toFloat(),
+            b.cy * WORLD_SCALE, GrassField.LAYER_BACK
+        )
+
+        // 시간대와 날씨도 촬영 당시 모습으로 굳힌다.
+        val dark = state.darkness()
+        if (dark > 0.02f) {
+            p.color = Color.argb((dark * 142f).toInt().coerceIn(0, 142), 12, 20, 48)
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+        }
+        when (weather) {
+            Weather.CLOUDY -> {
+                p.color = Color.argb(35, 82, 91, 105); c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            }
+            Weather.RAIN -> {
+                p.color = Color.argb(34, 54, 72, 92); c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+                p.color = Color.argb(150, 205, 225, 240)
+                for (i in 0 until 92) {
+                    val x = ((i * 83 + b.def.birdNum * 17) % (w + 50)).toFloat() - 25f
+                    val y = ((i * 47 + state.day * 23) % h).toFloat()
+                    c.drawRect(x, y, x + 1.4f, y + 12f, p)
+                }
+            }
+            Weather.SNOW -> {
+                p.color = Color.argb(210, 250, 252, 255)
+                for (i in 0 until 74) {
+                    val x = ((i * 97 + b.def.birdNum * 13) % w).toFloat()
+                    val y = ((i * 53 + state.day * 29) % h).toFloat()
+                    val rr = 1.3f + (i % 4) * 0.55f
+                    c.drawCircle(x, y, rr, p)
+                }
+            }
+            Weather.WIND -> {
+                p.color = Color.argb(65, 238, 244, 242)
+                for (i in 0 until 9) {
+                    val y = 32f + i * 39f
+                    c.drawRect(30f + (i % 3) * 54f, y, 188f + (i % 3) * 54f, y + 1.2f, p)
+                }
+            }
+            else -> Unit
+        }
+
+        // 큰 피사체 아래에도 원래 지면이 충분히 보이도록 반투명 접지 그림자만 얹는다.
+        val subject = game.assets.birdPose(b.def.id, facing, pose)
+        val maxW = w * 0.43f
+        val maxH = h * 0.54f
+        val scale = minOf(maxW / subject.width, maxH / subject.height)
+        val sw = subject.width * scale
+        val sh = subject.height * scale
+        val sx = w / 2f - sw / 2f
+        val sy = h * 0.53f - sh / 2f
+        p.color = Color.argb(76, 24, 30, 24)
+        c.drawOval(RectF(w / 2f - sw * 0.34f, sy + sh * 0.86f, w / 2f + sw * 0.34f, sy + sh * 0.99f), p)
+        game.assets.sprPaint.alpha = 255
+        c.drawBitmap(subject, null, RectF(sx, sy, sx + sw, sy + sh), game.assets.sprPaint)
+
+        // 렌즈 비네트. 배경은 보존하되 중앙의 새로 시선이 모인다.
+        for (i in 0 until 6) {
+            val band = 10f + i * 7f
+            p.color = Color.argb(10 + i * 3, 18, 16, 24)
+            c.drawRect(0f, band, 8f, h - band, p)
+            c.drawRect(w - 8f, band, w.toFloat(), h - band, p)
+            c.drawRect(band, 0f, w - band, 6f, p)
+            c.drawRect(band, h - 6f, w - band, h.toFloat(), p)
+        }
+        return bitmap
     }
 
     private fun trySnapAt(vx: Float, vy: Float) {
@@ -944,7 +1108,7 @@ class WorldScene(
         }
         val target = best
         if (target == null) {
-            game.toast("그곳엔 새가 없어요… 새 근처를 탭해 주세요")
+            game.toast("그곳엔 새가 없어요…")
             return
         }
         val rig = state.rig()
@@ -1001,8 +1165,12 @@ class WorldScene(
         }
     }
 
+    // 입자 좌표 소유권 — 혼동 금지!
+    //  - 월드 공간(카메라를 따라 움직임): 꽃잎·낙엽·반딧불·바람결 등 여기(spawnAmbient)의 입자
+    //  - 화면 공간(캐릭터 이동과 무관): 비·눈 — WorldFx(drawWeather)가 화면 전체에 직접 그린다.
+    //    비/눈을 월드 입자로 옮기면 카메라에 붙어 같이 밀리므로 절대 옮기지 않는다.
     private fun ambientKind(): String = when {
-        weather == Weather.RAIN || weather == Weather.SNOW -> "none"     // 비/눈은 WorldFx가 화면 전체에 그린다
+        weather == Weather.RAIN || weather == Weather.SNOW -> "none"
         weather == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
@@ -1021,11 +1189,6 @@ class WorldScene(
         val viewW = viewRig.viewW
         val viewH = viewRig.viewH
         when (ambientKind()) {
-            "rain" -> addParticle(
-                viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
-                Color.argb(150, 100, 160, 210), 1.5f, false
-            )
             "wind" -> addParticle(
                 viewX - 8f, viewY + rnd.nextFloat() * viewH,
                 55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
@@ -1040,11 +1203,6 @@ class WorldScene(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
                 Color.argb(150, 242, 163, 179), 3f, true
-            )
-            "snow" -> addParticle(
-                viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                (rnd.nextFloat() - 0.5f) * 6f, 8f + rnd.nextFloat() * 5f, 5f,
-                Color.argb(190, 240, 246, 252), 2.6f, true
             )
             "sparkle" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
@@ -1153,50 +1311,28 @@ class WorldScene(
     }
 
     private fun talkTo(npc: Npc) {
+        if (SideStories.intercept(this, npc)) return   // [P08] 사이드 스토리 진행 중이면 우선
+        val dlg = Dialogues.Ctx(map.region.id, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)   // [P08]
         when (npc.kind) {
             NpcKind.PROFESSOR -> talkProfessor()
             NpcKind.SHOP -> talkShop()
             NpcKind.VILLAGER -> {
-                val storyHint = when (state.mainQuestStage) {
-                    0, 1 -> "멀리 가기 전에도 창밖의 새부터 천천히 보면 좋아요."
-                    2 -> "숲에서 나무 구멍을 발견해도 가까이 들여다보면 안 돼요. 둥지일 수 있거든요."
-                    3 -> "물가 새는 건너편에서 봐도 충분히 아름다워요."
-                    4 -> "철새가 쉬는 곳에서는 무리 쪽으로 걷지 않는 게 이 동네 약속이에요."
-                    5 -> "갯벌에는 사람 눈에 안 보이는 새들의 식탁이 아주 많대요."
-                    else -> "희귀새 위치를 바로 퍼뜨리기 전에 새가 안전할지 한 번 생각해 주세요."
-                }
                 openOverlay(DialogOverlay(this, npc.name,
-                    "\"${map.region.villager}\n$storyHint\"",
+                    Dialogues.villager(dlg),
                     listOf(DialogOverlay.Choice("기억할게요"))))
             }
             NpcKind.KID -> {
-                val lines = listOf(
-                    "우와, 카메라 멋져요! 저도 크면 탐조할 거예요!",
-                    "저기요, 저 새 이름 알아요? 어… 까먹었어요.",
-                    "자전거 타면 빨리 가지만 금방 배고파져요!",
-                    "박사님이 낡은 새 수첩을 들고 찾고 있었어요. 가보실래요?",
-                    "새 둥지를 찾으면 비밀로 해 줘야 해요. 새끼가 놀라잖아요!",
-                    "저는 도감 숫자보다 새 이름을 하나 제대로 아는 게 더 좋아요."
-                )
                 openOverlay(
                     DialogOverlay(
-                        this, npc.name, "\"${lines[rnd.nextInt(lines.size)]}\"",
+                        this, npc.name, Dialogues.kid(dlg),
                         listOf(DialogOverlay.Choice("ㅎㅎ 귀엽다"))
                     )
                 )
             }
             NpcKind.ELDER -> {
-                val lines = listOf(
-                    "요즘 젊은이들은 참 부지런해요.",
-                    "옛날엔 이 동네에 두루미가 많이 왔었지…",
-                    "피자도 잘 먹고 다니게. 몸이 자본이야.",
-                    "해 지기 전에 들어가게. 밤엔 부엉이가 나온다네.",
-                    "자네 할머니도 새를 많이 보려 하기보다 오래 보려 했지.",
-                    "귀한 새를 봤다면 발자국을 남기지 않는 게 가장 좋은 자랑이라네."
-                )
                 openOverlay(
                     DialogOverlay(
-                        this, npc.name, "\"${lines[rnd.nextInt(lines.size)]}\"",
+                        this, npc.name, Dialogues.elder(dlg),
                         listOf(DialogOverlay.Choice("다녀오겠습니다"))
                     )
                 )
@@ -1447,7 +1583,6 @@ class WorldScene(
                     return
                 }
             }
-            game.toast("주민·이정표·벤치·고양이에게 다가가 육각 메인 버튼을 눌러보세요!")
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -1474,13 +1609,6 @@ class WorldScene(
                     return
                 }
             }
-            // 새 탭 (힌트)
-            for (b in birds) {
-                if (b.state != 2 && hypot(b.cx - tap.x, b.cy - tap.y) < 14f) {
-                    game.toast("카메라 버튼을 누르고 찍어보세요! 📷")
-                    return
-                }
-            }
         }
     }
 
@@ -1498,7 +1626,6 @@ class WorldScene(
             game.hud.questLabel = null
             viewfinder.onEnter()
             game.haptic()
-            game.toast("📷 카메라 모드 — 새를 탭해 촬영하세요")
         } else {
             game.hud.showStats = true
             game.hud.showMinimap = true
@@ -1509,7 +1636,7 @@ class WorldScene(
     private fun quickEat() {
         val pid = state.eatBest()
         if (pid == null) {
-            game.toast("피자가 없어요! 집의 화덕이나 오븐에서 구워요 🍕")
+            game.toast("피자가 없어요! 🍕")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val p = Pizzas.of(pid)
@@ -1553,6 +1680,9 @@ class WorldScene(
         // 지면은 흔들림·기울기로 가장자리가 비지 않게 PAD 만큼 넓게 그린다
         c.save()
         c.translate(-padX, -padY)
+        // 이정표는 가까이 갔을 때만 보인다 — 발 위치 기준(지도 렌더 좌표 = 월드 × WORLD_SCALE)
+        map.signViewerX = player.cx * WORLD_SCALE
+        map.signViewerY = (player.y + 13f) * WORLD_SCALE
         map.draw(
             c, game.assets, camXv - padX, camYv - padY, padW, padH, game.time,
             sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
@@ -1595,7 +1725,7 @@ class WorldScene(
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
         seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
-        fx.drawWeather(c, game.virtW, game.virtH)
+        fx.drawWeather(c)
         if (viewRig.speedFx > 0.02f) {
             speedVignette.draw(c, vw, vh, viewRig.speedFx)
             streaks.draw(c, velX, velY, viewRig.speedFx)
@@ -1656,7 +1786,7 @@ class WorldScene(
     private fun sortY(e: Any): Float = when (e) {
         is Npc -> e.y + 14f
         is Cat -> e.y + 12f
-        is FieldBird -> e.y + game.assets.bird(e.def.id).height / WORLD_SCALE
+        is FieldBird -> e.y + e.sprH
         is Player -> e.y + 14f
         else -> 0f
     }
@@ -1686,6 +1816,16 @@ class WorldScene(
                         val tw = tinyPaint.measureText("!")
                         c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
                     }
+                } else if (SideStories.hasMarker(game.context, map.region.id, e.kind)) {
+                    // [P08] 사이드 스토리 대기/진행 중인 NPC 머리 위 💬 마커 (에피소드 완료 시 사라짐)
+                    val bx = sx + 16f
+                    val by = sy - 12f
+                    bubbleFill.color = 0xFF8FC7F0.toInt()
+                    c.drawCircle(bx, by, 9f, bubbleFill)
+                    c.drawCircle(bx, by, 9f, bubbleStroke)
+                    tinyPaint.textSize = 13f
+                    val tw = tinyPaint.measureText("💬")
+                    c.drawText("💬", bx - tw / 2, by + 5f, tinyPaint)
                 }
             }
             is Cat -> {
@@ -1709,21 +1849,22 @@ class WorldScene(
                 val bmp = if (flying) {
                     val wingFrame = ((e.fleeT * 11f).toInt() and 1)
                     a.birdFlight(e.def.id, wingFrame, e.faceLeft)
-                } else if (e.faceLeft) {
-                    a.bird(e.def.id)
                 } else {
-                    a.birdFlipped(e.def.id)
+                    a.birdPose(e.def.id, e.facing, e.renderPose)
                 }
-                val bx = (e.x - camX) * WORLD_SCALE
-                val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
+                // 자세마다 투명 여백/크기가 달라도 몸 중심과 발 위치는 고정한다.
+                // 덕분에 정면↔옆면 전환 때 새가 순간이동하거나 땅에 파묻히지 않는다.
+                val bx = (e.cx - camX) * WORLD_SCALE - bmp.width / 2f
+                val by = (e.y + e.sprH - camY) * WORLD_SCALE - bmp.height - e.hopLift * WORLD_SCALE
                 // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
                 if (!flying || e.fleeT < 0.32f) {
                     val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
                     val shadowCx = bx + bmp.width * 0.5f
                     val shadowHalf = bmp.width * 0.4f * shadowK
+                    val groundY = (e.y + e.sprH - camY) * WORLD_SCALE
                     scratchRect.set(
-                        shadowCx - shadowHalf, (e.cy - camY) * WORLD_SCALE + 7f,
-                        shadowCx + shadowHalf, (e.cy - camY) * WORLD_SCALE + 12f
+                        shadowCx - shadowHalf, groundY - 2f,
+                        shadowCx + shadowHalf, groundY + 4f
                     )
                     c.drawOval(scratchRect, a.shadowPaint)
                 }
@@ -2091,57 +2232,9 @@ class WorldScene(
         }
     }
 
-    /** 현재 위치에서 각 터널로 가는 방향을 번호와 함께 표시 */
+    /** 광장 근처에서만 전체 출구 안내판 표시 (캐릭터 옆 터널 방향 힌트는 띄우지 않는다) */
     private fun drawExitHints(c: Canvas) {
         if (map.tunnels.isEmpty()) return
-        val pSx = (player.cx - camX) * WORLD_SCALE
-        val pSy = (player.cy - camY) * WORLD_SCALE
-        val screenR = 52f
-
-        for (tunnel in map.tunnels) {
-            val dx = tunnel.cx - player.cx
-            val dy = tunnel.cy - player.cy
-            val dist = hypot(dx, dy)
-            if (dist < 1f) continue
-            // 터널 바로 앞에서는 힌트 생략 — 터널 뱃지가 이미 보임
-            if (dist < 90f) continue
-            val nx = dx / dist
-            val ny = dy / dist
-
-            val ix = pSx + nx * screenR + 16f
-            val iy = pSy + ny * screenR
-
-            val target = Regions.byId[tunnel.targetId]
-            val targetName = target?.name ?: tunnel.targetId
-
-            // 번호 원
-            bubbleFill.color = Color.argb(190, 253, 250, 240)
-            c.drawCircle(ix, iy, 10f, bubbleFill)
-            bubbleStroke.color = 0xFFF2B63C.toInt()
-            bubbleStroke.strokeWidth = 1.6f
-            c.drawCircle(ix, iy, 10f, bubbleStroke)
-
-            val np = Type.paintPx(10f, true, 0.02f, 0xFF4A2E12.toInt())
-            val numTxt = tunnel.number.toString()
-            val tw = np.measureText(numTxt)
-            c.drawText(numTxt, ix - tw / 2, iy + 3.5f, np)
-
-            // 방향 화살표
-            val arrow = Regions.dirArrow(tunnel.dir)
-            val ap = Type.paintPx(11f, true, 0f, 0xFFF2B63C.toInt())
-            c.drawText(arrow, ix + 12f, iy + 4f, ap)
-
-            if (dist < 240f) {
-                val lp = Type.paintPx(9f, false, 0f, Color.argb(210, 58, 52, 74))
-                val label = "${tunnel.number}. $targetName"
-                val lw = lp.measureText(label)
-                uiFill.color = Color.argb(175, 255, 252, 240)
-                scratchRect.set(ix + 18f, iy - 8f, ix + 18f + lw + 8f, iy + 6f)
-                c.drawRoundRect(scratchRect, 5f, 5f, uiFill)
-                c.drawText(label, ix + 22f, iy + 3f, lp)
-            }
-        }
-
         // 광장 근처에서는 전체 출구 안내판 (지하철 출입구 종합 안내처럼)
         val plazaCx = 21f * 16f + 8f
         val plazaCy = 15f * 16f + 8f

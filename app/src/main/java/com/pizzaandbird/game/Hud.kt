@@ -24,6 +24,21 @@ import kotlin.math.sqrt
 /** 토스트 메시지가 머무는 시간(초) */
 private const val MESSAGE_LIFE = 2.8f
 
+/** 토스트 한 줄의 세로 간격(dp) */
+private const val MESSAGE_STEP = 29f
+
+/**
+ * 한 화면에 동시에 띄우는 토스트 줄 수.
+ * 고정 자리에서 아래로 쌓이므로, 두 줄까지가 지역 배너와 겹치지 않는 한도다.
+ */
+private const val MESSAGE_MAX = 2
+
+/**
+ * 사진 모드 뷰파인더 상단 정보 바의 아래쪽 끝(가상 좌표).
+ * 토스트는 이 바에 가리지 않도록 그 아래에 자리한다.
+ */
+private const val VF_TOP_BAR_BOTTOM = 72f
+
 /** 지역 배너가 머무는 시간(초) */
 private const val BANNER_LIFE = 2.6f
 
@@ -31,7 +46,7 @@ private const val BANNER_LIFE = 2.6f
  * 화면 좌표(실제 해상도) 기반 HUD.
  * - 좌상단: 배고픔/행운/돈/피자/카메라/시각 패널
  * - 우상단: 황동 회중 나침반 미니맵 (낡은 종이 해도, 탭하면 큰 지도)
- * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/달리기/간식) + 메뉴
+ * - 하단: 플로팅 조이스틱 + 육각 메인 버튼 · 아크 버튼(자전거/카메라/간식) + 메뉴
  */
 class Hud(private val game: Game) {
 
@@ -73,7 +88,6 @@ class Hud(private val game: Game) {
     var mainCx = 0f; var mainCy = 0f; var mainR = 0f          // 육각 메인(상호작용)
     var bikeCx = 0f; var bikeCy = 0f; var bikeR = 0f          // 자전거 (아크)
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
-    var runCx = 0f; var runCy = 0f; var runR = 0f             // 달리기 (아크)
     var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
     var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
@@ -81,6 +95,13 @@ class Hud(private val game: Game) {
     private val messages = ArrayList<Message>()
     private var bannerText: String? = null
     private var bannerT = 0f
+
+    /**
+     * 토스트가 항상 떠 있는 고정 높이(px, 화면 상단 기준).
+     * 화면 크기로만 정해지고(layout에서 한 번 계산) 사진 모드·지역 배너·메시지 개수로는
+     * 흔들리지 않는다 — 즉 토스트는 언제나 이 자리에서 시작해 아래로 쌓인다.
+     */
+    private var toastTopY = 0f
 
     private class Message(var text: String, var t: Float, val life: Float)
 
@@ -204,10 +225,11 @@ class Hud(private val game: Game) {
                 mainCy - arcDist * kotlin.math.sin(rad).toFloat()
             )
         }
-        bikeR = arcR; val (bx, by) = arc(66f); bikeCx = bx; bikeCy = by
-        camBR = arcR; val (cx2, cy2) = arc(105f); camBCx = cx2; camBCy = cy2
-        runR = arcR; val (rx, ry) = arc(144f); runCx = rx; runCy = ry
-        eatR = arcR; val (ex, ey) = arc(183f); eatCx = ex; eatCy = ey
+        // 주변 버튼은 세 개만 둔다: 자전거 / 카메라 / 간식.
+        // 달리기는 키보드 Shift로만 유지해, 터치 HUD가 과밀해지지 않게 한다.
+        bikeR = arcR; val (bx, by) = arc(72f); bikeCx = bx; bikeCy = by
+        camBR = arcR; val (cx2, cy2) = arc(120f); camBCx = cx2; camBCy = cy2
+        eatR = arcR; val (ex, ey) = arc(168f); eatCx = ex; eatCy = ey
 
         // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
         menuR = dp(17f)
@@ -219,6 +241,12 @@ class Hud(private val game: Game) {
         mmR = minOf(dp(68f), wf * 0.16f)
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
+
+        // --- 토스트 고정 자리 -------------------------------------------
+        // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
+        // 한 번만 정하므로 카메라 모드로 바뀌어도 토스트는 같은 자리에 뜬다.
+        toastTopY = maxOf(dp(56f), VF_TOP_BAR_BOTTOM * game.viewScale + dp(18f))
+
         softShadow.maskFilter = BlurMaskFilter(dp(3.4f), BlurMaskFilter.Blur.NORMAL)
         buildStickShaders(stickBaseR)
     }
@@ -243,7 +271,6 @@ class Hud(private val game: Game) {
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
         if (inCircle(x, y, camBCx, camBCy, camBR * 1.3f)) return Ctrl.CAM
-        if (inCircle(x, y, runCx, runCy, runR * 1.3f)) return Ctrl.RUN
         if (inCircle(x, y, eatCx, eatCy, eatR * 1.3f)) return Ctrl.EAT
         if (hitMinimap(x, y)) return Ctrl.MAP
         // 듀랑고식: 왼쪽 아래 구역은 어디를 짚어도 그 자리가 조이스틱
@@ -305,8 +332,15 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun toast(msg: String) {
+        // 같은 문구가 연달아 오면 새로 쌓는 대신 남은 시간만 갱신한다
+        // (줄이 늘어나며 아래 메시지가 밀리는 것을 막는다)
+        val last = messages.lastOrNull()
+        if (last != null && last.text == msg) {
+            last.t = last.life
+            return
+        }
         messages.add(Message(msg, MESSAGE_LIFE, MESSAGE_LIFE))
-        if (messages.size > 3) messages.removeAt(0)
+        if (messages.size > MESSAGE_MAX) messages.removeAt(0)
     }
 
     fun banner(msg: String) {
@@ -530,18 +564,20 @@ class Hud(private val game: Game) {
     }
 
     private fun drawMessages(c: Canvas) {
-        val th = game.screenH.toFloat()
-        var y = dp(20f) + if (photoModeHint) dp(62f) else 0f
-        // 등장한 배너가 토스트와 겹치지 않도록 아래로 밀어 낸다
-        if (bannerText != null && bannerT > 0f) y = maxOf(y, th * 0.24f + dp(40f))
-        for (m in messages) {
+        // 항상 같은 자리(toastTopY)에서 시작해 아래로 쌓는다.
+        // 사진 모드·지역 배너 때문에 자리가 밀리지 않는다 (배너 쪽이 토스트를 피한다).
+        val step = dp(MESSAGE_STEP)
+        var y = toastTopY
+        // 최신 메시지가 언제나 앵커 자리에 오도록 최신 → 오래된 순으로 그린다.
+        // (오래된 메시지가 사라져도 남은 줄은 한 칸씩 내려가지 않는다)
+        for (m in messages.asReversed()) {
             // 등장 슬라이드 + 페이드인/아웃
-            val age = 2.8f - m.t
+            val age = m.life - m.t
             val inK = (age / 0.22f).coerceIn(0f, 1f)
             val outK = (m.t.coerceIn(0f, 0.4f) / 0.4f)
             val alpha = (255 * minOf(inK, outK)).toInt().coerceIn(0, 255)
             if (alpha < 4) {
-                y += dp(28f)
+                y += step
                 continue
             }
             val yy = y + (1f - inK) * -dp(10f)
@@ -570,7 +606,7 @@ class Hud(private val game: Game) {
             fill.color = Color.argb(alpha, 242, 182, 60)
             c.drawCircle(r.left + dp(10f), yy + dp(0.5f), dp(3f), fill)
             c.drawText(msg, cx - tw / 2, Type.midBaseline(tp, yy), tp)
-            y += dp(29f)
+            y += step
         }
     }
 
@@ -596,7 +632,8 @@ class Hud(private val game: Game) {
         }
         val tw = tp.measureText(bt)
         val cx = w / 2f
-        val cy = h * 0.24f
+        // 토스트는 고정 자리를 지키므로, 겹치지 않게 배너 쪽이 토스트 아래로 내려간다
+        val cy = maxOf(h * 0.24f, toastTopY + dp(76f))
         // 등장 팝 스케일
         val scale = 0.86f + 0.14f * eased
         c.save()
@@ -702,17 +739,6 @@ class Hud(private val game: Game) {
                 c.drawArc(arcRect, baseDeg + i * 60f, 20f, false, linePaint)
             }
         }
-
-        // 달리기 (») — 누르고 있으면 강조
-        val running = game.input.isRun
-        drawArcButton(
-            c, runCx, runCy, runR,
-            if (running) 0xFFF2D06B.toInt() else if (Ctrl.RUN in active) 0xFFD9A03C.toInt() else Color.argb(220, 74, 74, 88),
-            Ctrl.RUN in active
-        )
-        val runCol = if (running) Type.INK else Color.argb(230, 248, 239, 220)
-        val runLabel = "»"
-        PixelFont.draw(c, runLabel, runCx, PixelFont.midY(runCy, 3), 3, runCol, 0.5f)
 
         // 간식 (🍕) — 피자 개수 표시
         val pizzaN = game.state.pizzaCount
