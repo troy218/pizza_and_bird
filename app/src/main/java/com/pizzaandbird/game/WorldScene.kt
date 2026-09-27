@@ -2,6 +2,7 @@ package com.pizzaandbird.game
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -72,6 +73,12 @@ class WorldScene(
         style = Paint.Style.STROKE
         color = 0xFF6B4F35.toInt()
         strokeWidth = 1.6f
+    }
+    private val dashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = Color.argb(200, 255, 250, 235)
+        strokeWidth = 2.4f
+        pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
     }
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
