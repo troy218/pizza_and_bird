@@ -213,8 +213,16 @@ class Hud(private val game: Game) {
         text.textSize = dp(12f)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
         c.drawText("×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), text)
-        c.drawBitmap(a.cameraIcon, null, RectF(left + dp(54f), iy2 + dp(42f), left + dp(54f) + dp(17f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        c.drawText("Lv.${s.cameraLevel}", left + dp(76f), iy2 + dp(53f), text)
+        val rig = s.rig()
+        val camBmp = a.camIcon(rig.look)
+        c.drawBitmap(
+            camBmp, null,
+            RectF(left + dp(52f), iy2 + dp(41f), left + dp(52f) + dp(17f), iy2 + dp(41f) + dp(14f)),
+            a.sprPaint
+        )
+        text.textSize = dp(11f)
+        c.drawText("${rig.teleMm}mm", left + dp(72f), iy2 + dp(53f), text)
+        text.textSize = dp(12f)
 
         // 시각 + 사진
         val night = s.isNight()
@@ -380,9 +388,9 @@ class Hud(private val game: Game) {
         drawButton(c, bCx, bCy, bR, if (Ctrl.B in active) 0xFF9F7FC8.toInt() else 0xFFC3A3E8.toInt(), "B", dp(14f))
         // 카메라
         drawButton(c, camBCx, camBCy, camBR, if (photoModeHint) 0xFFE2574C.toInt() else Color.argb(220, 74, 74, 88), null, 0f)
-        val cam = game.assets.cameraIcon
-        val cw = cam.width * (dp(20f) / 20f)
-        val ch = cam.height * (dp(20f) / 16f)
+        val cam = game.assets.camIcon(game.state.rig().look)
+        val cw = dp(22f)
+        val ch = dp(18f)
         c.drawBitmap(cam, null, RectF(camBCx - cw / 2, camBCy - ch / 2, camBCx + cw / 2, camBCy + ch / 2), game.assets.sprPaint)
 
         // 달리기 (») — 누르고 있으면 강조

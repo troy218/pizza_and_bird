@@ -20,7 +20,14 @@ class GameState {
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
     var luck = 50f                 // 행운 수치 (높을수록 희귀새 출현)
     val pizzas = IntArray(9)       // [토핑id*3 + 품질] 피자 개수
-    var cameraLevel = 1            // 카메라 등급 (1~5)
+
+    // 카메라 장비 -------------------------------------------------------
+    val ownedGear = LinkedHashSet<String>()     // 구매한 장비 id 전체
+    var useIlc = false                          // true = 렌즈교환식, false = 컴팩트
+    var compactId = CameraGear.STARTER          // 장착한 컴팩트
+    var bodyId: String? = null                  // 장착한 바디
+    var lensId: String? = null                  // 장착한 렌즈
+    var tcId: String? = null                    // 장착한 텔레컨버터
     val birdCounts = LinkedHashMap<String, Int>()   // 도감: 새별 촬영 횟수
     val bestStars = LinkedHashMap<String, Int>()    // 도감: 새별 최고 별점
     val visited = LinkedHashSet<String>()           // 방문한 지역
@@ -100,6 +107,81 @@ class GameState {
         return null
     }
 
+    // ------------------ 카메라 장비 ------------------
+
+    private var rigCache: CameraRig? = null
+    private var rigKey: String = ""
+
+    private fun gearKey(): String =
+        "$useIlc|$compactId|$bodyId|$lensId|$tcId|" + ownedGear.filter { it.startsWith("acc_") }.sorted().joinToString(",")
+
+    /** 소유한 액세서리 목록 */
+    fun accessories(): Set<String> =
+        ownedGear.filterTo(LinkedHashSet()) { CameraGear.accessory(it) != null }
+
+    fun ownsGear(id: String): Boolean = id in ownedGear
+
+    fun hasAdapter(): Boolean = CameraGear.ACC_ADAPTER in ownedGear
+
+    /** 현재 장착 중인 카메라(조합)의 종합 성능 */
+    fun rig(): CameraRig {
+        val key = gearKey()
+        val cached = rigCache
+        if (cached != null && key == rigKey) return cached
+        val acc = accessories()
+        val body = CameraGear.body(bodyId)
+        val lens = CameraGear.lens(lensId)
+        var tc = CameraGear.tc(tcId)
+        if (lens != null && !lens.tcOk) tc = null
+        val rig = if (useIlc && body != null && lens != null &&
+            CameraGear.canMount(body, lens, hasAdapter())
+        ) {
+            CameraRigs.fromIlc(body, lens, tc, acc)
+        } else {
+            val cam = CameraGear.compact(compactId) ?: CameraGear.COMPACTS.first()
+            CameraRigs.fromCompact(cam, acc)
+        }
+        rigCache = rig
+        rigKey = key
+        return rig
+    }
+
+    /** 장비 변경 후 캐시 무효화 */
+    fun invalidateRig() {
+        rigCache = null
+        rigKey = ""
+    }
+
+    /** 렌즈교환식 조합이 실제로 성립하는지 */
+    fun ilcReady(): Boolean {
+        val b = CameraGear.body(bodyId) ?: return false
+        val l = CameraGear.lens(lensId) ?: return false
+        return CameraGear.canMount(b, l, hasAdapter())
+    }
+
+    /** 장비 총 무게(g) */
+    fun gearWeight(): Int = rig().weightG
+
+    /** 무게로 인한 이동 속도 배율 (무거울수록 느려진다) */
+    fun gearSpeedMult(): Float {
+        val w = gearWeight()
+        val relief = if (CameraGear.ACC_STRAP in ownedGear) 0.8f else 1f
+        return (1f - ((w - 500).coerceAtLeast(0) / 14000f) * relief).coerceIn(0.78f, 1f)
+    }
+
+    /** 무게로 인한 배고픔 가중치 */
+    fun gearHungerMult(): Float {
+        val w = gearWeight()
+        val relief = if (CameraGear.ACC_STRAP in ownedGear) 0.8f else 1f
+        return (1f + ((w - 500).coerceAtLeast(0) / 7000f) * relief).coerceIn(1f, 1.75f)
+    }
+
+    /** 위장 블라인드 — 새가 덜 도망간다 */
+    fun gearFleeMult(): Float = if (CameraGear.ACC_BLIND in ownedGear) 0.82f else 1f
+
+    /** 장비가 주는 행운 보너스 */
+    fun gearLuck(): Int = rig().luck
+
     // ------------------ 탐조가 성장 ------------------
 
     /** 현재 레벨에서 다음 레벨까지 필요한 경험치 */
@@ -150,17 +232,19 @@ class GameState {
     }
 
     // 스킬 효과 --------------------------------------------------------
-    /** 이동 속도 배율 (튼튼한 다리) */
-    fun speedMult(): Float = 1f + 0.06f * skillRank("legs")
+    /** 이동 속도 배율 (튼튼한 다리 + 장비 무게) */
+    fun speedMult(): Float = (1f + 0.06f * skillRank("legs")) * gearSpeedMult()
 
     /** 피자 최대 소지 개수 (넉넉한 배낭) */
     fun pizzaCapEff(): Int = PIZZA_CAP + skillRank("pack")
 
-    /** 새 도망 반경 배율 (고요한 발걸음) — 작을수록 가까이 갈 수 있음 */
-    fun fleeMult(): Float = (1f - 0.08f * skillRank("quiet")).coerceAtLeast(0.5f)
+    /** 새 도망 반경 배율 (고요한 발걸음 + 위장 블라인드) — 작을수록 가까이 갈 수 있음 */
+    fun fleeMult(): Float =
+        ((1f - 0.08f * skillRank("quiet")) * gearFleeMult()).coerceAtLeast(0.42f)
 
-    /** 배고픔 감소 배율 (튼튼한 체력) */
-    fun hungerMult(): Float = (1f - 0.10f * skillRank("stamina")).coerceAtLeast(0.4f)
+    /** 배고픔 감소 배율 (튼튼한 체력 + 장비 무게) */
+    fun hungerMult(): Float =
+        ((1f - 0.10f * skillRank("stamina")).coerceAtLeast(0.4f)) * gearHungerMult()
 
     /** 행운 자연 감소 배율 (타고난 행운) */
     fun luckDecayMult(): Float = (1f - 0.20f * skillRank("lucky")).coerceAtLeast(0.2f)
@@ -211,8 +295,8 @@ class GameState {
         return s
     }
 
-    /** 희귀새 출현 계산에 쓰는 실효 행운 */
-    fun effectiveLuck(): Float = (luck + decorLuck()).coerceAtMost(100f)
+    /** 희귀새 출현 계산에 쓰는 실효 행운 (장식 + 감성 장비) */
+    fun effectiveLuck(): Float = (luck + decorLuck() + gearLuck()).coerceAtMost(100f)
 
     // ------------------------------------------------------------------
 
@@ -225,7 +309,15 @@ class GameState {
         hunger = 100f
         luck = 50f
         for (i in pizzas.indices) pizzas[i] = 0
-        cameraLevel = 1
+        // 첫 장비는 물려받은 컴팩트 카메라 한 대
+        ownedGear.clear()
+        ownedGear.add(CameraGear.STARTER)
+        useIlc = false
+        compactId = CameraGear.STARTER
+        bodyId = null
+        lensId = null
+        tcId = null
+        invalidateRig()
         birdCounts.clear()
         bestStars.clear()
         visited.clear()
@@ -260,14 +352,19 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 3)
+        put("v", 4)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
         put("money", money)
         put("hunger", hunger.toDouble())
         put("luck", luck.toDouble())
-        put("cameraLevel", cameraLevel)
+        put("ownedGear", JSONArray().apply { ownedGear.forEach { put(it) } })
+        put("useIlc", useIlc)
+        put("compactId", compactId)
+        put("bodyId", bodyId ?: "")
+        put("lensId", lensId ?: "")
+        put("tcId", tcId ?: "")
         put("homeRegion", homeRegion)
         put("region", region)
         put("houseStyleId", houseStyleId)
@@ -305,7 +402,43 @@ class GameState {
             s.money = j.optInt("money", 0)
             s.hunger = j.optDouble("hunger", 100.0).toFloat()
             s.luck = j.optDouble("luck", 50.0).toFloat()
-            s.cameraLevel = j.optInt("cameraLevel", 1)
+            // ---- 카메라 장비 ----
+            val og = j.optJSONArray("ownedGear")
+            if (og != null) {
+                for (i in 0 until og.length()) {
+                    val id = og.optString(i, "")
+                    if (id in CameraGear.byId) s.ownedGear.add(id)
+                }
+            }
+            if (s.ownedGear.isEmpty()) {
+                // v1~v3 세이브: 카메라 등급(1~5)을 새 장비 시스템으로 옮긴다.
+                for (id in CameraGear.migrateLegacy(j.optInt("cameraLevel", 1))) s.ownedGear.add(id)
+            }
+            s.ownedGear.add(CameraGear.STARTER)
+            s.compactId = j.optString("compactId", CameraGear.STARTER)
+                .let { if (CameraGear.compact(it) != null && it in s.ownedGear) it else CameraGear.STARTER }
+            s.bodyId = j.optString("bodyId", "").ifEmpty { null }
+                ?.let { if (CameraGear.body(it) != null && it in s.ownedGear) it else null }
+            s.lensId = j.optString("lensId", "").ifEmpty { null }
+                ?.let { if (CameraGear.lens(it) != null && it in s.ownedGear) it else null }
+            s.tcId = j.optString("tcId", "").ifEmpty { null }
+                ?.let { if (CameraGear.tc(it) != null && it in s.ownedGear) it else null }
+            s.useIlc = j.optBoolean("useIlc", false) && s.ilcReady()
+            if (!j.has("ownedGear")) {
+                // 마이그레이션: 옮겨온 바디·렌즈가 있으면 그대로 장착해 준다.
+                val b = s.ownedGear.firstOrNull { CameraGear.body(it) != null }
+                val l = s.ownedGear.firstOrNull { CameraGear.lens(it) != null }
+                val t = s.ownedGear.firstOrNull { CameraGear.tc(it) != null }
+                val bestCompact = s.ownedGear.mapNotNull { CameraGear.compact(it) }.maxByOrNull { it.price }
+                if (bestCompact != null) s.compactId = bestCompact.id
+                if (b != null && l != null) {
+                    s.bodyId = b
+                    s.lensId = l
+                    s.tcId = t
+                    s.useIlc = true
+                }
+            }
+            s.invalidateRig()
             s.homeRegion = j.optString("homeRegion", START_REGION_ID)
             s.region = j.optString("region", s.homeRegion)
             s.houseStyleId = j.optString("houseStyleId", "cozy")

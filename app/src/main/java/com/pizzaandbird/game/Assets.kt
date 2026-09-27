@@ -107,6 +107,21 @@ class Assets {
     lateinit var moonIcon: Bitmap
     lateinit var decorArt: Array<Bitmap>        // Decors.ALL 순서
 
+    // 카메라 장비 아트 캐시 (init 보다 먼저 만들어져야 한다)
+    private val camIconCache = HashMap<CamLook, Bitmap>()
+    private val camProfileCache = HashMap<CamLook, Bitmap>()
+    private val camHeldCache = HashMap<HeldKey, Bitmap>()
+
+    private data class HeldKey(val look: CamLook, val dir: Int, val raised: Boolean)
+
+    private val camOutline = c(0xFF191920)
+    private val camGlass = c(0xFF3E6B8C)
+    private val camGlassHi = c(0xFFBFE4F5)
+    private val camStrap = c(0xFF7A4A2B)
+    private val camSkin = c(0xFFFFD9B0)
+    private val camGold = c(0xFFF2D06B)
+    private val camWhiteLens = c(0xFFE8E4D8)
+
     init {
         buildPlayers()
         buildNpcs()
@@ -1972,25 +1987,8 @@ class Assets {
             cv.drawCircle(9.8f, 9.2f, 1.2f, p)
         }
 
-        cameraIcon = Bitmap.createBitmap(20, 16, Bitmap.Config.ARGB_8888).apply {
-            val cv = Canvas(this)
-            val p = Paint()
-            p.color = c(0xFF4A4A55)
-            cv.drawRect(0f, 4f, 20f, 16f, p)
-            cv.drawRect(6f, 1f, 13f, 4f, p)
-            p.color = c(0xFF6B6B78)
-            cv.drawRect(1f, 5f, 19f, 7f, p)
-            p.color = c(0xFF23232B)
-            cv.drawCircle(10f, 10f, 4.6f, p)
-            p.color = c(0xFF8FC3E3)
-            cv.drawCircle(10f, 10f, 3.4f, p)
-            p.color = c(0xFFC3E4F2)
-            cv.drawCircle(9f, 9f, 1.4f, p)
-            p.color = c(0xFFF2D06B)
-            cv.drawRect(16f, 8f, 18f, 10f, p)
-            p.color = c(0xFFE2574C)
-            cv.drawRect(2f, 8f, 4f, 10f, p)
-        }
+        // 기본 카메라 아이콘 — 실제 HUD는 장착한 장비 모양(camIcon)을 쓴다.
+        cameraIcon = camIcon(CameraGear.COMPACTS.first().look)
 
         houseIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
             val cv = Canvas(this)
@@ -2039,6 +2037,277 @@ class Assets {
             cv.drawCircle(5.4f, 8.4f, 1f, p)
             cv.drawCircle(4.6f, 5.8f, 0.7f, p)
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // 카메라 장비 아트 (Cameras.kt의 CamLook으로 생성 — 조합이 바뀌면 모양도 바뀐다)
+    //   camIcon    : 정면 아이콘 (22x18) — HUD / 카메라 버튼 / 목록
+    //   camProfile : 측면 아이콘 (32x20) — 경통 길이가 한눈에 보이는 상점용
+    //   camHeld    : 인게임 스프라이트 (32x32) — 플레이어 위에 겹쳐 그린다
+    // -----------------------------------------------------------------------
+
+    /** 색을 밝게(k>1) 또는 어둡게(k<1) */
+    private fun tone(col: Int, k: Float): Int {
+        val a = (col ushr 24) and 0xFF
+        var r = (col shr 16) and 0xFF
+        var g = (col shr 8) and 0xFF
+        var b = col and 0xFF
+        if (k >= 1f) {
+            val t = (k - 1f).coerceIn(0f, 1f)
+            r += ((255 - r) * t).toInt()
+            g += ((255 - g) * t).toInt()
+            b += ((255 - b) * t).toInt()
+        } else {
+            r = (r * k).toInt()
+            g = (g * k).toInt()
+            b = (b * k).toInt()
+        }
+        return (a shl 24) or (r shl 16) or (g shl 8) or b
+    }
+
+    fun camIcon(look: CamLook): Bitmap = camIconCache.getOrPut(look) { buildCamIcon(look) }
+
+    fun camProfile(look: CamLook): Bitmap = camProfileCache.getOrPut(look) { buildCamProfile(look) }
+
+    /** dir: 0 정면 / 1 뒤 / 2 오른쪽 / 3 왼쪽 */
+    fun camHeld(look: CamLook, dir: Int, raised: Boolean): Bitmap {
+        if (dir == 3) {
+            return camHeldCache.getOrPut(HeldKey(look, 3, raised)) { flipH(camHeld(look, 2, raised)) }
+        }
+        return camHeldCache.getOrPut(HeldKey(look, dir, raised)) { buildCamHeld(look, dir, raised) }
+    }
+
+    private fun buildCamIcon(lk: CamLook): Bitmap {
+        val bmp = Bitmap.createBitmap(22, 18, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, rr, b, p)
+        }
+        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
+        }
+        fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawCircle(cx, cy, rad, p)
+        }
+
+        val big = lk.style == 3 || lk.style == 4 || lk.style == 5
+        val pro = lk.style == 4
+        val top = if (big) 4.2f else 5.0f
+        val bot = if (pro) 17.0f else 16.4f
+
+        // 펜타프리즘 / EVF / 팝업 플래시
+        if (big) {
+            o(7.4f, 0.8f, 14.6f, 5.2f, 1.2f, camOutline)
+            o(8.0f, 1.4f, 14.0f, 5.0f, 1.0f, lk.bodyCol)
+            r(9.0f, 2.0f, 13.0f, 3.0f, tone(lk.bodyCol, 1.25f))
+        } else if (lk.evf) {
+            o(2.0f, 2.0f, 8.0f, 5.6f, 1.1f, camOutline)
+            o(2.6f, 2.6f, 7.4f, 5.2f, 0.9f, lk.bodyCol)
+        } else if (lk.flash) {
+            o(2.2f, 2.4f, 6.4f, 5.4f, 0.9f, camOutline)
+            o(2.7f, 2.9f, 5.9f, 5.0f, 0.7f, c(0xFFF7EFD2))
+        }
+
+        // 바디
+        o(0.4f, top - 0.6f, 21.6f, bot + 0.8f, 2.8f, camOutline)
+        o(1.0f, top, 21.0f, bot, 2.4f, lk.bodyCol)
+        r(1.6f, top + 0.8f, 20.4f, top + 1.8f, tone(lk.bodyCol, 1.18f))
+        o(16.0f, top + 1.2f, 20.6f, bot - 0.6f, 1.8f, lk.bodyDark)
+        r(17.0f, top + 2.4f, 19.6f, bot - 2.0f, tone(lk.bodyDark, 0.8f))
+        r(2.0f, top - 1.8f, 4.2f, top + 0.2f, lk.accent)
+        if (pro) r(1.0f, bot - 2.4f, 21.0f, bot, lk.bodyDark)
+
+        // 렌즈 (정면에서는 지름이 존재감)
+        val lr = (3.2f + lk.barrelDia * 0.52f + lk.barrelLen * 0.13f).coerceAtMost(6.6f)
+        val cx = 10.2f
+        val cy = (top + bot) / 2f + 0.4f
+        if (lk.hood) {
+            cir(cx, cy, lr + 1.6f, camOutline)
+            cir(cx, cy, lr + 1.0f, tone(lk.barrelCol, 0.85f))
+        }
+        cir(cx, cy, lr + 0.9f, camOutline)
+        cir(cx, cy, lr, lk.barrelCol)
+        cir(cx, cy, lr * 0.72f, tone(lk.barrelCol, 0.6f))
+        cir(cx, cy, lr * 0.58f, camGlass)
+        cir(cx - lr * 0.26f, cy - lr * 0.28f, lr * 0.26f, camGlassHi)
+        return bmp
+    }
+
+    private fun buildCamProfile(lk: CamLook): Bitmap {
+        val bmp = Bitmap.createBitmap(32, 20, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, rr, b, p)
+        }
+        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
+        }
+        fun ov(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawOval(RectF(l, t, rr, b), p)
+        }
+
+        val big = lk.style == 3 || lk.style == 4 || lk.style == 5
+        val pro = lk.style == 4
+        val top = if (big) 4.6f else 5.4f
+        val bot = if (pro) 18.0f else 17.2f
+        val bodyL = 1.0f
+        val bodyR = 11.6f
+        val cy = (top + bot) / 2f + 0.3f
+
+        if (big) {
+            o(3.4f, 0.8f, 10.2f, 5.6f, 1.2f, camOutline)
+            o(4.0f, 1.4f, 9.6f, 5.4f, 1.0f, lk.bodyCol)
+        } else if (lk.evf) {
+            o(1.6f, 2.4f, 6.8f, 6.0f, 1.0f, camOutline)
+            o(2.2f, 3.0f, 6.2f, 5.8f, 0.8f, lk.bodyCol)
+        } else if (lk.flash) {
+            o(2.0f, 2.6f, 5.6f, 5.6f, 0.8f, camOutline)
+            o(2.5f, 3.1f, 5.1f, 5.2f, 0.6f, c(0xFFF7EFD2))
+        }
+
+        o(bodyL - 0.6f, top - 0.6f, bodyR + 0.6f, bot + 0.8f, 2.4f, camOutline)
+        o(bodyL, top, bodyR, bot, 2.0f, lk.bodyCol)
+        r(bodyL + 0.6f, top + 0.8f, bodyR - 0.6f, top + 1.7f, tone(lk.bodyCol, 1.18f))
+        o(bodyL, top + 1.0f, bodyL + 3.2f, bot, 1.6f, lk.bodyDark)
+        r(bodyL + 4.6f, top - 1.6f, bodyL + 6.4f, top + 0.2f, lk.accent)
+        if (pro) r(bodyL, bot - 2.2f, bodyR, bot, lk.bodyDark)
+
+        // 경통
+        val ln = (2.6f + lk.barrelLen * 1.9f).coerceAtMost(19.4f)
+        val dia = (5.0f + lk.barrelDia * 1.15f).coerceAtMost(14.6f)
+        val x0 = bodyR - 0.6f
+        val x1 = x0 + ln
+        val t0 = cy - dia / 2f
+        val b0 = cy + dia / 2f
+        r(x0 - 0.6f, t0 - 1.0f, x0 + 1.4f, b0 + 1.0f, camOutline)
+        r(x0 - 0.2f, t0 - 0.6f, x0 + 1.2f, b0 + 0.6f, tone(lk.bodyCol, 1.5f))
+        r(x0 + 1.2f, t0 - 0.7f, x1 + 0.7f, b0 + 0.7f, camOutline)
+        r(x0 + 1.2f, t0, x1, b0, lk.barrelCol)
+        r(x0 + 1.2f, t0, x1, t0 + 1.2f, tone(lk.barrelCol, 1.2f))
+        r(x0 + 1.2f, b0 - 1.0f, x1, b0, tone(lk.barrelCol, 0.78f))
+        val ring = tone(lk.barrelCol, 0.66f)
+        r(x0 + 1.2f + ln * 0.30f, t0, x0 + 1.2f + ln * 0.42f, b0, ring)
+        if (ln > 9f) r(x0 + 1.2f + ln * 0.58f, t0, x0 + 1.2f + ln * 0.68f, b0, ring)
+        if (lk.barrelCol == camWhiteLens) r(x0 + 1.6f, t0, x0 + 2.6f, b0, camGold)
+        if (dia > 10f) r(x0 + 3.0f, b0, x0 + 7.0f, b0 + 1.8f, lk.bodyDark)
+        if (lk.hood) {
+            r(x1 - 2.4f, t0 - 1.6f, x1 + 0.8f, b0 + 1.6f, camOutline)
+            r(x1 - 2.2f, t0 - 1.2f, x1 + 0.2f, b0 + 1.2f, tone(lk.barrelCol, 0.88f))
+        }
+        val gx1 = if (lk.hood) x1 - 1.6f else x1 - 0.4f
+        ov(gx1 - 2.4f, cy - dia * 0.34f, gx1, cy + dia * 0.34f, camGlass)
+        ov(gx1 - 2.0f, cy - dia * 0.2f, gx1 - 1.0f, cy + dia * 0.02f, camGlassHi)
+        return bmp
+    }
+
+    private fun buildCamHeld(lk: CamLook, dir: Int, raised: Boolean): Bitmap {
+        val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint()
+        fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
+            p.color = col; cv.drawRect(l, t, rr, b, p)
+        }
+        fun o(l: Float, t: Float, rr: Float, b: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawRoundRect(RectF(l, t, rr, b), rad, rad, p)
+        }
+        fun cir(cx: Float, cy: Float, rad: Float, col: Int) {
+            p.color = col; cv.drawCircle(cx, cy, rad, p)
+        }
+
+        val ln = (2.0f + lk.barrelLen * 0.95f).coerceAtMost(12.0f)
+        val dia = (3.4f + lk.barrelDia * 0.62f).coerceAtMost(8.0f)
+        val big = lk.style == 3 || lk.style == 4 || lk.style == 5
+
+        if (raised) {
+            when (dir) {
+                0 -> {   // 정면 — 얼굴 앞으로 들어올린 카메라
+                    o(10.2f, 7.0f, 21.8f, 15.4f, 1.6f, camOutline)
+                    o(10.8f, 7.6f, 21.2f, 14.8f, 1.4f, lk.bodyCol)
+                    r(11.4f, 8.2f, 20.6f, 9.2f, lk.bodyDark)
+                    if (big || lk.evf) {
+                        r(13.6f, 5.6f, 18.4f, 7.4f, camOutline)
+                        r(14.2f, 6.0f, 17.8f, 7.4f, lk.bodyCol)
+                    }
+                    r(19.4f, 6.4f, 20.8f, 7.6f, lk.accent)
+                    val gr = dia * 0.42f + 1.4f
+                    if (lk.hood) {
+                        cir(16f, 11.4f, gr + 1.8f, camOutline)
+                        cir(16f, 11.4f, gr + 1.2f, tone(lk.barrelCol, 0.85f))
+                    }
+                    cir(16f, 11.4f, gr + 0.9f, camOutline)
+                    cir(16f, 11.4f, gr, lk.barrelCol)
+                    cir(16f, 11.4f, gr * 0.68f, camGlass)
+                    cir(15.2f, 10.6f, gr * 0.28f, camGlassHi)
+                    r(8.6f, 12.4f, 11.0f, 15.6f, camSkin)
+                    r(21.0f, 12.4f, 23.4f, 15.6f, camSkin)
+                }
+                1 -> {   // 뒤 — 카메라 뒷면(액정)과 팔꿈치
+                    o(11.6f, 7.4f, 20.4f, 14.2f, 1.4f, camOutline)
+                    o(12.2f, 8.0f, 19.8f, 13.6f, 1.2f, lk.bodyDark)
+                    r(13.2f, 9.0f, 18.8f, 12.6f, c(0xFF6E8FA6))
+                    r(8.8f, 11.6f, 11.6f, 15.0f, camSkin)
+                    r(20.4f, 11.6f, 23.2f, 15.0f, camSkin)
+                }
+                else -> { // 측면 — 경통이 정면(오른쪽)으로 뻗는다
+                    o(12.6f, 7.6f, 19.6f, 14.6f, 1.5f, camOutline)
+                    o(13.2f, 8.2f, 19.0f, 14.0f, 1.3f, lk.bodyCol)
+                    if (big || lk.evf) {
+                        r(14.0f, 6.0f, 17.6f, 7.8f, camOutline)
+                        r(14.4f, 6.4f, 17.2f, 7.8f, lk.bodyCol)
+                    }
+                    val x0 = 19.0f
+                    val x1 = (19.0f + ln).coerceAtMost(31.0f)
+                    val ccy = 11.2f
+                    r(x0, ccy - dia / 2f - 0.7f, x1 + 0.7f, ccy + dia / 2f + 0.7f, camOutline)
+                    r(x0, ccy - dia / 2f, x1, ccy + dia / 2f, lk.barrelCol)
+                    r(x0 + (x1 - x0) * 0.4f, ccy - dia / 2f, x0 + (x1 - x0) * 0.52f, ccy + dia / 2f, tone(lk.barrelCol, 0.66f))
+                    if (lk.barrelCol == camWhiteLens) r(x0 + 0.8f, ccy - dia / 2f, x0 + 1.6f, ccy + dia / 2f, camGold)
+                    if (lk.hood) {
+                        r(x1 - 2.2f, ccy - dia / 2f - 1.2f, x1 + 0.7f, ccy + dia / 2f + 1.2f, camOutline)
+                        r(x1 - 2.0f, ccy - dia / 2f - 0.8f, x1, ccy + dia / 2f + 0.8f, tone(lk.barrelCol, 0.88f))
+                    }
+                    cir(x1 - 1.3f, ccy, dia * 0.3f + 0.7f, camGlass)
+                    cir(x1 - 1.8f, ccy - 0.6f, dia * 0.14f + 0.3f, camGlassHi)
+                    r(11.4f, 12.0f, 13.8f, 15.2f, camSkin)
+                }
+            }
+        } else {
+            when (dir) {
+                0 -> {   // 정면 — 가슴에 매달린 카메라
+                    r(12.0f, 15.6f, 13.2f, 17.8f, camStrap)
+                    r(19.0f, 15.6f, 20.2f, 17.8f, camStrap)
+                    o(12.0f, 17.4f, 20.2f, 22.6f, 1.3f, camOutline)
+                    o(12.5f, 17.9f, 19.7f, 22.1f, 1.1f, lk.bodyCol)
+                    r(13.0f, 18.3f, 19.2f, 19.1f, lk.bodyDark)
+                    val gr = dia * 0.3f + 0.9f
+                    cir(16.1f, 20.2f, gr + 0.7f, camOutline)
+                    cir(16.1f, 20.2f, gr, lk.barrelCol)
+                    cir(16.1f, 20.2f, gr * 0.6f, camGlass)
+                    r(18.6f, 17.0f, 19.6f, 17.9f, lk.accent)
+                }
+                1 -> {   // 뒤 — 어깨 위 스트랩과 옆구리의 카메라
+                    r(11.8f, 15.4f, 13.2f, 19.2f, camStrap)
+                    r(19.0f, 15.4f, 20.4f, 19.2f, camStrap)
+                    o(18.8f, 18.6f, 23.0f, 22.4f, 1.2f, camOutline)
+                    o(19.3f, 19.1f, 22.5f, 21.9f, 1.0f, lk.bodyDark)
+                }
+                else -> { // 측면 — 옆구리에 걸친 카메라
+                    r(14.6f, 15.2f, 15.8f, 18.4f, camStrap)
+                    o(13.8f, 18.0f, 20.0f, 22.6f, 1.3f, camOutline)
+                    o(14.3f, 18.5f, 19.5f, 22.1f, 1.1f, lk.bodyCol)
+                    val x0 = 19.2f
+                    val x1 = (19.2f + ln * 0.55f).coerceAtMost(27.0f)
+                    val ccy = 20.3f
+                    val hd = dia * 0.42f
+                    r(x0, ccy - hd - 0.6f, x1 + 0.6f, ccy + hd + 0.6f, camOutline)
+                    r(x0, ccy - hd, x1, ccy + hd, lk.barrelCol)
+                    cir(x1 - 1.0f, ccy, hd * 0.75f, camGlass)
+                }
+            }
+        }
+        return bmp
     }
 
     // -----------------------------------------------------------------------

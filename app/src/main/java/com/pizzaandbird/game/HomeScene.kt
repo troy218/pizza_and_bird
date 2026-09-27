@@ -317,6 +317,14 @@ class HomeScene(game: Game) : Scene(game) {
             else -> ps.down[frame]
         }
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        // 집 안에서도 카메라는 목에 걸고 다닌다
+        val camDir = when (player.facing) {
+            Dir.E -> 2
+            Dir.W -> 3
+            Dir.N -> 1
+            else -> 0
+        }
+        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
 
         // 밤: 창문 틴트 + 스탠드 조명 빛
         if (state.worldTime >= 18.5f || state.worldTime < 5f) {
