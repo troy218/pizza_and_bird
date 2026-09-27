@@ -224,6 +224,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
     }
 
     private fun startGame(r: RegionDef) {
+        PhotoArchive.clear(game.context)
         game.state.reset(START_REGION_ID)
         SaveManager.save(game.context, game.state)
         game.fadeTo {

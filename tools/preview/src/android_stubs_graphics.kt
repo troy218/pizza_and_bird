@@ -511,6 +511,7 @@ class Paint {
     enum class Style { FILL, STROKE, FILL_AND_STROKE }
     enum class Cap { BUTT, ROUND, SQUARE }
     enum class Join { MITER, ROUND, BEVEL }
+    enum class Align { LEFT, CENTER, RIGHT }
 
     var color: Int = 0xFF000000.toInt()
     var textSize: Float = 12f
@@ -526,6 +527,7 @@ class Paint {
     var xfermode: Xfermode? = null
     var typeface: Typeface? = null
     var maskFilter: MaskFilter? = null
+    var textAlign: Align = Align.LEFT
     var colorFilter: ColorFilter? = null
     var letterSpacing: Float = 0f
 
@@ -793,8 +795,12 @@ class Canvas {
     }
 
     fun drawOval(oval: RectF, paint: Paint) {
+        drawOval(oval.left, oval.top, oval.right, oval.bottom, paint)
+    }
+
+    fun drawOval(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) {
         colorize(paint)
-        val shape = Ellipse2D.Float(oval.left, oval.top, oval.width(), oval.height())
+        val shape = Ellipse2D.Float(min(left, right), min(top, bottom), kotlin.math.abs(right - left), kotlin.math.abs(bottom - top))
         when (paint.style) {
             Paint.Style.FILL -> g.fill(shape)
             Paint.Style.STROKE -> { strokeOf(paint); g.draw(shape) }
