@@ -1212,6 +1212,29 @@ class Hud(private val game: Game) {
             }
             drawInkHouse(c, homeX, homeY - above, hw)
         }
+
+        // 메인 퀘스트 추천 위치 — 금색 별 + 펄스 링 (미방문 지역에도 표시)
+        val adv = MainQuestAdvisor.advise(s)
+        if (adv != null && !adv.alreadyThere) {
+            val reg = Regions.byId[adv.regionId]
+            if (reg != null) {
+                val x = ox + reg.mmX * scale
+                val y = oy + reg.mmY * scale
+                val pulse = (game.time * 1.1f) % 1f
+                fx.style = Paint.Style.FILL
+                fx.shader = null
+                fx.color = 0xFFF2D06B.toInt()
+                c.drawCircle(x, y, dot * 1.15f, fx)
+                ink.style = Paint.Style.STROKE
+                ink.strokeWidth = dp(1.1f)
+                ink.color = Color.argb(((1f - pulse) * 170f).toInt(), 242, 182, 60)
+                ink.pathEffect = null
+                c.drawCircle(x, y, dot + dp(1.2f) + pulse * dp(5.5f), ink)
+                val sp = Type.paintAt(8.5f, true, 0.02f, 0xFF5A3D12.toInt())
+                val star = "★"
+                c.drawText(star, x - sp.measureText(star) / 2f, y + dp(3f), sp)
+            }
+        }
     }
 
     private fun drawInkHouse(c: Canvas, x: Float, bottom: Float, w: Float) {

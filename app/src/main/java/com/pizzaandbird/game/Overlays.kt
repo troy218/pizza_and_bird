@@ -283,6 +283,27 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         scene.openOverlay(BirdDetailOverlay(scene, def.birdNum))
     }
 
+    /**
+     * 메인 퀘스트 자동 진행 — 카드 탭 시 어드바이저의 추천 지역으로 바로 이동.
+     * 이미 추천 위치에 있으면 "도착 후 할 일" 팁으로 답한다.
+     */
+    private fun autoGoMainQuest() {
+        val g = scene.game
+        val s = g.state
+        if (MainStory.current(s) == null) return
+        val adv = MainQuestAdvisor.advise(s) ?: return
+        if (adv.alreadyThere || adv.regionId == s.region) {
+            // 이미 추천 지역 안 — 이동 대신 "그냥 여기" 안내
+            g.toast("📍 ${adv.regionName} · ${adv.reason}")
+            g.toast(adv.tip)
+            return
+        }
+        g.toast("🚲 ${adv.regionName}으로 출발! · ${adv.reason}")
+        g.toast(adv.tip)
+        finished = true
+        fastTravel(g, adv.regionId)
+    }
+
     override fun draw(c: Canvas) {
         val g = scene.game
         val w = g.screenW.toFloat()
@@ -533,11 +554,16 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         var y = contentTop() + dp(scene, 5f)
 
         // 메인 퀘스트와 시간 제한 없는 서브 의뢰
+        // 카드 자체 = 자동 진행 버튼: 누르면 어드바이저가 정한 추천 지역으로 이동한다.
         val chapter = MainStory.current(s)
-        val mainR = RectF(left, y, right, y + dp(scene, 72f))
+        val advice = chapter?.let { MainQuestAdvisor.advise(s) }
+        val mainH = if (advice != null) dp(scene, 94f) else dp(scene, 72f)
+        val mainR = RectF(left, y, right, y + mainH)
         val mainDone = chapter?.isComplete(s) == true
-        cuteCard(c, mainR, if (mainDone) UiKit.PASTEL_LEMON else 0xFFFFF7E6.toInt(),
-            if (mainDone) UiKit.GOLD_DEEP else UiKit.BROWN_LINE, if (mainDone) 2f else 1.6f, selected = mainDone)
+        val mainGo = advice != null && !advice.alreadyThere
+        cuteCard(c, mainR, if (mainDone || mainGo) UiKit.PASTEL_LEMON else 0xFFFFF7E6.toInt(),
+            if (mainDone || mainGo) UiKit.GOLD_DEEP else UiKit.BROWN_LINE, if (mainDone || mainGo) 2f else 1.6f,
+            selected = mainDone || mainGo)
         // 왼쪽 위 작은 책갈피 리본
         UiKit.pixelFill(c, RectF(mainR.right - dp(scene, 26f), mainR.top - dp(scene, 2f), mainR.right - dp(scene, 14f), mainR.top + dp(scene, 16f)), dp(scene, 1.2f), if (mainDone) UiKit.GOLD else 0xFFE2857A.toInt())
         UiKit.pixelStroke(c, RectF(mainR.right - dp(scene, 26f), mainR.top - dp(scene, 2f), mainR.right - dp(scene, 14f), mainR.top + dp(scene, 16f)), dp(scene, 1.2f), UiKit.OUTLINE, dp(scene, 1.2f))
@@ -559,6 +585,21 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
         objectiveLines.forEachIndexed { i, line ->
             c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 13f), textP)
+        }
+        advice?.let { adv ->
+            // 추천 위치 한 줄 — "어디로 가야 하는지"를 카드에 직접 보여준다
+            val here = adv.alreadyThere || adv.regionId == s.region
+            var rec = if (here) {
+                "📍 ${adv.regionName} · ${adv.reason} · 카드 탭하면 힌트"
+            } else {
+                "📍 ${adv.regionName} · ${adv.reason} · 카드 탭하면 이동"
+            }
+            textP.textSize = dp(scene, 10f)
+            textP.color = if (here) 0xFF397547.toInt() else 0xFFB5651D.toInt()
+            val maxRecW = mainR.width() - dp(scene, 20f)
+            while (rec.length > 4 && textP.measureText(rec) > maxRecW) rec = rec.dropLast(1)
+            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 70f), textP)
+            btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
             ?: "서브 사진 의뢰: 없음 · 어느 지역 보리 박사에게서 언제든 수락"
@@ -3491,8 +3532,10 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val g = scene.game
         val s = g.state
         val showAllNames = scale > fitScale * 1.5f
+        // 메인 퀘스트 자동 진행 — 추천 지역 위에 금색 ★ 표시
+        val mainAdv = MainQuestAdvisor.advise(s)
+        // 현재 지역 출구 번호 — 지도에서 지하철 출입구처럼 표시
         val currentExits = Regions.exitNumbered(s.region)
-
         for (reg in Regions.ALL) {
             val x = sx(reg.mmX)
             val y = sy(reg.mmY)
@@ -3524,6 +3567,18 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                 textP.textSize = dp(scene, 11f)
                 textP.color = 0xFF4A3728.toInt()
                 c.drawText("🏠", x - dp(scene, 6f), y - r - dp(scene, 3f), textP)
+            }
+
+            // 메인 퀘스트 자동 진행 — 추천 지역: 금색 별 + 펄스 링 (현재 위치와 겹치면 생략)
+            if (mainAdv != null && !mainAdv.alreadyThere && reg.id == mainAdv.regionId && !isCurrent) {
+                val pulse = (g.time * 1.4f) % 1f
+                strokeP.color = Color.argb(((1f - pulse) * 200f).toInt(), 242, 182, 60)
+                strokeP.strokeWidth = dp(scene, 1.6f)
+                c.drawCircle(x, y, r + dp(scene, 3f) + pulse * dp(scene, 7f), strokeP)
+                textP.textSize = dp(scene, 15f)
+                textP.color = 0xFF8A5A12.toInt()
+                val star = "★"
+                c.drawText(star, x - textP.measureText(star) / 2f, y - r - dp(scene, 6f), textP)
             }
 
             // 현재 위치에서는 각 방향 출구 번호를 주변에 표시 — 지하철 출입구처럼
@@ -3619,10 +3674,13 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         val g = scene.game
         val s = g.state
         val w = g.screenW.toFloat()
+        val mainAdv = MainQuestAdvisor.advise(s)
+        val isMainPick = mainAdv != null && !mainAdv.alreadyThere && reg.id == mainAdv.regionId
         val cardW = minOf(dp(scene, 320f), mapR.width() - dp(scene, 24f))
         val numberedForSize = Regions.exitNumbered(reg.id)
         val extra = if (numberedForSize.isEmpty()) 0f else 14f + numberedForSize.size * 13f
-        val cardH = dp(scene, 120f + extra)
+        // 메인 퀘스트 추천 일줄이 있으면 +14dp 확보
+        val cardH = dp(scene, (if (isMainPick) 134f else 120f) + extra)
         val r = RectF(
             mapR.right - dp(scene, 12f) - cardW, mapR.top + dp(scene, 12f),
             mapR.right - dp(scene, 12f), mapR.top + dp(scene, 12f) + cardH
@@ -3678,6 +3736,15 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         y += dp(scene, 14f)
         textP.color = 0xFF3F6FB0.toInt()
         c.drawText("📅 추천 시기: ${reg.season}", x, y, textP)
+
+        if (isMainPick) {
+            y += dp(scene, 14f)
+            textP.color = 0xFFB5651D.toInt()
+            var rec = "📌 메인 퀘스트 추천: ${mainAdv!!.reason}"
+            val maxRecW = r.width() - dp(scene, 24f)
+            while (rec.length > 6 && textP.measureText(rec) > maxRecW) rec = rec.dropLast(1)
+            c.drawText(rec, x, y, textP)
+        }
 
         y += dp(scene, 14f)
         textP.color = 0xFF8A7360.toInt()
