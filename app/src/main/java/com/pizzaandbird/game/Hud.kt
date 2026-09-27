@@ -173,14 +173,14 @@ class Hud(private val game: Game) {
     }
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(126f) + dp(18f)
+    private fun questChipY(): Float = dp(12f) + dp(150f) + dp(18f)
 
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(126f)
+        val h = dp(150f)
 
         // 패널
         fill.color = Color.argb(216, 248, 239, 220)
@@ -224,6 +224,36 @@ class Hud(private val game: Game) {
         text.color = 0xFF6B5A48.toInt()
         c.drawText(s.timeLabel(), left + dp(30f), iy2 + dp(73f), text)
         c.drawText("📷 ${s.photos}", left + dp(76f), iy2 + dp(73f), text)
+
+        // 레벨 + 경험치 바
+        val ly = iy2 + dp(82f)
+        text.textSize = dp(11.5f)
+        text.color = 0xFF4A3728.toInt()
+        c.drawText("Lv.${s.level}", left + dp(12f), ly + dp(8f), text)
+        text.textSize = dp(9f)
+        text.color = 0xFF8A7360.toInt()
+        val tt = s.title()
+        c.drawText(tt, left + dp(46f), ly + dp(7f), text)
+        // 바
+        val bx = left + dp(12f)
+        val bw = w - dp(24f)
+        val by = ly + dp(12f)
+        val bh = dp(6f)
+        fill.color = Color.argb(255, 214, 197, 164)
+        c.drawRoundRect(RectF(bx, by, bx + bw, by + bh), bh / 2, bh / 2, fill)
+        if (s.level >= Progression.MAX_LEVEL) {
+            fill.color = 0xFFF2D06B.toInt()
+            c.drawRoundRect(RectF(bx, by, bx + bw, by + bh), bh / 2, bh / 2, fill)
+        } else {
+            val prog = s.expProgress()
+            if (prog > 0.01f) {
+                fill.color = 0xFF6FBA6B.toInt()
+                c.drawRoundRect(RectF(bx, by, bx + bw * prog, by + bh), bh / 2, bh / 2, fill)
+            }
+        }
+        stroke.color = 0xFF6B4F35.toInt()
+        stroke.strokeWidth = dp(1.2f)
+        c.drawRoundRect(RectF(bx, by, bx + bw, by + bh), bh / 2, bh / 2, stroke)
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {

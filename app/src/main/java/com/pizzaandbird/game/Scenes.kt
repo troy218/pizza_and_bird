@@ -217,7 +217,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
-        val info = "v0.2.1 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · made with 🍕"
+        val info = "v0.3.0 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 

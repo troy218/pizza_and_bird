@@ -24,14 +24,37 @@ class Assets {
     val shadowPaint = Paint().apply { color = Color.argb(70, 30, 40, 30); isAntiAlias = true }
 
     // 플레이어 --------------------------------------------------------------
-    lateinit var playerDown: Array<Bitmap>      // [0] 서있기 [1][2] 걷기
-    lateinit var playerUp: Array<Bitmap>
-    lateinit var playerSide: Array<Bitmap>      // 오른쪽 방향
-lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
-    lateinit var femaleDown: Array<Bitmap>
-    lateinit var femaleUp: Array<Bitmap>
-    lateinit var femaleSide: Array<Bitmap>
-    lateinit var femaleSideL: Array<Bitmap>
+    // 레벨 등급(0~3)별 걷기 스프라이트 세트 — 겉모습(장비)이 좋아진다.
+    class PlayerSet(
+        val down: Array<Bitmap>,   // [0] 서있기 [1][2] 걷기
+        val up: Array<Bitmap>,
+        val side: Array<Bitmap>,   // 오른쪽 방향
+        val sideL: Array<Bitmap>   // 왼쪽 방향 (플립)
+    )
+
+    // 성별 × 레벨 등급별 스프라이트 세트
+    lateinit var playerTiers: Array<PlayerSet>   // 남자, gearTier로 인덱싱
+    lateinit var femaleTiers: Array<PlayerSet>   // 여자
+
+    // 기본(남자 0등급) 접근자 — 기존 코드 호환용
+    val playerDown: Array<Bitmap> get() = playerTiers[0].down
+    val playerUp: Array<Bitmap> get() = playerTiers[0].up
+    val playerSide: Array<Bitmap> get() = playerTiers[0].side
+    val playerSideL: Array<Bitmap> get() = playerTiers[0].sideL
+    val femaleDown: Array<Bitmap> get() = femaleTiers[0].down
+    val femaleUp: Array<Bitmap> get() = femaleTiers[0].up
+    val femaleSide: Array<Bitmap> get() = femaleTiers[0].side
+    val femaleSideL: Array<Bitmap> get() = femaleTiers[0].sideL
+
+    /** 레벨 등급으로 스프라이트 세트 선택 (남자) */
+    fun playerSet(tier: Int): PlayerSet = playerTiers[tier.coerceIn(0, playerTiers.size - 1)]
+
+    /** 성별 + 레벨 등급으로 스프라이트 세트 선택 */
+    fun playerSet(gender: String, tier: Int): PlayerSet {
+        val tiers = if (gender == "female") femaleTiers else playerTiers
+        return tiers[tier.coerceIn(0, tiers.size - 1)]
+    }
+
     lateinit var bikeDown: Bitmap
     lateinit var bikeUp: Bitmap
     lateinit var bikeSide: Bitmap
@@ -121,10 +144,22 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
         val eye: Int, val blush: Int
     )
 
+    /** 탐조가 장비 (레벨 등급에 따라 겉모습이 좋아진다) */
+    private class Gear(
+        val cap: Int? = null,        // 탐조 모자 색 (null이면 없음)
+        val capDark: Int = 0,
+        val vest: Int? = null,       // 탐조 조끼 색
+        val vestDark: Int = 0,
+        val scarf: Int? = null,      // 목도리 색
+        val brim: Boolean = false,   // 챙 넓은 모자
+        val feather: Int? = null     // 모자 깃털 장식
+    )
+
     private fun person(
         dir: Int, frame: Int, pl: Pal,
         glasses: Boolean = false, apron: Boolean = false,
-        cane: Boolean = false, small: Boolean = false
+        cane: Boolean = false, small: Boolean = false,
+        gear: Gear? = null
     ): Bitmap {
         val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
@@ -273,6 +308,86 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             }
         }
 
+        // ----- 탐조가 장비 (레벨 등급별 겉모습) -----
+        if (gear != null) {
+            // 목도리 (목 언저리 밴드)
+            gear.scarf?.let { sc ->
+                when (dir) {
+                    0 -> {
+                        r(11.6f, 14.2f + oy, 20.4f, 16.4f + oy, sc)
+                        r(18.2f, 16f + oy, 20.2f, 20.2f + oy, sc)   // 늘어진 자락
+                    }
+                    1 -> r(11.4f, 14f + oy, 20.6f, 16f + oy, sc)
+                    else -> {
+                        r(13.6f, 14.2f + oy, 20.6f, 16.4f + oy, sc)
+                        r(13.4f, 16f + oy, 15.4f, 19.6f + oy, sc)
+                    }
+                }
+            }
+            // 조끼 (앞면/측면만 — 뒷면은 배낭이 가림)
+            gear.vest?.let { vs ->
+                when (dir) {
+                    0 -> {
+                        r(9.6f, 16.4f + oy, 12.8f, legTop + 0.2f, vs)
+                        r(19.2f, 16.4f + oy, 22.4f, legTop + 0.2f, vs)
+                        r(13.2f, 15.8f + oy, 18.8f, 17.6f + oy, vs)
+                        r(9.6f, 16.4f + oy, 10.4f, legTop + 0.2f, gear.vestDark)
+                        r(21.6f, 16.4f + oy, 22.4f, legTop + 0.2f, gear.vestDark)
+                    }
+                    2 -> {
+                        r(14.6f, 16.4f + oy, 20.6f, legTop + 0.2f, vs)
+                        r(14.6f, 16.4f + oy, 15.4f, legTop + 0.2f, gear.vestDark)
+                    }
+                    else -> {}
+                }
+            }
+            // 모자 (탐조 캡 / 챙 넓은 모자)
+            gear.cap?.let { cp ->
+                when (dir) {
+                    0, 1 -> {
+                        // 돔
+                        o(10.2f, 2.4f + oy, 21.8f, 8.4f + oy, 3.2f, pl.line)
+                        o(10.8f, 2.8f + oy, 21.2f, 8f + oy, 3f, cp)
+                        r(11.4f, 3.2f + oy, 20.6f, 5.2f + oy, gear.capDark)
+                        // 챙 (정면만, 넓은 모자는 더 크게)
+                        if (dir == 0) {
+                            if (gear.brim) {
+                                o(7.2f, 7.4f + oy, 24.8f, 9.6f + oy, 2f, pl.line)
+                                o(7.6f, 7.6f + oy, 24.4f, 9.2f + oy, 1.6f, cp)
+                            } else {
+                                r(9f, 7.6f + oy, 21.2f, 9.2f + oy, pl.line)
+                                r(9.4f, 7.8f + oy, 20.8f, 8.9f + oy, gear.capDark)
+                            }
+                        }
+                    }
+                    else -> {
+                        o(11.2f, 2.4f + oy, 22.8f, 8.4f + oy, 3.2f, pl.line)
+                        o(11.8f, 2.8f + oy, 22.2f, 8f + oy, 3f, cp)
+                        r(12.4f, 3.2f + oy, 21.6f, 5.2f + oy, gear.capDark)
+                        // 옆 챙 (오른쪽으로)
+                        if (gear.brim) {
+                            o(19.6f, 7f + oy, 27.2f, 9f + oy, 1.8f, cp)
+                        } else {
+                            r(20.2f, 7.2f + oy, 26.4f, 8.6f + oy, cp)
+                        }
+                    }
+                }
+                // 깃털 장식
+                gear.feather?.let { ft ->
+                    when (dir) {
+                        0, 1 -> {
+                            r(20.4f, 1.6f + oy, 21.6f, 5.4f + oy, ft)
+                            r(21.2f, 2.2f + oy, 22.4f, 4.2f + oy, ft)
+                        }
+                        else -> {
+                            r(12.2f, 1.4f + oy, 13.4f, 5.2f + oy, ft)
+                            r(11.4f, 2f + oy, 12.6f, 4f + oy, ft)
+                        }
+                    }
+                }
+            }
+        }
+
         if (cane) {
             r(23.8f, 15f + oy, 25.2f, 30.5f, c(0xFF8A5A33))
             r(22.6f, 14f + oy, 26f, 15.6f, c(0xFF6B431F))
@@ -291,15 +406,32 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
             shoe = c(0xFF7A4A2B), line = c(0xFF33241C), pack = c(0xFFD9534F), pack2 = c(0xFFB23F44),
             eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        playerDown = Array(3) { person(0, it, pl) }
-        playerUp = Array(3) { person(1, it, pl) }
-        playerSide = Array(3) { person(2, it, pl) }
-        playerSideL = Array(3) { flipH(playerSide[it]) }
+        // 레벨 등급별 장비: 0=새내기, 1=견습(캡), 2=숙련(캡+조끼), 3=명인(챙모자+조끼+목도리+깃털)
+        val gearTiers = arrayOf<Gear?>(
+            null,
+            Gear(cap = c(0xFF4F8F6A), capDark = c(0xFF3C6E50)),
+            Gear(
+                cap = c(0xFF3F6FA0), capDark = c(0xFF2F5580),
+                vest = c(0xFF6B8E4E), vestDark = c(0xFF52703B)
+            ),
+            Gear(
+                cap = c(0xFF8A5A2B), capDark = c(0xFF6E4620),
+                vest = c(0xFF3E6B57), vestDark = c(0xFF2C4E3F),
+                scarf = c(0xFFD9534F), brim = true, feather = c(0xFFF2D06B)
+            )
+        )
+        fun buildTiers(pal: Pal): Array<PlayerSet> = Array(gearTiers.size) { tier ->
+            val g = gearTiers[tier]
+            val down = Array(3) { person(0, it, pal, gear = g) }
+            val up = Array(3) { person(1, it, pal, gear = g) }
+            val side = Array(3) { person(2, it, pal, gear = g) }
+            val sideL = Array(3) { flipH(side[it]) }
+            PlayerSet(down, up, side, sideL)
+        }
+        playerTiers = buildTiers(pl)
+        // 여자 팔레트(머리·상의·바지색만 다름) — 장비는 동일하게 진화
         val fp = pl.copy(hair = c(0xFF6A3155), hair2 = c(0xFF4A203D), top = c(0xFFDB6B9A), top2 = c(0xFFB84D7B), pants = c(0xFF66529B), pants2 = c(0xFF4D3C7C))
-        femaleDown = Array(3) { person(0, it, fp) }
-        femaleUp = Array(3) { person(1, it, fp) }
-        femaleSide = Array(3) { person(2, it, fp) }
-        femaleSideL = Array(3) { flipH(femaleSide[it]) }
+        femaleTiers = buildTiers(fp)
 
         val bikeCol = c(0xFFC9503A)
         val bikeDark = c(0xFF8A3326)
