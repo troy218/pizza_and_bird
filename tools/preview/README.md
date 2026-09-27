@@ -156,6 +156,7 @@ java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 |---|---|
 | `01_tiles.png` | 전체 타일 아틀라스 (변형 포함) |
 | `02_sprites.png` | 플레이어/자전거/NPC/고양이/장식/아이콘 |
+| `02b_character_hd.png` | **캐릭터 화질 비교 시트** — 32px 도트×8 / HD(96px) 축소 / HD 1:1 / 레벨업용 256px 만세 / HD 걷기·자전거 |
 | `03_birds.png` | 새 전체 컬렉션 |
 | `04_title.png` | 타이틀 화면 |
 | `05_region_select.png` | 정착 지역 선택 |
@@ -169,6 +170,9 @@ java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 | `33_achievement_stats.png` | 업적 통계 상세 |
 | `34_achievement_detail.png` | 업적 상세 및 해금 날짜 |
 | `35_achievement_unlock_toast.png` | 실제 업적 해금 토스트 |
+| `36_levelup.png` | 레벨업 축하(만세) — 캐릭터를 가장 크게 띄우는 화면 |
+| `37_levelup_gear.png` | 새 탐조 장비를 갖추는 레벨업 (장비 등급 3) |
+| `38_character_select.png` | 캐릭터 선택 카드 |
 
 > 게임 동작의 기준은 어디까지나 Kotlin 쪽 코드다. 이 파이프라인은 실제 코드를
 > 실행하므로 화면은 실기기와 동일한 알고리즘으로 그려진다.

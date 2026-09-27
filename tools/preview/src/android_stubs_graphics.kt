@@ -697,6 +697,15 @@ class Bitmap internal constructor(val image: BufferedImage) {
 
     fun getPixel(x: Int, y: Int): Int = image.getRGB(x, y)
 
+    /** android.graphics.Bitmap.getPixels 와 같은 서명 (도트 후처리에서 사용) */
+    fun getPixels(pixels: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {
+        image.getRGB(x, y, width, height, pixels, offset, stride)
+    }
+
+    fun setPixels(pixels: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {
+        image.setRGB(x, y, width, height, pixels, offset, stride)
+    }
+
     fun copy(config: Config, isMutable: Boolean): Bitmap {
         val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         out.setData(image.copyData(null))

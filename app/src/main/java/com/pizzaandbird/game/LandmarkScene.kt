@@ -457,8 +457,8 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sx = (docentX - 8f - camX) * WORLD_SCALE
         val sy = (docentY - 13f - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f), a.shadowPaint)
-        val bmp = a.npcBitmap(theme.docentKind, game.time, 1.3f)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        val bmp = a.npcBitmap(theme.docentKind, game.time, 1.3f, game.hdSprites)
+        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 머리 위 💬 마커
         val bx = sx + 16f
         val by = sy - 12f
@@ -476,16 +476,17 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
-        val ps = a.playerSet(state.gender, state.gearTier())
+        val hd = game.hdSprites
+        val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         val camDir = when (player.facing) {
             Dir.E -> 2
             Dir.W -> 3
             Dir.N -> 1
             else -> 0
         }
-        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, game.worldScale.toFloat())
     }
 
     override fun drawHud(c: Canvas) {
