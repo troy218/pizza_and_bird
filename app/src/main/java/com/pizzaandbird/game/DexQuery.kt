@@ -23,6 +23,8 @@ enum class DexSort(val label: String, val hint: String) {
     TIER("등급", "전설 → 흔함"),
     /** 많이 찍은 순 (미촬영은 뒤) */
     PHOTOS("촬영", "셔터를 누른 횟수"),
+    /** 촬영한 종만 앞으로 — 같은 그룹 안에서는 목록 순서 유지 */
+    PHOTO_FIRST("촬영한 순", "찍은 것만 앞에"),
     /** 최고 별점 순 */
     STARS("별점", "가장 잘 찍은 사진"),
     /** 목 · 과 이름순 */
@@ -148,6 +150,7 @@ object BirdIndex {
             DexSort.PHOTOS -> filtered.sortedWith(
                 compareByDescending<BirdDef> { s.birdCounts[it.id] ?: 0 }.thenBy { it.birdNum }
             )
+            DexSort.PHOTO_FIRST -> filtered.sortedByDescending { (s.birdCounts[it.id] ?: 0) > 0 }
             DexSort.STARS -> filtered.sortedWith(
                 compareByDescending<BirdDef> { s.bestStars[it.id] ?: 0 }
                     .thenByDescending { s.birdCounts[it.id] ?: 0 }

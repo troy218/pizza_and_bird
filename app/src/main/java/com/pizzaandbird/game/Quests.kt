@@ -563,10 +563,17 @@ object QuestManager {
                 q.currentProgress++
                 if (q.isComplete) {
                     q.completed = true
-                    s.money += q.rewardMoney
+                    // 지정 조류 의뢰를 3성으로 완수하면 30% 보너스 (구 단일의뢰 시절 규칙 유지)
+                    var pay = q.rewardMoney
+                    var bonus = 0
+                    if (q.category == QuestCategory.BIRD_SPECIES && stars >= 3) {
+                        bonus = (q.rewardMoney * 0.3f).toInt()
+                        pay += bonus
+                    }
+                    s.money += pay
                     s.addExp(q.rewardExp)
                     s.luck += q.rewardLuck
-                    completedLines.add("의뢰 완수! [${q.category.label}] ${q.title} (+₩${won(q.rewardMoney)})")
+                    completedLines.add("의뢰 완수! [${q.category.label}] ${q.title} (+₩${won(pay)})" + if (bonus > 0) " (3성 보너스)" else "")
                     if (q.category == QuestCategory.BIRD_SPECIES && s.questBird == q.targetKey) {
                         s.questBird = null
                         s.questReward = 0

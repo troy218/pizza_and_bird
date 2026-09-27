@@ -478,6 +478,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private var questSubTab = 0
     private var questTaskPage = 0
     private var achievementPage = 0
+    private val albumPhotoPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private var panelR = RectF()
 
     override fun handleInput(input: Input) {
@@ -816,6 +817,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             Triple("pin", "위치", "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}"),
             Triple("house", "주택", "${s.ownedHomes.size}채 · 인테리어 ${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}"),
             Triple("book", "도감", "${s.birdCounts.size}/${Birds.ALL.size}종"),
+            Triple("search", "의뢰", if (s.activeQuests.isEmpty()) "없음" else "${s.activeQuests.size}/3 · ${s.activeQuests.first().title}"),
             Triple("calendar", "플레이", timeStr),
             Triple("bike", "자전거", "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else "")),
             Triple("pizza", "피자", "${s.pizzaCount}개 · 화덕 ${s.pizzaCountOfKind(PizzaKind.OVEN)} · 일반 ${s.pizzaCountOfKind(PizzaKind.REGULAR)} · 장식 ${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"),
@@ -945,8 +947,13 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 74f), textP)
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
-        val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
-            ?: "서브 사진 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락"
+        val side = if (s.activeQuests.isEmpty()) {
+            "탐조 의뢰: 없음 · ${NpcRoster.professorRegionName} 보리 박사에게서 수락 (최대 3개)"
+        } else {
+            val first = s.activeQuests.first()
+            val extra = if (s.activeQuests.size > 1) " 외 ${s.activeQuests.size - 1}개" else ""
+            "탐조 의뢰(${s.activeQuests.size}/3): ${first.title}$extra"
+        }
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
         y = mainR.bottom + dp(scene, 7f)
 
@@ -1685,6 +1692,8 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
         val rects = LinkedHashMap<String, RectF>()
         val startIndex = bookPage * pageSize
+        // 검색·정렬·묶기를 통과한 목록 (`BirdIndex`) 그대로 페이지를 자른다.
+        // "촬영한 종을 먼저" 는 정렬 방법 `DexSort.PHOTO_FIRST` 로 살아 있다 (v0.5).
         val pageItems = view.drop(startIndex).take(pageSize)
         // 이 페이지의 사진을 미리 받는다 (디코드는 로더 스레드가, 여기는 그리기만)
         for (def in pageItems) a.prefetchBirdThumb(def.birdNum)
@@ -1897,12 +1906,13 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             c.drawRoundRect(photoR, dp(scene, 3f), dp(scene, 3f), fillP)
             val bmp = PhotoArchive.image(g.context, record.fileName) // 없으면 백그라운드 로딩 중
             if (bmp != null) {
-                val k = maxOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
+                // 썸네일에서도 수평선/양옆 배경을 잘라내지 않는다.
+                val k = minOf(photoR.width() / bmp.width.toFloat(), photoR.height() / bmp.height.toFloat())
                 val dw = bmp.width * k
                 val dh = bmp.height * k
                 c.save(); c.clipRect(photoR)
                 c.drawBitmap(bmp, null, RectF(photoR.centerX() - dw / 2f, photoR.centerY() - dh / 2f,
-                    photoR.centerX() + dw / 2f, photoR.centerY() + dh / 2f), Paint(Paint.FILTER_BITMAP_FLAG))
+                    photoR.centerX() + dw / 2f, photoR.centerY() + dh / 2f), albumPhotoPaint)
                 c.restore()
             } else {
                 val def = Birds.byId[record.birdId]
@@ -1976,7 +1986,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val summaries = listOf(
             "🚶 ${String.format(java.util.Locale.US, "%.1f", stats.walkKm)} km  ·  🚲 ${String.format(java.util.Locale.US, "%.1f", stats.bikeKm)} km",
             "📷 ${stats.photos}장  ·  🐦 ${stats.discoveredSpecies}종  ·  🗺 ${stats.visitedRegions}/${Regions.ALL.size}곳",
-            "🍕 약 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
+            "🍕 ${stats.pizzasProduced}판  ·  🌅 ${stats.daysPlayed}일째  ·  해금 ${unlocked.size}/${Ach.total}"
         )
         var summaryY = top + dp(scene, 39f)
         for (line in summaries) {
@@ -3364,7 +3374,7 @@ class BakeOverlay(
         val tap = input.consumeTapScreen()
         when (step) {
             0 -> {
-                if (input.justB || input.justBack) { finished = true; return }
+                if (input.justB || input.justBack) { cancelBake(); return }
                 if (tap == null) return
                 // [P07] 하단 서브탭: 🍕 메뉴 / ✈ 특산
                 for ((r, special) in kindTabRects) {
@@ -3389,8 +3399,7 @@ class BakeOverlay(
                     }
                 }
                 if (cancelRect.contains(tap.x, tap.y)) {
-                    scene.game.sfx(Audio.Sfx.TAP, 0.5f)
-                    finished = true
+                    cancelBake()
                 }
             }
             1 -> {
@@ -3402,9 +3411,27 @@ class BakeOverlay(
         }
     }
 
+    /** 굽기 전 취소 — 도우는 아직 불에 들어가지 않았으니 결제금을 돌려준다 */
+    private fun cancelBake() {
+        val g = scene.game
+        if (dough.price > 0) {
+            g.state.money += dough.price
+            SaveManager.save(g.context, g.state)
+            g.toast("${dough.icon} ${dough.label} 취소 — ${won(dough.price)} 환불됐어요")
+        }
+        g.sfx(Audio.Sfx.TAP, 0.5f)
+        finished = true
+    }
+
     /** [P07] 굽기 시작 — 특산 재료는 재고를 먼저 소모하고, 없으면 막는다 */
     private fun startBake(tp: Ingredients.ToppingDef?, id: Int = -1) {
         val g = scene.game
+        // 가방이 가득이면 굽기 전에 막는다 — 재료만 날리고 피자를 잃는 일 방지
+        if (g.state.pizzaCount >= g.state.pizzaCapEff()) {
+            g.toast("피자 가방이 가득 찼어요! 먼저 한 판 먹고 오세요 🍕")
+            g.sfx(Audio.Sfx.FAIL, 0.55f)
+            return
+        }
         val selectedId = tp?.pizzaId ?: id
         if (!g.state.isPizzaUnlocked(selectedId)) {
             g.toast("🔒 아직 발견하지 못한 피자 레시피예요. 메인 이야기를 진행해 보세요!")
@@ -3831,6 +3858,7 @@ class PhotoResultOverlay(
     private var cuedStars = false
     private var cuedNew = false
     private var cuedQuest = false
+    private val photoPaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
     override fun update(dt: Float) {
         t += dt
@@ -3882,10 +3910,15 @@ class PhotoResultOverlay(
         dim(c, scene, 172)
 
         val inset = dp(scene, 11f)
-        val maxW = minOf(w * 0.62f, dp(scene, 340f))
+        val landscape = capturedPhoto != null
+        val photoAspect = capturedPhoto?.let { it.height.toFloat() / it.width } ?: 0.74f
+        val maxW = if (landscape) minOf(w * 0.82f, dp(scene, 520f)) else minOf(w * 0.62f, dp(scene, 340f))
         val maxH = h * 0.76f
-        val cardW = minOf(maxW, maxH / 1.26f)
-        val cardH = cardW * 1.26f
+        // 원근 풍경의 양옆을 잘라내지 않는 가로 인화지. 캡션/별점 공간은 그대로 확보한다.
+        val footer = dp(scene, 96f)
+        val cardW = if (landscape) minOf(maxW, (maxH - inset - footer) / photoAspect + inset * 2f)
+            else minOf(maxW, maxH / 1.26f)
+        val cardH = if (landscape) (cardW - inset * 2f) * photoAspect + inset + footer else cardW * 1.26f
         val cx = w / 2f
         val cy = h * 0.5f - dp(scene, 6f)
 
@@ -3916,7 +3949,7 @@ class PhotoResultOverlay(
 
         // 사진
         val photoW = cardW - inset * 2f
-        val photoH = minOf(photoW * 0.74f, cardH - inset - dp(scene, 96f))
+        val photoH = minOf(photoW * photoAspect, cardH - inset - footer)
         val photo = RectF(card.left + inset, card.top + inset, card.left + inset + photoW, card.top + inset + photoH)
         drawPhoto(c, photo)
         // EXIF 스트립 — 어떤 설정으로 찍혔는지
@@ -4072,18 +4105,19 @@ class PhotoResultOverlay(
     /** 인화지 속 풍경 + 새 */
     private fun drawPhoto(c: Canvas, r: RectF) {
         val a = scene.game.assets
-        // 촬영 시점에 월드 타일/지형물/날씨와 방향별 큰 새를 함께 렌더해 저장한 실제 게임 사진.
-        // 화면 비율이 달라도 중앙 피사체를 유지하는 center-crop으로 인화한다.
+        // 새 눈높이에서 원근 투영한 촬영 원본. 수평선과 양옆 풍경까지 사진집과 똑같이 보존한다.
         val saved = capturedPhoto
         if (saved != null) {
-            val scale = maxOf(r.width() / saved.width.toFloat(), r.height() / saved.height.toFloat())
+            val scale = minOf(r.width() / saved.width.toFloat(), r.height() / saved.height.toFloat())
             val dw = saved.width * scale
             val dh = saved.height * scale
             val dx = r.centerX() - dw / 2f
             val dy = r.centerY() - dh / 2f
             c.save()
             c.clipRect(r)
-            c.drawBitmap(saved, null, RectF(dx, dy, dx + dw, dy + dh), Paint(Paint.FILTER_BITMAP_FLAG))
+            fillP.color = 0xFF27383D.toInt()
+            c.drawRect(r, fillP)
+            c.drawBitmap(saved, null, RectF(dx, dy, dx + dw, dy + dh), photoPaint)
             c.restore()
             return
         }
