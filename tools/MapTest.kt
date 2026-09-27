@@ -308,6 +308,16 @@ fun main() {
         }
     }
 
+    // 3.5 여러 지역의 매입 집: 이사로 정착지가 바뀌어도 기존 현관은 남아 다시 들어갈 수 있어야 한다.
+    val retainedHomeIds = setOf("seoul", "busan")
+    for (regionId in retainedHomeIds) {
+        val map = MapBuilder.build(Regions.byId[regionId]!!, "busan", retainedHomeIds)
+        check(map.hasHouse, "매입 집이 사라짐 $regionId")
+        check(map.t(map.houseDoorX, map.houseDoorY) == T.HOUSE_DOOR, "매입 집 문 오류 $regionId")
+        check(!map.solidTile(map.houseDoorX, map.houseDoorY), "매입 집 문이 막힘 $regionId")
+        check(reach(map, PLAZA_CX, PLAZA_CY, map.houseDoorX, map.houseDoorY), "매입 집 현관 접근 불가 $regionId")
+    }
+
     // 4. 집 내부 (v0.4: 16x12 확장 레이아웃 — 화덕 우상단, 가정용 오븐은 화덕 왼쪽)
     val hm = MapBuilder.buildHome()
     check(hm.w == 16 && hm.h == 12, "집 내부 16x12 오류: ${hm.w}x${hm.h}")

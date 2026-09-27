@@ -542,6 +542,11 @@ object MapBuilder {
     /**
      * 지역 월드맵 생성 (결정적 절차 생성 — 지역 id 시드).
      *
+     * [ownedHomeRegions]에는 이미 매입한 지역 집을 모두 넘긴다. 예전에는
+     * [homeRegion]의 집만 맵에 세워서, 다른 지역에 매입해 둔 집은 문 자체가
+     * 생기지 않아 들어갈 수 없었다. 기본값은 기존 호출부/테스트 호환을 위해
+     * 현재 정착지 한 채만 가진 것으로 둔다.
+     *
      * 길 설계
      *  - 남북/동서로 **2칸 폭 간선도로**가 지나고, 가운데에서 팔각 광장으로 모인다.
      *  - 간선은 완전한 직선이 아니라 구간마다 살짝 사행(蛇行)한다. 다만 터널·광장
@@ -550,7 +555,11 @@ object MapBuilder {
      *  - 건물 정문·호숫가 데크·숲속 쉼터까지 1칸 폭 샛길이 뻗는다.
      *  - 중심선을 따라 가로수와 가로등이 번갈아 도열한다.
      */
-    fun build(region: RegionDef, homeRegion: String): GameMap {
+    fun build(
+        region: RegionDef,
+        homeRegion: String,
+        ownedHomeRegions: Set<String> = setOf(homeRegion)
+    ): GameMap {
         val w = region.mapW
         val h = region.mapH
         val t = Array(h) { IntArray(w) { T.GRASS.ordinal } }
@@ -1033,7 +1042,10 @@ object MapBuilder {
         // 5. 우리 집 -------------------------------------------------------------
         var houseDoorX = -1
         var houseDoorY = -1
-        val hasHouse = homeRegion == region.id
+        // 정착 중인 집뿐 아니라 이전에 매입해 둔 지역 집도 현관을 유지한다.
+        // homeRegion을 함께 검사해, 오래된 세이브/호출부가 소유 목록을 넘기지 않아도
+        // 현재 정착지의 현관이 사라지지 않게 한다.
+        val hasHouse = region.id == homeRegion || region.id in ownedHomeRegions
         if (hasHouse) {
             for (x in 21..25) for (y in 8..9) {
                 t[y][x] = T.HOUSE_ROOF.ordinal
