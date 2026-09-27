@@ -261,9 +261,10 @@ class ViewRig(private val state: GameState) {
         val ref = refSpeed(gait)
 
         // ---------- 1) 다이내믹 시야각 (FOV) ----------
-        var zTarget = 1f
+        // 기본 카메라 높이(CAM_BASE_ZOOM)를 항상 깔고, 그 위에 이동/망원 연출을 곱한다
+        var zTarget = CAM_BASE_ZOOM
         if (state.camFov) {
-            zTarget = when (gait) {
+            zTarget *= when (gait) {
                 Gait.BIKE -> 0.925f          // 자전거: 시야가 넓어지며 풍경이 뒤로 밀린다
                 Gait.RUN -> 0.955f           // 달리기: 살짝 광각
                 else -> 1f
@@ -272,7 +273,7 @@ class ViewRig(private val state: GameState) {
         }
         zoomBase += (zTarget - zoomBase) * CamFx.smoothK(dt, if (teleZoom > 1.001f) 0.24f else 0.40f)
         punch.step(dt)
-        zoom = (zoomBase * (1f + punch.v)).coerceIn(0.7f, 2.2f)
+        zoom = (zoomBase * (1f + punch.v)).coerceIn(0.7f, 2.8f)
 
         // ---------- 2) 카메라 셰이크 ----------
         // trauma^1.5 — 작은 충격은 은은하게, 큰 충격은 확실하게 (선형보다 덜 산만하다)
@@ -412,7 +413,7 @@ class ViewRig(private val state: GameState) {
         kickX.reset()
         kickY.reset()
         punch.reset()
-        zoomBase = if (state.camFov) teleZoom else 1f
+        zoomBase = CAM_BASE_ZOOM * (if (state.camFov) teleZoom else 1f)
         zoom = zoomBase
         viewW = baseViewW / zoom
         viewH = baseViewH / zoom
