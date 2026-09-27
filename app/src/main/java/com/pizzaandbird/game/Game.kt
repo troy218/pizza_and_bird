@@ -26,7 +26,7 @@ class Game(val context: Context) {
     val worldCanvas = Canvas(worldBitmap)
 
     val state: GameState = SaveManager.load(context)
-    val assets = Assets()
+    val assets = Assets(context)
     val illustrations = SvgIllustrations(context.assets)
     val audio = Audio(context).apply {
         musicOn = state.musicOn
