@@ -80,6 +80,23 @@ class Assets {
     // 타일 (32x32) ------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant 또는 프레임]
 
+    // 길 (오토타일 — Roads.kt) --------------------------------------------------
+    private val roadCache = HashMap<Int, Bitmap>()
+    lateinit var medallion: Array<Bitmap>       // 광장 문양 3x3
+    lateinit var drain: Bitmap                  // 빗물받이
+    lateinit var castShadow: Array<Bitmap>      // [위, 왼쪽, 왼쪽위] 접지 그림자
+
+    /** 포장 타일 (이웃 비트마스크로 모양이 정해지고 캐시된다) */
+    fun roadTile(mat: Int, mask: Int, variant: Int, sandy: Boolean): Bitmap {
+        val key = (mat shl 13) or (mask shl 5) or (variant shl 1) or (if (sandy) 1 else 0)
+        var b = roadCache[key]
+        if (b == null) {
+            b = RoadArt.tile(mat, mask, variant, sandy)
+            roadCache[key] = b
+        }
+        return b
+    }
+
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
     lateinit var pizzaIconBig: Bitmap
@@ -1179,6 +1196,12 @@ class Assets {
         return b
     }
 
+    /** 소품용 접지 그림자 (소품 타일은 배경이 투명하므로 그림자를 직접 얹는다) */
+    private fun propShadow(cv: Canvas, p: Paint, cx: Float, cy: Float, rx: Float, ry: Float) {
+        p.color = c(0x40202C20)
+        cv.drawOval(RectF(cx - rx, cy - ry, cx + rx, cy + ry), p)
+    }
+
     private fun fill(c: Canvas, p: Paint, color: Int) {
         p.color = color
         c.drawRect(0f, 0f, 32f, 32f, p)
@@ -1232,12 +1255,20 @@ class Assets {
     }
 
     private fun buildTiles() {
-        val list = ArrayList<Array<Bitmap>>()
-        fun add(vararg bmps: Bitmap) {
-            list.add(if (bmps.size == 1) arrayOf(bmps[0]) else bmps.toList().toTypedArray())
+        // T 값마다 변형(또는 애니메이션 프레임) 목록을 모은다.
+        // 예전처럼 순서에 의존하지 않고 enum 키로 담아 두므로 어긋날 수가 없다.
+        val map = LinkedHashMap<T, ArrayList<Bitmap>>()
+        var cur: T? = null
+        fun begin(t: T) {
+            cur = t
+            map[t] = ArrayList()
+        }
+        fun add(bmp: Bitmap) {
+            map[cur ?: error("begin(T.…) 을 먼저 불러야 한다")]!!.add(bmp)
         }
 
         // GRASS (6종 변형 — 더 다채로운 초원 디테일)
+        begin(T.GRASS)
         for (i in 0 until 6) {
             add(tilePainter { c, p, r ->
                 grassBase(c, p, r)
@@ -1288,6 +1319,7 @@ class Assets {
             })
         }
         // TALLGRASS (3종 — 잎끝 하이라이트 + 살짝 휘어진 형태로 자연스러움 강화)
+        begin(T.TALLGRASS)
         for (i in 0 until 3) {
             add(tilePainter { c, p, r ->
                 grassBase(c, p, r, c(0xFF8CC46C))
@@ -1320,6 +1352,7 @@ class Assets {
             })
         }
         // FLOWER (4색 — 둥근 4장 꽃잎 + 잎사귀로 훨씬 화사하게)
+        begin(T.FLOWER)
         val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8), c(0xFFC9A8E8))
         for (i in 0 until 4) {
             add(tilePainter { c, p, r ->
@@ -1347,44 +1380,15 @@ class Assets {
                 }
             })
         }
-        // PATH (3종)
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFFE5D3A0))
-                specks(c, p, r, c(0xFFD6BF87), 9)
-                specks(c, p, r, c(0xFFF0E2B8), 6)
-                if (i == 1) {
-                    p.color = c(0xFFC9B582)
-                    c.drawRect(4f, 5f, 8f, 6.4f, p)
-                    c.drawRect(20f, 22f, 25f, 23.4f, p)
-                }
-                if (i == 2) {
-                    p.color = c(0xFFC9B582)
-                    c.drawRect(9f, 14f, 12f, 15.4f, p)
-                    c.drawRect(11f, 13.4f, 10f, 16f, p)
-                }
-            })
-        }
-        // PLAZA (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                fill(c, p, c(0xFFD9C9A7))
-                p.color = c(0xFFC6B58F)
-                c.drawRect(0f, 0f, 32f, 1.6f, p)
-                c.drawRect(0f, 0f, 1.6f, 32f, p)
-                c.drawRect(0f, 15.5f, 32f, 17f, p)
-                c.drawRect(15.5f, 0f, 17f, 32f, p)
-                p.color = c(0xFFE9DCBC)
-                c.drawRect(2.4f, 2.4f, 14.8f, 14.8f, p)
-                c.drawRect(18.2f, 18.2f, 30f, 30f, p)
-                if (i == 1) {
-                    p.color = c(0xFFC6B58F)
-                    c.drawRect(18.2f, 8f, 28f, 9.4f, p)
-                    c.drawRect(6f, 20f, 9f, 21.2f, p)
-                }
-            })
-        }
+        // PATH (길) — 실제 화면에서는 Roads.kt 오토타일이 그린다.
+        // 여기 있는 것은 "사방이 모두 길" 인 안쪽 조각 (미니맵/예비용).
+        begin(T.PATH)
+        for (i in 0 until 3) add(RoadArt.tile(Pave.DIRT, 255, i, false))
+        // PLAZA (석재 포장)
+        begin(T.PLAZA)
+        for (i in 0 until 2) add(RoadArt.tile(Pave.STONE, 255, i, false))
         // SAND (3종)
+        begin(T.SAND)
         for (i in 0 until 3) {
             add(tilePainter { c, p, r ->
                 fill(c, p, c(0xFFF2E1B0))
@@ -1404,6 +1408,7 @@ class Assets {
             })
         }
         // WATER (4프레임 애니메이션)
+        begin(T.WATER)
         for (f in 0 until 4) {
             add(tilePainter { c, p, r ->
                 fill(c, p, c(0xFF4FA8D8))
@@ -1422,6 +1427,7 @@ class Assets {
             })
         }
         // REED (2종)
+        begin(T.REED)
         for (i in 0 until 2) {
             add(tilePainter { c, p, r ->
                 grassBase(c, p, r, c(0xFF8CC46C))
@@ -1440,8 +1446,9 @@ class Assets {
             })
         }
         // TREE (2종: 활엽수 + 침엽수)
+        begin(T.TREE)
         add(tilePainter { c, p, r ->
-            grassBase(c, p, r)
+            propShadow(c, p, 16f, 29.5f, 9.5f, 3.4f)
             p.color = c(0xFF5D3A20)
             c.drawRect(14f, 18f, 18f, 31f, p)
             p.color = c(0xFF7A4E2B)
@@ -1459,7 +1466,7 @@ class Assets {
             c.drawRect(9f, 17.4f, 24f, 18.6f, p)
         })
         add(tilePainter { c, p, r ->
-            grassBase(c, p, r)
+            propShadow(c, p, 16f, 29.5f, 9.5f, 3.4f)
             p.color = c(0xFF5D3A20)
             c.drawRect(14.6f, 24f, 17.4f, 31f, p)
             val path = Path()
@@ -1479,9 +1486,10 @@ class Assets {
             c.drawRect(8f, 22f, 10.6f, 23.4f, p)
         })
         // ROCK (2종)
+        begin(T.ROCK)
         for (i in 0 until 2) {
             add(tilePainter { c, p, r ->
-                grassBase(c, p, r)
+                propShadow(c, p, 16f, 26.5f, 9f, 3f)
                 if (i == 0) {
                     p.color = c(0xFF5A626C)
                     c.drawRect(6f, 10f, 26f, 28f, p)
@@ -1506,6 +1514,7 @@ class Assets {
             })
         }
         // MOUNTAIN (2종)
+        begin(T.MOUNTAIN)
         for (i in 0 until 2) {
             add(tilePainter { c, p, r ->
                 fill(c, p, c(0xFF77848F))
@@ -1529,6 +1538,7 @@ class Assets {
             })
         }
         // BLDG_WALL
+        begin(T.BLDG_WALL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFE9E2D3))
             p.color = c(0xFFD8CFBA)
@@ -1542,6 +1552,7 @@ class Assets {
             c.drawRect(15f, 9.6f, 16.4f, 20f, p)
         })
         // BLDG_WIN (2종)
+        begin(T.BLDG_WIN)
         val curtains = intArrayOf(c(0xFFF2D06B), c(0xFFC3A3E8))
         for (i in 0 until 2) {
             add(tilePainter { c, p, r ->
@@ -1563,6 +1574,7 @@ class Assets {
             })
         }
         // BLDG_ROOF
+        begin(T.BLDG_ROOF)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFC96A4D))
             p.color = c(0xFFB2583F)
@@ -1577,6 +1589,7 @@ class Assets {
             c.drawRect(18f, 25f, 26f, 26.4f, p)
         })
         // HOUSE_ROOF
+        begin(T.HOUSE_ROOF)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFD4694A))
             p.color = c(0xFFB55338)
@@ -1591,6 +1604,7 @@ class Assets {
             c.drawRect(18f, 20f, 28f, 21.2f, p)
         })
         // HOUSE_WALL
+        begin(T.HOUSE_WALL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
             p.color = c(0xFFE0C9A2)
@@ -1603,6 +1617,7 @@ class Assets {
             c.drawRect(13f, 0f, 15f, 14f, p)
         })
         // HOUSE_WIN (꽃상자 있는 창문)
+        begin(T.HOUSE_WIN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
             p.color = c(0xFFC9A87B)
@@ -1627,6 +1642,7 @@ class Assets {
             c.drawRect(21f, 20.6f, 23.4f, 22.4f, p)
         })
         // HOUSE_DOOR
+        begin(T.HOUSE_DOOR)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF6E7C6))
             p.color = c(0xFFC9A87B)
@@ -1646,6 +1662,7 @@ class Assets {
             c.drawRect(0f, 28f, 32f, 32f, p)
         })
         // TUNNEL
+        begin(T.TUNNEL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF77848F))
             p.color = c(0xFF8D9AA8)
@@ -1671,6 +1688,7 @@ class Assets {
             c.drawRect(8f, 28f, 24f, 32f, p)
         })
         // FLOOR (2종)
+        begin(T.FLOOR)
         for (i in 0 until 2) {
             add(tilePainter { c, p, r ->
                 val base = if (i == 0) c(0xFFCDA775) else c(0xFFC49E6C)
@@ -1691,6 +1709,7 @@ class Assets {
             })
         }
         // WALL_IN
+        begin(T.WALL_IN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
             p.color = c(0xFFE8D5AE)
@@ -1704,6 +1723,7 @@ class Assets {
             c.drawRect(0f, 27.4f, 32f, 32f, p)
         })
         // WALL_WIN
+        begin(T.WALL_WIN)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFF2E3C2))
             p.color = c(0xFFC9A87B)
@@ -1725,6 +1745,7 @@ class Assets {
             c.drawRect(0f, 27.4f, 32f, 32f, p)
         })
         // OVEN (2프레임 — 불꽃 애니메이션)
+        begin(T.OVEN)
         for (f in 0 until 2) {
             add(tilePainter { c, p, r ->
                 fill(c, p, c(0xFF8F8F99))
@@ -1755,6 +1776,7 @@ class Assets {
             })
         }
         // BED
+        begin(T.BED)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFCDA775))
             p.color = c(0xFF8A5A33)
@@ -1774,6 +1796,7 @@ class Assets {
             c.drawRect(18f, 11f, 27.4f, 14f, p)
         })
         // BOX
+        begin(T.BOX)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFCDA775))
             p.color = c(0xFFC89B6A)
@@ -1795,6 +1818,7 @@ class Assets {
             c.drawRect(13.6f, 21f, 18.4f, 22f, p)
         })
         // DECOR (장식 칸 — 점선 표시)
+        begin(T.DECOR)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFFCDA775))
             p.color = c(0xFFB98F5E)
@@ -1812,8 +1836,9 @@ class Assets {
             c.drawRect(14.6f, 14.6f, 17.4f, 17.4f, p)
         })
         // SIGN (터널 이정표)
+        begin(T.SIGN)
         add(tilePainter { c, p, r ->
-            grassBase(c, p, r)
+            propShadow(c, p, 16f, 29.5f, 6.5f, 2.4f)
             p.color = c(0xFF6B431F)
             c.drawRect(14.6f, 10f, 17.4f, 30f, p)
             p.color = c(0xFF8A5A33)
@@ -1836,14 +1861,9 @@ class Assets {
             c.drawRect(16.4f, 8.8f, 20.4f, 10.4f, p)
         })
         // BENCH (벤치)
+        begin(T.BENCH)
         add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFD9C9A7))
-            p.color = c(0xFFC6B58F)
-            c.drawRect(0f, 0f, 32f, 1.6f, p)
-            c.drawRect(0f, 15.5f, 32f, 17f, p)
-            p.color = c(0xFFE9DCBC)
-            c.drawRect(2.4f, 2.4f, 14.8f, 14.8f, p)
-            c.drawRect(18.2f, 18.2f, 30f, 30f, p)
+            propShadow(c, p, 16f, 27f, 12f, 3.2f)
             // 등받이
             p.color = c(0xFF6B431F)
             c.drawRect(3f, 3f, 29f, 5.4f, p)
@@ -1864,11 +1884,9 @@ class Assets {
             c.drawRect(25.6f, 19f, 28f, 27f, p)
         })
         // LAMP (가로등)
+        begin(T.LAMP)
         add(tilePainter { c, p, r ->
-            fill(c, p, c(0xFFD9C9A7))
-            p.color = c(0xFFC6B58F)
-            c.drawRect(0f, 0f, 32f, 1.6f, p)
-            c.drawRect(0f, 15.5f, 32f, 17f, p)
+            propShadow(c, p, 16f, 30f, 8f, 2.4f)
             // 기둥
             p.color = c(0xFF3A3F4A)
             c.drawRect(14.4f, 6f, 17.6f, 30f, p)
@@ -1887,7 +1905,16 @@ class Assets {
             c.drawRect(15.4f, 7f, 16.6f, 8.4f, p)
         })
 
-        tiles = list.toTypedArray()
+        medallion = RoadArt.medallion(3)
+        drain = RoadArt.drain()
+        castShadow = RoadArt.castShadows()
+
+        tiles = Array(T.ALL.size) { i ->
+            val t = T.ALL[i]
+            val v = map[t] ?: error("타일 아트 누락: $t")
+            if (v.isEmpty()) error("타일 아트 비어 있음: $t")
+            v.toTypedArray()
+        }
     }
 
     /** 타일 좌표 기반 변형 선택 */
