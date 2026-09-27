@@ -2421,7 +2421,7 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
             c.drawRoundRect(r, dp(scene, 9f), dp(scene, 9f), strokeP)
 
             textP.textSize = textDp(scene, 20f)
-            c.drawText(part.emoji, r.left + dp(scene, 10f), r.centerY() + dp(scene, 7f), textP)
+            c.drawText(part.emoji, r.left + dp(scene, 10f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             textP.textSize = textDp(scene, 13f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(part.name, r.left + dp(scene, 44f), r.top + dp(scene, 18f), textP)
@@ -4055,7 +4055,7 @@ private fun drawGearCard(
     } else {
         textP.textSize = textDp(scene, 22f)
         textP.color = 0xFF6B4F35.toInt()
-        c.drawText(gear.kind.emoji, r.left + dp(scene, 18f), r.centerY() + dp(scene, 8f), textP)
+        c.drawText(gear.kind.emoji, r.left + dp(scene, 18f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
     }
 
     val tx = r.left + dp(scene, 62f)
@@ -4509,10 +4509,10 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
             drawCard(c, scene, r, enabled, if (enabled) 0xFFB5651D.toInt() else 0xFFC9A87B.toInt(), 1.3f)
             textP.textSize = textDp(scene, 10.5f)
             textP.color = 0xFF8A7360.toInt()
-            c.drawText(label, r.left + dp(scene, 10f), r.centerY() + dp(scene, 4f), textP)
+            c.drawText(label, r.left + dp(scene, 10f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             textP.textSize = textDp(scene, 11.5f)
             textP.color = if (enabled) 0xFF4A3728.toInt() else 0xFF9A8B7A.toInt()
-            c.drawText(value, r.left + dp(scene, 74f), r.centerY() + dp(scene, 4f), textP)
+            c.drawText(value, r.left + dp(scene, 74f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             val br = RectF(r.right - dp(scene, 66f), r.centerY() - dp(scene, 11f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 11f))
             drawButton(c, scene, br, "바꾸기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 10f)
             btnRects.add(Triple(br, label) { pick(kind) })
@@ -4675,7 +4675,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
                 drawCard(c, scene, r)
                 textP.textSize = textDp(scene, 12f)
                 textP.color = 0xFF4A3728.toInt()
-                c.drawText("텔레컨버터 빼기", r.left + dp(scene, 14f), r.centerY() + dp(scene, 4f), textP)
+                c.drawText("텔레컨버터 빼기", r.left + dp(scene, 14f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                 pickRects.add(r to "")
             } else {
                 val look = when (gear) {
@@ -4698,7 +4698,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
                 if (equipped) {
                     textP.textSize = textDp(scene, 9f)
                     textP.color = 0xFF6FBA6B.toInt()
-                    c.drawText("장착중", r.right - dp(scene, 44f), r.centerY() + dp(scene, 4f), textP)
+                    c.drawText("장착중", r.right - dp(scene, 44f), r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                 }
                 pickRects.add(r to gear.id)
             }
@@ -4709,7 +4709,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
             textP.textSize = textDp(scene, 11.5f)
             textP.color = 0xFF8A7360.toInt()
             val msg = "가진 ${kind.label}이(가) 없어요. 사진용품점에서 먼저 사 보세요!"
-            c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY(), textP)
+            c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
         }
 
         val by = panelR.bottom - dp(scene, 32f)
