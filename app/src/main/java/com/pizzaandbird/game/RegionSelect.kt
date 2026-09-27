@@ -71,11 +71,17 @@ object RegionCards {
             y += dp * 12f
             tp.textSize = dp * 9.5f
             tp.color = 0xFF8A7360.toInt()
-            val descLines = game.hud.wrapText(reg.desc, tp, r.width() - dp * 20f).take(2)
+            val descLines = game.hud.wrapText(reg.desc, tp, r.width() - dp * 20f).take(1)
             for (ln in descLines) {
                 c.drawText(ln, x, y, tp)
                 y += dp * 11f
             }
+            tp.textSize = dp * 9f
+            val hasHome = reg.id == START_REGION_ID || game.state.ownsHome(reg.id)
+            tp.color = if (hasHome) 0xFF3F6FB0.toInt() else 0xFFB5651D.toInt()
+            val homeLine = if (reg.id == START_REGION_ID && !game.state.started) "🏠 시작 집 제공"
+            else if (hasHome) "🏠 보유한 집" else "집 매입 ${won(HousePrices.forRegion(reg.id))}"
+            c.drawText(homeLine, x, y + dp * 2f, tp)
         }
     }
 
@@ -92,12 +98,12 @@ object RegionCards {
  */
 class RegionSelectScene(game: Game) : Scene(game) {
 
-    private var selected: RegionDef? = null
+    // 새 게임의 출발지는 서울로 고정한다. 이 화면은 안내와 확인만 담당한다.
+    private val selected: RegionDef = Regions.byId[START_REGION_ID]!!
     private var cardRects: List<RectF> = emptyList()
     private var area = RectF()
     private var confirmRect = RectF()
-    private var cancelRect = RectF()
-    private val regions = Regions.ALL
+    private val regions = listOf(selected)
 
     init {
         game.hud.showControls = false
@@ -154,18 +160,18 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
         tp.textSize = dp * 20f
         tp.color = 0xFF4A3728.toInt()
-        val t1 = "어디에 살아볼까요?"
+        val t1 = "서울에서 시작해볼까요?"
         c.drawText(t1, w / 2f - tp.measureText(t1) / 2, dp * 30f, tp)
         tp.textSize = dp * 11.5f
         tp.color = 0xFF5A6B5A.toInt()
-        val t2 = "집은 나중에 이사할 수 있어요. 모든 지역에 화덕이 있는 집을 지어드려요!"
+        val t2 = "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요"
         c.drawText(t2, w / 2f - tp.measureText(t2) / 2, dp * 48f, tp)
 
         area = RectF(
-            dp * 16f, dp * 60f, w - dp * 16f, h - dp * 74f
+            dp * 56f, dp * 70f, w - dp * 56f, h - dp * 88f
         )
-        cardRects = RegionCards.cardRects(area, regions.size, dp * 8f)
-        RegionCards.draw(c, game, cardRects, regions, selected?.id)
+        cardRects = listOf(area)
+        RegionCards.draw(c, game, cardRects, regions, selected.id)
 
         // 하단 확인 바
         val barH = dp * 56f
@@ -182,60 +188,37 @@ class RegionSelectScene(game: Game) : Scene(game) {
 
         tp.textSize = dp * 13f
         tp.color = 0xFF4A3728.toInt()
-        val info = if (selected != null) "${selected!!.name}에 집을 짓고 여행을 시작할게요"
-        else "마음에 드는 지역을 선택해 주세요"
+        val info = "서울에 집을 마련하고 여행을 시작할게요"
         c.drawText(info, bar.left + dp * 16f, bar.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
 
-        val bw = dp * 130f
+        val bw = dp * 150f
         confirmRect = RectF(bar.right - bw - dp * 12f, bar.top + dp * 10f, bar.right - dp * 12f, bar.bottom - dp * 10f)
-        cancelRect = if (selected != null)
-            RectF(confirmRect.left - bw - dp * 10f, bar.top + dp * 10f, confirmRect.left - dp * 10f, bar.bottom - dp * 10f)
-        else RectF()
         val btnStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = dp * 2f
             color = 0xFFB5651D.toInt()
         }
-        if (selected != null) {
-            fill.color = 0xFFF2B63C.toInt()
-            c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, fill)
-            c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, btnStroke)
-            tp.textSize = dp * 14f
-            tp.color = 0xFF4A3728.toInt()
-            val label = "정착하기!"
-            c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
-
-            fill.color = 0xFFF2E3C2.toInt()
-            c.drawRoundRect(cancelRect, dp * 10f, dp * 10f, fill)
-            c.drawRoundRect(cancelRect, dp * 10f, dp * 10f, btnStroke)
-            tp.textSize = dp * 13f
-            val label2 = "다시 고르기"
-            c.drawText(label2, cancelRect.centerX() - tp.measureText(label2) / 2, cancelRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
-        }
+        fill.color = 0xFFF2B63C.toInt()
+        c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, fill)
+        c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, btnStroke)
+        tp.textSize = dp * 14f
+        tp.color = 0xFF4A3728.toInt()
+        val label = "서울에서 시작!"
+        c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
     }
 
     override fun handleInput(input: Input) {
-        val tap = input.consumeTapScreen() ?: run {
-            if (input.justBack) game.scene = TitleScene(game)
+        val tap = input.consumeTapScreen()
+        if (input.justBack) {
+            game.scene = TitleScene(game)
             return
         }
-        val hit = RegionCards.hit(cardRects, regions, tap.x, tap.y)
-        if (hit != null) {
-            selected = hit
-            return
-        }
-        if (selected != null && cancelRect.contains(tap.x, tap.y)) {
-            selected = null
-            return
-        }
-        if (selected != null && confirmRect.contains(tap.x, tap.y)) {
-            startGame(selected!!)
-        }
-        if (input.justBack) game.scene = TitleScene(game)
+        if (tap != null && confirmRect.contains(tap.x, tap.y)) startGame(selected)
+        if (input.justA) startGame(selected)
     }
 
     private fun startGame(r: RegionDef) {
-        game.state.reset(r.id)
+        game.state.reset(START_REGION_ID)
         SaveManager.save(game.context, game.state)
         game.fadeTo {
             game.scene = WorldScene(game, r.id, SpawnKind.HOME)
@@ -309,7 +292,7 @@ class RegionSelectOverlay(
         c.drawText(t1, panelR.left + dp * 16f, panelR.top + dp * 26f, tp)
         tp.textSize = dp * 11f
         tp.color = 0xFF8A7360.toInt()
-        val t2 = "이사 비용 ₩${fmtMoney(MOVE_COST)} · 방문한 적 있는 지역으로만 이사할 수 있어요"
+        val t2 = "이사 ${won(MOVE_COST)} · 방문한 지역의 집을 매입해 내 집으로 만들 수 있어요"
         c.drawText(t2, panelR.left + dp * 16f, panelR.top + dp * 44f, tp)
 
         area = RectF(
@@ -326,8 +309,12 @@ class RegionSelectOverlay(
         tp.textSize = dp * 12.5f
         tp.color = 0xFF4A3728.toInt()
         val cur = scene.game.state
-        val info = if (selected!!.id == cur.homeRegion) "지금 사는 곳이에요!"
-        else "${selected!!.name}(으)로 이사… 이사 비용 ₩${fmtMoney(MOVE_COST)} (보유 ₩${fmtMoney(cur.money)})"
+        val houseCost = if (cur.ownsHome(selected!!.id)) 0 else HousePrices.forRegion(selected!!.id)
+        val info = when {
+            selected!!.id == cur.homeRegion -> "지금 사는 곳이에요!"
+            houseCost == 0 -> "${selected!!.name} 집 보유 · 이사 ${won(MOVE_COST)} · 보유 ${won(cur.money)}"
+            else -> "${selected!!.name} 집 매입 ${won(houseCost)} + 이사 ${won(MOVE_COST)} · 보유 ${won(cur.money)}"
+        }
         c.drawText(info, bar.left + dp * 8f, bar.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
 
         val bw = dp * 110f
@@ -339,7 +326,7 @@ class RegionSelectOverlay(
         c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, panelStroke)
         tp.textSize = dp * 13f
         tp.color = 0xFF4A3728.toInt()
-        var label = "이사!"
+        var label = if (houseCost > 0) "매입 & 이사" else "이사!"
         c.drawText(label, confirmRect.centerX() - tp.measureText(label) / 2, confirmRect.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
 
         panelFill.color = 0xFFF2E3C2.toInt()

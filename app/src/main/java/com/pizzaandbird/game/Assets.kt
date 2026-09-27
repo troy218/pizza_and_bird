@@ -750,21 +750,40 @@ class Assets {
 
     private fun grassBase(c: Canvas, p: Paint, r: Random, base: Int = c(0xFF96D07A)) {
         fill(c, p, base)
-        specks(c, p, r, shade(base, 0.9f), 7)
-        specks(c, p, r, shade(base, 1.08f), 6)
-        // 풀잎
-        p.color = shade(base, 0.82f)
-        repeat(5) {
-            val x = r.nextInt(29)
-            val y = r.nextInt(24)
-            c.drawRect(x.toFloat(), y.toFloat(), x + 1.4f, y + 3.5f, p)
+        // 체커 디더링 노이즈 — 클래식 픽셀아트 잔디 특유의 잔물결 질감
+        // (방향성 있는 그라데이션 밴드는 타일이 맵 전체에 반복 배치될 때 줄무늬로 보이므로 사용하지 않음)
+        p.color = shade(base, 0.88f)
+        repeat(20) {
+            val x = r.nextInt(32); val y = r.nextInt(32)
+            if ((x + y) % 2 == 0) c.drawRect(x.toFloat(), y.toFloat(), x + 1f, y + 1f, p)
         }
-        p.color = shade(base, 1.14f)
-        repeat(3) {
-            val x = r.nextInt(29)
-            val y = r.nextInt(24)
-            c.drawRect(x.toFloat(), y.toFloat(), x + 1.4f, y + 2.8f, p)
+        p.color = shade(base, 1.16f)
+        repeat(14) {
+            val x = r.nextInt(32); val y = r.nextInt(32)
+            if ((x + y) % 2 == 1) c.drawRect(x.toFloat(), y.toFloat(), x + 1f, y + 1f, p)
         }
+        specks(c, p, r, shade(base, 0.9f), 3)
+        // 풀잎 다발 (좌·중·우 3가닥 + 밝은 팁) — 단순 사각형 대신 자연스러운 tuft 모양
+        repeat(4) {
+            val bx = 2f + r.nextInt(27)
+            val by = 3f + r.nextInt(20)
+            grassTuft(c, p, bx, by, shade(base, 0.74f), shade(base, 0.9f))
+        }
+        repeat(2) {
+            val bx = 2f + r.nextInt(27)
+            val by = 3f + r.nextInt(20)
+            grassTuft(c, p, bx, by, shade(base, 1.22f), shade(base, 1.38f))
+        }
+    }
+
+    /** 풀잎 다발 하나: 좌/중/우 3가닥이 살짝 벌어진 형태 + 중앙 가닥 하이라이트 팁 */
+    private fun grassTuft(c: Canvas, p: Paint, x: Float, y: Float, dark: Int, tip: Int) {
+        p.color = dark
+        c.drawRect(x, y + 1.4f, x + 1f, y + 4.4f, p)          // 왼쪽 가닥
+        c.drawRect(x + 3f, y + 1.8f, x + 4f, y + 4.2f, p)     // 오른쪽 가닥
+        c.drawRect(x + 1.5f, y, x + 2.5f, y + 4.6f, p)        // 중앙 가닥 (가장 큼)
+        p.color = tip
+        c.drawRect(x + 1.5f, y, x + 2.5f, y + 1.3f, p)        // 중앙 가닥 팁 하이라이트
     }
 
     private fun buildTiles() {
@@ -773,66 +792,113 @@ class Assets {
             list.add(if (bmps.size == 1) arrayOf(bmps[0]) else bmps.toList().toTypedArray())
         }
 
-        // GRASS (4종 변형)
+        // GRASS (6종 변형 — 더 다채로운 초원 디테일)
+        for (i in 0 until 6) {
+            add(tilePainter { c, p, r ->
+                grassBase(c, p, r)
+                when (i) {
+                    1 -> {   // 넝쿨
+                        p.color = c(0xFF6FAE57)
+                        c.drawRect(5f, 6f, 9f, 7.2f, p)
+                        c.drawRect(7f, 5f, 8.2f, 9f, p)
+                        c.drawRect(22f, 20f, 26f, 21.2f, p)
+                        c.drawRect(24f, 19f, 25.2f, 23f, p)
+                    }
+                    2 -> {   // 잔돌 (입체 음영)
+                        p.color = c(0xFF6B747E)
+                        c.drawRect(14f, 18.4f, 17.4f, 20.6f, p)
+                        p.color = c(0xFFA8B0A0)
+                        c.drawRect(14.4f, 17.6f, 16.8f, 19.8f, p)
+                        p.color = c(0xFFC8CFD6)
+                        c.drawRect(14.8f, 17.8f, 15.8f, 18.6f, p)
+                    }
+                    3 -> {   // 민들레 (줄기 + 홀씨)
+                        p.color = c(0xFF6FAE57)
+                        c.drawRect(20.6f, 10.6f, 21.4f, 14f, p)
+                        p.color = c(0xFFFDF6E8)
+                        c.drawCircle(21f, 9.6f, 2.1f, p)
+                        p.color = c(0xFFF0EAE0)
+                        c.drawCircle(21f, 9.6f, 0.9f, p)
+                    }
+                    4 -> {   // 토끼풀 (클로버 3잎)
+                        p.color = c(0xFF5D8A4A)
+                        c.drawRect(9.4f, 14.4f, 10.2f, 17.4f, p)
+                        p.color = c(0xFF4FA25A)
+                        c.drawCircle(8.4f, 13.6f, 1.7f, p)
+                        c.drawCircle(11f, 13.6f, 1.7f, p)
+                        c.drawCircle(9.7f, 11.8f, 1.7f, p)
+                        p.color = c(0xFF6BBA72)
+                        c.drawCircle(9.7f, 12.8f, 0.8f, p)
+                    }
+                    5 -> {   // 작은 들버섯 한 쌍
+                        p.color = c(0xFFB0793F)
+                        c.drawRect(23.6f, 22.6f, 24.4f, 24.4f, p)
+                        p.color = c(0xFFE2574C)
+                        c.drawRect(22.4f, 20.6f, 25.6f, 23f, p)
+                        p.color = c(0xFFFDF6E8)
+                        c.drawRect(23f, 21f, 23.7f, 21.6f, p)
+                        c.drawRect(24.6f, 21.6f, 25.2f, 22.2f, p)
+                    }
+                }
+            })
+        }
+        // TALLGRASS (3종 — 잎끝 하이라이트 + 살짝 휘어진 형태로 자연스러움 강화)
+        for (i in 0 until 3) {
+            add(tilePainter { c, p, r ->
+                grassBase(c, p, r, c(0xFF8CC46C))
+                // 뒤쪽 어두운 긴 풀 (기울어진 줄기)
+                p.color = c(0xFF5D8A4A)
+                for (k in 0 until 5 + i) {
+                    val x = 1 + r.nextInt(28)
+                    val h = 10 + r.nextInt(10)
+                    val bend = if (k % 2 == 0) 1.3f else -1.3f
+                    c.drawRect(x.toFloat(), (32 - h).toFloat(), x + 2.2f, 32f, p)
+                    c.drawRect(x + bend, (32 - h).toFloat(), x + bend + 1.6f, (32 - h + 3f), p)
+                }
+                // 앞쪽 밝은 풀 + 팁 하이라이트 (그라데이션 느낌)
+                repeat(5 + i) {
+                    val x = 1 + r.nextInt(28)
+                    val h = 8 + r.nextInt(8)
+                    val top = (32 - h).toFloat()
+                    p.color = c(0xFF6FAE57)
+                    c.drawRect(x.toFloat(), top, x + 1.8f, 32f, p)
+                    p.color = c(0xFFB7E08C)
+                    c.drawRect(x.toFloat(), top, x + 1.8f, top + 2.2f, p)
+                }
+                // 굵은 갈대성 줄기 2개 포인트
+                p.color = c(0xFF5D8A4A)
+                c.drawRect(6f, 8f, 7.6f, 18f, p)
+                c.drawRect(22f, 6f, 23.6f, 20f, p)
+                p.color = c(0xFF8CC46C)
+                c.drawRect(6f, 8f, 7f, 10f, p)
+                c.drawRect(22f, 6f, 22.8f, 8f, p)
+            })
+        }
+        // FLOWER (4색 — 둥근 4장 꽃잎 + 잎사귀로 훨씬 화사하게)
+        val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8), c(0xFFC9A8E8))
         for (i in 0 until 4) {
             add(tilePainter { c, p, r ->
                 grassBase(c, p, r)
-                if (i == 1) {   // 넝쿨
-                    p.color = c(0xFF6FAE57)
-                    c.drawRect(5f, 6f, 9f, 7.2f, p)
-                    c.drawRect(7f, 5f, 8.2f, 9f, p)
-                    c.drawRect(22f, 20f, 26f, 21.2f, p)
-                    c.drawRect(24f, 19f, 25.2f, 23f, p)
-                }
-                if (i == 2) {   // 잔돌
-                    p.color = c(0xFFA8B0A0)
-                    c.drawRect(14f, 18f, 17f, 20f, p)
-                    c.drawRect(14.8f, 17.4f, 16.2f, 20.6f, p)
-                }
-                if (i == 3) {   // 민들레
-                    p.color = c(0xFFFDF6E8)
-                    c.drawRect(20f, 9f, 22f, 11f, p)
-                    c.drawRect(19.4f, 9.6f, 22.6f, 10.4f, p)
-                }
-            })
-        }
-        // TALLGRASS (2종)
-        for (i in 0 until 2) {
-            add(tilePainter { c, p, r ->
-                grassBase(c, p, r, c(0xFF8CC46C))
-                p.color = c(0xFF6FAE57)
-                for (k in 0 until 6 + i) {
-                    val x = 1 + r.nextInt(28)
-                    val h = 9 + r.nextInt(9)
-                    c.drawRect(x.toFloat(), (32 - h).toFloat(), x + 2f, 32f, p)
-                }
-                p.color = c(0xFF8CC46C)
                 repeat(4) {
-                    val x = 1 + r.nextInt(28)
-                    val h = 7 + r.nextInt(7)
-                    c.drawRect(x.toFloat(), (32 - h).toFloat(), x + 1.6f, 32f, p)
-                }
-                p.color = c(0xFF5D8A4A)
-                c.drawRect(6f, 8f, 7.4f, 18f, p)
-                c.drawRect(22f, 6f, 23.4f, 20f, p)
-            })
-        }
-        // FLOWER (3색)
-        val flowerCols = intArrayOf(c(0xFFF2A3B3), c(0xFFF2D06B), c(0xFFFDFDF8))
-        for (i in 0 until 3) {
-            add(tilePainter { c, p, r ->
-                grassBase(c, p, r)
-                repeat(4) {
-                    val x = 3 + r.nextInt(23)
-                    val y = 3 + r.nextInt(22)
+                    val x = 4f + r.nextInt(21)
+                    val y = 5f + r.nextInt(18)
+                    // 줄기 + 잎사귀
                     p.color = c(0xFF5D8A4A)
-                    c.drawRect((x + 1.6f), (y + 2.4f), (x + 2.6f), (y + 5.2f), p)
-                    val col = flowerCols[(i + r.nextInt(3)) % 3]
+                    c.drawRect(x + 1.7f, y + 2.6f, x + 2.5f, y + 6f, p)
+                    p.color = c(0xFF6FAE57)
+                    c.drawRect(x + 0.4f, y + 3.8f, x + 2f, y + 5f, p)
+                    // 둥근 꽃잎 4장 (십자 대칭 배치)
+                    val col = flowerCols[(i + r.nextInt(4)) % 4]
                     p.color = col
-                    c.drawRect(x.toFloat(), y.toFloat(), x + 4.2f, y + 2.6f, p)
-                    c.drawRect(x + 1f, y - 1f, x + 3.2f, y + 3.6f, p)
+                    c.drawCircle(x + 2.1f, y - 0.3f, 1.8f, p)
+                    c.drawCircle(x + 2.1f, y + 2.5f, 1.8f, p)
+                    c.drawCircle(x + 0.5f, y + 1.1f, 1.8f, p)
+                    c.drawCircle(x + 3.7f, y + 1.1f, 1.8f, p)
+                    // 꽃술
                     p.color = c(0xFFF7CE5B)
-                    c.drawRect(x + 1.4f, y + 0.4f, x + 2.8f, y + 1.8f, p)
+                    c.drawCircle(x + 2.1f, y + 1.1f, 1.3f, p)
+                    p.color = c(0xFFE8B14E)
+                    c.drawCircle(x + 2.1f, y + 1.1f, 0.6f, p)
                 }
             })
         }
