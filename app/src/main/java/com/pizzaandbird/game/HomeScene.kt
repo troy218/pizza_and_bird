@@ -63,11 +63,17 @@ class HomeScene(game: Game) : Scene(game) {
         game.hud.photoModeHint = false
         game.hud.questLabel = null
         game.banner("🏠 우리 집")
+
+        game.audio.playBgm(R.raw.bgm_home)   // 🎵 신비로운 탐험
+        game.audio.stopAmb()
     }
 
     override fun update(dt: Float) {
         game.hud.update(dt)
-        if (overlay != null) return   // 대화상자/메뉴 중에는 정지
+        if (overlay != null) {
+            game.audio.stopSteps()
+            return   // 대화상자/메뉴 중에는 정지
+        }
         state.playSeconds += dt * 0.4f
         state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
 
@@ -91,6 +97,9 @@ class HomeScene(game: Game) : Scene(game) {
         } else {
             player.animT = 0f
         }
+
+        // 발소리 (나무 바닥)
+        game.audio.steps(if (moving) Audio.Steps.WOOD else Audio.Steps.NONE)
 
         // 현관문
         if (map.feetTile(player.x, player.y) == T.HOUSE_DOOR) {
@@ -117,6 +126,7 @@ class HomeScene(game: Game) : Scene(game) {
 
     private fun exitHome() {
         SaveManager.save(game.context, state)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = WorldScene(game, state.homeRegion, SpawnKind.HOME)
         }
@@ -162,6 +172,8 @@ class HomeScene(game: Game) : Scene(game) {
                             game.state.worldTime = 7.2f
                             SaveManager.save(game.context, game.state)
                             game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 ☀️ (행운 +5)")
+                            game.sfx(Audio.Sfx.SPARKLE, 0.7f)
+                            game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.4f)   // 아침 새소리
                         },
                         DialogOverlay.Choice("아직 안 졸려요")
                     )
@@ -176,6 +188,7 @@ class HomeScene(game: Game) : Scene(game) {
                 state.houseStyleId = styleId
                 SaveManager.save(game.context, state)
                 game.toast("${HouseStyles.of(styleId).emoji} ${HouseStyles.of(styleId).name} 적용!")
+                game.sfx(Audio.Sfx.SUCCESS, 0.7f)
             })
             "decor" -> {
                 if (state.decorOwned.isEmpty()) {
@@ -194,6 +207,7 @@ class HomeScene(game: Game) : Scene(game) {
                             SaveManager.save(game.context, state)
                             val name = Decors.of(picked)?.name ?: "장식"
                             game.toast("장식 배치: $name ${Decors.of(picked)?.emoji ?: ""}")
+                            game.sfx(Audio.Sfx.SUCCESS, 0.6f)
                         }
                     )
                 }
@@ -212,6 +226,7 @@ class HomeScene(game: Game) : Scene(game) {
         if (s.money < totalCost) {
             val detail = if (houseCost > 0) "집 매입 ${won(houseCost)} + 이사 ${won(MOVE_COST)}" else "이사 ${won(MOVE_COST)}"
             game.toast("돈이 부족해요… 필요한 금액: $detail")
+            game.sfx(Audio.Sfx.FAIL, 0.5f)
             return
         }
         s.money -= totalCost
@@ -225,6 +240,7 @@ class HomeScene(game: Game) : Scene(game) {
         } else {
             game.toast("짐 싸기 완료! ${picked.name}의 우리 집으로 이사했어요 📦 · ${won(MOVE_COST)}")
         }
+        game.sfx(Audio.Sfx.BUY)
     }
 
     // -------------------------------------------------------------------
@@ -252,9 +268,11 @@ class HomeScene(game: Game) : Scene(game) {
             val tId = state.eatBest()
             if (tId == null) {
                 game.toast("피자가 없어요! 화덕에서 구워요 🍕")
+                game.sfx(Audio.Sfx.FAIL, 0.45f)
             } else {
                 val t = Toppings.of(tId)
                 game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+                game.sfx(Audio.Sfx.EAT, 0.9f)
             }
             return
         }
@@ -311,12 +329,12 @@ class HomeScene(game: Game) : Scene(game) {
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
         val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
-        val isFemale = state.gender == "female"
+        val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = when (player.facing) {
-            Dir.E -> if (isFemale) a.femaleSide[frame] else a.playerSide[frame]
-            Dir.W -> if (isFemale) a.femaleSideL[frame] else a.playerSideL[frame]
-            Dir.N -> if (isFemale) a.femaleUp[frame] else a.playerUp[frame]
-            else -> if (isFemale) a.femaleDown[frame] else a.playerDown[frame]
+            Dir.E -> ps.side[frame]
+            Dir.W -> ps.sideL[frame]
+            Dir.N -> ps.up[frame]
+            else -> ps.down[frame]
         }
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
