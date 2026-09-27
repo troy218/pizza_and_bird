@@ -260,14 +260,29 @@ class LinearGradient(
     internal val gp = GradientPaint(x0, y0, JColor(color0, true), x1, y1, JColor(color1, true), tileMode == Shader.TileMode.REPEAT)
 }
 
-class RadialGradient(
-    centerX: Float, centerY: Float, radius: Float,
-    color0: Int, color1: Int, tileMode: Shader.TileMode = Shader.TileMode.CLAMP
-) : Shader() {
-    internal val rgp = java.awt.RadialGradientPaint(
-        centerX, centerY, max(radius, 0.01f), floatArrayOf(0f, 1f),
-        arrayOf<JColor>(JColor(color0, true), JColor(color1, true))
-    )
+class RadialGradient : Shader() {
+    internal var rgp: java.awt.RadialGradientPaint
+
+    constructor(
+        centerX: Float, centerY: Float, radius: Float,
+        color0: Int, color1: Int, tileMode: Shader.TileMode = Shader.TileMode.CLAMP
+    ) {
+        rgp = java.awt.RadialGradientPaint(
+            centerX, centerY, max(radius, 0.01f), floatArrayOf(0f, 1f),
+            arrayOf<JColor>(JColor(color0, true), JColor(color1, true))
+        )
+    }
+
+    constructor(
+        centerX: Float, centerY: Float, radius: Float,
+        colors: IntArray, stops: FloatArray?, tileMode: Shader.TileMode = Shader.TileMode.CLAMP
+    ) {
+        val st = (stops ?: floatArrayOf(0f, 1f)).toFloatArray()
+        val cols = colors.map { JColor(it, true) }.toTypedArray()
+        rgp = java.awt.RadialGradientPaint(
+            centerX, centerY, max(radius, 0.01f), st, cols
+        )
+    }
 }
 
 open class ColorFilter
@@ -280,7 +295,7 @@ class BlurMaskFilter(val radius: Float, val blur: Blur) : MaskFilter() {
 class PorterDuffXfermode(val mode: PorterDuff.Mode) : ColorFilter()
 
 object PorterDuff {
-    enum class Mode { SRC, SRC_IN, SRC_OVER, SRC_OUT, DST_IN, DST_OVER, ATOP, XOR, MULTIPLY, SCREEN, ADD }
+    enum class Mode { SRC, SRC_IN, SRC_OVER, SRC_OUT, DST_IN, DST_OVER, DST_OUT, ATOP, XOR, CLEAR, MULTIPLY, SCREEN, ADD }
 }
 
 class PorterDuffColorFilter(val color: Int, val mode: PorterDuff.Mode) : ColorFilter()
@@ -372,6 +387,7 @@ class Typeface private constructor(internal val mono: Boolean, internal val fake
 class Paint {
     companion object {
         const val ANTI_ALIAS_FLAG = 1
+        const val FILTER_BITMAP_FLAG = 2
     }
 
     enum class Style { FILL, STROKE, FILL_AND_STROKE }
@@ -556,6 +572,12 @@ class Canvas {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED)
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
+    }
+
+    /** 벡터 드로어블 스텁 전용: AWT Shape를 지정 색으로 채운다 */
+    internal fun fillAwt(shape: java.awt.Shape, argb: Int) {
+        g.color = JColor(argb, true)
+        g.fill(shape)
     }
 
     private fun colorize(p: Paint) {

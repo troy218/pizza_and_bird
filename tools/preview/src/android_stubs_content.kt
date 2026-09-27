@@ -78,4 +78,10 @@ open class Context {
     open val resources: Resources = Resources()
 
     open val assets: android.content.res.AssetManager = android.content.res.AssetManager.INSTANCE
+
+    /** res/drawable 벡터 아트 로더 (프리뷰 스텁) */
+    open fun getDrawable(resId: Int): android.graphics.drawable.Drawable? {
+        val name = com.pizzaandbird.game.R.drawable.byId[resId] ?: return null
+        return android.graphics.drawable.VectorArtDrawable.fromResource(name)
+    }
 }
