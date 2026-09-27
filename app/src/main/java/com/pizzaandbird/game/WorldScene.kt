@@ -132,7 +132,7 @@ class WorldScene(
         val it = birds.iterator()
         while (it.hasNext()) {
             val b = it.next()
-            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map)
+            b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map, state.fleeMult())
             if (b.gone) it.remove()
         }
 
@@ -207,6 +207,7 @@ class WorldScene(
             val sprint = input.isRun && !player.bike
             var speed = if (player.bike) 97f else 55f
             if (sprint) speed *= 1.45f
+            speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
@@ -233,17 +234,19 @@ class WorldScene(
             player.bike && moving -> 0.22f
             moving -> 0.14f
             else -> 0.035f
-        }
+        } * state.hungerMult()                  // 튼튼한 체력 스킬
         hungerAcc += dt * hungerRate
         while (hungerAcc >= 1f) {
             hungerAcc -= 1f
             state.hunger = (state.hunger - 1f).coerceAtLeast(0f)
         }
-        luckAcc += dt * 0.05f
+        luckAcc += dt * 0.05f * state.luckDecayMult()   // 타고난 행운 스킬
+        val luckFloor = state.luckFloor()
         while (luckAcc >= 1f) {
             luckAcc -= 1f
-            state.luck = (state.luck - 1f).coerceAtLeast(0f)
+            state.luck = (state.luck - 1f).coerceAtLeast(luckFloor)
         }
+        if (state.luck < luckFloor) state.luck = luckFloor
         if (state.hunger <= 0f) {
             hungerWarnT -= dt
             if (hungerWarnT <= 0f) {
@@ -357,6 +360,7 @@ class WorldScene(
         val cam = CameraDefs.LEVELS[(state.cameraLevel - 1).coerceIn(0, CameraDefs.LEVELS.size - 1)]
         if (stars < 3 && rnd.nextDouble() < 0.13 * cam.qualityBonus) stars++
         if (stars < 3 && rnd.nextDouble() < state.effectiveLuck() / 520.0) stars++
+        if (stars < 3 && rnd.nextDouble() < state.extraStarChance()) stars++   // 매의 눈 스킬
 
         val prev = state.birdCounts[b.def.id] ?: 0
         val isNew = prev == 0
@@ -366,15 +370,23 @@ class WorldScene(
         state.photos += 1
         if (isNew) state.luck = (state.luck + 4f).coerceAtMost(100f)
 
+        // ----- 경험치 -----
+        var expGain = Progression.photoExp(b.def.tier, stars)
+        if (isNew) expGain += Progression.newSpeciesExp(b.def.tier)
+
         var questLine: String? = null
         if (state.questBird == b.def.id) {
             val bonus = if (stars >= 3) (state.questReward * 0.3f).toInt() else 0
             val total = state.questReward + bonus
             state.money += total
+            expGain += Progression.questExp(state.questReward)
             questLine = "의뢰 완료! +${won(total)}" + if (bonus > 0) " (3성 보너스)" else ""
             state.questBird = null
             state.questReward = 0
         }
+
+        val prevLevel = state.level
+        val levelsGained = state.addExp(expGain)
 
         // 깃털 파티클
         for (i in 0 until 4) {
@@ -391,7 +403,12 @@ class WorldScene(
         b.fleeT = 0f
 
         SaveManager.save(game.context, state)
-        openOverlay(PhotoResultOverlay(this, b.def, stars, isNew, prev + 1, questLine))
+        openOverlay(
+            PhotoResultOverlay(
+                this, b.def, stars, isNew, prev + 1, questLine,
+                expGain, levelsGained, prevLevel
+            )
+        )
     }
 
     private fun trySnapAt(vx: Float, vy: Float) {
@@ -912,15 +929,16 @@ class WorldScene(
             }
             is Player -> {
                 val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
+                val ps = a.playerSet(state.gender, state.gearTier())
                 val bmp: android.graphics.Bitmap = when {
                     player.bike && player.facing == Dir.E -> a.bikeSide
                     player.bike && player.facing == Dir.W -> a.bikeSideL
                     player.bike && player.facing == Dir.N -> a.bikeUp
                     player.bike && player.facing == Dir.S -> a.bikeDown
-                    player.facing == Dir.E -> if (state.gender == "female") a.femaleSide[frame] else a.playerSide[frame]
-                    player.facing == Dir.W -> if (state.gender == "female") a.femaleSideL[frame] else a.playerSideL[frame]
-                    player.facing == Dir.N -> if (state.gender == "female") a.femaleUp[frame] else a.playerUp[frame]
-                    else -> if (state.gender == "female") a.femaleDown[frame] else a.playerDown[frame]
+                    player.facing == Dir.E -> ps.side[frame]
+                    player.facing == Dir.W -> ps.sideL[frame]
+                    player.facing == Dir.N -> ps.up[frame]
+                    else -> ps.down[frame]
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE
