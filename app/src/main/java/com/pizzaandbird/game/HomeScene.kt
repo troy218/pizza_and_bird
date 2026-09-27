@@ -458,7 +458,7 @@ class HomeScene(game: Game) : Scene(game) {
         // 플레이어
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
-        c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+        c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
         val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
@@ -476,6 +476,9 @@ class HomeScene(game: Game) : Scene(game) {
 
         // 조명 (밤엔 화덕·스탠드 조명이 방을 밝힌다)
         drawHomeLighting(c, camXv, camYv)
+
+        // 비네트
+        c.drawBitmap(a.vignette, null, RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()), a.sprPaint)
 
         // 가까운 상호작용 대상 힌트
         val near = nearestInteract()

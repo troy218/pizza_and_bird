@@ -33,6 +33,15 @@ import kotlin.math.min
 
 object Color {
     @JvmStatic
+    val WHITE: Int = 0xFFFFFFFF.toInt()
+
+    @JvmStatic
+    val BLACK: Int = 0xFF000000.toInt()
+
+    @JvmStatic
+    val TRANSPARENT: Int = 0
+
+    @JvmStatic
     fun argb(a: Int, r: Int, g: Int, b: Int): Int =
         ((a and 0xFF) shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
 
@@ -50,6 +59,36 @@ object Color {
 
     @JvmStatic
     fun blue(color: Int): Int = color and 0xFF
+
+    /** 프리뷰용: #RRGGBB / #AARRGGBB / 이름색 일부 */
+    @JvmStatic
+    fun parseColor(colorString: String): Int {
+        val s = colorString.trim()
+        if (s.startsWith("#")) {
+            val v = s.substring(1).toLongOrNull(16) ?: 0L
+            return when (s.length) {
+                7 -> (0xFF000000L or v).toInt()
+                9 -> {
+                    val a = ((v ushr 24) and 0xFF).toInt(); val rgb = (v and 0xFFFFFFL).toInt()
+                    (a shl 24) or rgb
+                }
+                4 -> { // #RGB
+                    val r = s[1].digitToInt(16) * 17; val g = s[2].digitToInt(16) * 17; val b = s[3].digitToInt(16) * 17
+                    argb(255, r, g, b)
+                }
+                else -> v.toInt()
+            }
+        }
+        return when (s.lowercase()) {
+            "white" -> argb(255, 255, 255, 255)
+            "black" -> argb(255, 0, 0, 0)
+            "red" -> argb(255, 255, 0, 0)
+            "green" -> argb(255, 0, 128, 0)
+            "blue" -> argb(255, 0, 0, 255)
+            "transparent" -> 0
+            else -> argb(255, 0, 0, 0)
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -123,10 +162,23 @@ class Rect {
     fun centerX(): Int = (left + right) / 2
     fun centerY(): Int = (top + bottom) / 2
     fun contains(x: Int, y: Int): Boolean = x >= left && x < right && y >= top && y < bottom
+
+    fun set(l: Int, t: Int, r: Int, b: Int) {
+        left = l; top = t; right = r; bottom = b
+    }
+
+    fun set(l: Float, t: Float, r: Float, b: Float) {
+        left = l.toInt(); top = t.toInt(); right = r.toInt(); bottom = b.toInt()
+    }
 }
 
 class Matrix {
     internal val tx = AffineTransform()
+
+    fun setScale(sx: Float, sy: Float) {
+        tx.setToIdentity()
+        tx.scale(sx.toDouble(), sy.toDouble())
+    }
 
     fun postScale(sx: Float, sy: Float) {
         tx.scale(sx.toDouble(), sy.toDouble())
@@ -158,10 +210,11 @@ class Path {
 
     fun moveTo(x: Float, y: Float) = p2d.moveTo(x, y)
     fun lineTo(x: Float, y: Float) = p2d.lineTo(x, y)
-
-    fun quadTo(x1: Float, y1: Float, x2: Float, y2: Float) = p2d.quadTo(x1, y1, x2, y2)
     fun cubicTo(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) =
         p2d.curveTo(x1, y1, x2, y2, x3, y3)
+    fun quadTo(x1: Float, y1: Float, x2: Float, y2: Float) =
+        p2d.quadTo(x1, y1, x2, y2)
+
 
     fun close() = p2d.closePath()
     fun reset() = p2d.reset()
@@ -216,26 +269,128 @@ class Path {
 // Shader / Effect
 // ---------------------------------------------------------------------------
 
-open class Shader
+open class Shader {
+    /** Android API 동일: Shader.TileMode */
+    enum class TileMode { CLAMP, REPEAT, MIRROR }
 
-enum class TileMode { CLAMP, REPEAT, MIRROR }
-
-class LinearGradient(
-    x0: Float, y0: Float, x1: Float, y1: Float,
-    color0: Int, color1: Int, tileMode: TileMode = TileMode.CLAMP
-) : Shader() {
-    internal val gp = GradientPaint(x0, y0, JColor(color0, true), x1, y1, JColor(color1, true), tileMode == TileMode.REPEAT)
+    open fun setLocalMatrix(matrix: Matrix?) {}
 }
 
-class RadialGradient(
-    centerX: Float, centerY: Float, radius: Float,
-    color0: Int, color1: Int, tileMode: TileMode = TileMode.CLAMP
-) : Shader() {
-    internal val rgp = java.awt.RadialGradientPaint(
-        centerX, centerY, max(radius, 0.01f), floatArrayOf(0f, 1f),
-        arrayOf<JColor>(JColor(color0, true), JColor(color1, true))
-    )
+typealias TileMode = Shader.TileMode
+
+class LinearGradient : Shader {
+    internal val gp: java.awt.Paint
+    override fun setLocalMatrix(matrix: Matrix?) {}
+
+    constructor(
+        x0: Float, y0: Float, x1: Float, y1: Float,
+        color0: Int, color1: Int, tileMode: TileMode = TileMode.CLAMP
+    ) : super() {
+        gp = GradientPaint(x0, y0, JColor(color0, true), x1, y1, JColor(color1, true), tileMode == TileMode.REPEAT)
+    }
+
+    /** Android 동급 생성자: 다중 색 + 위치 배열 (프리뷰는 awt 다중 그라데이션으로 렌더) */
+    constructor(
+        x0: Float, y0: Float, x1: Float, y1: Float,
+        colors: IntArray, positions: FloatArray?, tileMode: TileMode = TileMode.CLAMP
+    ) : super() {
+        gp = java.awt.LinearGradientPaint(
+            java.awt.geom.Point2D.Float(x0, y0), java.awt.geom.Point2D.Float(x1, y1),
+            fractionsOf(positions, colors.size),
+            colors.map { JColor(it, true) }.toTypedArray(),
+            cycle(tileMode)
+        )
+    }
 }
+
+class RadialGradient : Shader {
+    internal val rgp: java.awt.Paint
+    override fun setLocalMatrix(matrix: Matrix?) {}
+
+    constructor(
+        centerX: Float, centerY: Float, radius: Float,
+        color0: Int, color1: Int, tileMode: TileMode = TileMode.CLAMP
+    ) : super() {
+        rgp = java.awt.RadialGradientPaint(
+            centerX, centerY, max(radius, 0.01f), floatArrayOf(0f, 1f),
+            arrayOf<JColor>(JColor(color0, true), JColor(color1, true))
+        )
+    }
+
+    /** Android 동급 생성자: 다중 색 + 위치 배열 */
+    constructor(
+        centerX: Float, centerY: Float, radius: Float,
+        colors: IntArray, positions: FloatArray?, tileMode: TileMode = TileMode.CLAMP
+    ) : super() {
+        rgp = java.awt.RadialGradientPaint(
+            centerX, centerY, max(radius, 0.01f),
+            fractionsOf(positions, colors.size),
+            colors.map { JColor(it, true) }.toTypedArray(),
+            cycle(tileMode)
+        )
+    }
+}
+
+private fun fractionsOf(positions: FloatArray?, n: Int): FloatArray =
+    positions?.copyOf() ?: FloatArray(n) { it.toFloat() / max(n - 1, 1) }
+
+private fun cycle(tileMode: TileMode): java.awt.MultipleGradientPaint.CycleMethod = when (tileMode) {
+    TileMode.REPEAT -> java.awt.MultipleGradientPaint.CycleMethod.REPEAT
+    TileMode.MIRROR -> java.awt.MultipleGradientPaint.CycleMethod.REFLECT
+    TileMode.CLAMP -> java.awt.MultipleGradientPaint.CycleMethod.NO_CYCLE
+}
+
+open class Xfermode
+
+/** 프리뷰용 타입페이스 — 실제 폰트 선택은 StubText 가 담당 */
+class Typeface private constructor(val name: String) {
+    companion object {
+        const val NORMAL = 0
+        const val BOLD = 1
+        const val ITALIC = 2
+        const val BOLD_ITALIC = 3
+
+        @JvmStatic
+        val DEFAULT: Typeface = Typeface("default")
+
+        @JvmStatic
+        val DEFAULT_BOLD: Typeface = Typeface("default-bold")
+
+        @JvmStatic
+        val SANS_SERIF: Typeface = Typeface("sans-serif")
+
+        @JvmStatic
+        val SERIF: Typeface = Typeface("serif")
+
+        @JvmStatic
+        val MONOSPACE: Typeface = Typeface("monospace")
+
+        @JvmStatic
+        fun create(family: String?, style: Int): Typeface = Typeface(family ?: "default")
+
+        @JvmStatic
+        fun create(asset: Typeface?, style: Int): Typeface = asset ?: DEFAULT
+
+        @JvmStatic
+        fun createFromAsset(mgr: android.content.res.AssetManager, path: String): Typeface? = Typeface(path)
+    }
+}
+
+open class ColorFilter
+
+class PorterDuffColorFilter(val color: Int, val mode: PorterDuff.Mode) : ColorFilter()
+
+open class MaskFilter
+
+class BlurMaskFilter(val radius: Float, val blur: Blur) : MaskFilter() {
+    enum class Blur { NORMAL, SOLID, OUTER, INNER }
+}
+
+object PorterDuff {
+    enum class Mode { SRC, SRC_OVER, SRC_IN, DST_IN, DST_OUT, DST_OVER, CLEAR, MULTIPLY }
+}
+
+class PorterDuffXfermode(val mode: PorterDuff.Mode) : Xfermode()
 
 open class PathEffect
 
@@ -291,6 +446,8 @@ object StubText {
 class Paint {
     companion object {
         const val ANTI_ALIAS_FLAG = 1
+        const val FILTER_BITMAP_FLAG = 2
+        const val DITHER_FLAG = 4
     }
 
     enum class Style { FILL, STROKE, FILL_AND_STROKE }
@@ -308,6 +465,11 @@ class Paint {
     var strokeJoin: Join = Join.MITER
     var pathEffect: PathEffect? = null
     var shader: Shader? = null
+    var xfermode: Xfermode? = null
+    var typeface: Typeface? = null
+    var maskFilter: MaskFilter? = null
+    var colorFilter: ColorFilter? = null
+    var letterSpacing: Float = 0f
 
     constructor()
 
@@ -327,6 +489,11 @@ class Paint {
         strokeJoin = paint.strokeJoin
         pathEffect = paint.pathEffect
         shader = paint.shader
+        xfermode = paint.xfermode
+        typeface = paint.typeface
+        maskFilter = paint.maskFilter
+        colorFilter = paint.colorFilter
+        letterSpacing = paint.letterSpacing
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -363,6 +530,7 @@ class Bitmap private constructor(val image: BufferedImage) {
 
     val width: Int get() = image.width
     val height: Int get() = image.height
+    val isRecycled: Boolean = false
 
     fun setPixel(x: Int, y: Int, c: Int) {
         if (x in 0 until width && y in 0 until height) image.setRGB(x, y, c)
@@ -501,10 +669,17 @@ class Canvas {
             else -> BasicStroke.JOIN_MITER
         }
         g.stroke = if (dash != null) {
-            BasicStroke(p.strokeWidth, cap, join, 10f, dash.intervals, dash.phase)
+            // awt BasicStroke 는 음수 phase 를 받지 않는다 (Android 는 허용) — 0 으로 보정
+            val intervals = dash.intervals.map { if (it <= 0f) 1f else it }.toFloatArray()
+            BasicStroke(p.strokeWidth, cap, join, 10f, intervals, dash.phase.coerceAtLeast(0f))
         } else {
             BasicStroke(p.strokeWidth, cap, join)
         }
+    }
+
+    fun drawColor(color: Int, mode: PorterDuff.Mode) {
+        // 프리뷰 근사: 모드와 무관하게 덮어그리기 (실제 합성은 Android)
+        drawColor(color)
     }
 
     fun drawColor(color: Int) {
@@ -596,16 +771,24 @@ class Canvas {
         g.drawString(text, x, y)
     }
 
-    fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint) {
-        val alpha = paint.alpha / 255f
+    fun drawBitmap(bitmap: Bitmap, matrix: Matrix, paint: Paint?) {
+        g.drawImage(bitmap.image, matrix.tx, null)
+    }
+
+    fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
+        val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
         g.drawImage(bitmap.image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
 
-    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint) {
-        val alpha = paint.alpha / 255f
+    fun drawBitmap(bitmap: Bitmap, src: Rect, dst: Rect, paint: Paint?) {
+        drawBitmap(bitmap, src, RectF(dst.left.toFloat(), dst.top.toFloat(), dst.right.toFloat(), dst.bottom.toFloat()), paint)
+    }
+
+    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
+        val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
@@ -627,7 +810,11 @@ class Canvas {
     fun save(): Int {
         stack.add(g)
         g = g.create() as Graphics2D
-        return stack.size
+        return stack.size - 1
+    }
+
+    fun restoreToCount(count: Int) {
+        while (stack.size > count) restore()
     }
 
     fun restore() {
@@ -641,7 +828,19 @@ class Canvas {
 
     fun scale(sx: Float, sy: Float) = g.scale(sx.toDouble(), sy.toDouble())
 
+    fun scale(sx: Float, sy: Float, px: Float, py: Float) {
+        g.translate(px.toDouble(), py.toDouble()); g.scale(sx.toDouble(), sy.toDouble()); g.translate(-px.toDouble(), -py.toDouble())
+    }
+
+    fun skew(sx: Float, sy: Float) = g.shear(sx.toDouble(), sy.toDouble())
+
     fun rotate(degrees: Float) = g.rotate(Math.toRadians(degrees.toDouble()))
+
+    fun rotate(degrees: Float, px: Float, py: Float) {
+        g.translate(px.toDouble(), py.toDouble()); g.rotate(Math.toRadians(degrees.toDouble())); g.translate(-px.toDouble(), -py.toDouble())
+    }
+
+    fun clipRect(rect: RectF) = clipRect(rect.left, rect.top, rect.right, rect.bottom)
 
     fun clipRect(l: Float, t: Float, r: Float, b: Float) {
         g.clip(Rectangle2D.Float(l, t, r - l, b - t))

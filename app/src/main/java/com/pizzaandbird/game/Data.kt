@@ -373,14 +373,15 @@ object Birds {
         )
     )
 
+    private val curatedByName: Map<String, BirdDef> = CURATED.associateBy { it.name }
+
+    // (주의: ALL 초기화 때 tierFor가 사용하므로 반드시 ALL보다 먼저 선언할 것)
     private val COMMON_NAMES = setOf(
         "참새", "까치", "박새", "쇠박새", "곤줄박이", "직박구리", "멧비둘기", "흰뺨검둥오리",
         "청둥오리", "쇠오리", "괭이갈매기", "재갈매기", "왜가리", "중대백로", "쇠백로",
         "물닭", "제비", "붉은머리오목눈이", "동박새", "딱새", "검은등할미새", "알락할미새",
         "노랑턱멧새", "방울새", "오목눈이", "어치", "큰부리까마귀", "물까치", "찌르레기"
     )
-
-    private val curatedByName: Map<String, BirdDef> = CURATED.associateBy { it.name }
 
     val ALL: List<BirdDef> = OfficialBirdChecklist.ALL.map { entry ->
         curatedByName[entry.koreanName]?.let { enrich(it, entry) } ?: generated(entry)

@@ -5,7 +5,10 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.LinearGradient
 import java.util.Random
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -109,6 +112,8 @@ class WorldScene(
     }
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
+    private val glowFill = Paint()
+    private val vignettePaint = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
     init {
@@ -1495,6 +1500,8 @@ class WorldScene(
         fx.drawAir(c, camXv - padX, camYv - padY, padW, padH)
         c.restore()
         drawLighting(c, camXv, camYv)
+        drawWarmShafts(c)
+        drawVignette(c)
         drawNpcOverlays(c)
         c.restore()
 
@@ -1857,6 +1864,38 @@ class WorldScene(
         }
         fx.fireflies(c, null, false, camXv, camYv, game.virtW, game.virtH)
     }
+
+    /** 새벽/노을: 하늘에서 내려오는 따뜻한 빛줄기 */
+    private fun drawWarmShafts(c: Canvas) {
+        val vw = game.virtW.toFloat()
+        val vh = game.virtH.toFloat()
+        val h = state.worldTime
+        val warm = when {
+            h >= 5.5f && h < 7.5f -> (1f - abs(h - 6.5f))          // 새벽
+            h >= 17f && h < 19f -> (1f - abs(h - 18f))              // 노을
+            else -> 0f
+        }
+        if (warm > 0.02f) {
+            val a = (52f * warm).toInt().coerceIn(0, 255)
+            glowFill.shader = LinearGradient(
+                0f, 0f, 0f, vh * 0.72f,
+                Color.argb(a, 255, 178, 96), Color.argb(0, 255, 178, 96),
+                Shader.TileMode.CLAMP
+            )
+            c.drawRect(0f, 0f, vw, vh, glowFill)
+            glowFill.shader = null
+        }
+    }
+
+    /** 비네트 — 화면 가장자리를 은은하게 어둡게 */
+    private fun drawVignette(c: Canvas) {
+        c.drawBitmap(
+            game.assets.vignette, null,
+            RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()),
+            vignettePaint
+        )
+    }
+
 
     // -------------------------------------------------------------------
     // NPC 이름표 / 말풍선

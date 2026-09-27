@@ -20,6 +20,7 @@ import android.graphics.RectF
 import android.graphics.StubText
 import com.pizzaandbird.game.Assets
 import com.pizzaandbird.game.BakeOverlay
+import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.Birds
 import com.pizzaandbird.game.DecorPickOverlay
 import com.pizzaandbird.game.DecorShopOverlay
@@ -327,13 +328,13 @@ object PreviewMain {
         val bake = BakeOverlay(scene)
         scene.openOverlay(bake)
         renderScreen(game, "21_bake_topping")
-        setField(bake, "topping", 1)
+        setField(bake, "pizzaId", 1)
         setField(bake, "step", 1)
         setField(bake, "t", 1.15f)
         renderScreen(game, "22_bake_gauge")
         setField(bake, "step", 2)
         setField(bake, "resultQ", 2)
-        setField(bake, "topping", 2)
+        setField(bake, "pizzaId", 2)
         setField(bake, "stopped", true)
         setField(bake, "lostPizza", false)
         simulate(game, 0.6f)
