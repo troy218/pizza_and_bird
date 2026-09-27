@@ -23,6 +23,9 @@ class BirdDetailOverlay(
 
     private var currentNum: Int = initialBirdNum.coerceIn(1, Birds.ALL.size.coerceAtLeast(1))
 
+    /** 스틱을 한 번 밀면 한 종만 넘어가도록 하는 잠금 (가운데로 돌아오면 다시 풀린다) */
+    private var navArmed = true
+
     private var panelR = RectF()
     private var closeRect = RectF()
     private var prevRect = RectF()
@@ -82,11 +85,14 @@ class BirdDetailOverlay(
             }
         }
 
-        // 키보드/패드 조작 (◀/A = 이전, ▶/D = 다음)
-        if (input.justLeft) {
-            goPrev()
-        } else if (input.justRight) {
-            goNext()
+        // 키보드/패드 조작
+        // 스틱/방향키를 좌우로 밀면 한 종씩 넘어간다 (한 번 민 뒤 놓아야 다시 넘어감)
+        val dx = input.dirX
+        if (navArmed && kotlin.math.abs(dx) > 0.6f) {
+            navArmed = false
+            if (dx < 0f) goPrev() else goNext()
+        } else if (kotlin.math.abs(dx) < 0.3f) {
+            navArmed = true
         }
 
         if (input.justB || input.justBack) {
@@ -352,7 +358,7 @@ class BirdDetailOverlay(
         textP.color = 0xFF6B4F35.toInt()
         val orderFamily = "${def.orderName.ifBlank { enc?.order ?: "기러기목" }} · ${def.familyName.ifBlank { enc?.family ?: "오리과" }}"
         val habitatStr = def.habitats.joinToString("·") { HabitatLabels[it] ?: it }
-        val metaLine1 = "분류: $orderFamily   |   서식: $habitatStr (${def.activeLabel})"
+        val metaLine1 = "분류: $orderFamily   |   서식: $habitatStr (${def.timeWindowLabel})"
         c.drawText(metaLine1, textLeft, curY, textP)
         curY += dp(14f)
 
@@ -363,7 +369,7 @@ class BirdDetailOverlay(
             subsList.size <= 2 -> subsList.joinToString(", ")
             else -> "${subsList.take(2).joinToString(", ")} 외 ${subsList.size - 2}종"
         }
-        val metaLine2 = "범주: ${def.category.ifBlank { enc?.cat ?: "가-1" }}   |   아종: $subsStr"
+        val metaLine2 = "범주: ${def.category.ifBlank { enc?.cat ?: "가-1" }}   |   계절: ${def.seasonLabel} · ${def.migrationLabel}   |   아종: $subsStr"
         textP.textSize = dp(8.8f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(metaLine2, textLeft, curY, textP)

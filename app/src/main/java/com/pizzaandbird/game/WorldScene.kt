@@ -192,13 +192,34 @@ class WorldScene(
         else -> R.raw.bgm_world
     }
 
-    /** 낮 -> 새소리(숲 지역은 벌새 허밍), 밤 -> 바람 환경음 루프 */
+    /**
+     * 지역 성격 + 시간대에 맞는 환경음 루프.
+     *
+     *   강풍     -> 바람 소리     (amb_wind)
+     *   밤       -> 풀벌레 우는 밤 (amb_night)
+     *   바닷가   -> 파도와 갈매기 (amb_sea)
+     *   숲       -> 숲속 새소리   (amb_forest)
+     *   산       -> 낮은 허밍     (amb_hum)
+     *   그 외 낮 -> 들판 새소리   (amb_birds)
+     */
     private fun updateAmbience() {
         when {
-            state.isNight() -> game.audio.playAmb(R.raw.amb_wind, 0.2f)
-            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
+            weather == Weather.WIND -> game.audio.playAmb(R.raw.amb_wind, 0.22f)
+            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+            "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
+            "mountain" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
             else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
         }
+    }
+
+    /** 지역에 어울리는 지저귐 한 소리 — 숲·산에선 뻐꾸기가 섞인다 */
+    private fun randomChirp(): Audio.Sfx {
+        val woods = "forest" in region.habitats || "mountain" in region.habitats
+        if (woods && rnd.nextFloat() < 0.4f) {
+            return if (rnd.nextBoolean()) Audio.Sfx.CUCKOO1 else Audio.Sfx.CUCKOO2
+        }
+        return if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2
     }
 
     // -------------------------------------------------------------------
@@ -226,8 +247,10 @@ class WorldScene(
         }
         state.playSeconds += dt
         state.advanceClock(dt)
+        updateSeason()
         updateWeather(dt)
         fx.weather = weather
+        seasonFx.update(dt, state.season(), weather, game.virtW.toFloat(), game.virtH.toFloat())
 
         updatePlayer(dt)
         updateStats(dt)
@@ -246,13 +269,15 @@ class WorldScene(
             owlT -= dt
             if (owlT <= 0f) {
                 owlT = 14f + rnd.nextFloat() * 18f
-                game.sfx(Audio.Sfx.OWL, 0.5f)
+                // 가끔은 부엉이 대신 까마귀가 밤공기를 가른다
+                if (rnd.nextFloat() < 0.3f) game.sfx(Audio.Sfx.CROW, 0.42f)
+                else game.sfx(Audio.Sfx.OWL, 0.5f)
             }
         } else if (birds.isNotEmpty()) {
             chirpT -= dt
             if (chirpT <= 0f) {
                 chirpT = 7f + rnd.nextFloat() * 9f
-                game.sfx(if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2, 0.45f)
+                game.sfx(randomChirp(), 0.45f)
             }
         }
 
@@ -481,21 +506,31 @@ class WorldScene(
         viewRig.freeze(0.09f)
     }
 
+    private val seasonFx = SeasonFx()
+    private var lastSeason: Season? = null
+
+    /** 계절이 바뀌면 배너로 알리고 날씨를 곧 새로 뽑는다. */
+    private fun updateSeason() {
+        val now = state.season()
+        val prev = lastSeason
+        lastSeason = now
+        if (prev != null && prev != now) {
+            game.hud.banner("${now.icon} ${now.label}이 왔어요 — ${now.description}")
+            state.weatherSeconds = minOf(state.weatherSeconds, 3f)
+        }
+    }
+
     private fun updateWeather(dt: Float) {
         state.weatherSeconds -= dt
         if (state.weatherSeconds > 0f) return
 
         val old = state.weather()
-        val roll = rnd.nextFloat()
-        val next = when {
-            roll < 0.36f -> Weather.SUNNY
-            roll < 0.57f -> Weather.CLOUDY
-            roll < 0.76f -> Weather.RAIN
-            roll < 0.91f -> Weather.WIND
-            else -> Weather.SNOW
-        }
-        // 눈은 산·북부에서 더 자연스럽지만, 가끔 전국에 내릴 수 있다.
-        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < 0.65f) Weather.CLOUDY else next
+        // 계절별 확률표 (여름 장마, 겨울 눈) — Season.kt
+        val season = state.season()
+        val next = rollSeasonWeather(season, kotlin.random.Random(rnd.nextLong()))
+        // 눈은 산·북부에서 더 자연스럽다. 겨울이 아니면 남부/평지 눈은 흐림으로 바뀐다.
+        val snowSkip = if (season == Season.WINTER) 0.25f else 0.65f
+        val chosen = if (next == Weather.SNOW && region.id != "sokcho" && !("mountain" in region.habitats) && rnd.nextFloat() < snowSkip) Weather.CLOUDY else next
         state.weatherId = chosen.id
         state.weatherSeconds = 50f + rnd.nextFloat() * 55f
         if (chosen != old) {
@@ -718,7 +753,7 @@ class WorldScene(
 
     private fun regionPool(): List<BirdDef> {
         val n = state.isNight()
-        val pool = Birds.poolFor(map.region, n)
+        val pool = Birds.poolFor(map.region, n, state.day, state.worldTime)
         return if (pool.isEmpty()) Birds.poolFor(map.region, !n) else pool
     }
 
@@ -728,7 +763,13 @@ class WorldScene(
         if (pool.isEmpty()) return
 
         val currentWeather = state.weather()
-        val weights = pool.map { it.weight * luckBoost(it) * weatherBirdMultiplier(it, currentWeather) }
+        val currentSeason = state.season()
+        val weights = pool.map {
+            Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
+                    luckBoost(it) *
+                    weatherBirdMultiplier(it, currentWeather) *
+                    seasonBirdMultiplier(it, currentSeason, currentWeather)
+        }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
         for (i in pool.indices) {
@@ -1248,7 +1289,8 @@ class WorldScene(
     private fun showSideQuest() {
         val cur = state.questBird
         if (cur == null) {
-            val pool = Birds.poolFor(map.region, false)
+            val n = state.isNight()
+            val pool = Birds.poolFor(map.region, n, state.day, state.worldTime).ifEmpty { Birds.poolFor(map.region, !n) }
             if (pool.isEmpty()) return
             val unphoto = pool.filter { (state.birdCounts[it.id] ?: 0) == 0 && it.tier.star <= 2 }
             val candidates = if (unphoto.isNotEmpty() && rnd.nextDouble() < 0.55) unphoto else pool
@@ -1545,6 +1587,7 @@ class WorldScene(
         c.restore()
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
+        seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
         fx.drawWeather(c, game.virtW, game.virtH)
         if (viewRig.speedFx > 0.02f) {
             speedVignette.draw(c, vw, vh, viewRig.speedFx)
