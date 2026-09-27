@@ -702,6 +702,33 @@ object MainStory {
     )
 
     fun current(s: GameState): Chapter? = if (s.mainQuestFinished) null else CHAPTERS.getOrNull(s.mainQuestStage)
+
+    /**
+     * 「할머니의 수첩 한 장」 — 장(章) 하나를 마칠 때마다 그 장의 사이에 끼워 둔 쪽지가 나온다
+     * (`NotebookOverlay` 의 앞장, v0.5 「수첩을 다시 펴다」).
+     *
+     *  - `RELICS[i]` 는 `CHAPTERS[i]` 를 끝냈을 때 넘어오는 장이다 — 순서가 어긋나면 내용이 꼬인다
+     *    (MapTest·story_smoke 가 길이를 함께 검사한다).
+     *  - **저장하지 않는다.** 이미 읽은 장의 수(`mainQuestStage`)만으로 얼마든지 복원되므로,
+     *    세이브 포맷을 건드리지 않고 후일담을 늘릴 수 있다.
+     *  - 큰따옴표 속 인용문은 할머니의 필체(한 줄 메모)다. 설명·지시문을 섞지 말 것.
+     */
+    val RELICS: List<Pair<String, String>> = listOf(
+        "수첩의 첫 장" to "첫 장은 비워 두는 거야. 만난 순서대로 채우면 그것으로 충분하니까.",
+        "창밖의 메모" to "흔한 새는 없어. 아직 이름을 불러 주지 못한 새가 있을 뿐이야.",
+        "나무 밑동 쪽지" to "두드림이 들리면 멈춰 서게. 세 번을 더 기다리면 숲이 답을 준다.",
+        "물길에 적은 한 줄" to "계절은 날개를 타고 온다.",
+        "하늘을 본 기록" to "급한 마음은 새를 작게 만든다.",
+        "갯벌의 쉼표" to "비슷해 보인다는 건, 아직 오래 좋아하지 않았다는 뜻이야.",
+        "멀리서 본 마음" to "물러설 줄 아는 사람만이 오래 볼 수 있다.",
+        "마지막 빈 장" to "피자는 먹을 때가 가장 좋고, 새는 보낼 때가 가장 값진 법이다."
+    )
+
+    /** 지금까지 읽은(완료한) 장이 꺼낸 수첩 쪽지 목록 — 오래된 순서대로. */
+    fun relicsSoFar(stage: Int, finished: Boolean): List<Pair<String, String>> {
+        val n = if (finished) RELICS.size else stage
+        return RELICS.take(n.coerceIn(0, RELICS.size))
+    }
 }
 
 /**

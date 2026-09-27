@@ -7,8 +7,8 @@ package com.pizzaandbird.game
  * 이제 사람은 지역과 함께 산다.
  *
  *  - 지역마다 **고유 캐릭터 1명 + 이웃 주민 1명** — 이름·별명·외형·자리·대사가 전부 다르다.
- *  - 기능 NPC도 한 집에 산다: **보리 박사**는 광릉숲 숲속 쉼터, **사진용품점**은 서울 건물 앞 골목.
- *    다른 지역에서는 퀘스트 카드/상태 창의 🚲 버튼으로 찾아간다 (`fastTravel`).
+ *  - 기능 NPC도 한 집에 산다: **보리 박사**는 광릉숲 숲속 쉼터 하나, **카메라샵 사장**은 12개 도시 골목 각각 하나.
+ *    박사는 퀘스트 카드/상태 창의 🚲 버튼으로 찾아간다 (`fastTravel`), 카메라는 도시에서만 판다 (`CameraShops`).
  *  - 자리는 좌표 하드코딩이 아니라 **그 지역의 랜드마크**로 잡는다 (`NpcSpot`).
  *    지도를 만들 때 실제 지형(호수 데크·갈대밭·갯벌·시장 골목…)을 찾아 세우고,
  *    그 자리가 막혔거나 갈 수 없으면 광장으로 옮긴다 (`MapBuilder.placeCast`).
@@ -110,7 +110,7 @@ private object Looks {
     val MOSS = look(0xFF4A4A33, 0xFF7A9E4F, 0xFF5C7C3A, 0xFF6B5A48, 0xFF9AA3AD, vest = 0xFF5C7C3A)
     val SNOW = look(0xFFEDEAE2, 0xFFF8F6F0, 0xFFDCD8CE, 0xFF8A93A0, 0xFFB23F44, cane = true, scarf = 0xFFB23F44)
     val PROFESSOR = look(0xFFCFD2D8, 0xFFF5F2EA, 0xFFD8D2C4, 0xFF5D6470, 0xFF9AA3AD, glasses = true)
-    val SHOPKEEPER = look(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A, apron = true)
+    // (본점 사장 남기택의 옷차림은 `CameraShops` 에 있다 — 진열대와 사람이 한 장에 담기도록)
 }
 
 object NpcRoster {
@@ -118,7 +118,7 @@ object NpcRoster {
     /** 보리 박사가 상주하는 곳 — 메인 이야기 보고·사진 의뢰는 여기까지 와야 한다 */
     const val PROFESSOR_REGION = "gwangneung"
 
-    /** 사진용품점이 있는 곳 — 카메라·장식·자전거·탐조 강습 구매는 여기뿐이다 */
+    /** 카메라샵 **본점**이 있는 곳 — 자전거·장식 코너는 본점에서만 판다 (`CameraShops`) */
     const val SHOP_REGION = "seoul"
 
     private fun local(
@@ -131,9 +131,18 @@ object NpcRoster {
         emotes: List<String>? = null, vararg lines: String
     ) = NpcPerson("$region:resident", name, title, region, kind, look, spot, true, lines.toList(), emotes)
 
+    /** 도시마다 한 명씩 서는 카메라샵 사장들 — Cast 순서가 아니라 **출생지 목록**이다 */
+    private val SHOP_CAST: List<NpcPerson> = CameraShops.ALL.map { shop ->
+        NpcPerson(
+            "shop:" + shop.regionId, shop.keeper, shop.keeperTitle, shop.regionId,
+            NpcKind.SHOP, shop.look, shop.spot,
+            false, shop.lines, listOf("📷", "✨", "💰")
+        )
+    }
+
     /**
      * 등장 인물 전체. 지역 순서는 `Regions.ALL` 과 맞췄다.
-     * 한 지역 = 고유 캐릭터 1 + 이웃 주민 1 (+ 박사는 광릉숲, 상점은 서울).
+     * 한 지역 = 고유 캐릭터 1 + 이웃 주민 1 (+ 보리 박사는 광릉숲, 카메라샵 사장은 12개 도시).
      */
     private val CAST: List<NpcPerson> = listOf(
         // ===================== 도시 =====================
@@ -502,18 +511,11 @@ object NpcRoster {
             "산새는 아침 일찍이 제일 많아.",
             "바위 길은 미끄러워. 발밑 보고 걷게."),
 
-        // ===================== 서울 사진용품점 — 장비는 여기뿐 =====================
-        NpcPerson(
-            "shop", "사진용품점", "사장 남기택", SHOP_REGION,
-            NpcKind.SHOP, Looks.SHOPKEEPER, NpcSpot.MARKET,
-            false,
-            listOf(
-                "카메라는 비싼 게 아니라 손에 맞는 게 좋은 거야.",
-                "장비 가방에서 바디랑 렌즈는 언제든 다시 조립할 수 있어.",
-                "무거운 렌즈는 배가 금방 고파져. 피자도 같이 사 가게."
-            ),
-            listOf("📷", "✨", "💰")
-        )
+        // ===================== 12개 도시 카메라샵 — 장비는 도시에서만 =====================
+        // 사진용품점은 서울 한 곳만 운영하던 옛 규칙을 버리고, **12개 도시 골목**에 카메라샵을 심었다
+        // (`CameraShops.kt`). 사람 이름·옷·자리·대사는 그 파일이 유일한 출처이고, 여기는 캐스팅에 얹기만 한다.
+        // 습지·갯벌·산속 탐조지에는 가게가 없다 — 장비가 필요하면 도시로 나와야 한다.
+        *SHOP_CAST.toTypedArray()
     )
 
     val ALL: List<NpcPerson> = CAST
@@ -526,7 +528,13 @@ object NpcRoster {
     fun forRegion(regionId: String): List<NpcPerson> = byRegion[regionId] ?: emptyList()
 
     val professor: NpcPerson = CAST.first { it.kind == NpcKind.PROFESSOR }
+
+    /** 본점 사장 (서울) — 옛 코드/미리보기가 "상점 사람" 하나를 찾을 때 쓰는 대표 인물 */
     val shopkeeper: NpcPerson = CAST.first { it.kind == NpcKind.SHOP }
+
+    /** 그 동네 카메라샵 사장 — 도시가 아니면 null */
+    fun shopkeeperFor(regionId: String): NpcPerson? =
+        SHOP_CAST.firstOrNull { it.regionId == regionId }
 
     /**
      * 그 바디의 대표 인물 — 미리보기 도구(`tools/preview`)와 사람 단위를 모르는 옛 코드 경로에서 쓴다.
@@ -544,16 +552,16 @@ object NpcRoster {
     /** 지금 지역에 보리 박사가 있는가 */
     fun hasProfessor(regionId: String): Boolean = regionId == PROFESSOR_REGION
 
-    /** 지금 지역에 사진용품점이 있는가 */
-    fun hasShop(regionId: String): Boolean = regionId == SHOP_REGION
+    /** 지금 지역에 카메라샵이 있는가 — **도시(12곳)에만** 있다 */
+    fun hasShop(regionId: String): Boolean = CameraShops.has(regionId)
 
     /** 박사를 만나러 가는 안내 문장 (퀘스트 카드·대화에서 공유) */
     val professorTravelHint: String
         get() = "보리 박사는 $professorRegionName ${professor.spot.label}에 있어요"
 
-    /** 상점을 찾아가는 안내 문장 */
+    /** 상점을 찾아가는 안내 문장 (본점 기준) */
     val shopTravelHint: String
-        get() = "사진용품점은 $shopRegionName ${shopkeeper.spot.label}에 있어요"
+        get() = "본점은 $shopRegionName ${shopkeeper.spot.label} · ${CameraShops.flagship.shopName}"
 
     /** 이 지역 사람들은 누구인지 (지역 정보·도감류 UI에서 쓸 수 있는 한 줄) */
     fun castLabel(regionId: String): String =

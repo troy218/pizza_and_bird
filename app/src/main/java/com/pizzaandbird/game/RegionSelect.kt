@@ -93,9 +93,11 @@ object RegionCards {
 
             y += dp * 12f
             // 사람은 한 장소에만 산다 — 정착지를 고를 때 "누가 있는 동네인지" 보이도록 표시
-            val landmark = when (reg.id) {
-                NpcRoster.PROFESSOR_REGION -> " · 보리 박사"
-                NpcRoster.SHOP_REGION -> " · 사진용품점"
+            val shopHere = CameraShops.shop(reg.id)
+            val landmark = when {
+                reg.id == NpcRoster.PROFESSOR_REGION && shopHere != null -> " · 보리 박사 · 카메라샵"
+                reg.id == NpcRoster.PROFESSOR_REGION -> " · 보리 박사"
+                shopHere != null -> " · 카메라샵 ${shopHere.specialty}"
                 else -> ""
             }
             UiKit.icon(c, game, "calendar", RectF(x, y - dp * 10f, x + dp * 13f, y + dp * 3f))

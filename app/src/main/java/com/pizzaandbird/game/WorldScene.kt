@@ -1820,10 +1820,13 @@ class WorldScene(
                 buildList {
                     add(DialogOverlay.Choice(mainLabel) { showMainStory() })
                     add(DialogOverlay.Choice(sideLabel) { showSideQuest() })
-                    if (!NpcRoster.hasShop(state.region)) {
-                        add(DialogOverlay.Choice("🏬 ${NpcRoster.shopRegionName} 상점") {
-                            game.toast("🚲 ${NpcRoster.shopTravelHint}")
-                            fastTravel(game, NpcRoster.SHOP_REGION)
+                    // 장비는 도시의 카메라샵에서만 판다 — 없는 동네면 가장 가까운 도시로 태워 준다
+                    val shopNear = CameraShops.nearestShop(state.region)
+                    if (shopNear.regionId != state.region) {
+                        val shopName = Regions.byId[shopNear.regionId]?.name ?: "도시"
+                        add(DialogOverlay.Choice("🏬 $shopName 카메라샵") {
+                            game.toast("🚲 ${CameraShops.travelHint(state.region)}")
+                            fastTravel(game, shopNear.regionId)
                         })
                     }
                     add(DialogOverlay.Choice("다음에 올게요"))
@@ -1885,11 +1888,19 @@ class WorldScene(
             if (chapter.rewardExp > 0) append(" · 경험치 +${chapter.rewardExp}")
             if (levels > 0) append(" · 레벨 업!")
         }
+        // 방금 끝낸 장의 수첩 쪽지 — 할머니의 필체가 한 장 더 넘어온다 (이후엔 도감의 '수첩'에서 다시 읽는다)
+        val stage = if (state.mainQuestFinished) MainStory.CHAPTERS.size else state.mainQuestStage
+        val relic = MainStory.RELICS.getOrNull(stage - 1)
+        val relicLine = if (relic != null) "\n\n(수첩의 ${relic.first})\n\"${relic.second}\"" else ""
         openOverlay(
             DialogOverlay(
                 this, if (state.mainQuestFinished) "메인 퀘스트 완결" else "장 완료",
-                "\"${chapter.complete}\"$reward",
-                listOf(DialogOverlay.Choice(if (state.mainQuestFinished) "그래도 탐조는 계속된다" else "다음 장을 향해"))
+                "\"${chapter.complete}\"$reward" + relicLine,
+                listOf(
+                    DialogOverlay.Choice(
+                        if (state.mainQuestFinished) "그래도 탐조는 계속된다" else "다음 장을 향해"
+                    ) { if (relic != null) game.toast("📔 수첩 한 장 · ${relic.first}") }
+                )
             )
         )
     }
@@ -2050,35 +2061,53 @@ class WorldScene(
         )
     }
 
+    /**
+     * 카메라샵 사장과의 대화 — 도시에 있는 각 지점은 사장도, 진열대도 다르다 (`CameraShops`).
+     *
+     *  - 특화 코너 10% 할인 / 이 도시에서 살 수 있는 종류만 진열
+     *  - 자전거·장식 코너는 서울 본점 전용
+     *  - 사장의 잡담은 계절·날씨·밤까지 반응한다 (`Dialogues.shopkeeper`)
+     */
     private fun talkShop() {
+        val shop = CameraShops.shop(state.region) ?: return
         val rig = state.rig()
-        val lines = listOf(
-            "\"어서 와! 지금 장비는 ${rig.title},\n환산 ${rig.teleMm}mm에 촬영 반경 ${rig.reach.fmt1()}칸이구먼.\n바디랑 렌즈는 따로 팔아. 천천히 골라 봐.\"",
-            "\"새를 크게 찍고 싶으면 답은 하나야. 초점거리!\n다만 무거운 렌즈는 배가 금방 고파진다네.\"",
-            "\"센서가 크면 어두운 새벽에도 깨끗하지.\n대신 지갑이 어두워지지만 말이야. 허허.\"",
-            "\"허허, 내 첫 손님이 카메라를 들던 소년이었다네.\n피자 한 판 시키면서 숲새 얘기를 하던 게 어제 같은데.\"",
-            "\"비 오는 날엔 렌즈에 물방울이 맺히기 쉽다네.\n레인 커버 하나가 오래 보는 비결이야.\"",
-            "\"카메라는 어깨에 매는 거지만, 기록은 가슴에 남는 법이야.\n무거운 건 어깨에, 가벼운 건 가슴에 두고 다니게.\""
+        val carried = CameraShops.catalog(state.region).size
+        val flavor = Dialogues.shopkeeper(
+            Dialogues.Ctx(state.region, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)
         )
+        val own = shop.lines[rnd.nextInt(shop.lines.size)]
+        val sale = if (shop.saleLabel.isNotEmpty()) " ${shop.saleLabel}" else ""
+        val body = "\"${shop.greeting}\n" +
+            "지금 장비는 ${rig.short}, 환산 ${rig.teleMm}mm · 촬영 반경 ${rig.reach.fmt1()}칸이구먼.\n" +
+            "이 동네 진열대는 ${shop.specialty} — 살 수 있는 장비 ${carried}점.$sale\"\n\n" +
+            "\"${own}\"" + flavor
         openOverlay(
             DialogOverlay(
-                this, "사진용품점 · ${NpcRoster.shopkeeper.title}",
-                lines[rnd.nextInt(lines.size)] + "\n\n(이 가게는 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}에 하나뿐이야. 장비는 여기서만 살 수 있어.)",
-                listOf(
-                    DialogOverlay.Choice("카메라 진열대") {
+                this, "${shop.shopName} · 사장 ${shop.keeper}",
+                body,
+                buildList {
+                    add(DialogOverlay.Choice("카메라 진열대") {
                         it.scene.openOverlay(CameraShopOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("장비 가방(조립)") {
+                    })
+                    add(DialogOverlay.Choice("장비 가방(조립)") {
                         it.scene.openOverlay(GearBagOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("자전거 상점") {
-                        it.scene.openOverlay(BikeShopOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("장식 코너") {
-                        it.scene.openOverlay(DecorShopOverlay(it.scene))
-                    },
-                    DialogOverlay.Choice("그냥 볼게요")
-                )
+                    })
+                    if (shop.flagship) {
+                        add(DialogOverlay.Choice("자전거 상점") {
+                            it.scene.openOverlay(BikeShopOverlay(it.scene))
+                        })
+                        add(DialogOverlay.Choice("장식 코너") {
+                            it.scene.openOverlay(DecorShopOverlay(it.scene))
+                        })
+                    } else {
+                        val near = CameraShops.flagship
+                        val nearName = Regions.byId[near.regionId]?.name ?: "서울"
+                        add(DialogOverlay.Choice("자전거·장식은 $nearName 본점") {
+                            game.toast("🚲 $nearName ${near.spot.label} · 본점에만 있는 코너야")
+                        })
+                    }
+                    add(DialogOverlay.Choice("그냥 볼게요"))
+                }
             )
         )
     }

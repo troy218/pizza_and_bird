@@ -345,7 +345,8 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
                     openOverlay(
                         DialogOverlay(
                             this, "장식 칸",
-                            "아직 소유한 장식이 없어요.\n사진용품점의 '장식 코너'에서 소품을 구경해 보세요!",
+                            "아직 소유한 장식이 없어요.\n${CameraShops.flagship.shopName}(서울)의 " +
+                                "'장식 코너'에서 소품을 구경해 보세요!",
                             listOf(DialogOverlay.Choice("다녀올게요!"))
                         )
                     )
