@@ -10,6 +10,15 @@ import android.graphics.RectF
 import java.util.Random
 import kotlin.math.roundToInt
 
+// 살아있는 풀 리그 상수 (파일 최상위 — 클래스 본문 안에서는 const val 을 쓸 수 없다)
+private const val GRASS_KINDS = 5
+private const val GRASS_LEAN_MAX = 5      // 좌우 기움 -5..+5
+private const val GRASS_CURL_MAX = 3      // 휨(곡률) -3..+3
+private const val GRASS_W = 18            // 포즈 비트맵 폭
+private const val GRASS_CX = 9            // 비트맵 안에서 밑동(뿌리) 열
+private const val GRASS_LEAN_UNIT = 1.5f
+private const val GRASS_CURL_UNIT = 1.25f
+
 /**
  * 캐릭터와 월드 타일을 코드로 생성하는 픽셀 아트 에셋 (v0.2 — 2배 해상도).
  * - 타일 32x32 / 캐릭터 32x32 / 새 13종 체형 + 9종 깃무늬 + 비행 2프레임
@@ -1275,14 +1284,6 @@ class Assets {
     //  · 내부 디테일: 3톤 명암(밝은 면 / 중간 / 그림자) + 그림자쪽 1px 잎맥 점선 +
     //            가운데 접힘 하이라이트 + 끝 2행 팁 하이라이트 + 기저부 접지 그림자.
     // -----------------------------------------------------------------------
-
-    const val GRASS_KINDS = 5
-    const val GRASS_LEAN_MAX = 5      // 좌우 기움 -5..+5
-    const val GRASS_CURL_MAX = 3      // 휨(곡률) -3..+3
-    private const val GRASS_W = 18    // 포즈 비트맵 폭
-    private const val GRASS_CX = 9    // 비트맵 안에서 밑동(뿌리) 열
-    private const val GRASS_LEAN_UNIT = 1.5f
-    private const val GRASS_CURL_UNIT = 1.25f
 
     private class GrassKind(
         val h: Int, val bh: Int, val oy: Int,        // 높이 / 비트맵 높이 / 밑동 행

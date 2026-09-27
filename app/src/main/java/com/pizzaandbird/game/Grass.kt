@@ -59,6 +59,8 @@ class GrassField(map: GameMap) {
 
         private const val COL_W = 8f           // 바람 필드를 8px 열 단위로 한 번만 계산
         private const val PHASE_LAG = 0.55f    // 풀잎별 진동 위상차 (돌풍에는 적용하지 않음)
+
+        private const val NO_GRASS = -2        // 이 지형에는 풀을 심지 않는다는 표식
     }
 
     private class Blade(
@@ -92,23 +94,28 @@ class GrassField(map: GameMap) {
         windSquall = FloatArray(cols)
     }
 
+    /**
+     * 타일 하나에 심을 풀 계획 = (다발 수, 강제 풀잎 종류)
+     * 강제 종류가 -1 이면 종류를 자유롭게 섞고, NO_GRASS 면 심지 않는다.
+     */
+    private fun planFor(tile: T, r: Random): Pair<Int, Int> = when (tile) {
+        T.GRASS -> (if (r.nextFloat() < 0.35f) 2 else 1) to -1
+        T.FLOWER -> 1 to -1                        // 꽃이 보이도록 성기게
+        T.TALLGRASS -> (2 + r.nextInt(2)) to 2
+        T.REED -> 2 to 4
+        T.SAND -> if (r.nextFloat() > 0.22f) (0 to NO_GRASS) else (1 to 3)   // 모래밭엔 드물게
+        // 돌길/광장 틈새에서 자라는 잡초
+        T.PATH, T.PLAZA -> if (r.nextFloat() > 0.10f) (0 to NO_GRASS) else (1 to 0)
+        else -> 0 to NO_GRASS
+    }
+
     /** 타일 종류마다 풀을 다르게 심는다 (결정적 — 같은 지역은 항상 같은 밭) */
     private fun build(map: GameMap, r: Random) {
         for (ty in 0 until map.h) {
             for (tx in 0 until map.w) {
                 val tile = map.t(tx, ty)
-                // (다발 수, 강제 풀잎 종류) — 강제 종류가 -1 이면 종류를 자유롭게 섞는다.
-                // null 이면 이 지형에는 풀을 심지 않는다.
-                val plan: Pair<Int, Int>? = when (tile) {
-                    T.GRASS -> (if (r.nextFloat() < 0.35f) 2 else 1) to -1
-                    T.FLOWER -> 1 to -1                     // 꽃이 보이도록 성기게
-                    T.TALLGRASS -> (2 + r.nextInt(2)) to 2
-                    T.REED -> 2 to 4
-                    T.SAND -> if (r.nextFloat() > 0.22f) null else (1 to 3)   // 모래밭엔 드물게
-                    // 돌길/광장 틈새에서 자라는 잡초
-                    T.PATH, T.PLAZA -> if (r.nextFloat() > 0.10f) null else (1 to 0)
-                    else -> null
-                } ?: continue
+                val plan = planFor(tile, r)
+                if (plan.second == NO_GRASS) continue
                 val forced = plan.second
 
                 repeat(plan.first) {
