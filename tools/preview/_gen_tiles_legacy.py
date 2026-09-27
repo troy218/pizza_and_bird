@@ -9,7 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(HERE, '..', '..', 'app/src/main/java/com/pizzaandbird/game/Assets.kt')
 
 src = open(ASSETS, encoding='utf-8').read().splitlines()
-s0 = next(i for i, l in enumerate(src) if '// GRASS (4종 변형)' in l)
+s0 = next(i for i, l in enumerate(src) if l.strip().startswith('// GRASS ('))
 e0 = next(i for i, l in enumerate(src) if 'medallion = RoadArt.medallion' in l)
 open('/tmp/_bt.kt', 'w', encoding='utf-8').write("\n".join(src[s0:e0]) + "\n")
 

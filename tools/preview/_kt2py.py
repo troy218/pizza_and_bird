@@ -11,6 +11,12 @@ src = open(sys.argv[1], encoding="utf-8").read().splitlines()
 out = []
 indent = 0
 pending_tile = []
+when_stack = []          # [변수명, 첫 가지 출력 여부]
+when_base = []
+
+
+def when_indent_of(stack):
+    return when_base[len(stack) - 1] if when_base else -1
 
 
 def conv_expr(e: str) -> str:
@@ -71,6 +77,26 @@ while i < len(src):
         emit(f"for _rep in range({conv_expr(m.group(1))}):")
         indent += 1
         continue
+    # when (x) { n -> { ... } }  ->  if / elif 체인
+    m = re.match(r"^when \((\w+)\) \{$", line)
+    if m:
+        when_stack.append([m.group(1), False])
+        while len(when_base) < len(when_stack):
+            when_base.append(0)
+        when_base[len(when_stack) - 1] = indent
+        continue
+    if when_stack:
+        m = re.match(r"^(\w+|else) -> \{$", line)
+        if m:
+            var, started = when_stack[-1]
+            if m.group(1) == "else":
+                emit("else:")
+            else:
+                emit(("elif " if started else "if ") + f"{var} == {m.group(1)}:")
+            when_stack[-1][1] = True
+            indent += 1
+            continue
+
     m = re.match(r"^if \((.+)\) \{$", line)
     if m:
         emit(f"if {conv_expr(m.group(1))}:")
@@ -91,7 +117,10 @@ while i < len(src):
         emit("add(tile_painter(_tp))")
         continue
     if line == "}":
-        indent -= 1
+        if when_stack and indent == when_base[len(when_stack) - 1]:
+            when_stack.pop()          # when 블록 자체가 닫힘 (들여쓰기 변화 없음)
+        else:
+            indent -= 1
         continue
     if line.startswith("add(tilePainter {"):
         emit("### UNHANDLED " + line)

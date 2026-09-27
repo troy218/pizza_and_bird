@@ -70,9 +70,9 @@ def grassBase(c, p, r, base=0xFF96D07A):
 
 
 def build():
-    # GRASS (4종 변형)
+    # GRASS (6종 변형 — 더 다채로운 초원 디테일)
     begin('GRASS')
-    for i in range(4):
+    for i in range(6):
         def _tp(c, p, r, **kw):
             globals().update(kw)
             grassBase(c, p, r)
@@ -82,53 +82,96 @@ def build():
                 c.drawRect(7, 5, 8.2, 9, p)
                 c.drawRect(22, 20, 26, 21.2, p)
                 c.drawRect(24, 19, 25.2, 23, p)
-            if i == 2:
+            elif i == 2:
+                p.color = 0xFF6B747E
+                c.drawRect(14, 18.4, 17.4, 20.6, p)
                 p.color = 0xFFA8B0A0
-                c.drawRect(14, 18, 17, 20, p)
-                c.drawRect(14.8, 17.4, 16.2, 20.6, p)
-            if i == 3:
+                c.drawRect(14.4, 17.6, 16.8, 19.8, p)
+                p.color = 0xFFC8CFD6
+                c.drawRect(14.8, 17.8, 15.8, 18.6, p)
+            elif i == 3:
+                p.color = 0xFF6FAE57
+                c.drawRect(20.6, 10.6, 21.4, 14, p)
                 p.color = 0xFFFDF6E8
-                c.drawRect(20, 9, 22, 11, p)
-                c.drawRect(19.4, 9.6, 22.6, 10.4, p)
+                c.drawCircle(21, 9.6, 2.1, p)
+                p.color = 0xFFF0EAE0
+                c.drawCircle(21, 9.6, 0.9, p)
+            elif i == 4:
+                p.color = 0xFF5D8A4A
+                c.drawRect(9.4, 14.4, 10.2, 17.4, p)
+                p.color = 0xFF4FA25A
+                c.drawCircle(8.4, 13.6, 1.7, p)
+                c.drawCircle(11, 13.6, 1.7, p)
+                c.drawCircle(9.7, 11.8, 1.7, p)
+                p.color = 0xFF6BBA72
+                c.drawCircle(9.7, 12.8, 0.8, p)
+            elif i == 5:
+                p.color = 0xFFB0793F
+                c.drawRect(23.6, 22.6, 24.4, 24.4, p)
+                p.color = 0xFFE2574C
+                c.drawRect(22.4, 20.6, 25.6, 23, p)
+                p.color = 0xFFFDF6E8
+                c.drawRect(23, 21, 23.7, 21.6, p)
+                c.drawRect(24.6, 21.6, 25.2, 22.2, p)
         add(tile_painter(_tp))
-    # TALLGRASS (2종)
+    # TALLGRASS (3종 — 잎끝 하이라이트 + 살짝 휘어진 형태로 자연스러움 강화)
     begin('TALLGRASS')
-    for i in range(2):
+    for i in range(3):
         def _tp(c, p, r, **kw):
             globals().update(kw)
             grassBase(c, p, r, 0xFF8CC46C)
-            p.color = 0xFF6FAE57
-            for k in range(6 + i):
-                x = 1 + r.nextInt(28)
-                h = 9 + r.nextInt(9)
-                c.drawRect(x, (32 - h), x + 2, 32, p)
-            p.color = 0xFF8CC46C
-            for _rep in range(4):
-                x = 1 + r.nextInt(28)
-                h = 7 + r.nextInt(7)
-                c.drawRect(x, (32 - h), x + 1.6, 32, p)
+            # 뒤쪽 어두운 긴 풀 (기울어진 줄기)
             p.color = 0xFF5D8A4A
-            c.drawRect(6, 8, 7.4, 18, p)
-            c.drawRect(22, 6, 23.4, 20, p)
+            for k in range(5 + i):
+                x = 1 + r.nextInt(28)
+                h = 10 + r.nextInt(10)
+                bend = (1.3 if k % 2 == 0 else -1.3)
+                c.drawRect(x, (32 - h), x + 2.2, 32, p)
+                c.drawRect(x + bend, (32 - h), x + bend + 1.6, (32 - h + 3), p)
+            # 앞쪽 밝은 풀 + 팁 하이라이트 (그라데이션 느낌)
+            for _rep in range(5 + i):
+                x = 1 + r.nextInt(28)
+                h = 8 + r.nextInt(8)
+                top = (32 - h)
+                p.color = 0xFF6FAE57
+                c.drawRect(x, top, x + 1.8, 32, p)
+                p.color = 0xFFB7E08C
+                c.drawRect(x, top, x + 1.8, top + 2.2, p)
+            # 굵은 갈대성 줄기 2개 포인트
+            p.color = 0xFF5D8A4A
+            c.drawRect(6, 8, 7.6, 18, p)
+            c.drawRect(22, 6, 23.6, 20, p)
+            p.color = 0xFF8CC46C
+            c.drawRect(6, 8, 7, 10, p)
+            c.drawRect(22, 6, 22.8, 8, p)
         add(tile_painter(_tp))
-    # FLOWER (3색)
+    # FLOWER (4색 — 둥근 4장 꽃잎 + 잎사귀로 훨씬 화사하게)
     begin('FLOWER')
-    flowerCols = [0xFFF2A3B3, 0xFFF2D06B, 0xFFFDFDF8]
-    for i in range(3):
+    flowerCols = [0xFFF2A3B3, 0xFFF2D06B, 0xFFFDFDF8, 0xFFC9A8E8]
+    for i in range(4):
         def _tp(c, p, r, **kw):
             globals().update(kw)
             grassBase(c, p, r)
             for _rep in range(4):
-                x = 3 + r.nextInt(23)
-                y = 3 + r.nextInt(22)
+                x = 4 + r.nextInt(21)
+                y = 5 + r.nextInt(18)
+                # 줄기 + 잎사귀
                 p.color = 0xFF5D8A4A
-                c.drawRect((x + 1.6), (y + 2.4), (x + 2.6), (y + 5.2), p)
-                col = flowerCols[(i + r.nextInt(3)) % 3]
+                c.drawRect(x + 1.7, y + 2.6, x + 2.5, y + 6, p)
+                p.color = 0xFF6FAE57
+                c.drawRect(x + 0.4, y + 3.8, x + 2, y + 5, p)
+                # 둥근 꽃잎 4장 (십자 대칭 배치)
+                col = flowerCols[(i + r.nextInt(4)) % 4]
                 p.color = col
-                c.drawRect(x, y, x + 4.2, y + 2.6, p)
-                c.drawRect(x + 1, y - 1, x + 3.2, y + 3.6, p)
+                c.drawCircle(x + 2.1, y - 0.3, 1.8, p)
+                c.drawCircle(x + 2.1, y + 2.5, 1.8, p)
+                c.drawCircle(x + 0.5, y + 1.1, 1.8, p)
+                c.drawCircle(x + 3.7, y + 1.1, 1.8, p)
+                # 꽃술
                 p.color = 0xFFF7CE5B
-                c.drawRect(x + 1.4, y + 0.4, x + 2.8, y + 1.8, p)
+                c.drawCircle(x + 2.1, y + 1.1, 1.3, p)
+                p.color = 0xFFE8B14E
+                c.drawCircle(x + 2.1, y + 1.1, 0.6, p)
         add(tile_painter(_tp))
     # PATH (길) — 실제 화면에서는 Roads.kt 오토타일이 그린다.
     # 여기 있는 것은 "사방이 모두 길" 인 안쪽 조각 (미니맵/예비용).
