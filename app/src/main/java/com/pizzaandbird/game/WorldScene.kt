@@ -902,10 +902,10 @@ class WorldScene(
                     player.bike && player.facing == Dir.W -> a.bikeSideL
                     player.bike && player.facing == Dir.N -> a.bikeUp
                     player.bike && player.facing == Dir.S -> a.bikeDown
-                    player.facing == Dir.E -> a.playerSide[frame]
-                    player.facing == Dir.W -> a.playerSideL[frame]
-                    player.facing == Dir.N -> a.playerUp[frame]
-                    else -> a.playerDown[frame]
+                    player.facing == Dir.E -> if (state.gender == "female") a.femaleSide[frame] else a.playerSide[frame]
+                    player.facing == Dir.W -> if (state.gender == "female") a.femaleSideL[frame] else a.playerSideL[frame]
+                    player.facing == Dir.N -> if (state.gender == "female") a.femaleUp[frame] else a.playerUp[frame]
+                    else -> if (state.gender == "female") a.femaleDown[frame] else a.playerDown[frame]
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE

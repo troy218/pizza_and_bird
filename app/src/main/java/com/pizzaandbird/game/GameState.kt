@@ -13,6 +13,7 @@ import org.json.JSONObject
 class GameState {
 
     var started = false            // 첫 집 선택 완료(=세이브 존재)
+    var gender = "male"          // 플레이어 캐릭터: male / female
     var inHome = false             // 현재 집 안에 있는지
     var money = 0                  // 용돈(원)
     var hunger = 100f              // 배고픔 수치 (100 = 포만, 0 = 배고픔)
@@ -155,6 +156,7 @@ class GameState {
     fun toJSON(): JSONObject = JSONObject().apply {
         put("v", 2)
         put("started", started)
+        put("gender", gender)
         put("inHome", inHome)
         put("money", money)
         put("hunger", hunger.toDouble())
@@ -183,6 +185,7 @@ class GameState {
             val s = GameState()
             val v = j.optInt("v", 1)
             s.started = j.optBoolean("started", false)
+            s.gender = j.optString("gender", "male")
             s.inHome = j.optBoolean("inHome", false)
             s.money = j.optInt("money", 0)
             s.hunger = j.optDouble("hunger", 100.0).toFloat()
