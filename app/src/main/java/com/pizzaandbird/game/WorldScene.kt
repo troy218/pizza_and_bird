@@ -150,7 +150,8 @@ class WorldScene(
             SpawnKind.FAST -> Dir.N      // 광장 한가운데(박사 방향)을 바라본다
             else -> Dir.S
         }
-        player.bike = spawnKind == SpawnKind.SAVED && state.onBike
+        // 저장 위치 복귀·터널 이동 시에는 자전거 탑승 상태 유지 (터널을 지나도 내리지 않는다)
+        player.bike = (spawnKind == SpawnKind.SAVED || spawnKind == SpawnKind.TUNNEL) && state.onBike
 
         if (region.id !in state.visited) {
             state.visited.add(region.id)
@@ -732,6 +733,7 @@ class WorldScene(
         val viaSea = targetId == "jeju" || map.region.id == "jeju"
         state.px = player.x
         state.py = player.y
+        state.onBike = player.bike   // 터널을 지나도 자전거 탑승 상태 유지
         SaveManager.save(game.context, state)
         if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
         // 터널로 빨려 들어가는 느낌 — 살짝 광각으로 벌어지며 흔들린다
