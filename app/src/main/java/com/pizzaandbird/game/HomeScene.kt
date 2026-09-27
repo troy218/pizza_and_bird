@@ -311,6 +311,22 @@ class HomeScene(game: Game) : Scene(game) {
         map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
         drawInteriorStyle(c)
 
+        // The house's focal point: a warm, gently flickering wood-fired oven.
+        val ovenScreenX = (ovenX - camX) * WORLD_SCALE
+        val ovenScreenY = (ovenY - camY) * WORLD_SCALE
+        val heat = (0.5f + 0.5f * sin(game.time * 4.2f)).coerceIn(0f, 1f)
+        uiFill.color = Color.argb((14f + heat * 20f).toInt(), 255, 112, 48)
+        c.drawCircle(ovenScreenX, ovenScreenY - 11f, 47f + heat * 4f, uiFill)
+        game.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(
+                (9f * 16f - camX) * WORLD_SCALE - 16f,
+                (1f * 16f - camY) * WORLD_SCALE - 8f,
+                (9f * 16f - camX) * WORLD_SCALE + 80f,
+                (1f * 16f - camY) * WORLD_SCALE + 100f
+            )
+        )
+
         val a = game.assets
 
         // 장식 그리기
