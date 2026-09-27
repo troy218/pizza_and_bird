@@ -2220,7 +2220,7 @@ class WorldScene(
             val np = Type.paintPx(12f, true, 0.02f, 0xFF4A2E12.toInt())
             val numTxt = tunnel.number.toString()
             val tw = np.measureText(numTxt)
-            c.drawText(numTxt, badgeCx - tw / 2f, badgeCy + 4f, np)
+            c.drawText(numTxt, badgeCx - tw / 2f, badgeCy - (np.descent() + np.ascent()) / 2f, np)
 
             // 가까우면 목적지 라벨도
             val distToPlayer = hypot(tunnel.cx - player.cx, tunnel.cy - player.cy)
@@ -2232,7 +2232,7 @@ class WorldScene(
                 uiFill.color = Color.argb(200, 58, 52, 74)
                 scratchRect.set(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f)
                 c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
-                c.drawText(label, badgeCx - lw / 2, badgeCy + 21f, lp)
+                c.drawText(label, badgeCx - lw / 2, scratchRect.centerY() - (lp.descent() + lp.ascent()) / 2f, lp)
             }
         }
     }
