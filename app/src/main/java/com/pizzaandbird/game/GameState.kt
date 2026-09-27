@@ -7,9 +7,10 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
+ * 세이브 형식 v4: 메인 스토리 진행도와 완료 상태를 추가했다.
+ * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
- * v1·v2 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
+ * v1~v3 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
  */
 class GameState {
 
@@ -34,8 +35,13 @@ class GameState {
     var py = 0f
     var onBike = false
 
-    var questBird: String? = null  // 박사 의뢰: 촬영할 새
+    var questBird: String? = null  // 박사 사진 의뢰(서브퀘스트): 촬영할 새
     var questReward = 0
+
+    // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
+    var mainQuestStarted = false
+    var mainQuestStage = 0
+    var mainQuestFinished = false
 
     var playSeconds = 0f
     var photos = 0                 // 누적 촬영 장수
@@ -245,6 +251,9 @@ class GameState {
         onBike = false
         questBird = null
         questReward = 0
+        mainQuestStarted = false
+        mainQuestStage = 0
+        mainQuestFinished = false
         playSeconds = 0f
         photos = 0
         worldTime = 8.5f
@@ -263,7 +272,7 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 3)
+        put("v", 4)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
@@ -281,6 +290,9 @@ class GameState {
         put("onBike", onBike)
         put("questBird", questBird ?: "")
         put("questReward", questReward)
+        put("mainQuestStarted", mainQuestStarted)
+        put("mainQuestStage", mainQuestStage)
+        put("mainQuestFinished", mainQuestFinished)
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
@@ -337,6 +349,9 @@ class GameState {
             s.onBike = j.optBoolean("onBike", false)
             s.questBird = j.optString("questBird", "").ifEmpty { null }
             s.questReward = j.optInt("questReward", 0)
+            s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
+            s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
+            s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
