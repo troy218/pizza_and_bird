@@ -85,9 +85,9 @@ class HomeScene(game: Game) : Scene(game) {
             val speed = if (state.hunger <= 0f) 34f else 55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt
+            player.play(Anim.WALK, dt, (speed / 55f).coerceIn(0.5f, 1.6f))
         } else {
-            player.animT = 0f
+            player.play(Anim.IDLE, dt)
         }
 
         // 현관문
@@ -308,14 +308,8 @@ class HomeScene(game: Game) : Scene(game) {
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
-        val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
         val ps = a.playerSet(state.gender, state.gearTier())
-        val bmp = when (player.facing) {
-            Dir.E -> ps.side[frame]
-            Dir.W -> ps.sideL[frame]
-            Dir.N -> ps.up[frame]
-            else -> ps.down[frame]
-        }
+        val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
         // 밤: 창문 틴트 + 스탠드 조명 빛

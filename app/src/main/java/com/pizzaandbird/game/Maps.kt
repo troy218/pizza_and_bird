@@ -796,12 +796,60 @@ class Player {
     var facing = Dir.S
     var moving = false
     var bike = false
-    var animT = 0f
+
+    // ---- 동작(애니메이션) 상태 ----
+    var anim = Anim.IDLE
+        private set
+    var animT = 0f                    // 현재 클립 안에서의 시간(초)
+    var pedal = 0f                    // 자전거 페달 위상 0~1
+    private var lastPhase = 0f
+    /** 이번 프레임에 발이 땅에 닿았는가 (먼지/발소리용) */
+    var footfall = false
+        private set
 
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
     fun set(px: Float, py: Float) { x = px; y = py }
+
+    /** 현재 클립의 진행도 0~1 */
+    val phase: Float get() = (animT / anim.cycle).coerceIn(0f, 1f)
+
+    /** 현재 프레임 번호 */
+    val frame: Int get() = (animT / anim.frameTime).toInt()
+
+    /**
+     * 동작을 재생한다.
+     * - 걷기 <-> 달리기 <-> 살금살금 사이에서는 위상을 이어받아 발이 튀지 않는다.
+     * - rate 는 실제 이동 속도에 비례시켜 발이 미끄러지지 않게 한다.
+     */
+    fun play(next: Anim, dt: Float, rate: Float = 1f) {
+        if (next != anim) {
+            val strideSet = anim == Anim.WALK || anim == Anim.RUN || anim == Anim.SNEAK
+            val strideNext = next == Anim.WALK || next == Anim.RUN || next == Anim.SNEAK
+            val keep = if (strideSet && strideNext) (animT / anim.cycle) % 1f else 0f
+            anim = next
+            animT = keep * next.cycle
+            lastPhase = keep
+        }
+        val cyc = anim.cycle
+        animT = (animT + dt * rate) % cyc
+        val ph = animT / cyc
+        // 걷기/달리기 사이클에서 발이 닿는 순간 (위상 0 과 0.5 통과)
+        footfall = false
+        if (anim == Anim.WALK || anim == Anim.RUN || anim == Anim.SNEAK) {
+            if (crossed(lastPhase, ph, 0f) || crossed(lastPhase, ph, 0.5f)) footfall = true
+        }
+        lastPhase = ph
+    }
+
+    private fun crossed(a: Float, b: Float, m: Float): Boolean =
+        if (b >= a) (m > a && m <= b) else (m > a || m <= b)
+
+    /** 자전거 페달을 speed(px/s)에 맞춰 돌린다 */
+    fun pedalBy(dt: Float, speed: Float) {
+        pedal = (pedal + dt * (speed / 46f)) % 1f
+    }
 }
 
 /** 필드에 나타난 새 */
