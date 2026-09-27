@@ -145,7 +145,24 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
-        game.audio.stopAmb()
+        updateAmbience()
+    }
+
+    /**
+     * 집 안 계절 환경음 — 창밖 계절이 벽 너머로 살짝 들린다.
+     * 겨울엔 화덕 장작 타는 소리, 여름 낮엔 멀리 매미, 가을 밤엔 귀뚜라미, 봄 밤엔 개구리.
+     */
+    private fun updateAmbience() {
+        val night = state.isNight()
+        when (state.season()) {
+            Season.WINTER -> game.audio.playAmb(R.raw.amb_fire, 0.32f)
+            Season.SUMMER -> if (!night) game.audio.playAmb(R.raw.amb_cicada, 0.16f)
+            else game.audio.playAmb(R.raw.amb_night, 0.20f)
+            Season.AUTUMN -> if (night) game.audio.playAmb(R.raw.amb_cricket, 0.22f)
+            else game.audio.playAmb(R.raw.amb_birds, 0.10f)
+            Season.SPRING -> if (night) game.audio.playAmb(R.raw.amb_frog, 0.20f)
+            else game.audio.playAmb(R.raw.amb_birds, 0.14f)
+        }
     }
 
     override fun camera(): ViewRig = rig
@@ -159,6 +176,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         }
         state.playSeconds += dt * 0.4f
         state.advanceClock(dt)
+        updateAmbience()
         updateMotes(dt)
 
         // 이동 (자전거 금지!)

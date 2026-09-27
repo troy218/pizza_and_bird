@@ -213,6 +213,9 @@ class WorldScene(
         game.hud.showStats = true
         game.hud.showMinimap = true
         fx.weather = weather
+        map.season = state.season()
+        grass.setSeason(state.season())
+        fx.season = state.season()
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
@@ -235,19 +238,33 @@ class WorldScene(
     }
 
     /**
-     * 지역 성격 + 시간대에 맞는 환경음 루프.
+     * 계절 + 지역 성격 + 시간대에 맞는 환경음 루프.
      *
-     *   강풍     -> 바람 소리     (amb_wind)
-     *   밤       -> 풀벌레 우는 밤 (amb_night)
-     *   바닷가   -> 파도와 갈매기 (amb_sea)
-     *   숲       -> 숲속 새소리   (amb_forest)
-     *   산       -> 낮은 허밍     (amb_hum)
-     *   그 외 낮 -> 들판 새소리   (amb_birds)
+     *   강풍        -> 바람 소리        (amb_wind)
+     *   여름 낮     -> 매미 합창        (amb_cicada) — 비 오는 날은 쉰다
+     *   가을 밤     -> 귀뚜라미         (amb_cricket)
+     *   봄 밤       -> 개구리           (amb_frog)
+     *   겨울        -> 차가운 바람      (amb_wind, 낮게)
+     *   밤          -> 풀벌레 우는 밤    (amb_night)
+     *   바닷가      -> 파도와 갈매기    (amb_sea)
+     *   숲          -> 숲속 새소리      (amb_forest)
+     *   산          -> 낮은 허밍        (amb_hum)
+     *   그 외 낮    -> 들판 새소리      (amb_birds)
      */
     private fun updateAmbience() {
+        val night = state.isNight()
+        val season = state.season()
         when {
             weather == Weather.WIND -> game.audio.playAmb(R.raw.amb_wind, 0.22f)
-            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+            season == Season.SUMMER && !night && weather != Weather.RAIN ->
+                game.audio.playAmb(R.raw.amb_cicada, 0.30f)
+            season == Season.AUTUMN && night && weather != Weather.RAIN ->
+                game.audio.playAmb(R.raw.amb_cricket, 0.30f)
+            season == Season.SPRING && night ->
+                game.audio.playAmb(R.raw.amb_frog, 0.30f)
+            season == Season.WINTER ->
+                game.audio.playAmb(R.raw.amb_wind, if (night) 0.16f else 0.13f)
+            night -> game.audio.playAmb(R.raw.amb_night, 0.24f)
             "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
             "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
             "mountain" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
@@ -255,10 +272,11 @@ class WorldScene(
         }
     }
 
-    /** 지역에 어울리는 지저귐 한 소리 — 숲·산에선 뻐꾸기가 섞인다 */
+    /** 지역에 어울리는 지저귐 한 소리 — 봄·여름 숲·산에선 뻐꾸기가 섞인다 */
     private fun randomChirp(): Audio.Sfx {
         val woods = "forest" in region.habitats || "mountain" in region.habitats
-        if (woods && rnd.nextFloat() < 0.4f) {
+        val season = state.season()
+        if (woods && (season == Season.SPRING || season == Season.SUMMER) && rnd.nextFloat() < 0.4f) {
             return if (rnd.nextBoolean()) Audio.Sfx.CUCKOO1 else Audio.Sfx.CUCKOO2
         }
         return if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2
@@ -293,16 +311,22 @@ class WorldScene(
         updateSeason()
         updateWeather(dt)
         fx.weather = weather
-        seasonFx.update(dt, state.season(), weather, game.virtW.toFloat(), game.virtH.toFloat())
+        // 계절 동기화 — 지도(나무·풀빛·꽃)·풀잎·적설·얼음·화면 입자가 같은 계절을 본다
+        val seasonNow = state.season()
+        map.season = seasonNow
+        grass.setSeason(seasonNow)
+        fx.season = seasonNow
+        seasonFx.update(dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(), state.isNight())
 
         updatePlayer(dt)
         updateStats(dt)
         checkTileTriggers()
 
-        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~)
+        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~). 쌓인 눈 위에선 뽀드득.
         val stepping = player.moving && !player.bike
+        val snowy = fx.snowCover > 0.3f
         game.audio.steps(
-            if (stepping) Audio.Steps.GRAVEL else Audio.Steps.NONE,
+            if (stepping) (if (snowy) Audio.Steps.SNOW else Audio.Steps.GRAVEL) else Audio.Steps.NONE,
             run = stepping && game.input.isRun
         )
 
@@ -319,7 +343,14 @@ class WorldScene(
         } else if (birds.isNotEmpty()) {
             chirpT -= dt
             if (chirpT <= 0f) {
-                chirpT = 7f + rnd.nextFloat() * 9f
+                // 봄엔 시끄럽게, 여름 낮엔 매미 루프에 묻히지 않게 뜸하게, 겨울엔 가끔
+                val (base, span) = when (state.season()) {
+                    Season.SPRING -> 3.5f to 5f
+                    Season.SUMMER -> 9f to 9f
+                    Season.AUTUMN -> 7f to 9f
+                    Season.WINTER -> 12f to 12f
+                }
+                chirpT = base + rnd.nextFloat() * span
                 game.sfx(randomChirp(), 0.45f)
             }
         }
@@ -1310,12 +1341,21 @@ class WorldScene(
     //  - 월드 공간(카메라를 따라 움직임): 꽃잎·낙엽·반딧불·바람결 등 여기(spawnAmbient)의 입자
     //  - 화면 공간(캐릭터 이동과 무관): 비·눈 — WorldFx(drawWeather)가 화면 전체에 직접 그린다.
     //    비/눈을 월드 입자로 옮기면 카메라에 붙어 같이 밀리므로 절대 옮기지 않는다.
+    /**
+     * 월드 공간 주변 입자 — 계절이 먼저 정해진다.
+     * 봄 벚꽃잎 · 여름 빛가루(밤 습지엔 반딧불) · 가을 단풍잎 · 겨울 눈 반짝임.
+     */
     private fun ambientKind(): String = when {
         weather == Weather.RAIN || weather == Weather.SNOW -> "none"
         weather == Weather.WIND -> "wind"
+        state.season() == Season.SPRING -> "petal"
+        state.season() == Season.AUTUMN -> "leaf"
+        state.season() == Season.SUMMER -> {
+            val wet = "wetland" in region.habitats || "water" in region.habitats || "forest" in region.habitats
+            if (state.isNight() && wet) "firefly" else "pollen"
+        }
+        state.season() == Season.WINTER -> "glint"
         "coast" in region.habitats -> "sparkle"
-        "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
-        "forest" in region.habitats -> "leaf"
         else -> "petal"
     }
 
@@ -1337,13 +1377,33 @@ class WorldScene(
             )
             "leaf" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                (rnd.nextFloat() - 0.5f) * 6f, 10f + rnd.nextFloat() * 6f, 4f,
-                if (rnd.nextBoolean()) Color.argb(170, 111, 174, 87) else Color.argb(170, 200, 140, 70), 3f, true
+                (rnd.nextFloat() - 0.5f) * 10f, 12f + rnd.nextFloat() * 8f, 4f,
+                // 가을 단풍 — 빨강·주황·노랑
+                when (rnd.nextInt(3)) {
+                    0 -> Color.argb(190, 217, 79, 61)
+                    1 -> Color.argb(190, 232, 130, 60)
+                    else -> Color.argb(190, 242, 193, 78)
+                }, 3f, true
             )
             "petal" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
-                Color.argb(150, 242, 163, 179), 3f, true
+                // 봄 벚꽃잎 — 분홍·연분홍·흰색
+                when (rnd.nextInt(3)) {
+                    0 -> Color.argb(170, 242, 163, 179)
+                    1 -> Color.argb(170, 255, 194, 212)
+                    else -> Color.argb(170, 255, 242, 245)
+                }, 3f, true
+            )
+            "pollen" -> addParticle(
+                viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
+                3f + rnd.nextFloat() * 5f, -4f - rnd.nextFloat() * 4f, 3.5f,
+                Color.argb(150, 255, 246, 200), 2.2f, true
+            )
+            "glint" -> addParticle(
+                viewX + rnd.nextFloat() * viewW, viewY - 8f,
+                (rnd.nextFloat() - 0.5f) * 8f, 8f + rnd.nextFloat() * 6f, 4f,
+                if (rnd.nextBoolean()) Color.argb(190, 255, 255, 255) else Color.argb(190, 223, 240, 255), 2.2f, true
             )
             "sparkle" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,

@@ -28,6 +28,24 @@ private const val GRASS_CURL_UNIT = 1.25f
 /** 자전거 페달 애니메이션 프레임 수 */
 const val BIKE_FRAMES = 8
 
+// T.TREE 변형 인덱스 — buildTiles() 의 추가 순서와 일치해야 한다.
+// 기본 0..3 (참나무·소나무·벚나무·단풍) + extraTreeArt 8종 (4..11) + 겨울 전용 3종 (12..14).
+private const val TREE_OAK = 0
+private const val TREE_PINE = 1
+private const val TREE_CHERRY = 2
+private const val TREE_MAPLE = 3
+private const val TREE_WILLOW = 4
+private const val TREE_BAMBOO = 5
+private const val TREE_CAMELLIA = 6
+private const val TREE_SEAPINE = 7
+private const val TREE_BIRCH = 8
+private const val TREE_GINKGO = 9
+private const val TREE_ORCHARD = 10
+private const val TREE_FIR = 11
+private const val TREE_BARE = 12
+private const val TREE_SNOWLEAF = 13
+private const val TREE_SNOWPINE = 14
+
 /**
  * 플레이어 캐릭터 스프라이트를 그리는 해상도(px, 한 변).
  *
@@ -1873,6 +1891,91 @@ class Assets(private val context: Context) {
         }
     }
 
+    /**
+     * 겨울 전용 나무 3종 — T.TREE 변형 인덱스 12·13·14.
+     * 0 앙상한 활엽수(가지뿐) · 1 눈 덮인 활엽수 · 2 눈 덮인 소나무.
+     */
+    private fun seasonTreeArt(look: Int): Bitmap = tilePainter { cv, p, r ->
+        propShadow(cv, p, 16f, 28f, 10.5f, 3f)
+        val bark = c(0xFF5D3A20)
+        val barkLite = c(0xFF7A4E2B)
+        val snow = c(0xFFF4F8FC)
+        val snowShade = c(0xFFD8E4EE)
+        when (look) {
+            0, 1 -> { // 앙상한 활엽수 (+ 눈)
+                px(cv, p, 13.4f, 15f, 6.4f, 16f, bark)
+                px(cv, p, 14.6f, 15f, 2.8f, 16f, barkLite)
+                px(cv, p, 12.4f, 28f, 3f, 3.4f, bark)
+                px(cv, p, 18.2f, 28f, 3f, 3.4f, bark)
+                // 굵은 가지 — 위로 갈수록 가늘게
+                fun branch(x0: Float, y0: Float, x1: Float, y1: Float, w: Float) {
+                    val dx = x1 - x0
+                    val dy = y1 - y0
+                    val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+                    var u = 0f
+                    while (u <= len) {
+                        px(cv, p, x0 + dx * u / len - w / 2f, y0 + dy * u / len - w / 2f, w, w, bark)
+                        u += w * 0.7f
+                    }
+                }
+                branch(16f, 18f, 8f, 8f, 3f)
+                branch(16f, 16f, 24f, 7f, 3f)
+                branch(16f, 13f, 11f, 3f, 2.2f)
+                branch(16f, 12f, 21f, 2f, 2.2f)
+                branch(16f, 10f, 16f, 0f, 2f)
+                branch(11f, 12f, 5f, 12f, 1.6f)
+                branch(21f, 11f, 27f, 11f, 1.6f)
+                branch(8f, 8f, 4f, 3f, 1.4f)
+                branch(24f, 7f, 28f, 2f, 1.4f)
+                if (look == 1) {
+                    // 가지 위에 얹힌 눈
+                    for ((x, y, w) in listOf(
+                        Triple(6f, 6f, 5f), Triple(22f, 5f, 5f), Triple(9f, 1f, 4f),
+                        Triple(19f, 1f, 4f), Triple(14f, 0f, 4f), Triple(4f, 11f, 3f),
+                        Triple(25f, 10f, 3f)
+                    )) {
+                        px(cv, p, x, y, w, 1.8f, snow)
+                        px(cv, p, x + 0.4f, y + 1.8f, w - 0.8f, 1f, snowShade)
+                    }
+                    // 밑동 눈더미
+                    p.color = snow
+                    cv.drawOval(RectF(5f, 27f, 27f, 32f), p)
+                } else {
+                    noise(cv, p, r, 13f, 16f, 20f, 30f, c(0xFF4A2D18), 5, 1f, 1.5f)
+                }
+            }
+            else -> { // 눈 덮인 소나무
+                p.color = Color.argb(58, 26, 46, 28)
+                cv.drawOval(RectF(6f, 25f, 28f, 31f), p)
+                px(cv, p, 14.4f, 20f, 4.4f, 11f, bark)
+                px(cv, p, 15.2f, 20f, 2f, 11f, barkLite)
+                val path = Path()
+                p.color = c(0xFF24512F)
+                path.moveTo(16f, -1f); path.lineTo(27f, 13f); path.lineTo(5f, 13f); path.close()
+                cv.drawPath(path, p)
+                p.color = c(0xFF2F6B3B)
+                path.reset()
+                path.moveTo(16f, 6f); path.lineTo(29f, 21f); path.lineTo(3f, 21f); path.close()
+                cv.drawPath(path, p)
+                p.color = c(0xFF24512F)
+                path.reset()
+                path.moveTo(16f, 13f); path.lineTo(31f, 29f); path.lineTo(1f, 29f); path.close()
+                cv.drawPath(path, p)
+                // 층층이 쌓인 눈
+                px(cv, p, 13f, 0f, 6f, 2.4f, snow)
+                px(cv, p, 9f, 6f, 14f, 2.4f, snow)
+                px(cv, p, 9.6f, 8.4f, 12.8f, 1.2f, snowShade)
+                px(cv, p, 5f, 14f, 22f, 2.6f, snow)
+                px(cv, p, 5.8f, 16.6f, 20.4f, 1.2f, snowShade)
+                px(cv, p, 2f, 22f, 28f, 2.8f, snow)
+                px(cv, p, 3f, 24.8f, 26f, 1.2f, snowShade)
+                noise(cv, p, r, 3f, 2f, 29f, 28f, c(0xFF1D4427), 8, 1f, 1.6f)
+                p.color = snow
+                cv.drawOval(RectF(6f, 28f, 26f, 32f), p)
+            }
+        }
+    }
+
     /** 층리 절벽 대신 쓸 수 있는 고산 화강암·검은 현무암 지형 타일. */
     private fun extraMountainArt(volcanic: Boolean): Bitmap = tilePainter { cv, p, r ->
         if (volcanic) {
@@ -2351,6 +2454,9 @@ begin(T.TREE)
         })
 
         add(*Array(8) { i -> extraTreeArt(i) })
+
+        // 계절 전용 — 겨울 앙상한 나무 / 눈 덮인 활엽수 / 눈 덮인 소나무 (인덱스 12·13·14)
+        add(seasonTreeArt(0), seasonTreeArt(1), seasonTreeArt(2))
 
 begin(T.ROCK)
         add(
@@ -3194,6 +3300,48 @@ begin(T.LAMP)
         val n = tiles[tileOrdinal].size
         if (n <= 1) return 0
         return ((x * 7 + y * 13) % n + n) % n
+    }
+
+    /**
+     * 계절에 맞는 나무 변형 인덱스.
+     * 상록수(소나무·대나무·곰솔·전나무)는 사계절 그대로 두고 겨울엔 눈을 얹는다.
+     * 활엽수는 봄 벚꽃 · 여름 푸른 잎 · 가을 단풍/은행 · 겨울 앙상한 가지+눈으로 바뀐다.
+     * 같은 칸은 같은 계절에 항상 같은 나무 (결정적 해시).
+     */
+    fun seasonTreeIndex(base: Int, season: Season, x: Int, y: Int): Int {
+        val evergreen = base == TREE_PINE || base == TREE_BAMBOO || base == TREE_SEAPINE || base == TREE_FIR
+        if (evergreen) {
+            return if (season == Season.WINTER && (base == TREE_PINE || base == TREE_FIR)) TREE_SNOWPINE else base
+        }
+        var h = x * 0x45D9F3B + y * 0x119DE1F3 + season.ordinal * 0x27D4EB2D
+        h = (h xor (h ushr 16)) * 0x45D9F3B
+        h = h xor (h ushr 16)
+        val pick = Math.floorMod(h, 100)
+        return when (season) {
+            Season.SPRING -> when {
+                pick < 58 -> TREE_CHERRY   // 온 동네가 벚나무
+                pick < 70 -> TREE_OAK
+                pick < 80 -> TREE_WILLOW
+                pick < 90 -> TREE_CAMELLIA
+                else -> TREE_BIRCH
+            }
+            Season.SUMMER -> when {
+                pick < 45 -> TREE_OAK
+                pick < 60 -> TREE_WILLOW
+                pick < 72 -> TREE_ORCHARD
+                pick < 84 -> TREE_CAMELLIA
+                else -> TREE_BIRCH
+            }
+            Season.AUTUMN -> when {
+                pick < 55 -> TREE_MAPLE    // 단풍
+                pick < 78 -> TREE_GINKGO   // 은행 노랑
+                else -> TREE_OAK           // 누렇게 틴트되어 읽힌다
+            }
+            Season.WINTER -> when {
+                pick < 58 -> TREE_BARE     // 앙상한 가지
+                else -> TREE_SNOWLEAF      // 눈 덮인 가지
+            }
+        }.coerceIn(0, tiles[T.TREE.ordinal].size - 1)
     }
 
     // -----------------------------------------------------------------------

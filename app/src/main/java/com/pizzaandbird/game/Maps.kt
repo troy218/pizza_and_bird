@@ -107,10 +107,33 @@ class GameMap(
     val landmarkDoorX: Int = -1,
     val landmarkDoorY: Int = -1
 ) {
-    private val foliagePaint by lazy { tintedPaint(mapStyle.foliageFilter) }
-    private val waterPaint by lazy { tintedPaint(mapStyle.waterFilter) }
-    private val shorePaint by lazy { tintedPaint(mapStyle.shoreFilter) }
-    private val stonePaint by lazy { tintedPaint(mapStyle.stoneFilter) }
+    /**
+     * 현재 계절 — 나무(벚꽃·단풍·눈)/풀빛/물빛이 계절마다 바뀐다.
+     * 바뀌면 지면 캐시를 버리고(틴트가 바뀌었으므로) 다시 굽는다.
+     */
+    var season: Season = Season.SPRING
+        set(value) {
+            if (field == value) return
+            field = value
+            refreshSeasonPaints()
+            groundChunks.fill(null)
+        }
+
+    private val foliagePaint = Paint().apply { isFilterBitmap = false }
+    private val waterPaint = Paint().apply { isFilterBitmap = false }
+    private val shorePaint = Paint().apply { isFilterBitmap = false }
+    private val stonePaint = Paint().apply { isFilterBitmap = false }
+
+    private fun refreshSeasonPaints() {
+        foliagePaint.colorFilter = PorterDuffColorFilter(
+            multiplyTint(mapStyle.foliageFilter, seasonFoliageTint(season)), PorterDuff.Mode.MULTIPLY)
+        waterPaint.colorFilter = PorterDuffColorFilter(
+            multiplyTint(mapStyle.waterFilter, seasonWaterTint(season)), PorterDuff.Mode.MULTIPLY)
+        if (shorePaint.colorFilter == null) {
+            shorePaint.colorFilter = PorterDuffColorFilter(mapStyle.shoreFilter, PorterDuff.Mode.MULTIPLY)
+            stonePaint.colorFilter = PorterDuffColorFilter(mapStyle.stoneFilter, PorterDuff.Mode.MULTIPLY)
+        }
+    }
 
     // 지면·포장·데칼은 맵이 만들어진 후 변하지 않는다. 물이 없는 청크만 처음 보일 때
     // 래스터화해 두면 매 프레임 수백 장의 타일 대신 화면당 몇 장만 그리면 된다.
@@ -130,9 +153,8 @@ class GameMap(
         containsWater
     }
 
-    private fun tintedPaint(filter: Int): Paint = Paint().apply {
-        isFilterBitmap = false
-        colorFilter = PorterDuffColorFilter(filter, PorterDuff.Mode.MULTIPLY)
+    init {
+        refreshSeasonPaints()
     }
 
     private fun terrainPaint(tile: T, fallback: Paint): Paint = when (tile) {
@@ -312,8 +334,13 @@ class GameMap(
 
         // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
         if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
-            val gv = ground[y][x]
-            val gTile = T.ALL[gv]
+            // 겨울엔 꽃밭이 진다 — 마른 잔디로 읽힌다 (눈은 WorldFx가 덮는다)
+            var gv = ground[y][x]
+            var gTile = T.ALL[gv]
+            if (season == Season.WINTER && gTile == T.FLOWER) {
+                gv = T.GRASS.ordinal
+                gTile = T.GRASS
+            }
             val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
             else a.tiles[gv][artVariant(a, gTile, x, y)]
             c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
@@ -430,8 +457,12 @@ class GameMap(
 
                 // 4) 구조물 / 소품
                 if (!tile.ground && tile != T.OVEN) {
+                    // 나무는 계절마다 벚꽃·푸른 잎·단풍·눈으로 갈아입는다
                     val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
-                    else a.tiles[tv][artVariant(a, tile, x, y)]
+                    else if (tile == T.TREE) {
+                        val base = artVariant(a, tile, x, y)
+                        a.tiles[tv][a.seasonTreeIndex(base, season, x, y)]
+                    } else a.tiles[tv][artVariant(a, tile, x, y)]
                     if (tile == T.SIGN) {
                         val k = signAlpha(x, y)
                         if (k <= 0f) continue

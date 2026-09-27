@@ -12,7 +12,8 @@ import android.util.Log
  * 게임 오디오: 효과음(SoundPool) + BGM/환경음(MediaPlayer 루프).
  *
  * - 효과음: res/raw/sfx_* (짧은 소리, 동시 재생 가능)
- * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 숲 / 바닷가 / 밤 / 바람 / 화덕 불)
+ * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 숲 / 바닷가 / 밤 / 바람 / 화덕 불 /
+ *   매미(여름 낮) / 귀뚜라미(가을 밤) / 개구리(봄 밤) — 계절 루프는 tools/season_audio.py 합성)
  * - BGM   : res/raw/bgm_* (한 채널 루프 — 타이틀 / 월드 / 산 / 바다 / 집)
  *
  * 곡 배치를 바꾸고 싶으면 씬에서 부르는 R.raw.bgm_* 만 바꾸면 된다.
@@ -45,7 +46,7 @@ class Audio(private val context: Context) {
     }
 
     /** 발소리 종류 */
-    enum class Steps { NONE, GRAVEL, WOOD }
+    enum class Steps { NONE, GRAVEL, WOOD, SNOW }
 
     var sfxOn = true
     var musicOn = true
@@ -71,6 +72,7 @@ class Audio(private val context: Context) {
     private val stepGravel1: Int   // 걷기
     private val stepGravel2: Int   // 달리기
     private val stepWood: Int
+    private val stepSnow: Int      // 눈 위 뽀드득 (걷기/달리기 공용, 속도만 다르게)
 
     // BGM / 환경음 (MediaPlayer 루프, 페이드 인/아웃)
     private class Channel(val fadeIn: Float, val fadeOut: Float) {
@@ -104,6 +106,7 @@ class Audio(private val context: Context) {
         stepGravel1 = pool.load(context, R.raw.sfx_step_gravel1, 1)
         stepGravel2 = pool.load(context, R.raw.sfx_step_gravel2, 1)
         stepWood = pool.load(context, R.raw.sfx_step_wood, 1)
+        stepSnow = pool.load(context, R.raw.sfx_step_snow, 1)
     }
 
     private fun isLoaded(id: Int) = synchronized(loaded) { id in loaded }
@@ -129,12 +132,14 @@ class Audio(private val context: Context) {
         if (!sfxOn || paused || kind == Steps.NONE) return
         val sample = when {
             kind == Steps.WOOD -> stepWood
+            kind == Steps.SNOW -> stepSnow
             run -> stepGravel2
             else -> stepGravel1
         }
         if (!isLoaded(sample)) return
         try {
-            val stream = pool.play(sample, 0.34f, 0.34f, 0, -1, if (run) 1.15f else 1f)
+            val vol = if (kind == Steps.SNOW) 0.42f else 0.34f
+            val stream = pool.play(sample, vol, vol, 0, -1, if (run) 1.15f else 1f)
             if (stream != 0) {
                 stepStream = stream
                 stepSample = sample
