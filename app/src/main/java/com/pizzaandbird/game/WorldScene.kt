@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import java.util.Random
 import kotlin.math.abs
@@ -44,6 +45,7 @@ class WorldScene(
 
     private var camX = 0f
     private var camY = 0f
+    override fun cameraOffset(): PointF = PointF(camX, camY)
     private var spawnTimer = 1.5f
     private var hungerAcc = 0f
     private var luckAcc = 0f
@@ -51,6 +53,7 @@ class WorldScene(
     private var saveT = 20f
     private var dustT = 0f
     private var ambientT = 0f
+    private var lastSpeed = 0f
     private var chirpT = 4f + rnd.nextFloat() * 6f    // 새 지저귐 효과음 타이머
     private var owlT = 6f + rnd.nextFloat() * 10f     // 밤 부엉이 효과음 타이머
 
@@ -76,7 +79,11 @@ class WorldScene(
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+    private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        isFakeBoldText = true
+        color = 0xFF4A3728.toInt()
+        textSize = 12f
+    }
 
     init {
         state.region = region.id
@@ -310,7 +317,7 @@ class WorldScene(
             if (state.hunger <= 0f) speed *= 0.55f
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
-            player.animT += dt * (if (sprint) 1.4f else 1f)
+            lastSpeed = speed
 
             // 발걸음 (지형별 발자국·풀잎·물 튀김)
             stepT -= dt
@@ -323,8 +330,45 @@ class WorldScene(
                 fx.onStep(player.cx, player.y + 14.5f, player.facing, player.bike, sprint)
             }
         } else {
-            player.animT = 0f
+            lastSpeed = 0f
             stepT = 0f
+        }
+        updatePlayerAnim(dt)
+    }
+
+    /**
+     * 동작 선택 — 서기 / 걷기 / 달리기 / 살금살금 / 카메라 조준 / 페달.
+     * 재생 속도를 실제 이동 속도에 비례시켜 발이 미끄러지지 않게 한다.
+     */
+    private fun updatePlayerAnim(dt: Float) {
+        val moving = player.moving
+        val sprint = game.input.isRun && !player.bike && moving
+        if (player.bike) {
+            player.pedalBy(dt, if (moving) lastSpeed else 0f)
+            player.play(if (moving) Anim.WALK else Anim.IDLE, dt, if (moving) 1f else 0.6f)
+            return
+        }
+        val anim = when {
+            moving && photoMode -> Anim.SNEAK
+            moving && sprint -> Anim.RUN
+            moving -> Anim.WALK
+            photoMode -> Anim.AIM
+            else -> Anim.IDLE
+        }
+        val rate = when (anim) {
+            Anim.WALK -> (lastSpeed / 55f).coerceIn(0.55f, 2f)
+            Anim.RUN -> (lastSpeed / 82f).coerceIn(0.6f, 2f)
+            Anim.SNEAK -> (lastSpeed / 30f).coerceIn(0.5f, 2f)
+            else -> 1f
+        }
+        player.play(anim, dt, rate)
+        // 달릴 때는 발이 닿을 때마다 먼지가 폴폴
+        if (player.footfall && anim == Anim.RUN) {
+            addParticle(
+                player.x + 8f + (rnd.nextFloat() - 0.5f) * 6f, player.y + 15f,
+                (rnd.nextFloat() - 0.5f) * 8f, -5f, 0.32f,
+                Color.argb(110, 170, 150, 115), 2f, false
+            )
         }
     }
 
@@ -1025,8 +1069,9 @@ class WorldScene(
             }
             // 이정표 탭
             tapSign(tap.x, tap.y)
-            // NPC 탭
-            val npc = nearestNpc(46f)
+            // 근처 NPC가 여러 명이어도 실제로 탭한 주민과 대화한다.
+            val npc = map.npcs.filter { hypot(it.cx - player.cx, it.cy - player.cy) < 46f }
+                .minByOrNull { hypot(it.cx - tap.x, it.cy - tap.y) }
             if (npc != null && hypot(npc.cx - tap.x, npc.cy - tap.y) < 18f) {
                 talkTo(npc)
                 return
@@ -1138,16 +1183,10 @@ class WorldScene(
         val a = game.assets
         when (e) {
             is Npc -> {
-                val bmp = when (e.kind) {
-                    NpcKind.PROFESSOR -> a.npcProfessor
-                    NpcKind.SHOP -> a.npcShop
-                    NpcKind.VILLAGER -> a.npcVillager
-                    NpcKind.KID -> a.npcKid
-                    NpcKind.ELDER -> a.npcElder
-                }
-                val bob = if (sin(game.time * 2.4f + e.tileX) > 0f) -1.5f else 0f
+                // NPC마다 위상을 달리해 같은 동작이 겹치지 않게 한다
+                val bmp = a.npcBitmap(e.kind, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
                 val sx = (e.x - camX) * WORLD_SCALE
-                val sy = (e.y - camY) * WORLD_SCALE + bob
+                val sy = (e.y - camY) * WORLD_SCALE
                 c.drawOval(
                     RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f),
                     a.shadowPaint
@@ -1170,7 +1209,7 @@ class WorldScene(
                 }
             }
             is Cat -> {
-                val bmp = if (e.faceLeft) a.catFrames[e.frame] else a.catFramesL[e.frame]
+                val bmp = a.catBitmap(e.walking, e.phase, e.faceLeft)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
                 c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
@@ -1223,21 +1262,23 @@ class WorldScene(
                 }
             }
             is Player -> {
-                val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
-                val ps = a.playerSet(state.gender, state.gearTier())
-                val bmp: android.graphics.Bitmap = when {
-                    player.bike && player.facing == Dir.E -> a.bikeSide
-                    player.bike && player.facing == Dir.W -> a.bikeSideL
-                    player.bike && player.facing == Dir.N -> a.bikeUp
-                    player.bike && player.facing == Dir.S -> a.bikeDown
-                    player.facing == Dir.E -> ps.side[frame]
-                    player.facing == Dir.W -> ps.sideL[frame]
-                    player.facing == Dir.N -> ps.up[frame]
-                    else -> ps.down[frame]
+                val bmp: android.graphics.Bitmap = if (player.bike) {
+                    a.bikeBitmap(state.gender, state.gearTier(), player.facing, player.pedal)
+                } else {
+                    a.playerSet(state.gender, state.gearTier())
+                        .clip(player.anim).frame(player.facing, player.frame)
                 }
                 val sx = (player.x - camX) * WORLD_SCALE
                 val sy = (player.y - camY) * WORLD_SCALE
-                c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
+                // 뛰거나 페달을 밟을 때 그림자도 함께 호흡한다
+                val k = when {
+                    player.bike -> 1f - 0.06f * sin(player.pedal * 6.2832f)
+                    player.anim == Anim.RUN -> 1f - 0.16f * abs(sin(player.phase * 6.2832f))
+                    player.anim == Anim.WALK -> 1f - 0.07f * abs(sin(player.phase * 6.2832f))
+                    else -> 1f
+                }
+                val half = 10f * k
+                c.drawOval(RectF(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k), a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 풀숲에 들어가면 발목이 풀에 가려진다
                 val gk = grassKindAt(player.cx, player.y + 13f)

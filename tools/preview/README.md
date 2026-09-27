@@ -55,6 +55,19 @@ java -cp tools/preview/out/classes-preview:$KOTLIN_HOME/lib/kotlin-stdlib.jar \
   com.pizzaandbird.preview.PreviewMain tools/preview/out
 ```
 
+### 입력 회귀 테스트
+
+동일한 프리뷰 스텁으로 실제 `Input`/`Game`/`Scene`을 구동해 **타이틀 → 캐릭터 선택 → 서울 시작 → 월드**, 레터박스 좌표·집/월드 카메라·모달 터치·일시정지 입력 해제를 검사합니다 (JDK 17 + kotlinc 필요).
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/input_smoke.kt $SRCS \
+  -d tools/preview/out/classes-smoke -jvm-target 17
+java -cp "tools/preview/out/classes-smoke:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.InputSmoke
+```
+
 ### 출력물
 
 | 파일 | 내용 |
@@ -85,7 +98,10 @@ pip3 install pillow numpy
 # 1) 144개(지역 12 x 홈 12) 맵 조합의 규칙 검사 — tools/MapTest.kt 의 파이썬 판
 python3 tools/preview/check.py
 
-# 2) 맵 한 장 렌더링
+# 2) 캐릭터 애니메이션 시트 + GIF (docs/img/ 갱신)
+python3 tools/preview/render_people.py docs/img
+
+# 3) 맵 한 장 렌더링
 python3 - <<'PY'
 import sys; sys.path.insert(0, 'tools/preview')
 import render, mapgen
@@ -100,6 +116,8 @@ PY
 | `roads.py` | `Roads.kt` 프로토타입 — 포장 실루엣·바퀴자국·판석·연석·문양 |
 | `mapgen.py` | `MapBuilder.build()` 프로토타입 — 간선도로/샛길/광장 배치 |
 | `render.py` | 지면 → 포장 → 데칼 → 구조물 → 그림자 순서로 합성 |
+| `people.py` | `CharacterArt.kt` 프로토타입 — 사람/자전거/고양이 **관절 애니메이션** (포즈 수식이 게임과 동일) |
+| `render_people.py` | 동작 스프라이트 시트 · GIF 출력 |
 | `tiles_legacy.py` | `Assets.kt` 의 기존 타일 아트를 옮겨 온 **자동 생성** 파일 |
 | `_gen_tiles_legacy.py` | 위 파일을 `Assets.kt` 에서 다시 만들어 내는 스크립트 |
 

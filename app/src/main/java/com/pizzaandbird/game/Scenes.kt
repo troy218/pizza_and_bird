@@ -3,6 +3,7 @@ package com.pizzaandbird.game
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import kotlin.math.sin
 
@@ -17,6 +18,8 @@ abstract class Scene(val game: Game) {
     open fun drawHud(c: Canvas) {}
     open fun handleInput(input: Input) {}
     open fun onLayout() {}
+    /** drawWorld에서 사용 중인 카메라의 논리 월드 좌표. 메뉴 씬은 (0, 0). */
+    open fun cameraOffset(): PointF = PointF(0f, 0f)
 
     fun openOverlay(o: Overlay) {
         overlay = o
@@ -261,34 +264,76 @@ class TitleScene(game: Game) : Scene(game) {
 /** 스폰 위치 종류 */
 enum class SpawnKind { SAVED, TUNNEL, HOME }
 
-/** 첫 플레이 시 아바타 선택 화면 */
+/** 첫 플레이 시 아바타 선택 화면. 카드는 가상 캔버스, 버튼은 실제 화면 좌표로 그린다. */
 class CharacterSelectScene(game: Game) : Scene(game) {
     private val male = RectF(180f, 245f, 450f, 390f)
     private val female = RectF(510f, 245f, 780f, 390f)
-    init { game.hud.showControls = false; game.hud.showStats = false; game.hud.showMinimap = false }
-    override fun drawWorld(c: Canvas) {
-        c.drawColor(0xFFA4E4EE.toInt()); val p=Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color=0xFF6B4F35.toInt(); p.textSize=30f; p.isFakeBoldText=true
-        c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, p)
-        p.textSize=16f; p.isFakeBoldText=false; c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
-        fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); p.textSize=22f; p.isFakeBoldText=true; c.drawText(label,r.centerX()-p.measureText(label)/2,r.bottom-25,p) }
-        card(male,"남자",game.state.gender=="male",game.assets.playerDown[0])
-        card(female,"여자",game.state.gender=="female",game.assets.femaleDown[0])
-        p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
+    private var nextRect = RectF()
+    private var backRect = RectF()
+
+    init {
+        game.hud.showControls = false
+        game.hud.showStats = false
+        game.hud.showMinimap = false
     }
-    override fun handleInput(input:Input) {
-        if (input.justBack || input.justB) {
-            game.fadeTo { game.scene = TitleScene(game) }
-            return
+
+    override fun drawWorld(c: Canvas) {
+        c.drawColor(0xFFA4E4EE.toInt())
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.color = 0xFF6B4F35.toInt(); p.textSize = 30f; p.isFakeBoldText = true
+        c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, p)
+        p.textSize = 16f; p.isFakeBoldText = false
+        c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
+        fun card(r: RectF, label: String, selected: Boolean, bmp: android.graphics.Bitmap) {
+            p.color = if (selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt()
+            c.drawRoundRect(r, 18f, 18f, p)
+            p.style = Paint.Style.STROKE; p.strokeWidth = if (selected) 5f else 2f
+            p.color = 0xFF6B4F35.toInt()
+            c.drawRoundRect(r, 18f, 18f, p)
+            p.style = Paint.Style.FILL
+            c.drawBitmap(bmp, null, RectF(r.centerX()-32f, r.top+18f, r.centerX()+32f, r.top+82f), p)
+            p.textSize = 22f; p.isFakeBoldText = true
+            c.drawText(label, r.centerX()-p.measureText(label)/2f, r.bottom-25f, p)
         }
-        val t = input.consumeTapScreen()
-        if (t != null) {
-            if (male.contains(t.x, t.y)) game.state.gender = "male"
-            if (female.contains(t.x, t.y)) game.state.gender = "female"
-            if (male.contains(t.x, t.y) || female.contains(t.x, t.y)) game.haptic()
+        val t = game.time
+        val maleIdle = game.assets.playerSet("male", 0).idle
+        val femaleIdle = game.assets.playerSet("female", 0).idle
+        card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
+        card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
+        p.textSize = 15f; p.isFakeBoldText = false
+        c.drawText("캐릭터를 탭해서 선택한 뒤 계속하기를 누르세요", 322f, 448f, p)
+    }
+
+    override fun drawHud(c: Canvas) {
+        val d = game.density
+        val w = game.screenW.toFloat()
+        val h = game.screenH.toFloat()
+        val bw = minOf(d * 170f, w * 0.36f)
+        val bh = d * 40f
+        nextRect = RectF((w - bw) / 2f, h - d * 16f - bh, (w + bw) / 2f, h - d * 16f)
+        backRect = RectF(d * 14f, d * 14f, d * 90f, d * 50f)
+        UiKit.button(c, game, nextRect, "계속하기 ▶", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
+        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
+    }
+
+    override fun handleInput(input: Input) {
+        if (input.justBack || input.justB) { game.fadeTo { game.scene = TitleScene(game) }; return }
+        val tap = input.consumeTapScreen()
+        if (tap != null) {
+            if (backRect.contains(tap.x, tap.y)) {
+                game.fadeTo { game.scene = TitleScene(game) }
+                return
+            }
+            if (nextRect.contains(tap.x, tap.y)) {
+                game.fadeTo { game.scene = RegionSelectScene(game) }
+                return
+            }
+            val v = game.screenToVirtual(tap)
+            when {
+                male.contains(v.x, v.y) -> { game.state.gender = "male"; game.haptic() }
+                female.contains(v.x, v.y) -> { game.state.gender = "female"; game.haptic() }
+            }
         }
-        if (input.justA && (game.state.gender == "male" || game.state.gender == "female")) {
-            game.fadeTo { game.scene = RegionSelectScene(game) }
-        }
+        if (input.justA) game.fadeTo { game.scene = RegionSelectScene(game) }
     }
 }
