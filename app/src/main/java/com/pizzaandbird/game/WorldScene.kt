@@ -2,8 +2,10 @@ package com.pizzaandbird.game
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -27,6 +29,7 @@ class WorldScene(
     private val state = game.state
     val region: RegionDef = Regions.byId[regionId] ?: Regions.ALL.first()
     val map: GameMap = MapBuilder.build(region, state.homeRegion)
+    private val grass = GrassField(map)
     private val player = Player()
     private val birds = ArrayList<FieldBird>()
     private val cats = ArrayList<Cat>()
@@ -47,6 +50,7 @@ class WorldScene(
 
     private var camX = 0f
     private var camY = 0f
+    override fun cameraOffset(): PointF = PointF(camX, camY)
     private var spawnTimer = 1.5f
     private var hungerAcc = 0f
     private var luckAcc = 0f
@@ -66,8 +70,7 @@ class WorldScene(
 
     private val particles = ArrayList<Pt>()
 
-    private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
+    private val tinyPaint = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply {
         color = 0xFF4A3728.toInt()
         textSize = 13f
     }
@@ -77,16 +80,17 @@ class WorldScene(
         color = 0xFF6B4F35.toInt()
         strokeWidth = 1.6f
     }
+    private val dashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = Color.argb(200, 255, 250, 235)
+        strokeWidth = 2.4f
+        pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
+    }
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
     private val glowFill = Paint()
     private val vignettePaint = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
-        color = 0xFF4A3728.toInt()
-        textSize = 12f
-    }
 
     init {
         state.region = region.id
@@ -222,6 +226,9 @@ class WorldScene(
 
         // 파티클
         updateParticles(dt)
+
+        // 살아있는 풀 (바람 필드 + 풀잎 상태 머신 + 밟힘 반응)
+        grass.update(dt, game.time, player.x + 8f, player.y + 13f, player.bike)
         spawnAmbient(dt)
         if (player.bike && player.moving) {
             dustT -= dt
@@ -1072,8 +1079,9 @@ class WorldScene(
             }
             // 이정표 탭
             tapSign(tap.x, tap.y)
-            // NPC 탭
-            val npc = nearestNpc(46f)
+            // 근처 NPC가 여러 명이어도 실제로 탭한 주민과 대화한다.
+            val npc = map.npcs.filter { hypot(it.cx - player.cx, it.cy - player.cy) < 46f }
+                .minByOrNull { hypot(it.cx - tap.x, it.cy - tap.y) }
             if (npc != null && hypot(npc.cx - tap.x, npc.cy - tap.y) < 18f) {
                 talkTo(npc)
                 return
@@ -1115,13 +1123,13 @@ class WorldScene(
     }
 
     private fun quickEat() {
-        val tId = state.eatBest()
-        if (tId == null) {
-            game.toast("피자가 없어요! 집의 화덕에서 구워요 🍕")
+        val pid = state.eatBest()
+        if (pid == null) {
+            game.toast("피자가 없어요! 집의 화덕이나 오븐에서 구워요 🍕")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
-            val t = Toppings.of(tId)
-            game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+            val p = Pizzas.of(pid)
+            game.toast("냠냠! ${p.emoji} ${p.fullName}")
             game.sfx(Audio.Sfx.EAT, 0.9f)
         }
     }
@@ -1144,6 +1152,10 @@ class WorldScene(
             sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
         )
         fx.drawGround(c, camXv, camYv, game.virtW, game.virtH)
+
+        // 살아있는 풀 — 뒤쪽 레이어(캐릭터보다 위). 밑동이 발보다 위인 풀잎들.
+        val feetY = player.y + 13f
+        grass.draw(c, game.assets, camXv, camYv, game.virtW.toFloat(), game.virtH.toFloat(), feetY, GrassField.LAYER_BACK)
         drawCloudShadows(c, camXv, camYv)
 
         // 엔티티 (y 정렬)
@@ -1154,6 +1166,9 @@ class WorldScene(
         ents.add(player)
         ents.sortBy { sortY(it) }
         for (e in ents) drawEntity(c, e)
+
+        // 살아있는 풀 — 앞쪽 레이어. 캐릭터가 풀밭을 헤치며 걷는 깊이감
+        grass.draw(c, game.assets, camXv, camYv, game.virtW.toFloat(), game.virtH.toFloat(), feetY, GrassField.LAYER_FRONT)
 
         drawParticles(c, camXv, camYv)
         fx.drawAir(c, camXv, camYv, game.virtW, game.virtH)
@@ -1493,14 +1508,13 @@ class WorldScene(
             var top = if (n.kind == NpcKind.PROFESSOR && state.questBird == null) sy - 26f else sy - 4f
             val near = hypot(n.cx - player.cx, n.cy - player.cy) < 46f
             if (near) {
-                // 이름표
-                uiText.textSize = 11f
-                val tw = uiText.measureText(n.name)
+                // 이름표 (월드 캔버스라 px 단위)
+                val np = Type.paintPx(11f, true, 0.02f, 0xFFF8EFDC.toInt())
+                val tw = np.measureText(n.name)
                 val cx = sx + 16f
                 uiFill.color = Color.argb(200, 58, 52, 74)
                 c.drawRoundRect(RectF(cx - tw / 2 - 6f, top - 15f, cx + tw / 2 + 6f, top), 7f, 7f, uiFill)
-                uiText.color = 0xFFF8EFDC.toInt()
-                c.drawText(n.name, cx - tw / 2, top - 4f, uiText)
+                c.drawText(n.name, cx - tw / 2, top - 4f, np)
                 top -= 18f
             }
             val em = n.emote ?: continue
@@ -1517,10 +1531,64 @@ class WorldScene(
             uiStroke.strokeWidth = 1.4f
             uiStroke.color = Color.argb(a, 107, 79, 53)
             c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiStroke)
-            uiText.textSize = 12f
-            uiText.color = Color.argb(a, 74, 55, 40)
-            val ew = uiText.measureText(em)
-            c.drawText(em, cx - ew / 2, by - 5f, uiText)
+            val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
+            val ew = ep.measureText(em)
+            c.drawText(em, cx - ew / 2, by - 5f, ep)
+        }
+    }
+
+    private fun drawPhotoOverlay(c: Canvas) {
+        val vw = game.virtW.toFloat()
+        val vh = game.virtH.toFloat()
+        uiFill.color = Color.argb(88, 20, 16, 28)
+        c.drawRect(0f, 0f, vw, 42f, uiFill)
+        c.drawRect(0f, vh - 48f, vw, vh, uiFill)
+        c.drawRect(0f, 0f, 34f, vh, uiFill)
+        c.drawRect(vw - 34f, 0f, vw, vh, uiFill)
+
+        // 비네트
+        uiFill.color = Color.argb(36, 16, 12, 24)
+        c.drawRect(0f, 0f, vw, 14f, uiFill)
+        c.drawRect(0f, vh - 14f, vw, vh, uiFill)
+        c.drawRect(0f, 0f, 12f, vh, uiFill)
+        c.drawRect(vw - 12f, 0f, vw, vh, uiFill)
+
+        // 뷰파인더 코너
+        uiStroke.strokeWidth = 3f
+        uiStroke.color = Color.argb(220, 255, 250, 235)
+        val m = 64f
+        val l = 26f
+        val path = Path()
+        path.moveTo(m, m + l); path.lineTo(m, m); path.lineTo(m + l, m)
+        path.moveTo(vw - m - l, m); path.lineTo(vw - m, m); path.lineTo(vw - m, m + l)
+        path.moveTo(vw - m, vh - m - l); path.lineTo(vw - m, vh - m); path.lineTo(vw - m - l, vh - m)
+        path.moveTo(m + l, vh - m); path.lineTo(m, vh - m); path.lineTo(m, vh - m - l)
+        c.drawPath(path, uiStroke)
+
+        // 촬영 반경
+        val range = CameraDefs.range(state.cameraLevel) * 16f * WORLD_SCALE
+        c.drawCircle((player.cx - camX) * WORLD_SCALE, (player.cy - camY) * WORLD_SCALE, range, dashPaint)
+
+        // 새별 거리 힌트
+        for (b in birds) {
+            if (b.state == 2) continue
+            val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
+            val r = CameraDefs.range(state.cameraLevel)
+            if (distPx > r * 16f) continue
+            val ratio = (distPx / 16f) / r
+            val (label, col) = when {
+                ratio < 0.34f -> "가까움" to 0xFF6FBA6B.toInt()
+                ratio < 0.67f -> "좋음" to 0xFFF2B63C.toInt()
+                else -> "멀어요" to 0xFFE2574C.toInt()
+            }
+            val bx = (b.cx - camX) * WORLD_SCALE
+            val by = (b.y - camY) * WORLD_SCALE - 16f
+            // 월드 캔버스(가상 해상도)라 px 로 크기를 준다
+            val lp = Type.paintPx(12f, true, 0.03f, Type.CREAM)
+            val tw = lp.measureText(label)
+            uiFill.color = Color.argb(190, Color.red(col), Color.green(col), Color.blue(col))
+            c.drawRoundRect(RectF(bx - tw / 2 - 6f, by - 10f, bx + tw / 2 + 6f, by + 5f), 5f, 5f, uiFill)
+            c.drawText(label, bx - tw / 2, by + 2f, lp)
         }
     }
 

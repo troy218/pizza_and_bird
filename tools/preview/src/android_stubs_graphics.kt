@@ -159,6 +159,14 @@ class Rect {
     fun centerX(): Int = (left + right) / 2
     fun centerY(): Int = (top + bottom) / 2
     fun contains(x: Int, y: Int): Boolean = x >= left && x < right && y >= top && y < bottom
+
+    fun set(l: Int, t: Int, r: Int, b: Int) {
+        left = l; top = t; right = r; bottom = b
+    }
+
+    fun set(l: Float, t: Float, r: Float, b: Float) {
+        left = l.toInt(); top = t.toInt(); right = r.toInt(); bottom = b.toInt()
+    }
 }
 
 class Matrix {
@@ -349,8 +357,15 @@ class Typeface private constructor(val name: String) {
 
         @JvmStatic
         fun create(asset: Typeface?, style: Int): Typeface = asset ?: DEFAULT
+
+        @JvmStatic
+        fun createFromAsset(mgr: android.content.res.AssetManager, path: String): Typeface? = Typeface(path)
     }
 }
+
+open class ColorFilter
+
+class PorterDuffColorFilter(val color: Int, val mode: PorterDuff.Mode) : ColorFilter()
 
 open class MaskFilter
 
@@ -440,6 +455,8 @@ class Paint {
     var xfermode: Xfermode? = null
     var typeface: Typeface? = null
     var maskFilter: MaskFilter? = null
+    var colorFilter: ColorFilter? = null
+    var letterSpacing: Float = 0f
 
     constructor()
 
@@ -462,6 +479,8 @@ class Paint {
         xfermode = paint.xfermode
         typeface = paint.typeface
         maskFilter = paint.maskFilter
+        colorFilter = paint.colorFilter
+        letterSpacing = paint.letterSpacing
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -744,6 +763,10 @@ class Canvas {
         if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
         g.drawImage(bitmap.image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
+    }
+
+    fun drawBitmap(bitmap: Bitmap, src: Rect, dst: Rect, paint: Paint?) {
+        drawBitmap(bitmap, src, RectF(dst.left.toFloat(), dst.top.toFloat(), dst.right.toFloat(), dst.bottom.toFloat()), paint)
     }
 
     fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {

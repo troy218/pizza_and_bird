@@ -204,11 +204,23 @@ fun main() {
     check(!hm.solidTile(2, 3) && !hm.solidTile(3, 3), "침대 앞 막힘")
     check(!hm.solidTile(2, 5), "박스 앞 막힘")
     check(hm.t(9, 2) == T.OVEN, "화덕 위치 오류")
+    check(hm.t(11, 2) == T.RANGE_TOP && hm.t(11, 3) == T.RANGE, "가정용 오븐 위치 오류")
+    check(!hm.solidTile(11, 4), "오븐 앞 막힘")
+    check(hm.solidTile(11, 3) && hm.solidTile(11, 2), "오븐이 통과됨")
     check(hm.t(2, 2) == T.BED, "침대 위치 오류")
     check(hm.t(5, 2) == T.DECOR && hm.t(7, 2) == T.DECOR && hm.t(11, 5) == T.DECOR, "장식 칸 오류")
     check(hm.t(2, 1) == T.WALL_WIN && hm.t(5, 1) == T.WALL_WIN && hm.t(8, 1) == T.WALL_WIN, "창문 위치 오류")
 
-    // 5. 게임 상태 로직 (v0.2: 토핑×품질)
+    // 4.5 피자 데이터 (화덕피자 / 일반 피자)
+    check(Pizzas.ALL.size == 12, "피자 종류 수 오류: ${Pizzas.ALL.size}")
+    check(Pizzas.ALL.withIndex().all { (i, p) -> p.id == i }, "피자 id는 ALL 인덱스와 같아야 함 (세이브 호환)")
+    check(Pizzas.ofKind(PizzaKind.OVEN).size == 6 && Pizzas.ofKind(PizzaKind.REGULAR).size == 6, "계열별 6종이어야 함")
+    check(Pizzas.of(0).name == "치즈" && Pizzas.of(1).name == "버섯" && Pizzas.of(2).name == "불고기", "v0.2 토핑 id 호환 깨짐")
+    check(Pizzas.ALL.all { it.difficulty in 1..5 && it.perfectW > 0f && it.cursorSpeed >= 1f }, "피자 난이도 데이터 오류")
+    check(Pizzas.ALL.map { it.name }.toSet().size == Pizzas.ALL.size, "피자 이름 중복")
+    check(Pizzas.representative(PizzaKind.OVEN).kind == PizzaKind.OVEN, "대표 화덕피자 오류")
+
+    // 5. 게임 상태 로직 (v0.2: 토핑×품질 → v0.3: 피자 12종×품질)
     val gs = GameState()
     gs.reset("jeju") // 인자로 무엇을 넘겨도 새 게임은 서울에서 시작
     check(gs.started && gs.homeRegion == START_REGION_ID && START_REGION_ID in gs.visited, "서울 고정 시작 오류")
@@ -235,6 +247,27 @@ fun main() {
     val anyEaten = gs.eatBest()
     check(anyEaten != null, "eatBest 실패 (재고 있는데 null)")
     check(gs.pizzaCount == PIZZA_CAP - 2, "eatBest 후 총 개수 오류: ${gs.pizzaCount}")
+
+    // 화덕피자 재고/계열 집계 + 세이브 왕복
+    check(gs.pizzas.size == Pizzas.ALL.size * 3, "피자 배열 크기 오류: ${gs.pizzas.size}")
+    for (i in gs.pizzas.indices) gs.pizzas[i] = 0
+    check(gs.addPizza(9, 2) && gs.addPizza(11, 0) && gs.addPizza(3, 1), "화덕/일반 피자 추가 오류")
+    check(gs.pizzaCountOfKind(PizzaKind.OVEN) == 2 && gs.pizzaCountOfKind(PizzaKind.REGULAR) == 1, "계열별 집계 오류")
+    val bestId = gs.eatBest()
+    check(bestId == 9, "eatBest는 걸작(고르곤졸라)부터 먹어야 함: $bestId")
+    // 세이브 왕복 + v2/v3 세이브(9칸) 마이그레이션 — 실제 org.json 구현이 클래스패스에 있을 때만 검사
+    try {
+        val roundTrip = GameState.fromJSON(gs.toJSON())
+        check(roundTrip.pizzas.contentEquals(gs.pizzas), "피자 세이브 왕복 오류")
+        val legacy = gs.toJSON()
+        legacy.put("v", 3)
+        legacy.put("pizzas", org.json.JSONArray(listOf(1, 0, 2, 0, 0, 0, 0, 3, 0)))
+        val migrated = GameState.fromJSON(legacy)
+        check(migrated.pizzaCountOf(0) == 3 && migrated.pizzaCountOf(2, 1) == 3 && migrated.pizzaCountOfKind(PizzaKind.OVEN) == 0,
+            "v3 세이브 피자 마이그레이션 오류")
+    } catch (e: RuntimeException) {
+        println("SKIP: JSON 검사 생략 (android.jar 스텁) — ${e.message}")
+    }
 
     // 시간 흐름: 24시간 순환
     gs.worldTime = 23.9f

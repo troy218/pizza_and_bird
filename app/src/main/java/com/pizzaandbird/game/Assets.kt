@@ -10,6 +10,16 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import java.util.Random
+import kotlin.math.roundToInt
+
+// 살아있는 풀 리그 상수 (파일 최상위 — 클래스 본문 안에서는 const val 을 쓸 수 없다)
+private const val GRASS_KINDS = 5
+private const val GRASS_LEAN_MAX = 5      // 좌우 기움 -5..+5
+private const val GRASS_CURL_MAX = 3      // 휨(곡률) -3..+3
+private const val GRASS_W = 18            // 포즈 비트맵 폭
+private const val GRASS_CX = 9            // 비트맵 안에서 밑동(뿌리) 열
+private const val GRASS_LEAN_UNIT = 1.5f
+private const val GRASS_CURL_UNIT = 1.25f
 
 /** 자전거 페달 애니메이션 프레임 수 */
 const val BIKE_FRAMES = 8
@@ -94,9 +104,17 @@ class Assets {
         return b
     }
 
+    // 살아있는 풀 리그 (§ 아래 buildGrassRig) ------------------------------------
+    // 주의: 아래 init 블록에서 buildGrassRig()가 이 배열들을 채우므로,
+    //       반드시 init 보다 *앞쪽*에 선언해야 한다 (Kotlin은 선언 순서대로 실행).
+    private lateinit var grassPoses: Array<Array<Array<Bitmap>>>   // [종][lean][curl]
+    val grassOx = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 X
+    val grassOy = IntArray(GRASS_KINDS)                            // 그릴 때 빼는 Y
+
     // 아이콘 ------------------------------------------------------------------
     lateinit var pizzaIcon: Bitmap
     lateinit var pizzaIconBig: Bitmap
+    lateinit var pizzaArts: Array<Bitmap>       // Pizzas.ALL 순서(id) — 피자 종류별 아이콘
     lateinit var cloverIcon: Bitmap
     lateinit var cameraIcon: Bitmap
     lateinit var houseIcon: Bitmap
@@ -107,6 +125,7 @@ class Assets {
     init {
         buildCat()
         buildBirds()
+        buildGrassRig()
         buildTiles()
         buildIcons()
         buildDecorArt()
@@ -1093,6 +1112,153 @@ class Assets {
         c.drawRect(x + 1.5f, y, x + 2.5f, y + 4.6f, p)        // 중앙 가닥 (가장 큼)
         p.color = tip
         c.drawRect(x + 1.5f, y, x + 2.5f, y + 1.3f, p)        // 중앙 가닥 팁 하이라이트
+    }
+
+    // -----------------------------------------------------------------------
+    // 살아있는 풀 — 풀잎 리그 (Living Grass RIG)
+    //
+    // 듀오 애니메이션의 "내부 구조"를 그대로 픽셀에 적용한다.
+    //  · RIG  : 풀잎 하나 = ROOT → MID → TIP 3단 뼈대. 각 단은 *정수 픽셀 오프셋*으로
+    //            누적되기 때문에 바람에 휜다고 앤티앨리어싱이 생기지 않는다.
+    //            (float로 회전시킨 뒤 스케일링하면 픽셀이 뭉개진다 — 이게 함정)
+    //  · POSE : 가능한 자세(lean × curl)를 미리 구워 bitmap 사전으로 들고 있다가
+    //            상태 머신이 인덱스만 고른다 = Lottie/Rive의 "작성된 상태 + 트윈".
+    //  · 내부 디테일: 3톤 명암(밝은 면 / 중간 / 그림자) + 그림자쪽 1px 잎맥 점선 +
+    //            가운데 접힘 하이라이트 + 끝 2행 팁 하이라이트 + 기저부 접지 그림자.
+    // -----------------------------------------------------------------------
+
+    private class GrassKind(
+        val h: Int, val bh: Int, val oy: Int,        // 높이 / 비트맵 높이 / 밑동 행
+        val wBase: Int, val wMid: Int,               // 기저부·중간부 두께
+        val deep: Int, val body: Int, val lit: Int, val hi: Int, val vein: Int,
+        val restLean: Int, val restCurl: Int,         // 이 종 고유의 기본 자세
+        val seed: Int,                                // 이삭 색 (0 = 없음)
+        val fold: Boolean                             // 접힘 하이라이트 여부
+    )
+
+    private fun grassKinds() = listOf(
+        // 0 새순 — 낮고 촘촘한 싹. 초원 대부분을 담당
+        GrassKind(
+            8, 12, 10, 2, 2,
+            c(0xFF2E5A2A), c(0xFF4E8A3C), c(0xFF7FBE5E), c(0xFFA8DA7E), c(0xFF3D7033),
+            0, 0, 0, false
+        ),
+        // 1 기본 풀잎 — 라운드 2px 잎
+        GrassKind(
+            12, 16, 14, 2, 2,
+            c(0xFF35632F), c(0xFF4E8A3C), c(0xFF6FAE57), c(0xFF8CC46C), c(0xFF447C34),
+            0, 0, 0, true
+        ),
+        // 2 긴 풀 — 3px 두께, 풀숲(TALLGRASS)의 주역
+        GrassKind(
+            17, 21, 19, 3, 2,
+            c(0xFF3A6B33), c(0xFF5B9A45), c(0xFF8CC46C), c(0xFFB7E08C), c(0xFF4C8539),
+            0, 0, 0, false
+        ),
+        // 3 마른 풀 — 올리브 톤, 기본 자세가 이미 오른쪽으로 눕는다
+        GrassKind(
+            14, 18, 16, 3, 2,
+            c(0xFF4A5A2A), c(0xFF7E9440), c(0xFFA8BC5E), c(0xFFC9D88A), c(0xFF6A7F34),
+            2, 1, 0, true
+        ),
+        // 4 이삭/갈대 — 끝에 이삭穗. 갈대습지(REED)
+        GrassKind(
+            16, 24, 22, 2, 2,
+            c(0xFF3E6B4A), c(0xFF5F9A5E), c(0xFF8FCB8C), c(0xFFC3E6B0), c(0xFF4C7F4C),
+            -1, 0, c(0xFFD9C58A), false
+        )
+    )
+
+    /**
+     * 풀잎 한 자세를 픽셀로 새긴다.
+     * 뿌리(0,0)는 절대 움직이지 않고, 끝점만 (lean, curl)만큼 간다.
+     * 세로줄을 1px씩 내려가며 x를 정수로 누적해서 그리기 때문에
+     * 어떤 각도에서도 결과가 "계단식 픽셀 선"으로 남아 깔끔하다.
+     */
+    private fun grassPose(k: GrassKind, lean: Int, curl: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(GRASS_W, k.bh, Bitmap.Config.ARGB_8888)
+        val h = k.h
+        val tipX = (lean + k.restLean) * GRASS_LEAN_UNIT
+        val arc = (curl + k.restCurl) * GRASS_CURL_UNIT
+        // 이차 베지어: 첫 조점은 거의 수직(뿌리가 박혀 있음), 둘째 조점이 휨을 만든다
+        val c1 = tipX * 0.12f
+        val c2 = tipX * 0.60f + arc
+        var tipPx = GRASS_CX
+
+        for (i in 0..h) {
+            val t = i / h.toFloat()
+            val u = 1f - t
+            val x = 3f * u * u * t * c1 + 3f * u * t * t * c2 + t * t * t * tipX
+            val px = GRASS_CX + x.roundToInt()
+            if (i == h) tipPx = px
+            val y = k.oy - i
+            if (y < 0) break
+
+            // 잎폭 테이퍼 — 풀답게 끝 40%를 가늘게 (1px로 긴 첨부)
+            val w = when {
+                t < 0.14f -> k.wBase
+                t < 0.58f -> k.wMid
+                else -> 1
+            }
+            val tipLight = t > 0.84f     // 끝 2~3행: 가장 밝은 하이라이트
+            val rootDark = t < 0.11f     // 기저부: 접지감
+            val veinOn = w >= 3 && t > 0.14f && t < 0.55f && (i % 3 == 0)   // 내부 잎맥 점선
+            val foldOn = k.fold && i in (h * 0.38f).toInt()..(h * 0.38f).toInt() + 1
+
+            for (j in 0 until w) {
+                val col = px - ((w - 1) / 2) + j
+                val isLeft = j == 0
+                val isRight = j == w - 1
+                var color = when {
+                    tipLight -> k.hi
+                    w == 1 -> k.body
+                    isRight -> k.deep
+                    isLeft -> if (foldOn) k.hi else k.lit
+                    else -> if (veinOn) k.vein else k.body
+                }
+                if (rootDark) color = shade(color, 0.80f)
+                if (col in 0 until GRASS_W) bmp.setPixel(col, y, color)
+            }
+        }
+
+        // 이삭穗 — 줄기 끝 위로 좁아지는穗
+        if (k.seed != 0) {
+            for (j in 1..4) {
+                val y2 = k.oy - h - j
+                if (y2 < 0) break
+                val drift = (tipX * 0.07f * j).roundToInt()
+                val halfW = if (j <= 2) 1 else 0
+                for (dx in -halfW..halfW) {
+                    val x2 = tipPx + drift + dx
+                    if (x2 in 0 until GRASS_W) {
+                        bmp.setPixel(x2, y2, if (dx == 0) k.seed else shade(k.seed, 0.76f))
+                    }
+                }
+            }
+        }
+        return bmp
+    }
+
+    private fun buildGrassRig() {
+        val kinds = grassKinds()
+        grassPoses = Array(GRASS_KINDS) { ki ->
+            val k = kinds[ki]
+            grassOx[ki] = GRASS_CX
+            grassOy[ki] = k.oy
+            Array(GRASS_LEAN_MAX * 2 + 1) { li ->
+                Array(GRASS_CURL_MAX * 2 + 1) { ci ->
+                    grassPose(k, li - GRASS_LEAN_MAX, ci - GRASS_CURL_MAX)
+                }
+            }
+        }
+    }
+
+    /** 상태 머신이 부르는 포즈 조회 (범위는 여기서 클램프) */
+    fun grassPose(kind: Int, lean: Int, curl: Int): Bitmap {
+        val k = if (kind in 0 until GRASS_KINDS) kind else 1
+        val li = (lean + GRASS_LEAN_MAX).coerceIn(0, GRASS_LEAN_MAX * 2)
+        val ci = (curl + GRASS_CURL_MAX).coerceIn(0, GRASS_CURL_MAX * 2)
+        return grassPoses[k][li][ci]
     }
 
     private fun buildTiles() {
@@ -2118,6 +2284,108 @@ begin(T.LAMP)
             px(c, p, 8.6f, 1f, 15f, 1.2f, c(0xFF23232B))
         })
 
+        // RANGE_TOP (가정용 오븐 윗부분 — 레인지 후드 + 백스플래시 + 조리도구 선반)
+        begin(T.RANGE_TOP)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFCDA775))
+            p.color = c(0xFF9A9AA6)
+            c.drawRect(1f, 0f, 31f, 32f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(2.4f, 0f, 29.6f, 32f, p)
+            // 레인지 후드 (스틸)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(2.4f, 0f, 29.6f, 7.4f, p)
+            p.color = c(0xFF8C919C)
+            c.drawRect(2.4f, 5.6f, 29.6f, 7.4f, p)
+            p.color = c(0xFFD5D8DF)
+            c.drawRect(4f, 1.2f, 28f, 2.4f, p)
+            p.color = c(0xFFF7E9A8)
+            c.drawRect(13f, 6f, 19f, 7.4f, p)
+            // 백스플래시 타일
+            p.color = c(0xFFDCE8E6)
+            c.drawRect(4f, 9f, 28f, 24f, p)
+            p.color = c(0xFFC4D3D0)
+            c.drawRect(4f, 13.8f, 28f, 14.6f, p)
+            c.drawRect(4f, 18.8f, 28f, 19.6f, p)
+            c.drawRect(9.6f, 9f, 10.4f, 24f, p)
+            c.drawRect(15.6f, 9f, 16.4f, 24f, p)
+            c.drawRect(21.6f, 9f, 22.4f, 24f, p)
+            // 걸어 둔 나무 주걱 / 스틸 뒤집개
+            p.color = c(0xFFB98F5E)
+            c.drawRect(8f, 9.5f, 9.6f, 21f, p)
+            p.color = c(0xFFC9A87B)
+            c.drawRect(7f, 19f, 10.6f, 23f, p)
+            p.color = c(0xFF6B6B78)
+            c.drawRect(23f, 9.5f, 24.6f, 20f, p)
+            p.color = c(0xFFB8BCC6)
+            c.drawRect(21.6f, 19f, 26f, 23f, p)
+            // 선반 + 토마토 소스·바질 병
+            p.color = c(0xFFB98F5E)
+            c.drawRect(3.4f, 25f, 28.6f, 26.6f, p)
+            p.color = c(0xFFEFEDE6)
+            c.drawRect(6f, 26.6f, 26f, 32f, p)
+            p.color = c(0xFFE2574C)
+            c.drawRect(11f, 21.5f, 14.4f, 25f, p)
+            p.color = c(0xFF6B4F35)
+            c.drawRect(11.8f, 20.4f, 13.6f, 21.6f, p)
+            p.color = c(0xFF6FAE57)
+            c.drawRect(15.6f, 22f, 18.6f, 25f, p)
+            p.color = c(0xFF3F7D46)
+            c.drawRect(16.2f, 21f, 18f, 22.2f, p)
+        })
+        // RANGE (가정용 오븐 — 쿡탑 + 오븐 창, 2프레임 불빛)
+        begin(T.RANGE)
+        for (f in 0 until 2) {
+            add(tilePainter { c, p, r ->
+                fill(c, p, c(0xFFCDA775))
+                p.color = c(0xFF9A9AA6)
+                c.drawRect(1f, 0f, 31f, 31f, p)
+                p.color = c(0xFFEFEDE6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 29.6f, p)
+                // 쿡탑 (윗면, 스틸) + 화구 2개
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(2.4f, 1.2f, 29.6f, 10f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(2.4f, 9f, 29.6f, 10.4f, p)
+                p.color = c(0xFFD5D8DF)
+                c.drawRect(3.6f, 2f, 28.4f, 2.8f, p)
+                p.color = c(0xFF3A3F4A)
+                c.drawCircle(10f, 5.8f, 3.2f, p)
+                c.drawCircle(22f, 5.8f, 3.2f, p)
+                p.color = c(0xFF5A626C)
+                c.drawCircle(10f, 5.8f, 2f, p)
+                c.drawCircle(22f, 5.8f, 2f, p)
+                p.color = if (f == 0) c(0xFFF2913C) else c(0xFFE2574C)
+                c.drawCircle(10f, 5.8f, 1.2f, p)
+                // 노브 3개 + 오븐 손잡이
+                p.color = c(0xFF4A4A55)
+                c.drawRect(6.6f, 11.6f, 9.4f, 13.6f, p)
+                c.drawRect(14.6f, 11.6f, 17.4f, 13.6f, p)
+                c.drawRect(22.6f, 11.6f, 25.4f, 13.6f, p)
+                p.color = c(0xFFB8BCC6)
+                c.drawRect(4f, 15f, 28f, 16.6f, p)
+                p.color = c(0xFF8C919C)
+                c.drawRect(4f, 16.6f, 28f, 17.2f, p)
+                // 오븐 창 (안에서 피자가 익는 중 — 프레임마다 불빛 밝기가 다름)
+                p.color = c(0xFF23232B)
+                c.drawRect(6f, 18.4f, 26f, 27.4f, p)
+                p.color = c(0xFF3A2A28)
+                c.drawRect(7.4f, 19.6f, 24.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFE07A2C) else c(0xFFF2913C)
+                c.drawRect(8.4f, 21f, 23.6f, 26.2f, p)
+                p.color = if (f == 0) c(0xFFF2B63C) else c(0xFFF7CE5B)
+                c.drawRect(9.6f, 22f, 22.4f, 24.4f, p)
+                p.color = c(0xFFE2574C)
+                c.drawRect(11f, 22.6f, 13f, 23.6f, p)
+                c.drawRect(17f, 23f, 19f, 24f, p)
+                p.color = c(0xFF5A5A66)
+                c.drawRect(8.4f, 19.6f, 24.6f, 20.4f, p)
+                // 하단 받침
+                p.color = c(0xFF6B6B78)
+                c.drawRect(3f, 29.6f, 29f, 31.4f, p)
+            })
+        }
+
         medallion = RoadArt.medallion(3)
         drain = RoadArt.drain()
         castShadow = RoadArt.castShadows()
@@ -2129,6 +2397,9 @@ begin(T.LAMP)
             v.toTypedArray()
         }
     }
+
+    /** 피자 종류별 아이콘 (id = Pizzas.ALL 인덱스) */
+    fun pizzaArt(pizzaId: Int): Bitmap = pizzaArts[pizzaId.coerceIn(0, pizzaArts.size - 1)]
 
     /** 타일 좌표 기반 변형 선택 */
     fun tileVariant(tileOrdinal: Int, x: Int, y: Int): Int {
@@ -2166,6 +2437,44 @@ begin(T.LAMP)
         val pizzaBmp = sprite(pizza, pal + ('A' to c(0xFF7D9C4F)))
         pizzaIcon = pizzaBmp
         pizzaIconBig = Bitmap.createScaledBitmap(pizzaBmp, pizzaBmp.width * 4, pizzaBmp.height * 4, false)
+
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
+        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        val pizzaOven = listOf(
+            "......................",
+            ".....cckccccckc.....",
+            "...ckCCCCCCCCCCkc...",
+            "..cCCRRCCCCCRRCCCc..",
+            "..kCCRRCCACCRRCCd...",
+            ".cCCCCCCCCCCCCCCCd..",
+            ".cCRRCCCACCCRRCCk...",
+            ".kCRRCCCCCCCRRCCd...",
+            ".cCCCCCRRCCACCCCd...",
+            ".cCCACCRRCCCCCCd....",
+            ".cCCCCCCCCCRRCCk....",
+            ".dCCCCCCCCCRRCCd....",
+            "..dkddddddkdd......",
+            "...ddddkddddd......",
+            "......................"
+        )
+        pizzaArts = Array(Pizzas.ALL.size) { i ->
+            val def = Pizzas.ALL[i]
+            if (def.kind == PizzaKind.OVEN) {
+                sprite(
+                    pizzaOven, mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            } else {
+                sprite(
+                    pizza, mapOf(
+                        'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
+                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    )
+                )
+            }
+        }
 
         cloverIcon = Bitmap.createBitmap(14, 14, Bitmap.Config.ARGB_8888).apply {
             val cv = Canvas(this)

@@ -16,4 +16,14 @@ open class AssetManager {
         for (f in candidates) if (f.isFile) return java.io.FileInputStream(f)
         throw java.io.FileNotFoundException("프리뷰 에셋 없음: $fileName")
     }
+
+    fun list(fileName: String): Array<String>? {
+        val dirs = listOf(
+            java.io.File("app/src/main/assets/$fileName"),
+            java.io.File("src/main/assets/$fileName"),
+            java.io.File(fileName)
+        )
+        for (d in dirs) if (d.isDirectory) return d.list() ?: emptyArray()
+        return emptyArray()
+    }
 }
