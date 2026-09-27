@@ -1,5 +1,5 @@
-# preview build 2026-09-27 07:35:47Z
-# commit: 22a2ccfc81f9539f8004d4dbbdfdc82bc4a2e2c6
+# preview build 2026-09-27 07:38:25Z
+# commit: e67452a04464fc3a45d59cd708770ddbd8547679
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
@@ -23,15 +23,14 @@ WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존�
 > Task :app:generateReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
 > Task :app:extractDeepLinksRelease
-> Task :app:mergeReleaseResources
 > Task :app:processReleaseMainManifest
-> Task :app:packageReleaseResources
 > Task :app:processReleaseManifest
 > Task :app:processReleaseManifestForPackage
 > Task :app:javaPreCompileRelease
 > Task :app:desugarReleaseFileDependencies
 > Task :app:mergeReleaseStartupProfile
-> Task :app:parseReleaseLocalResources
+> Task :app:mergeReleaseResources
+> Task :app:packageReleaseResources
 > Task :app:mergeExtDexRelease
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
@@ -39,6 +38,7 @@ WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존�
 > Task :app:generateReleaseAssets UP-TO-DATE
 > Task :app:mergeReleaseAssets
 > Task :app:compressReleaseAssets
+> Task :app:parseReleaseLocalResources
 > Task :app:extractReleaseVersionControlInfo
 > Task :app:collectReleaseDependencies
 > Task :app:processReleaseResources
@@ -62,9 +62,9 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494519384.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494676308.json
 
-BUILD SUCCESSFUL in 28s
+BUILD SUCCESSFUL in 29s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
