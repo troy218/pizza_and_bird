@@ -34,6 +34,9 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     private var camY = 0f
     private var velX = 0f
     private var velY = 0f
+    private var questPathKey = ""
+    private var questPath = emptyList<PointF>()
+    private var questPathIndex = 0
 
     /** 탭 좌표 역변환용 — drawWorld가 쓰는 카메라 기준점 */
     override fun cameraOffset(): PointF = PointF(camX, camY)
@@ -141,7 +144,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         game.hud.showMinimap = false
         game.hud.regionLabel = "우리 집"
         game.hud.photoModeHint = false
-        game.hud.questLabel = null
+        updateQuestHud()
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
@@ -152,6 +155,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        updateQuestHud()
         applyIndoorAmbience()   // 비가 오고 그치는 것을 창밖 소리로 (자다 일어나도 바로 반영)
         if (overlay != null) {
             game.audio.stopSteps()
@@ -162,12 +166,18 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         state.advanceClock(dt)
         updateMotes(dt)
 
-        // 이동 (자전거 금지!)
+        // 이동 (실내에서는 자전거 금지, 길안내는 걸어서 현관/화덕까지)
         player.bike = false
         val input = game.input
-        val dx = input.dirX
-        val dy = input.dirY
-        val moving = dx != 0f || dy != 0f
+        val manualMoving = kotlin.math.abs(input.dirX) > 0.02f || kotlin.math.abs(input.dirY) > 0.02f
+        if (state.questTravelPlan != null && manualMoving) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
+        val guide = if (state.questTravelPlan != null) guidedTravelDirection() else null
+        val dx = guide?.first ?: input.dirX
+        val dy = guide?.second ?: input.dirY
+        val moving = kotlin.math.abs(dx) > 0.01f || kotlin.math.abs(dy) > 0.01f
         player.moving = moving
         if (moving) {
             if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
@@ -175,7 +185,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
             val vx = if (len > 0.01f) dx / len else 0f
             val vy = if (len > 0.01f) dy / len else 0f
-            val speed = (if (state.hunger <= 0f) 34f else 55f) * input.moveScale
+            val speed = (if (state.hunger <= 0f) 34f else 55f) * (if (guide != null) 1f else input.moveScale)
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.play(Anim.WALK, dt, (speed / 55f).coerceIn(0.5f, 1.6f))
@@ -201,6 +211,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
 
         state.px = player.x
         state.py = player.y
+        finishHomeQuestArrival()
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상)
         game.hud.contextIcon = nearestInteract()?.let { (target, _) ->
@@ -213,6 +224,59 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
                 else -> "plant"
             }
         }
+    }
+
+    private fun updateQuestHud() {
+        val tracker = QuestNavigation.tracker(state)
+        game.hud.questLabel = tracker?.title
+        game.hud.questObjective = tracker?.requirement
+        game.hud.questProgress = tracker?.progress
+        game.hud.questTravelLabel = state.questTravelPlan?.let { plan ->
+            if (plan.targetKind == QuestTargetKind.HOME_OVEN && plan.targetRegionId == exitRegionId) {
+                "🚲 화덕으로 이동 중"
+            } else "🚲 현관으로 이동 · ${plan.targetLabel}"
+        }
+    }
+
+    private fun guidedTravelDirection(): Pair<Float, Float>? {
+        val plan = state.questTravelPlan ?: run {
+            questPathKey = ""
+            questPath = emptyList()
+            questPathIndex = 0
+            return null
+        }
+        val toOven = plan.targetKind == QuestTargetKind.HOME_OVEN && plan.targetRegionId == exitRegionId
+        val key = "home:${exitRegionId}:${if (toOven) "oven" else "exit"}:${plan.hashCode()}"
+        if (questPathKey != key) {
+            val goal = if (toOven) PointF(10f * 16f, 3f * 16f)
+            else PointF(7.5f * 16f, (map.h - 1) * 16f - 1f)
+            val path = QuestPathfinder.findPath(map, player.x, player.y, goal.x, goal.y)
+            if (path == null) {
+                QuestNavigation.cancel(game, "실내에서 목표로 이어지는 길을 찾지 못했어요")
+                questPathKey = ""
+                return null
+            }
+            questPathKey = key
+            questPath = path
+            questPathIndex = 0
+        }
+        while (questPathIndex < questPath.size &&
+            hypot(questPath[questPathIndex].x - player.x, questPath[questPathIndex].y - player.y) < 5f
+        ) questPathIndex++
+        val waypoint = questPath.getOrNull(questPathIndex) ?: return null
+        return (waypoint.x - player.x) to (waypoint.y - player.y)
+    }
+
+    private fun finishHomeQuestArrival() {
+        val plan = state.questTravelPlan ?: return
+        if (plan.targetKind != QuestTargetKind.HOME_OVEN || plan.targetRegionId != exitRegionId) return
+        if (hypot(ovenX - player.cx, ovenY - player.cy) > 34f) return
+        state.questTravelPlan = null
+        questPathKey = ""
+        questPath = emptyList()
+        SaveManager.save(game.context, state)
+        game.toast("화덕에 도착했어요. 피자를 구워 의뢰를 마무리하세요!")
+        interact("oven", -1)
     }
 
     private fun updateRig(dt: Float, vx: Float, vy: Float, gait: Gait) {
@@ -489,6 +553,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     // -------------------------------------------------------------------
 
     override fun handleInput(input: Input) {
+        if (state.questTravelPlan != null && (input.justA || input.justEat)) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (input.justBack) {
             openOverlay(MenuOverlay(this))
             return
@@ -499,6 +567,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         }
         if (input.justCam) {
             game.toast("집에선 쉬어도 돼요. 새는 밖에서!")
+            return
+        }
+        if (input.justQuest) {
+            QuestNavigation.openTracker(this)
             return
         }
         if (input.justB) {
@@ -523,6 +595,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             return
         }
         val tap = input.consumeTapWorld()
+        if (tap != null && state.questTravelPlan != null) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (tap != null) {
             val sp = nearestSpot(tap.x, tap.y, tap = true)
             if (sp != null) interact(sp.key, sp.slot)

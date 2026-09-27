@@ -448,31 +448,7 @@ class TitleScene(game: Game) : Scene(game) {
 }
 
 /** 스폰 위치 종류 */
-enum class SpawnKind { SAVED, TUNNEL, HOME, FAST, LANDMARK }
-
-/**
- * 메인 퀘스트 자동 진행 — 지정 지역으로 빨리 이동한다.
- *
- * 일반 이동은 터널 경유지만, 메인 퀘스트를 누르면 "어디로 가야 하는지 모르겠는"
- * 플레이어의 짐을 덜어 주기 위해 자전거를 타고(페이드 + 바람 SFX) 해당 지역
- * 중앙 광장 — 보리 박사 바로 옆 — 에 도착한다.
- */
-fun fastTravel(game: Game, regionId: String, force: Boolean = false) {
-    val target = Regions.byId[regionId] ?: return
-    val s = game.state
-    // 이미 그 지역 안이라도 `force`면 다시 내려 놓는다 — 보리 박사 옆(인사 자리)으로 데려다 줄 때 쓴다.
-    if (!force && s.region == target.id && !s.inHome) return
-    s.inHome = false
-    s.onBike = false      // 도착 후 바로 촬영할 수 있게(자전거는 새를 놀라게 하므로)
-    s.px = 0f
-    s.py = 0f             // WorldScene init 가 실제 스폰 좌표로 다시 쓴다
-    game.audio.stopSteps()
-    game.sfx(Audio.Sfx.WHOOSH, 0.85f)
-    game.fadeTo {
-        game.scene = WorldScene(game, target.id, SpawnKind.FAST)
-        SaveManager.save(game.context, game.state)   // 즉시 영속 — 강제 종료해도 못 간다
-    }
-}
+enum class SpawnKind { SAVED, TUNNEL, HOME, LANDMARK }
 
 /** 첫 플레이 시 아바타 선택 화면. 카드는 가상 캔버스(화면비 적응), 버튼은 실제 화면 좌표로 그린다. */
 class CharacterSelectScene(game: Game) : Scene(game) {
