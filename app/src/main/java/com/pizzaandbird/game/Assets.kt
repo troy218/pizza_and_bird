@@ -44,13 +44,15 @@ const val NPC_FRAME_TIME = 0.2f
  * RUN   : 달리기 (큰 보폭 · 앞으로 기울인 자세 · 굽힌 팔)
  * SNEAK : 살금살금 (카메라 모드에서 이동할 때)
  * AIM   : 카메라 조준 (숨죽인 미세한 흔들림)
+ * SIT   : 벤치에 앉기 (숨쉬며 두리번 — 상단 여백 SIT_TOPPAD 사용)
  */
 enum class Anim(val frames: Int, val frameTime: Float) {
     IDLE(12, 0.17f),
     WALK(8, 0.085f),
     RUN(8, 0.062f),
     SNEAK(8, 0.13f),
-    AIM(4, 0.2f);
+    AIM(4, 0.2f),
+    SIT(8, 0.17f);
 
     /** 한 바퀴 도는 데 걸리는 시간(초) */
     val cycle: Float get() = frames * frameTime
@@ -377,7 +379,9 @@ class Assets(private val context: Context) {
         val down: Array<Bitmap>,
         val up: Array<Bitmap>,
         val side: Array<Bitmap>,
-        val sideL: Array<Bitmap>
+        val sideL: Array<Bitmap>,
+        /** 프레임 상단 여백(px) — 앉은 자세처럼 머리가 넘칠 때 그릴 y 에서 이만큼 뺀다 */
+        val topPad: Int = 0
     ) {
         val count: Int get() = down.size
 
@@ -395,6 +399,7 @@ class Assets(private val context: Context) {
     /** 플레이어 동작 세트 (한 성별 x 한 등급) */
     class PlayerSet(
         val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip,
+        val sit: Clip,
         val punch: Clip
     ) {
         fun clip(anim: Anim): Clip = when (anim) {
@@ -403,6 +408,7 @@ class Assets(private val context: Context) {
             Anim.RUN -> run
             Anim.SNEAK -> sneak
             Anim.AIM -> aim
+            Anim.SIT -> sit
         }
 
         // 기존 코드 호환 (아바타 썸네일 등) — 서 있는 자세
@@ -414,12 +420,15 @@ class Assets(private val context: Context) {
 
     private val playerCache = HashMap<Int, PlayerSet>()
 
-    private fun buildClip(look: CharacterArt.Look, frames: Int, pose: (Float) -> CharacterArt.Pose): Clip {
-        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look) }
-        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look) }
-        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look) }
+    private fun buildClip(
+        look: CharacterArt.Look, frames: Int, topPad: Int = 0,
+        pose: (Float) -> CharacterArt.Pose
+    ): Clip {
+        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look, topPad) }
+        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look, topPad) }
+        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look, topPad) }
         val sideL = Array(frames) { flipH(side[it]) }
-        return Clip(down, up, side, sideL)
+        return Clip(down, up, side, sideL, topPad)
     }
 
     /** 성별 + 레벨 등급으로 동작 세트 얻기 (첫 사용 시 생성) */
@@ -434,6 +443,9 @@ class Assets(private val context: Context) {
             run = buildClip(lk, Anim.RUN.frames) { CharacterArt.walkPose(it, CharacterArt.RUN) },
             sneak = buildClip(lk, Anim.SNEAK.frames) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
             aim = buildClip(lk, Anim.AIM.frames) { CharacterArt.aimPose(it) },
+            sit = buildClip(lk, Anim.SIT.frames, CharacterArt.SIT_TOPPAD) {
+                CharacterArt.sitPose(it / Anim.SIT.frames.toFloat())
+            },
             punch = buildClip(lk, 4) { CharacterArt.punchPose(it) }
         )
         playerCache[key] = set

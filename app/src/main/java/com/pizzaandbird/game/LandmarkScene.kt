@@ -55,6 +55,17 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
 
     private class Spot(val key: String, val x: Float, val y: Float, val reachA: Float, val reachTap: Float)
 
+    // 앉기 연출 (WorldScene 벤치와 같은 규칙: 걸어간 뒤 앉고, 앉은 자세는 SIT 클립 + topPad)
+    private class RestSit(val seatX: Float, val seatY: Float, val standX: Float, val standY: Float) {
+        var walking = true
+        var sitT = 0f
+        var lift = 1f
+        var stuckT = 0f
+        var lastDist = Float.MAX_VALUE
+    }
+
+    private var restSit: RestSit? = null
+
     private val spots = listOf(
         Spot("exhibit", exhibitX, exhibitY, 34f, 30f),
         Spot("rest", restX, restY, 30f, 26f),
@@ -105,6 +116,83 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val input = game.input
         val dx = input.dirX
         val dy = input.dirY
+
+        // 앉기 연출 중: 자리까지 걸어가 앉고, 정해진 시간(또는 이동 입력)이 지나면 일어난다
+        val seq = restSit
+        if (seq != null) {
+            val wantMove = kotlin.math.abs(dx) > 0.01f || kotlin.math.abs(dy) > 0.01f
+            if (seq.walking) {
+                if (wantMove) {
+                    restSit = null                       // 이동 입력이 걸어가는 연출을 취소
+                } else {
+                    val tx = seq.standX - player.x
+                    val ty = seq.standY - player.y
+                    val dist = kotlin.math.sqrt(tx * tx + ty * ty)
+                    if (dist <= 2f) {
+                        player.set(seq.seatX, seq.seatY)
+                        player.facing = Dir.S
+                        seq.walking = false
+                        seq.sitT = 0f
+                        seq.lift = 1f
+                        player.moving = false
+                        applyRest()                      // 앉은 순간 쉬는 효과
+                    } else {
+                        // 막혀서 못 가면 연출 포기
+                        seq.stuckT = if (dist < seq.lastDist - 0.05f) 0f else seq.stuckT + dt
+                        seq.lastDist = dist
+                        if (seq.stuckT > 1.5f) {
+                            restSit = null
+                        } else {
+                            val len = dist.coerceAtLeast(0.001f)
+                            val speed = 55f
+                            moveBy(tx / len * speed * dt, ty / len * speed * dt)
+                            val ang = kotlin.math.atan2(ty, tx)
+                            player.facing = when {
+                                kotlin.math.abs(tx) > kotlin.math.abs(ty) -> if (tx > 0) Dir.E else Dir.W
+                                else -> if (ty > 0) Dir.S else Dir.N
+                            }
+                            player.play(Anim.WALK, dt, 1f)
+                            player.moving = true
+                            velX = kotlin.math.cos(ang) * speed
+                            velY = kotlin.math.sin(ang) * speed
+                            game.audio.steps(Audio.Steps.WOOD)
+                        }
+                    }
+                }
+            }
+            val seq2 = restSit
+            if (seq2 != null && !seq2.walking) {
+                seq2.sitT += dt
+                seq2.lift = (seq2.lift - dt / 0.28f).coerceAtLeast(0f)
+                if (seq2.sitT >= 3.2f || wantMove) {
+                    player.set(seq2.standX, seq2.standY)
+                    player.facing = Dir.S
+                    restSit = null
+                    player.moving = false
+                    velX = 0f
+                    velY = 0f
+                    game.audio.steps(Audio.Steps.NONE)
+                } else {
+                    player.moving = false
+                    player.play(Anim.SIT, dt)
+                    velX = 0f
+                    velY = 0f
+                    game.audio.steps(Audio.Steps.NONE)
+                    updateRig(dt, 0f, 0f, Gait.IDLE)
+                    state.px = player.x
+                    state.py = player.y
+                    return
+                }
+            } else if (restSit != null) {
+                // 걸어가는 중 — 카메라만 따라오고 입력은 이미 반영됨
+                updateRig(dt, velX, velY, Gait.WALK)
+                state.px = player.x
+                state.py = player.y
+                game.hud.contextIcon = null
+                return
+            }
+        }
+
         val moving = dx != 0f || dy != 0f
         player.moving = moving
         if (moving) {
@@ -252,7 +340,18 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         SaveManager.save(game.context, state)
     }
 
+    /** 쉬기: 자리까지 실제로 걸어간 뒤 앉으며 효과가 발동한다 */
     private fun rest() {
+        // 쿠션 윗면(restY*2-6)에 엉덩이(플레이어 y*2+16.5)가 닿도록 앉는 자리 계산
+        val seatX = restX - 8f
+        val seatY = restY - 11.25f
+        // 벤치 앞(아래쪽)에 서서 올라가 앉는다
+        val standX = restX - 8f
+        val standY = restY + 13f
+        restSit = RestSit(seatX, seatY, standX, standY)
+    }
+
+    private fun applyRest() {
         state.hunger = (state.hunger + 45f).coerceAtMost(100f)
         state.luck = (state.luck + 2f).coerceAtMost(100f)
         game.toast("잠시 쉬며 창밖을 봤다 · 배부름 회복 · 행운 +2")
@@ -263,6 +362,20 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         if (input.justBack || input.justMenu) {
             openOverlay(MenuOverlay(this))
             return
+        }
+        // 앉기 연출 중: A 는 무시, B 는 일어나기/취소
+        val seq = restSit
+        if (seq != null) {
+            if (input.justB) {
+                if (!seq.walking) {
+                    player.set(seq.standX, seq.standY)   // 앉은 자세에서 일어선다
+                    player.facing = Dir.S
+                    game.sfx(Audio.Sfx.TAP, 0.5f)
+                }
+                restSit = null
+                return
+            }
+            if (input.justA) return
         }
         if (input.justCam) {
             game.toast("실내에선 쉬어도 돼요. 새는 밖에서!")
@@ -477,15 +590,20 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
         val ps = a.playerSet(state.gender, state.gearTier())
-        val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        val clip = ps.clip(player.anim)
+        val bmp = clip.frame(player.facing, player.frame)
+        // 앉은 자세는 머리가 프레임 위로 넘쳐 상단 여백(topPad)을 둔다 — 그만큼 위로 그린다
+        // (앉아지는 연출 lift 는 앉은 상태에서만 — 걷는 중엔 제자리에 그린다)
+        val lift = restSit?.takeIf { !it.walking }?.lift ?: 0f
+        val bodyY = sy - clip.topPad + lift * 32f
+        c.drawBitmap(bmp, sx, bodyY, a.sprPaint)
         val camDir = when (player.facing) {
             Dir.E -> 2
             Dir.W -> 3
             Dir.N -> 1
             else -> 0
         }
-        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
+        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, bodyY, a.sprPaint)
     }
 
     override fun drawHud(c: Canvas) {

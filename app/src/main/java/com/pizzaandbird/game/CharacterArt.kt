@@ -28,6 +28,12 @@ object CharacterArt {
 
     const val SIZE = 32
 
+    /**
+     * 앉은 자세는 엉덩이를 좌석 높이로 올리므로 머리·모자가 프레임 위로 넘친다.
+     * `render(..., topPad = SIT_TOPPAD)` 로 상단 여백을 두고 그릴 때 y 에서 이만큼 뺀다.
+     */
+    const val SIT_TOPPAD = 9
+
     // 방향
     const val FRONT = 0
     const val BACK = 1
@@ -292,6 +298,43 @@ object CharacterArt {
         )
     }
 
+    /**
+     * 벤치에 앉기 — 허리를 펴고 앉아 숨쉬며 두리번거린다.
+     *
+     * 앉으면 엉덩이가 좌석 높이(타일 아트 y≈16)로 올라가므로 머리·모자가 프레임 위로
+     * 넘친다. 그래서 `render(..., topPad = SIT_TOPPAD)` 로 상단 여백을 두고,
+     * 그릴 때 y 에서 SIT_TOPPAD 만큼 뺀다 (WorldScene/참조: Anim.SIT).
+     * 정면 기준: 허벅지는 앞으로 벌리고 무릎 아래로 종아리가 살짝 흔들리며 내려간다.
+     */
+    fun sitPose(phase: Float): Pose {
+        val p = ((phase % 1f) + 1f) % 1f
+        val breath = 0.5f - 0.5f * cos(TAU * p)
+        val look = bump(p, 0.30f, 0.56f)
+        val shift = sin(TAU * p)
+        val settle = (p * 8f).coerceAtMost(1f)      // 앉은 직후 1/8 사이클만 자세를 고정
+        return Pose(
+            bodyY = -5.2f - 0.22f * breath + 0.6f * (1f - settle),
+            bodyX = 0.22f * shift,
+            lean = -1.5f,
+            // 허벅지는 앞으로(무릎 갈림), 종아리는 살짝 앞으로 내려가며 흔들
+            hipR = 88f + 1.5f * shift, kneeR = 76f, footR = 2f,
+            hipL = -88f + 1.5f * shift, kneeL = -76f, footL = -2f,
+            armR = 34f + 2f * shift, elbowR = 46f,
+            armL = -34f + 2f * shift, elbowL = 46f,
+            shoulderR = -0.2f * breath, shoulderL = -0.2f * breath,
+            headY = -0.2f * breath + 0.3f * (1f - settle),
+            headX = 0.55f * shift + 0.7f * look,
+            tilt = -1.4f * shift,
+            turn = 0.8f * look,
+            blink = if (p >= 0.845f && p < 0.885f) 1f else if (p >= 0.885f && p < 0.905f) 0.5f else 0f,
+            breath = breath,
+            brow = 0.3f * look,
+            hairSway = 0.4f * shift,
+            clothSway = 0.35f * shift,
+            packBob = -0.25f * breath
+        )
+    }
+
     /** 카메라 조준 — 숨죽이고 미세하게 흔들린다 */
     fun aimPose(phase: Float): Pose {
         val p = ((phase % 1f) + 1f) % 1f
@@ -448,9 +491,12 @@ object CharacterArt {
     // 사람 렌더링
     // -----------------------------------------------------------------------
 
-    fun render(direction: Int, pose: Pose, look: Look): Bitmap {
-        val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-        val g = G(Canvas(bmp))
+    fun render(direction: Int, pose: Pose, look: Look, topPad: Int = 0): Bitmap {
+        // topPad: 앉은 자세처럼 머리가 위로 넘칠 때 상단에 둘 여백(px).
+        val bmp = Bitmap.createBitmap(SIZE, SIZE + topPad, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        if (topPad != 0) cv.translate(0f, topPad.toFloat())
+        val g = G(cv)
         val pal = look.pal
         val sc = if (look.small) 0.86f else 1f
 
