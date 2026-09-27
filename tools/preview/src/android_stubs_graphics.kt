@@ -260,7 +260,7 @@ class LinearGradient(
     internal val gp = GradientPaint(x0, y0, JColor(color0, true), x1, y1, JColor(color1, true), tileMode == Shader.TileMode.REPEAT)
 }
 
-class RadialGradient : Shader() {
+class RadialGradient : Shader {
     internal var rgp: java.awt.RadialGradientPaint
 
     constructor(
@@ -277,7 +277,7 @@ class RadialGradient : Shader() {
         centerX: Float, centerY: Float, radius: Float,
         colors: IntArray, stops: FloatArray?, tileMode: Shader.TileMode = Shader.TileMode.CLAMP
     ) {
-        val st = (stops ?: floatArrayOf(0f, 1f)).toFloatArray()
+        val st = stops ?: floatArrayOf(0f, 1f)
         val cols = colors.map { JColor(it, true) }.toTypedArray()
         rgp = java.awt.RadialGradientPaint(
             centerX, centerY, max(radius, 0.01f), st, cols
@@ -366,7 +366,9 @@ class Typeface private constructor(internal val mono: Boolean, internal val fake
         const val BOLD = 1
         val MONOSPACE: Typeface = Typeface(mono = true, fakeBold = false)
         val SANS_SERIF: Typeface = Typeface(mono = false, fakeBold = false)
+        val SERIF: Typeface = Typeface(mono = false, fakeBold = false)
         val DEFAULT: Typeface = SANS_SERIF
+        val DEFAULT_BOLD: Typeface = Typeface(mono = false, fakeBold = true)
 
         @JvmStatic
         fun create(family: String, style: Int): Typeface = Typeface(false, style == BOLD)
@@ -461,6 +463,9 @@ class Paint {
 // ---------------------------------------------------------------------------
 
 class Bitmap private constructor(val image: BufferedImage) {
+
+    /** 스텁은 재활용 개념이 없다 — 항상 false */
+    val isRecycled: Boolean get() = false
     enum class Config { ARGB_8888 }
 
     val width: Int get() = image.width
@@ -704,8 +709,8 @@ class Canvas {
         g.drawString(text, x, y)
     }
 
-    private fun compOf(paint: Paint, alpha: Float): java.awt.Composite {
-        val xf = paint.xfermode as? PorterDuffXfermode
+    private fun compOf(paint: Paint?, alpha: Float): java.awt.Composite {
+        val xf = paint?.xfermode as? PorterDuffXfermode
         if (xf != null) {
             val rule = when (xf.mode) {
                 PorterDuff.Mode.SRC -> java.awt.AlphaComposite.SRC
@@ -724,8 +729,8 @@ class Canvas {
     }
 
     /** PorterDuffColorFilter(SRC_IN) 틴트 시현 — 흰 소스 비트맵을 지정 색으로 물들인다 */
-    private fun tinted(bitmap: Bitmap, paint: Paint): java.awt.image.BufferedImage {
-        val cf = paint.colorFilter as? PorterDuffColorFilter
+    private fun tinted(bitmap: Bitmap, paint: Paint?): java.awt.image.BufferedImage {
+        val cf = paint?.colorFilter as? PorterDuffColorFilter
             ?: return bitmap.image
         val img = bitmap.image
         val w = img.width; val h = img.height
@@ -742,8 +747,8 @@ class Canvas {
         return out
     }
 
-    fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint) {
-        val alpha = paint.alpha / 255f
+    fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
+        val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         g.composite = compOf(paint, alpha)
         val img = if (paint.colorFilter != null) tinted(bitmap, paint) else bitmap.image
@@ -751,8 +756,8 @@ class Canvas {
         g.composite = oldComp
     }
 
-    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint) {
-        val alpha = paint.alpha / 255f
+    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
+        val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         g.composite = compOf(paint, alpha)
         val base = if (paint.colorFilter != null) tinted(bitmap, paint) else bitmap.image

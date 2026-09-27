@@ -12,6 +12,7 @@ import android.graphics.Canvas
 import android.graphics.Rect
 import android.util.Xml
 import java.io.File
+import org.xmlpull.v1.XmlPullParser
 import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.cos
@@ -161,7 +162,7 @@ class VectorArtDrawable private constructor(
                     }
                     'Q', 'q' -> {
                         if (i + 4 > ts.size) break
-                        var x1 = num(); var y1 = num(); val x = num(); val y = num()
+                        var x1 = num(); var y1 = num(); var x = num(); var y = num()
                         if (cmd == 'q') { x1 += cx; y1 += cy; x += cx; y += cy }
                         p.quadTo(x1, y1, x, y)
                         cx = x; cy = y
