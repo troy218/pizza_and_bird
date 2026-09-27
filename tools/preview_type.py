@@ -278,9 +278,10 @@ def hud_mock(c, ox, oy):
 def roles_mock(c, ox, oy):
     """역할별 크기 표"""
     x0, y0 = ox, oy
-    roles = [("HERO", 38, True, 0.06), ("DISPLAY", 21, True, 0.06), ("TITLE", 16, True, 0.04),
-             ("HEADING", 13.5, True, 0.03), ("LABEL", 12.2, True, 0.02), ("BODY", 12.6, False, 0),
-             ("CAPTION", 11, False, 0), ("MICRO", 8.4, False, 0)]
+    # Type.kt 의 Role 과 같은 값 (글꼴 교체 때 같이 고친다)
+    roles = [("HERO", 40, True, 0.045), ("DISPLAY", 22, True, 0.04), ("TITLE", 16.8, True, 0.025),
+             ("HEADING", 14, True, 0.02), ("LABEL", 12.6, True, 0.015), ("BODY", 12.8, False, 0.005),
+             ("CAPTION", 11.2, False, 0.005), ("MICRO", 8.6, False, 0)]
     y = 0
     for name, size, bold, tr in roles:
         c.text(name, x0, y0 + y + size, 7, False, SOFT)

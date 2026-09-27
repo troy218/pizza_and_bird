@@ -1,5 +1,5 @@
-# preview build 2026-09-27 07:35:47Z
-# commit: 22a2ccfc81f9539f8004d4dbbdfdc82bc4a2e2c6
+# preview build 2026-09-27 07:54:56Z
+# commit: c1a2880814c449f5037cc8194322b310d70f19e7
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
@@ -23,31 +23,30 @@ WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존�
 > Task :app:generateReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
 > Task :app:extractDeepLinksRelease
-> Task :app:mergeReleaseResources
 > Task :app:processReleaseMainManifest
-> Task :app:packageReleaseResources
 > Task :app:processReleaseManifest
 > Task :app:processReleaseManifestForPackage
 > Task :app:javaPreCompileRelease
 > Task :app:desugarReleaseFileDependencies
 > Task :app:mergeReleaseStartupProfile
-> Task :app:parseReleaseLocalResources
+> Task :app:mergeReleaseResources
+> Task :app:packageReleaseResources
 > Task :app:mergeExtDexRelease
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:parseReleaseLocalResources
 > Task :app:mergeReleaseAssets
+> Task :app:processReleaseResources
 > Task :app:compressReleaseAssets
 > Task :app:extractReleaseVersionControlInfo
-> Task :app:collectReleaseDependencies
-> Task :app:processReleaseResources
-> Task :app:sdkReleaseDependencyData
 > Task :app:optimizeReleaseResources
+> Task :app:collectReleaseDependencies
+> Task :app:sdkReleaseDependencyData
 > Task :app:validateSigningRelease
 > Task :app:writeReleaseAppMetadata
 > Task :app:writeReleaseSigningConfigVersions
-
 > Task :app:compileReleaseKotlin
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
@@ -55,19 +54,102 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:compileReleaseJavaWithJavac NO-SOURCE
 > Task :app:dexBuilderRelease
 > Task :app:mergeReleaseGlobalSynthetics
-> Task :app:mergeDexRelease
 > Task :app:processReleaseJavaRes
+> Task :app:mergeDexRelease
 > Task :app:compileReleaseArtProfile
 > Task :app:mergeReleaseJavaResource
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790494519384.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790495652751.json
 
-BUILD SUCCESSFUL in 28s
+BUILD SUCCESSFUL in 44s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
+import android.graphics.BitmapFactory
+                        ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:14:21: error: unresolved reference 'LruCache'.
+import android.util.LruCache
+                    ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3046:30: error: unresolved reference 'LruCache'.
+    private val photoCache = LruCache<Int, Bitmap>(24)
+                             ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3047:30: error: unresolved reference 'LruCache'.
+    private val thumbCache = LruCache<Int, Bitmap>(128)
+                             ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3052:20: error: cannot infer type for this parameter. Please specify it explicitly.
+        photoCache.get(num)?.let { return it }
+                   ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3052:30: error: cannot infer type for this parameter. Please specify it explicitly.
+        photoCache.get(num)?.let { return it }
+                             ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3052:30: error: not enough information to infer type argument for 'T'.
+        photoCache.get(num)?.let { return it }
+                             ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3052:30: error: not enough information to infer type argument for 'R'.
+        photoCache.get(num)?.let { return it }
+                             ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3052:34: error: cannot infer type for this parameter. Please specify it explicitly.
+        photoCache.get(num)?.let { return it }
+                                 ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3054:13: error: argument type mismatch: actual type is 'R', but 'K' was expected.
+            context.assets.open("birds/$num.jpg").use { stream ->
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3054:51: error: cannot infer type for this parameter. Please specify it explicitly.
+            context.assets.open("birds/$num.jpg").use { stream ->
+                                                  ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3054:55: error: cannot infer type for this parameter. Please specify it explicitly.
+            context.assets.open("birds/$num.jpg").use { stream ->
+                                                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3055:17: error: unresolved reference 'BitmapFactory'.
+                BitmapFactory.decodeStream(stream)?.also {
+                ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3055:53: error: cannot infer type for this parameter. Please specify it explicitly.
+                BitmapFactory.decodeStream(stream)?.also {
+                                                    ^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3055:58: error: cannot infer type for this parameter. Please specify it explicitly.
+                BitmapFactory.decodeStream(stream)?.also {
+                                                         ^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3060:13: error: null cannot be a value of a non-null type 'K'.
+            null
+            ^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3067:20: error: cannot infer type for this parameter. Please specify it explicitly.
+        thumbCache.get(num)?.let { return it }
+                   ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3067:30: error: cannot infer type for this parameter. Please specify it explicitly.
+        thumbCache.get(num)?.let { return it }
+                             ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3067:30: error: not enough information to infer type argument for 'T'.
+        thumbCache.get(num)?.let { return it }
+                             ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3067:30: error: not enough information to infer type argument for 'R'.
+        thumbCache.get(num)?.let { return it }
+                             ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3067:34: error: cannot infer type for this parameter. Please specify it explicitly.
+        thumbCache.get(num)?.let { return it }
+                                 ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3069:13: error: argument type mismatch: actual type is 'R', but 'K' was expected.
+            context.assets.open("birds_thumb/$num.jpg").use { stream ->
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3069:57: error: cannot infer type for this parameter. Please specify it explicitly.
+            context.assets.open("birds_thumb/$num.jpg").use { stream ->
+                                                        ^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3069:61: error: cannot infer type for this parameter. Please specify it explicitly.
+            context.assets.open("birds_thumb/$num.jpg").use { stream ->
+                                                            ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3070:17: error: unresolved reference 'BitmapFactory'.
+                BitmapFactory.decodeStream(stream)?.also {
+                ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3070:53: error: cannot infer type for this parameter. Please specify it explicitly.
+                BitmapFactory.decodeStream(stream)?.also {
+                                                    ^^^^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3070:58: error: cannot infer type for this parameter. Please specify it explicitly.
+                BitmapFactory.decodeStream(stream)?.also {
+                                                         ^
+app/src/main/java/com/pizzaandbird/game/Assets.kt:3075:13: error: argument type mismatch: actual type is 'android.graphics.Bitmap?', but 'K' was expected.
+            birdPhoto(num)
+            ^^^^^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Audio.kt:7:19: error: unresolved reference 'Handler'.
 import android.os.Handler
                   ^^^^^^^
@@ -77,27 +159,51 @@ import android.os.HandlerThread
 app/src/main/java/com/pizzaandbird/game/Audio.kt:9:21: error: unresolved reference 'Log'.
 import android.util.Log
                     ^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:31: error: unresolved reference 'HandlerThread'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:40:20: error: unresolved reference 'sfx_crow'.
+        CROW(R.raw.sfx_crow),                  // 밤/흐린 날 까마귀 (으스스한 한 소리)
+                   ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:41:23: error: unresolved reference 'sfx_cuckoo1'.
+        CUCKOO1(R.raw.sfx_cuckoo1),            // 뻐꾸기 1 (숲·산 지역 지저귐)
+                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:42:23: error: unresolved reference 'sfx_cuckoo2'.
+        CUCKOO2(R.raw.sfx_cuckoo2),            // 뻐꾸기 2 (짧은 한 마디)
+                      ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:43:25: error: unresolved reference 'sfx_book_open'.
+        BOOK_OPEN(R.raw.sfx_book_open),        // 📚 도감 펼치기
+                        ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:44:24: error: unresolved reference 'sfx_bag_open'.
+        BAG_OPEN(R.raw.sfx_bag_open)           // 🎒 가방/장비 가방 열기
+                       ^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:31: error: unresolved reference 'HandlerThread'.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                               ^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:66: error: cannot infer type for this parameter. Please specify it explicitly.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:66: error: cannot infer type for this parameter. Please specify it explicitly.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                                                                  ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:72: error: cannot infer type for this parameter. Please specify it explicitly.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:72: error: cannot infer type for this parameter. Please specify it explicitly.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                                                                        ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:87:74: error: unresolved reference 'start'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:92:74: error: unresolved reference 'start'.
     private val audioThread = HandlerThread("PizzaAndBirdAudio").apply { start() }
                                                                          ^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:88:26: error: unresolved reference 'Handler'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:93:26: error: unresolved reference 'Handler'.
     private val loader = Handler(audioThread.looper)
                          ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:88:46: error: unresolved reference 'looper'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:93:46: error: unresolved reference 'looper'.
     private val loader = Handler(audioThread.looper)
                                              ^^^^^^
-app/src/main/java/com/pizzaandbird/game/Audio.kt:202:25: error: unresolved reference 'Log'.
+app/src/main/java/com/pizzaandbird/game/Audio.kt:207:25: error: unresolved reference 'Log'.
                         Log.w("PizzaAndBird", "BGM 로딩 실패: res=${p.res}")
                         ^^^
+app/src/main/java/com/pizzaandbird/game/BirdEncyclopedia.kt:56:31: error: unresolved reference 'getJSONObject'.
+                val obj = arr.getJSONObject(i)
+                              ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/BirdEncyclopedia.kt:60:47: error: unresolved reference 'length'.
+                    for (j in 0 until subsArr.length()) {
+                                              ^^^^^^
+app/src/main/java/com/pizzaandbird/game/BirdEncyclopedia.kt:61:46: error: unresolved reference 'getString'.
+                        subsList.add(subsArr.getString(j))
+                                             ^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/BootView.kt:7:21: error: unresolved reference 'View'.
 import android.view.View
                     ^^^^
@@ -131,3 +237,33 @@ app/src/main/java/com/pizzaandbird/game/BootView.kt:67:13: error: unresolved ref
 app/src/main/java/com/pizzaandbird/game/BootView.kt:67:33: error: unresolved reference 'postInvalidateDelayed'.
         if (isAttachedToWindow) postInvalidateDelayed(100)
                                 ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Maps.kt:479:13: error: unresolved reference 'textAlign'.
+            textAlign = Paint.Align.CENTER
+            ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Maps.kt:479:31: error: unresolved reference 'Align'.
+            textAlign = Paint.Align.CENTER
+                              ^^^^^
+app/src/main/java/com/pizzaandbird/game/Season.kt:155:24: error: argument type mismatch: actual type is 'kotlin.Float', but 'android.graphics.RectF' was expected.
+            c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
+                       ^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Season.kt:155:38: error: argument type mismatch: actual type is 'kotlin.Float', but 'android.graphics.Paint' was expected.
+            c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
+                                     ^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Season.kt:155:60: error: too many arguments for 'fun drawOval(oval: RectF, paint: Paint): Unit'.
+            c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
+                                                           ^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Season.kt:155:74: error: too many arguments for 'fun drawOval(oval: RectF, paint: Paint): Unit'.
+            c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
+                                                                         ^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Season.kt:155:96: error: too many arguments for 'fun drawOval(oval: RectF, paint: Paint): Unit'.
+            c.drawOval(f.x - f.size, f.y - f.size * 0.55f, f.x + f.size, f.y + f.size * 0.55f, paint)
+                                                                                               ^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:206:57: error: unresolved reference 'amb_night'.
+            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+                                                        ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:207:68: error: unresolved reference 'amb_sea'.
+            "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
+                                                                   ^^^^^^^
+app/src/main/java/com/pizzaandbird/game/WorldScene.kt:208:69: error: unresolved reference 'amb_forest'.
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
+                                                                    ^^^^^^^^^^
