@@ -62,6 +62,15 @@ versionCode = major * 10000 + minor * 100 + patch      (릴리스 워크플로�
 
 ## 4. 릴리스 절차 (태그 → Release → Play Console)
 
+### 4.0 워크플로 활성화 (최초 1회)
+
+> ⚠️ 에이전트 세션의 GitHub App은 `workflows` 권한이 없어 `.github/workflows/` 아래 파일을
+> push할 수 없다. 이 때문에 릴리스 워크플로는 **`tools/ci/release-aab.yml` 미러**로 저장되어 있다
+> (기존 `tools/ci/android-apk.yml`과 같은 컨벤션).
+> **활성화 방법**: 웹 UI(GitHub 코드 페이지 "Add file → Create new file") 또는 권한 있는 계정으로
+> `tools/ci/release-aab.yml` 내용을 그대로 `.github/workflows/release-aab.yml` 경로에 복사 커밋한다.
+> 이후 이 절차의 태그 push가 곧바로 릴리스 빌드를 트리거한다. (미러와 실제 파일은 내용을 항상 일치시킬 것)
+
 ### 4.1 태그 & 빌드
 
 ```bash

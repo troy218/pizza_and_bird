@@ -414,10 +414,10 @@ object CharacterArt {
 
         val ground = 31.4f
         val footH = 1.7f * sc
-        val legLen = 7.5f * sc
-        val thigh = 3.9f * sc
-        val shin = 3.6f * sc
-        val torsoH = 6.7f * sc
+        val legLen = 8.3f * sc
+        val thigh = 4.2f * sc
+        val shin = 3.9f * sc
+        val torsoH = 6.1f * sc
         val headR = 6.5f * sc
         val headGap = 6.3f * sc
 
@@ -439,10 +439,10 @@ object CharacterArt {
         } else {
             tL = shoulderX - 6.2f * sc; tR = shoulderX + 6.2f * sc
         }
-        val hipHalf = 3.1f * sc
+        val hipHalf = 2.45f * sc
         val shHalf = (if (direction == SIDE) 5f else 7f) * sc
 
-        fun legRoot(side: Float) = hipX + side * hipHalf * (if (direction == SIDE) 0.35f else 1f)
+        fun legRoot(side: Float) = hipX + side * hipHalf * (if (direction == SIDE) 0.5f else 1f)
         fun armRootX(side: Float) = hipX + leanPx + side * shHalf * (if (direction == SIDE) 0.2f else 1f)
         fun armRootY(side: Float) =
             shoulderY + 1.3f * sc + (if (side > 0) pose.shoulderR else pose.shoulderL)
@@ -503,10 +503,10 @@ object CharacterArt {
         // ---- 몸통 ------------------------------------------------------------
         fun drawTorso() {
             val top = shoulderY - 0.6f
-            val bot = hipY + 1.4f * sc
+            val bot = hipY + 2.3f * sc
             val bw = pose.breath * 0.32f
-            g.rrect(tL - 0.9f - bw, top - 0.9f, tR + 0.9f + bw, bot + 0.9f, 3.8f * sc, pal.line)
-            g.rrect(tL - bw, top, tR + bw, bot, 3.3f * sc, pal.top)
+            g.rrect(tL - 0.9f - bw, top - 0.9f, tR + 0.9f + bw, bot + 0.6f, 3.0f * sc, pal.line)
+            g.rrect(tL - bw, top, tR + bw, bot, 2.6f * sc, pal.top)
             if (direction == SIDE) {
                 g.rrect(tL + (tR - tL) * 0.45f, top + 0.8f, tR - 0.4f, bot - 0.5f, 2.2f * sc, pal.top2)
             } else {
@@ -765,8 +765,6 @@ object CharacterArt {
 
     private val RIM = 0xFF23232B.toInt()
     private val METAL = 0xFF9AA0AD.toInt()
-    private val HELMET = 0xFFD9534F.toInt()
-    private val HELMET_DARK = 0xFFB23F44.toInt()
 
     /** direction: SIDE(오른쪽)/FRONT/BACK, phase: 0~1 페달 한 바퀴, style: 모델·도색·부속품 */
     fun renderBike(direction: Int, phase: Float, look: Look, style: BikeStyle): Bitmap {
@@ -808,6 +806,44 @@ object CharacterArt {
             }
             g.circ(cx, cy, 1.3f, RIM)
             g.circ(cx, cy, 0.7f, METAL)
+        }
+
+        /**
+         * 라이더의 탐조 모자 — 자전거를 타도 걸을 때(render의 drawCap)와 같은 모습을
+         * 유지한다. (헬멧으로 갈아끼우지 않는다: 캐릭터가 다른 사람처럼 변하는 것 방지)
+         */
+        fun drawRiderCap(hx: Float, hy: Float, headR: Float, dir: Int) {
+            val gear = look.gear ?: return
+            val cap = gear.cap ?: return
+            val cw = headR + 0.7f
+            val capTop = hy - headR - 1.4f
+            val capBot = hy - headR * 0.18f
+            g.rrect(hx - cw - 0.4f, capTop - 0.4f, hx + cw + 0.4f, capBot + 0.3f, 2.2f, pal.line)
+            g.rrect(hx - cw, capTop, hx + cw, capBot, 2.1f, cap)
+            g.rect(hx - cw + 0.6f, capTop + 0.4f, hx + cw - 0.6f, capTop + 1.8f, gear.capDark)
+            if (dir == SIDE) {
+                if (gear.brim) {
+                    g.rrect(hx - cw - 1f, capBot - 1f, hx + cw + 2.1f, capBot + 0.4f, 0.8f, pal.line)
+                    g.rrect(hx - cw - 0.7f, capBot - 1f, hx + cw + 1.8f, capBot + 0.1f, 0.7f, cap)
+                } else {
+                    g.rect(hx + 1.5f, capBot - 1f, hx + cw + 2.1f, capBot - 0.1f, pal.line)
+                    g.rect(hx + 1.5f, capBot - 0.9f, hx + cw + 1.8f, capBot - 0.4f, gear.capDark)
+                }
+            } else if (dir == FRONT) {
+                if (gear.brim) {
+                    g.rrect(hx - cw - 1.7f, capBot - 1f, hx + cw + 1.7f, capBot + 0.6f, 0.9f, pal.line)
+                    g.rrect(hx - cw - 1.3f, capBot - 1f, hx + cw + 1.3f, capBot + 0.3f, 0.8f, cap)
+                } else {
+                    g.rect(hx - cw + 0.5f, capBot - 1f, hx + cw - 0.5f, capBot + 0.5f, pal.line)
+                    g.rect(hx - cw + 0.8f, capBot - 0.9f, hx + cw - 0.8f, capBot + 0.2f, gear.capDark)
+                }
+            }
+            gear.feather?.let { ft ->
+                val fx = hx + (if (dir == SIDE) -cw + 0.9f else cw - 0.9f)
+                val fs = sway * 0.6f
+                g.seg(fx, capTop + 1f, fx + fs - 0.7f, capTop - 1.7f, 0.65f, 0.4f, ft)
+                g.circ(fx + fs - 0.75f, capTop - 1.7f, 0.55f, ft)
+            }
         }
 
         if (direction == SIDE) {
@@ -924,18 +960,32 @@ object CharacterArt {
             g.seg(ex, ey, handX, handY, 0.95f, 0.85f, pal.skin)
             g.circ(handX, handY, 1.15f, pal.skin)
 
+            // 목도리 — 달리는 바람에 뒤로 나부낌
+            look.gear?.scarf?.let { sc ->
+                g.rrect(shX - 2.4f, shY - 1.9f, shX + 2.8f, shY + 0.2f, 1f, sc)
+                g.seg(shX - 1.8f, shY - 0.6f, shX - 5.4f, shY + 0.2f + sway * 1.2f, 1.1f, 0.65f, sc)
+            }
+
             val hx = shX + 1.6f
             val hy = shY - 4.6f
             g.circ(hx, hy, 5f, pal.line)
             g.circ(hx, hy, 4.3f, pal.skin)
-            g.rrect(hx - 4.6f, hy - 4.8f, hx + 3.6f, hy - 1.4f, 2.2f, pal.line)
-            g.oval(hx - 4.6f, hy - 5f, hx + 3.8f, hy + 0.6f, HELMET)
-            g.rect(hx - 4.6f, hy - 1.6f, hx + 3.8f, hy - 0.6f, HELMET_DARK)
-            g.rrect(hx - 5.6f, hy - 5.2f, hx - 3.4f, hy - 1f, 0.8f, pal.hair)
-            g.rect(hx - 5.2f, hy - 1.4f, hx - 3f, hy + 2.2f, pal.hair2)
+            // 머리카락 — 걸을 때와 같은 헤어스타일
+            val hairBack = if (look.longHair) 5.2f else 3.1f
+            g.rrect(hx - 4.6f, hy - 1.8f, hx - 2.4f, hy + hairBack, 0.9f, pal.hair)
+            g.rect(hx - 4.1f, hy + 0.8f, hx - 2.9f, hy + hairBack + 0.4f + sway * 0.5f, pal.hair2)
+            g.oval(hx - 4.4f, hy - 4.7f, hx + 4.4f, hy - 0.3f, pal.hair)
+            g.poly(
+                pal.hair,
+                hx + 0.2f, hy - 2f,
+                hx + 4.9f - sway * 0.4f, hy - 0.6f,
+                hx + 3.1f, hy + 0.6f,
+                hx + 0.4f, hy
+            )
             g.rect(hx + 1.6f, hy + 0.2f, hx + 3f, hy + 1.8f, pal.eye)
             g.rect(hx + 4f, hy + 1.2f, hx + 4.8f, hy + 2.2f, pal.skin2)
             g.rect(hx + 1.4f, hy + 2.6f, hx + 2.8f, hy + 3.5f, pal.blush)
+            drawRiderCap(hx, hy, 4.3f, SIDE)
 
             // 부속품 — 앞쪽(바구니/전조등/방울/스트리머)
             if (style.basket) {
@@ -1046,23 +1096,42 @@ object CharacterArt {
             g.seg(16f + hw, 19.6f + bob, 16f + hw + 1.4f, 23f + bob, 0.7f, 0.4f, 0xFFDB6B9A.toInt())
             g.seg(16f + hw - 0.6f, 19.8f + bob, 16f + hw + 0.4f, 23.6f + bob, 0.6f, 0.35f, 0xFFF2D06B.toInt())
         }
+        // 목도리 — 목에 두르고 자락은 앞으로 남긴다
+        look.gear?.scarf?.let { sc ->
+            g.rrect(cx - 3.4f, top - 1.7f, cx + 3.4f, top + 0.3f, 1f, sc)
+            g.seg(cx + 2.1f, top - 0.2f, cx + 3.1f + sway * 1.4f, top + 3.6f, 1f, 0.7f, sc)
+        }
         val hx = cx + sway * 0.5f
         val hy = top - 5.6f
         g.circ(hx, hy, 5.4f, pal.line)
         g.circ(hx, hy, 4.7f, if (direction == FRONT) pal.skin else pal.hair)
         if (direction == FRONT) {
+            // 머리카락 — 걸을 때(render의 drawHead)와 같은 헤어스타일
+            g.oval(hx - 4.8f, hy - 5.1f, hx + 4.8f, hy - 0.5f, pal.hair)
+            val hairLen = if (look.longHair) 5.8f else 3.4f
+            g.rrect(hx - 4.8f, hy - 1.5f, hx - 3.1f, hy + hairLen, 0.8f, pal.hair)
+            g.rrect(hx + 3.1f, hy - 1.5f, hx + 4.8f, hy + hairLen, 0.8f, pal.hair)
+            g.poly(
+                pal.hair,
+                hx - 3.1f + sway * 0.4f, hy - 1.2f,
+                hx - 1.2f, hy + 0.6f,
+                hx - 0.4f + sway * 0.4f, hy - 1.2f
+            )
+            g.poly(
+                pal.hair,
+                hx + 0.6f + sway * 0.4f, hy - 1.1f,
+                hx + 1.9f, hy + 0.6f,
+                hx + 3.1f + sway * 0.4f, hy - 1.2f
+            )
             g.rect(hx - 2.9f, hy + 0.4f, hx - 1.4f, hy + 2.2f, pal.eye)
             g.rect(hx + 1.4f, hy + 0.4f, hx + 2.9f, hy + 2.2f, pal.eye)
             g.rect(hx - 4.2f, hy + 2.6f, hx - 2.6f, hy + 3.7f, pal.blush)
             g.rect(hx + 2.6f, hy + 2.6f, hx + 4.2f, hy + 3.7f, pal.blush)
-            g.rect(hx - 4.6f, hy + 0.2f, hx - 3.4f, hy + 4f, pal.hair)
-            g.rect(hx + 3.4f, hy + 0.2f, hx + 4.6f, hy + 4f, pal.hair)
         } else {
             g.rect(hx - 3.6f, hy + 1.6f, hx + 3.6f, hy + 3.4f, pal.hair2)
+            if (look.longHair) g.rrect(hx - 3f, hy + 1.6f, hx + 3f, hy + 6.2f, 1.8f, pal.hair2)
         }
-        g.oval(hx - 5.2f, hy - 5.4f, hx + 5.2f, hy + 1.2f, HELMET)
-        g.rect(hx - 5f, hy - 1f, hx + 5f, hy + 0.2f, HELMET_DARK)
-        g.rrect(hx - 5.4f, hy - 5.6f, hx + 5.4f, hy - 4f, 1.2f, pal.line)
+        drawRiderCap(hx, hy, 4.7f, direction)
         return bmp
     }
 

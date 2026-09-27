@@ -1,5 +1,6 @@
 package com.pizzaandbird.game
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -41,6 +42,7 @@ class WorldScene(
 
     // 디테일 연출 (날씨·물·발자국·작은 생물·조명) — Fx.kt
     private val fx = WorldFx(map, region.id.hashCode().toLong() + 31L)
+    private val atmosphere = CinematicAtmosphere()
     private val weather: Weather get() = state.weather()
     private var stepT = 0f
 
@@ -84,7 +86,7 @@ class WorldScene(
     private var ghostHead = 0
     private var ghostFill = 0
     private var ghostT = 0f
-    private var spawnTimer = 1.5f
+    private var spawnTimer = 8f
     private var hungerAcc = 0f
     private var luckAcc = 0f
     private var hungerWarnT = 0f
@@ -119,6 +121,13 @@ class WorldScene(
     private val vignettePaint = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
+    // 매 프레임 할당을 없애기 위한 공용 스크래치 — 그리기 중에만 쓰고 보관하지 않는다.
+    private val scratchRect = RectF()
+    private val scratchPath = Path()
+    // 새벽/노을 빛줄기 그라디언트 — 높이가 변할 때만 다시 만든다.
+    private var shaftShader: LinearGradient? = null
+    private var shaftShaderH = -1f
+
     init {
         state.region = region.id
         state.inHome = false
@@ -151,14 +160,15 @@ class WorldScene(
             spawnKind == SpawnKind.FAST -> Dir.N      // 광장 한가운데를 바라본다
             else -> Dir.S
         }
-        player.bike = spawnKind == SpawnKind.SAVED && state.onBike
+        // 저장 위치 복귀·터널 이동 시에는 자전거 탑승 상태 유지 (터널을 지나도 내리지 않는다)
+        player.bike = (spawnKind == SpawnKind.SAVED || spawnKind == SpawnKind.TUNNEL) && state.onBike
 
         if (region.id !in state.visited) {
             state.visited.add(region.id)
-            game.hud.toast("첫 방문! ${region.name} 🎉")
+            game.hud.toast("첫 방문! ${region.name}")
         }
 
-        repeat(2) { trySpawnBird() }
+        spawnTimer = BirdEcology.nextInterval(state.worldTime, state.weather(), rnd)
         spawnCats()
 
         // 카메라 초기 스냅
@@ -314,7 +324,7 @@ class WorldScene(
         spawnTimer -= dt
         if (spawnTimer <= 0f) {
             trySpawnBird()
-            spawnTimer = ((if (state.isNight()) 2f else 2.5f) + rnd.nextFloat() * 3.5f) * weather.spawnK
+            spawnTimer = BirdEcology.nextInterval(state.worldTime, weather, rnd)
         }
 
         // 파티클
@@ -349,6 +359,8 @@ class WorldScene(
         streaks.update(dt, velX, velY, viewRig.speedFx, game.virtW.toFloat(), game.virtH.toFloat())
 
         // 디테일 연출 & NPC 말풍선 (보이는 영역은 카메라 리그가 알려 준다)
+        // 화면 크기는 따로 등록한다 — 화면 공간 비/눈 입자가 월드 시야·줌에 끌려다니지 않게
+        fx.setScreen(game.virtW.toFloat(), game.virtH.toFloat())
         fx.update(
             dt, game.time, state.worldTime, viewRig.x, viewRig.y,
             viewRig.viewW, viewRig.viewH, player.cx, player.cy
@@ -368,11 +380,11 @@ class WorldScene(
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
         game.hud.contextIcon = when {
-            nearestNpc() != null -> "💬"
-            nearTile(T.SIGN) != null -> "🪧"
-            nearTile(T.BENCH) != null -> "☕"
-            nearestCat() != null -> "🐈"
-            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "🚪"
+            nearestNpc() != null -> "note"
+            nearTile(T.SIGN) != null -> "map"
+            nearTile(T.BENCH) != null -> "coffee"
+            nearestCat() != null -> "bird"
+            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
             else -> null
         }
 
@@ -698,7 +710,7 @@ class WorldScene(
             hungerWarnT -= dt
             if (hungerWarnT <= 0f) {
                 hungerWarnT = 45f
-                game.toast("배고파요… 집에서 피자를 구워 먹어요! 🍕")
+                game.toast("배고파요… 집에서 피자를 구워 먹어요!")
             }
         }
     }
@@ -731,8 +743,9 @@ class WorldScene(
         val viaSea = targetId == "jeju" || map.region.id == "jeju"
         state.px = player.x
         state.py = player.y
+        state.onBike = player.bike   // 터널을 지나도 자전거 탑승 상태 유지
         SaveManager.save(game.context, state)
-        if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
+        if (viaSea) game.toast("해저 터널을 지나~")
         // 터널로 빨려 들어가는 느낌 — 살짝 광각으로 벌어지며 흔들린다
         viewRig.punchZoom(-0.055f)
         viewRig.shake(0.2f)
@@ -757,27 +770,33 @@ class WorldScene(
     // 새 스폰/촬영
     // -------------------------------------------------------------------
 
-    private fun luckBoost(def: BirdDef): Double =
-        1.0 + (state.effectiveLuck() / 100.0) * (def.tier.star - 1) * 1.4
-
     private fun regionPool(): List<BirdDef> {
-        val n = state.isNight()
-        val pool = Birds.poolFor(map.region, n, state.day, state.worldTime)
-        return if (pool.isEmpty()) Birds.poolFor(map.region, !n) else pool
+        // No opposite-time/season fallback: an empty habitat is a valid encounter outcome.
+        return Birds.poolFor(map.region, state.isNight(), state.day, state.worldTime)
     }
 
     private fun trySpawnBird() {
         if (birds.size >= 3) return
-        val pool = regionPool()
+        // Roll rarity first, independently of how many species the checklist contains.
+        // Missing tiers leave a quiet interval rather than promoting a rarity to certainty.
+        val tierWeights = Tier.values().associateWith {
+            BirdEcology.tierMass(it) * (1.0 + state.effectiveLuck().coerceIn(0f, 100f) / 100.0 * (it.star - 1) * 0.25)
+        }
+        var tierRoll = rnd.nextDouble() * tierWeights.values.sum()
+        val tier = Tier.values().firstOrNull {
+            tierRoll -= tierWeights.getValue(it)
+            tierRoll < 0.0
+        } ?: Tier.COMMON
+        val pool = regionPool().filter { it.tier == tier }
         if (pool.isEmpty()) return
 
         val currentWeather = state.weather()
         val currentSeason = state.season()
         val weights = pool.map {
             Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
-                    luckBoost(it) *
                     weatherBirdMultiplier(it, currentWeather) *
-                    seasonBirdMultiplier(it, currentSeason, currentWeather)
+                    seasonBirdMultiplier(it, currentSeason, currentWeather) *
+                    SpawnTables.weight(it, map.region.id, map.region.habitats, currentSeason, state.isNight()) // [P02] 계절×지역×시간대
         }
         var roll = rnd.nextDouble() * weights.sum()
         var def = pool[pool.size - 1]
@@ -786,10 +805,11 @@ class WorldScene(
             if (roll <= 0) { def = pool[i]; break }
         }
 
-        for (i in 0 until 30) {
+        for (i in 0 until 80) {
             val tx = 2 + rnd.nextInt(map.w - 4)
             val ty = 2 + rnd.nextInt(map.h - 4)
-            if (!map.walkableTile(tx, ty)) continue
+            val suitability = BirdEcology.suitability(def, map, tx, ty)
+            if (suitability <= 0.0 || rnd.nextDouble() >= suitability) continue
             val bx = tx * 16f + 1f
             val by = ty * 16f + 3f
             val dPlayer = hypot(bx - player.cx, by - player.cy)
@@ -799,17 +819,55 @@ class WorldScene(
                 if (hypot(b.x - bx, b.y - by) < 40f) { tooClose = true; break }
             }
             if (tooClose) continue
-            birds.add(FieldBird(def, bx, by))
-            if (def.tier.star >= 3) {
-                viewRig.punchZoom(0.03f)              // 희귀새 등장 — 숨을 죽이듯 살짝 당겨진다
-                game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
-                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
-            }
-            if (state.questBird == def.id) {
-                game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
-                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
-            }
+            val fieldBird = FieldBird(def, bx, by)
+            val firstPose = game.assets.birdPose(def.id, fieldBird.facing, fieldBird.renderPose)
+            fieldBird.sprW = (firstPose.width / WORLD_SCALE).toInt().coerceAtLeast(12)
+            fieldBird.sprH = (firstPose.height / WORLD_SCALE).toInt().coerceAtLeast(12)
+            // 커진 정밀 스프라이트도 기존 타일의 발 위치/중심에 정확히 착지시킨다.
+            fieldBird.x = bx + 8f - fieldBird.sprW / 2f
+            fieldBird.y = by + 9f - fieldBird.sprH
+            birds.add(fieldBird)
+            announceSpawn(def)
             return
+        }
+    }
+
+    /**
+     * 나타난 새의 등급(Tier)에 따라 알림 연출을 다르게 준다.
+     * 흔함일수록 조용하게, 희귀·전설일수록 화면·소리·문구가 점점 극적으로 커진다.
+     */
+    private fun announceSpawn(def: BirdDef) {
+        when (def.tier) {
+            Tier.COMMON -> {
+                // 흔한 새 — 주의를 끌지 않게 가벼운 지저귐만 (토스트 없음)
+                game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.45f)
+            }
+            Tier.UNCOMMON -> {
+                // 보통 새 — 짧은 토스트와 지저귐
+                game.toast("${def.name} 발견 — 등급 ${def.tier.label}")
+                game.sfx(Audio.Sfx.BIRD_CHIRP2, 0.65f)
+                viewRig.punchZoom(0.015f)
+            }
+            Tier.RARE -> {
+                // 희귀새 — 숨을 죽이듯 화면이 살짝 당겨지고 알림음
+                viewRig.punchZoom(0.03f)
+                game.toast("조심하세요… 희귀한 ${def.name}가 나타났어요!")
+                game.sfx(Audio.Sfx.NOTIFY, 0.8f)
+            }
+            Tier.LEGEND -> {
+                // 전설 — 배너 + 반짝 + 화면 당김/떨림으로 최대한 극적으로
+                viewRig.punchZoom(0.06f)
+                viewRig.shake(0.28f)
+                game.banner("전설의 ${def.name} 출현!")
+                game.toast("전설급 ${def.name} — 절대 놓치지 마세요!")
+                game.sfx(Audio.Sfx.SPARKLE, 1f)
+                game.sfx(Audio.Sfx.NOTIFY, 0.9f)
+            }
+        }
+        if (state.questBird == def.id) {
+            game.toast("의뢰의 새 ${def.name} 등장!")
+            // 흔함·보통이라 알림음이 약했다면 의뢰 알림음을 확실히 준다
+            if (def.tier.star < 3) game.sfx(Audio.Sfx.NOTIFY, 0.7f)
         }
     }
 
@@ -898,6 +956,33 @@ class WorldScene(
             viewRig.shake(0.22f)
         }
 
+        // 셔터 순간의 방향/자세와 현재 지형을 한 프레임으로 굳혀 사진집에 저장한다.
+        // 이후 새가 날아가거나 다른 지역으로 이동해도 이 사진은 그대로 남는다.
+        val photographedFacing = b.facing
+        val photographedPose = b.renderPose
+        val capturedPhoto = captureHabitatPhoto(b, photographedFacing, photographedPose)
+        val photoId = "${System.currentTimeMillis()}_${state.photos}"
+        val photoFile = PhotoArchive.save(game.context, photoId, capturedPhoto)
+        val photoRecord = BirdPhotoRecord(
+            id = photoId,
+            birdId = b.def.id,
+            stars = stars,
+            regionId = region.id,
+            day = state.day,
+            time = state.worldTime,
+            weatherId = state.weatherId,
+            facing = photographedFacing,
+            pose = photographedPose,
+            fileName = photoFile,
+            camera = rig.title,
+            distance = distTiles
+        )
+        state.photoAlbum.add(photoRecord)
+        while (state.photoAlbum.size > PhotoArchive.MAX_PHOTOS) {
+            val removed = state.photoAlbum.removeAt(0)
+            PhotoArchive.delete(game.context, removed.fileName)
+        }
+
         // 깃털 파티클
         for (i in 0 until 4) {
             addParticle(
@@ -929,9 +1014,105 @@ class WorldScene(
             prevLevel = prevLevel,
             reachTiles = rig.reach,
             exif = rig.exifLine(dark),
-            notes = notes
+            notes = notes,
+            capturedPhoto = capturedPhoto,
+            birdFacing = photographedFacing,
+            birdPose = photographedPose
         )
         snapDelay = 0.15f
+    }
+
+    /**
+     * 로데오 스템피드식 기념사진: 피사체는 중앙에 크게, 셔터를 누른 실제 타일/도로/물가/
+     * 건물/나무는 그대로 배경에 담는다. 결과 비트맵은 사진집 파일로 보존된다.
+     */
+    private fun captureHabitatPhoto(b: FieldBird, facing: BirdFacing, pose: BirdPose): Bitmap {
+        val w = 720
+        val h = 405
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bitmap)
+        val p = Paint().apply { isAntiAlias = false }
+        val camPhotoX = b.cx * WORLD_SCALE - w * 0.5f
+        val camPhotoY = b.cy * WORLD_SCALE - h * 0.60f
+
+        c.drawColor(0xFF8FC9DF.toInt())
+        val hour = state.worldTime
+        val dl = daylight(hour)
+        val sunT = ((hour - 12f) / 6f).coerceIn(-1.1f, 1.1f)
+        map.draw(
+            c, game.assets, camPhotoX, camPhotoY, w, h, game.time,
+            sunDx = sunT * 20f,
+            sunLen = 11f + kotlin.math.abs(sunT) * 13f,
+            sunAlpha = (50f * dl * weather.shadowK).toInt()
+        )
+        fx.drawGround(c, camPhotoX, camPhotoY, w, h)
+        grass.draw(
+            c, game.assets, camPhotoX, camPhotoY, w.toFloat(), h.toFloat(),
+            b.cy * WORLD_SCALE, GrassField.LAYER_BACK
+        )
+
+        // 시간대와 날씨도 촬영 당시 모습으로 굳힌다.
+        val dark = state.darkness()
+        if (dark > 0.02f) {
+            p.color = Color.argb((dark * 142f).toInt().coerceIn(0, 142), 12, 20, 48)
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+        }
+        when (weather) {
+            Weather.CLOUDY -> {
+                p.color = Color.argb(35, 82, 91, 105); c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            }
+            Weather.RAIN -> {
+                p.color = Color.argb(34, 54, 72, 92); c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+                p.color = Color.argb(150, 205, 225, 240)
+                for (i in 0 until 92) {
+                    val x = ((i * 83 + b.def.birdNum * 17) % (w + 50)).toFloat() - 25f
+                    val y = ((i * 47 + state.day * 23) % h).toFloat()
+                    c.drawRect(x, y, x + 1.4f, y + 12f, p)
+                }
+            }
+            Weather.SNOW -> {
+                p.color = Color.argb(210, 250, 252, 255)
+                for (i in 0 until 74) {
+                    val x = ((i * 97 + b.def.birdNum * 13) % w).toFloat()
+                    val y = ((i * 53 + state.day * 29) % h).toFloat()
+                    val rr = 1.3f + (i % 4) * 0.55f
+                    c.drawCircle(x, y, rr, p)
+                }
+            }
+            Weather.WIND -> {
+                p.color = Color.argb(65, 238, 244, 242)
+                for (i in 0 until 9) {
+                    val y = 32f + i * 39f
+                    c.drawRect(30f + (i % 3) * 54f, y, 188f + (i % 3) * 54f, y + 1.2f, p)
+                }
+            }
+            else -> Unit
+        }
+
+        // 큰 피사체 아래에도 원래 지면이 충분히 보이도록 반투명 접지 그림자만 얹는다.
+        val subject = game.assets.birdPose(b.def.id, facing, pose)
+        val maxW = w * 0.43f
+        val maxH = h * 0.54f
+        val scale = minOf(maxW / subject.width, maxH / subject.height)
+        val sw = subject.width * scale
+        val sh = subject.height * scale
+        val sx = w / 2f - sw / 2f
+        val sy = h * 0.53f - sh / 2f
+        p.color = Color.argb(76, 24, 30, 24)
+        c.drawOval(RectF(w / 2f - sw * 0.34f, sy + sh * 0.86f, w / 2f + sw * 0.34f, sy + sh * 0.99f), p)
+        game.assets.sprPaint.alpha = 255
+        c.drawBitmap(subject, null, RectF(sx, sy, sx + sw, sy + sh), game.assets.sprPaint)
+
+        // 렌즈 비네트. 배경은 보존하되 중앙의 새로 시선이 모인다.
+        for (i in 0 until 6) {
+            val band = 10f + i * 7f
+            p.color = Color.argb(10 + i * 3, 18, 16, 24)
+            c.drawRect(0f, band, 8f, h - band, p)
+            c.drawRect(w - 8f, band, w.toFloat(), h - band, p)
+            c.drawRect(band, 0f, w - band, 6f, p)
+            c.drawRect(band, h - 6f, w - band, h.toFloat(), p)
+        }
+        return bitmap
     }
 
     private fun trySnapAt(vx: Float, vy: Float) {
@@ -946,7 +1127,7 @@ class WorldScene(
         }
         val target = best
         if (target == null) {
-            game.toast("그곳엔 새가 없어요… 새 근처를 탭해 주세요")
+            game.toast("그곳엔 새가 없어요…")
             return
         }
         val rig = state.rig()
@@ -966,7 +1147,7 @@ class WorldScene(
             var miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star)
             if (miss && rig.burstRetry()) {
                 miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star) * 0.5f
-                if (!miss) game.toast("연사로 겨우 건졌어요! 📸")
+                if (!miss) game.toast("연사로 겨우 건졌어요!")
             }
             if (miss) {
                 game.toast("초점을 놓쳤어요… 움직이는 새엔 빠른 AF가 필요해요")
@@ -1003,8 +1184,12 @@ class WorldScene(
         }
     }
 
+    // 입자 좌표 소유권 — 혼동 금지!
+    //  - 월드 공간(카메라를 따라 움직임): 꽃잎·낙엽·반딧불·바람결 등 여기(spawnAmbient)의 입자
+    //  - 화면 공간(캐릭터 이동과 무관): 비·눈 — WorldFx(drawWeather)가 화면 전체에 직접 그린다.
+    //    비/눈을 월드 입자로 옮기면 카메라에 붙어 같이 밀리므로 절대 옮기지 않는다.
     private fun ambientKind(): String = when {
-        weather == Weather.RAIN || weather == Weather.SNOW -> "none"     // 비/눈은 WorldFx가 화면 전체에 그린다
+        weather == Weather.RAIN || weather == Weather.SNOW -> "none"
         weather == Weather.WIND -> "wind"
         "coast" in region.habitats -> "sparkle"
         "wetland" in region.habitats -> if (state.isNight()) "firefly" else "petal"
@@ -1023,11 +1208,6 @@ class WorldScene(
         val viewW = viewRig.viewW
         val viewH = viewRig.viewH
         when (ambientKind()) {
-            "rain" -> addParticle(
-                viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                -18f + rnd.nextFloat() * 8f, 80f + rnd.nextFloat() * 35f, 1.8f,
-                Color.argb(150, 100, 160, 210), 1.5f, false
-            )
             "wind" -> addParticle(
                 viewX - 8f, viewY + rnd.nextFloat() * viewH,
                 55f + rnd.nextFloat() * 35f, -8f + rnd.nextFloat() * 16f, 3f,
@@ -1042,11 +1222,6 @@ class WorldScene(
                 viewX + rnd.nextFloat() * viewW, viewY - 8f,
                 8f + rnd.nextFloat() * 8f, 6f + rnd.nextFloat() * 5f, 4.5f,
                 Color.argb(150, 242, 163, 179), 3f, true
-            )
-            "snow" -> addParticle(
-                viewX + rnd.nextFloat() * viewW, viewY - 8f,
-                (rnd.nextFloat() - 0.5f) * 6f, 8f + rnd.nextFloat() * 5f, 5f,
-                Color.argb(190, 240, 246, 252), 2.6f, true
             )
             "sparkle" -> addParticle(
                 viewX + rnd.nextFloat() * viewW, viewY + rnd.nextFloat() * viewH,
@@ -1130,13 +1305,13 @@ class WorldScene(
         val ty = (vy / 16f).toInt()
         if (map.t(tx, ty) == T.SIGN) {
             val target = signTarget(tx, ty)
-            if (target != null) game.toast("🪧 ${directionName(signDirection(tx, ty))} 터널 → ${target.name}")
+            if (target != null) game.toast("${directionName(signDirection(tx, ty))} 터널 · ${target.name}")
         }
     }
 
     private fun restAtBench() {
         state.luck = (state.luck + 2f).coerceAtMost(100f)
-        game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
+        game.toast("벤치에 앉아 쉬었다~ 구름 구경 +2")
         game.sfx(Audio.Sfx.SPARKLE, 0.55f)
     }
 
@@ -1155,6 +1330,7 @@ class WorldScene(
     }
 
     private fun talkTo(npc: Npc) {
+        if (SideStories.intercept(this, npc)) return   // [P08] 사이드 스토리 진행 중이면 우선
         when {
             npc.person.isQuestGiver -> talkProfessor()
             npc.person.isShop -> talkShop()
@@ -1165,24 +1341,17 @@ class WorldScene(
     /**
      * 동네 사람 잡담 — 이 지역, 이 자리에서만 하는 말이다.
      *
-     *  - 이웃 주민(`resident`)은 지역 소개(`RegionDef.villager`)와 현재 장에 맞는 관찰 예절을 먼저 말한다.
+     *  - 이웃 주민(`resident`)은 [P08] 조건부 대사(지역 소개 + 장별 관찰 예절 + 계절/날씨/밤)
+     *    에 그 사람 자신의 한마디를 잇는다.
      *  - 고유 캐릭터는 자기 자리(호숫가 데크·갈대밭·시장 골목…)에 어울리는 이야기를 한다.
-     *  - 보고할 메인 기록이 있는데 보리 박사가 다른 지역에 있으면 🚲 이동 선택지를 붙여 준다
+     *  - 보고할 메인 기록이 있는데 보리 박사가 다른 지역에 있으면 🚲 이동 택지를 붙여 준다
      *    (박사는 광릉숲에만 산다 — `NpcRoster`).
      */
     private fun talkNeighbor(npc: Npc) {
         val person = npc.person
         val own = person.lines[rnd.nextInt(person.lines.size)]
         val text = if (person.resident) {
-            val storyHint = when (state.mainQuestStage) {
-                0, 1 -> "멀리 가기 전에도 창밖의 새부터 천천히 보면 좋아요."
-                2 -> "숲에서 나무 구멍을 발견해도 가까이 들여다보면 안 돼요. 둥지일 수 있거든요."
-                3 -> "물가 새는 건너편에서 봐도 충분히 아름다워요."
-                4 -> "철새가 쉬는 곳에서는 무리 쪽으로 걷지 않는 게 이 동네 약속이에요."
-                5 -> "갯벌에는 사람 눈에 안 보이는 새들의 식탁이 아주 많대요."
-                else -> "희귀새 위치를 바로 퍼뜨리기 전에 새가 안전할지 한 번 생각해 주세요."
-            }
-            "\"${map.region.villager}\n$storyHint\"\n\n\"$own\""
+            "${Dialogues.villager(SideStories.ctx(this))}\n\n\"$own\""
         } else {
             "\"$own\""
         }
@@ -1258,13 +1427,13 @@ class WorldScene(
         val objective = chapter.objective(state)
         val advice = MainQuestAdvisor.advise(state)
         val adviceLine = advice?.let { adv ->
-            if (adv.alreadyThere) "\n📍 ${adv.tip}" else "\n📍 추천 장소: ${adv.regionName}"
+            if (adv.alreadyThere) "\n${adv.tip}" else "\n추천 장소: ${adv.regionName}"
         } ?: ""
         openOverlay(
             DialogOverlay(
                 this, chapter.title,
                 "\"${chapter.intro}\"\n\n목표: $objective" +
-                    (if (ready) "\n✓ 기록을 정리할 준비가 됐어요." else "") + adviceLine,
+                    (if (ready) "\n기록을 정리할 준비가 됐어요." else "") + adviceLine,
                 buildList {
                     if (!state.mainQuestStarted) {
                         add(DialogOverlay.Choice("수첩을 이어 쓸게요") { completeMainChapter(chapter) })
@@ -1275,7 +1444,7 @@ class WorldScene(
                     }
                     advice?.let { adv ->
                         if (!adv.alreadyThere && adv.regionId != state.region) {
-                            add(DialogOverlay.Choice("🚲 이동하기") { fastTravel(game, adv.regionId) })
+                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
                         }
                     }
                     add(DialogOverlay.Choice("사진 의뢰 보기") { showSideQuest() })
@@ -1328,7 +1497,7 @@ class WorldScene(
                             state.questBird = def.id
                             state.questReward = def.reward
                             SaveManager.save(game.context, state)
-                            game.toast("서브 의뢰 접수: ${def.name} 사진 📷")
+                            game.toast("서브 의뢰 접수: ${def.name} 사진")
                             game.sfx(Audio.Sfx.NOTIFY, 0.8f)
                         },
                         DialogOverlay.Choice("다른 일을 할게요"))
@@ -1371,7 +1540,7 @@ class WorldScene(
                     DialogOverlay.Choice("장비 가방(조립)") {
                         it.scene.openOverlay(GearBagOverlay(it.scene))
                     },
-                    DialogOverlay.Choice("자전거 상점 🚲") {
+                    DialogOverlay.Choice("자전거 상점") {
                         it.scene.openOverlay(BikeShopOverlay(it.scene))
                     },
                     DialogOverlay.Choice("장식 코너") {
@@ -1420,7 +1589,7 @@ class WorldScene(
             viewRig.punchZoom(if (player.bike) -0.02f else 0.02f)
             game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
             game.toast(
-                if (player.bike) "${state.bike().name} 탔다! 쌩~ 🚲"
+                if (player.bike) "${state.bike().name} 탔다! 쌩~"
                 else "${state.bike().name}에서 내렸어요"
             )
             return
@@ -1434,7 +1603,7 @@ class WorldScene(
             nearTile(T.SIGN)?.let { (sx, sy) ->
                 val target = signTarget(sx, sy)
                 if (target != null) {
-                    game.toast("🪧 ${directionName(signDirection(sx, sy))} 터널 → ${target.name}")
+                    game.toast("${directionName(signDirection(sx, sy))} 터널 · ${target.name}")
                     return
                 }
             }
@@ -1453,7 +1622,7 @@ class WorldScene(
                         Color.argb(220, 242, 130, 160), 3.4f, true
                     )
                 }
-                game.toast("야옹~ 🐈 좋은 기운이 든다 (행운+1)")
+                game.toast("야옹~ 좋은 기운이 든다 (행운+1)")
                 return
             }
             if (map.hasHouse) {
@@ -1464,7 +1633,6 @@ class WorldScene(
                     return
                 }
             }
-            game.toast("주민·이정표·벤치·고양이에게 다가가 육각 메인 버튼을 눌러보세요!")
             return
         }
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
@@ -1487,14 +1655,7 @@ class WorldScene(
             // 고양이 탭
             for (cat in cats) {
                 if (hypot(cat.cx - tap.x, cat.cy - tap.y) < 14f) {
-                    game.toast("야옹~ 🐈")
-                    return
-                }
-            }
-            // 새 탭 (힌트)
-            for (b in birds) {
-                if (b.state != 2 && hypot(b.cx - tap.x, b.cy - tap.y) < 14f) {
-                    game.toast("카메라 버튼을 누르고 찍어보세요! 📷")
+                    game.toast("야옹~")
                     return
                 }
             }
@@ -1515,7 +1676,6 @@ class WorldScene(
             game.hud.questLabel = null
             viewfinder.onEnter()
             game.haptic()
-            game.toast("📷 카메라 모드 — 새를 탭해 촬영하세요")
         } else {
             game.hud.showStats = true
             game.hud.showMinimap = true
@@ -1526,7 +1686,7 @@ class WorldScene(
     private fun quickEat() {
         val pid = state.eatBest()
         if (pid == null) {
-            game.toast("피자가 없어요! 집의 화덕이나 오븐에서 구워요 🍕")
+            game.toast("피자가 없어요!")
             game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val p = Pizzas.of(pid)
@@ -1570,6 +1730,9 @@ class WorldScene(
         // 지면은 흔들림·기울기로 가장자리가 비지 않게 PAD 만큼 넓게 그린다
         c.save()
         c.translate(-padX, -padY)
+        // 이정표는 가까이 갔을 때만 보인다 — 발 위치 기준(지도 렌더 좌표 = 월드 × WORLD_SCALE)
+        map.signViewerX = player.cx * WORLD_SCALE
+        map.signViewerY = (player.y + 13f) * WORLD_SCALE
         map.draw(
             c, game.assets, camXv - padX, camYv - padY, padW, padH, game.time,
             sunDx = sunT * 22f, sunLen = 12f + abs(sunT) * 14f, sunAlpha = sunAlpha
@@ -1612,7 +1775,8 @@ class WorldScene(
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
         seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
-        fx.drawWeather(c, game.virtW, game.virtH)
+        fx.drawWeather(c)
+        atmosphere.draw(c, vw, vh, hour, weather, game.time)
         if (viewRig.speedFx > 0.02f) {
             speedVignette.draw(c, vw, vh, viewRig.speedFx)
             streaks.draw(c, velX, velY, viewRig.speedFx)
@@ -1673,7 +1837,7 @@ class WorldScene(
     private fun sortY(e: Any): Float = when (e) {
         is Npc -> e.y + 14f
         is Cat -> e.y + 12f
-        is FieldBird -> e.y + game.assets.bird(e.def.id).height / WORLD_SCALE
+        is FieldBird -> e.y + e.sprH
         is Player -> e.y + 14f
         else -> 0f
     }
@@ -1686,10 +1850,8 @@ class WorldScene(
                 val bmp = a.npcBitmap(e.person, game.time, e.tileX * 0.37f + e.tileY * 0.71f)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE
-                c.drawOval(
-                    RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f),
-                    a.shadowPaint
-                )
+                scratchRect.set(sx + 8f, sy + 26f, sx + 24f, sy + 32f)
+                c.drawOval(scratchRect, a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 메인 보고 가능 또는 새 서브 의뢰가 있으면 느낌표 표시
                 if (e.kind == NpcKind.PROFESSOR) {
@@ -1705,13 +1867,22 @@ class WorldScene(
                         val tw = tinyPaint.measureText("!")
                         c.drawText("!", bx - tw / 2, by + 5f, tinyPaint)
                     }
+                } else if (SideStories.hasMarker(game.context, map.region.id, e.person)) {
+                    // [P08] 사이드 스토리 대기/진행 중인 NPC 머리 위 💬 마커 (에피소드 완료 시 사라짐)
+                    val bx = sx + 16f
+                    val by = sy - 12f
+                    bubbleFill.color = 0xFF8FC7F0.toInt()
+                    c.drawCircle(bx, by, 9f, bubbleFill)
+                    c.drawCircle(bx, by, 9f, bubbleStroke)
+                    UiKit.iconCenter(c, game, "note", bx, by, 14f)
                 }
             }
             is Cat -> {
                 val bmp = a.catBitmap(e.walking, e.phase, e.faceLeft)
                 val sx = (e.x - camX) * WORLD_SCALE
                 val sy = (e.y - camY) * WORLD_SCALE - e.lift * WORLD_SCALE
-                c.drawOval(RectF(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f), a.shadowPaint)
+                scratchRect.set(sx + 8f, (e.cy - camY) * WORLD_SCALE + 6f, sx + 24f, (e.cy - camY) * WORLD_SCALE + 12f)
+                c.drawOval(scratchRect, a.shadowPaint)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
                 // 밤에 웅크린 고양이는 쿨쿨
                 if (e.state == 0 && state.isNight()) {
@@ -1727,25 +1898,24 @@ class WorldScene(
                 val bmp = if (flying) {
                     val wingFrame = ((e.fleeT * 11f).toInt() and 1)
                     a.birdFlight(e.def.id, wingFrame, e.faceLeft)
-                } else if (e.faceLeft) {
-                    a.bird(e.def.id)
                 } else {
-                    a.birdFlipped(e.def.id)
+                    a.birdPose(e.def.id, e.facing, e.renderPose)
                 }
-                val bx = (e.x - camX) * WORLD_SCALE
-                val by = (e.y - camY) * WORLD_SCALE - e.hopLift * WORLD_SCALE
+                // 자세마다 투명 여백/크기가 달라도 몸 중심과 발 위치는 고정한다.
+                // 덕분에 정면↔옆면 전환 때 새가 순간이동하거나 땅에 파묻히지 않는다.
+                val bx = (e.cx - camX) * WORLD_SCALE - bmp.width / 2f
+                val by = (e.y + e.sprH - camY) * WORLD_SCALE - bmp.height - e.hopLift * WORLD_SCALE
                 // 날아오르면 땅의 그림자가 빠르게 작아져 입체감이 생긴다.
                 if (!flying || e.fleeT < 0.32f) {
                     val shadowK = if (flying) (1f - e.fleeT / 0.32f).coerceIn(0.2f, 1f) else 1f
                     val shadowCx = bx + bmp.width * 0.5f
                     val shadowHalf = bmp.width * 0.4f * shadowK
-                    c.drawOval(
-                        RectF(
-                            shadowCx - shadowHalf, (e.cy - camY) * WORLD_SCALE + 7f,
-                            shadowCx + shadowHalf, (e.cy - camY) * WORLD_SCALE + 12f
-                        ),
-                        a.shadowPaint
+                    val groundY = (e.y + e.sprH - camY) * WORLD_SCALE
+                    scratchRect.set(
+                        shadowCx - shadowHalf, groundY - 2f,
+                        shadowCx + shadowHalf, groundY + 4f
                     )
+                    c.drawOval(scratchRect, a.shadowPaint)
                 }
                 if (flying) {
                     val alpha = (255 * (1f - (e.fleeT / 1.5f).coerceIn(0f, 1f))).toInt()
@@ -1773,7 +1943,8 @@ class WorldScene(
                     else -> 1f
                 }
                 val half = 10f * k
-                c.drawOval(RectF(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k), a.shadowPaint)
+                scratchRect.set(sx + 16f - half, sy + 25f - 1f * k, sx + 16f + half, sy + 31f + 1f * k)
+                c.drawOval(scratchRect, a.shadowPaint)
                 drawGhosts(c, bmp)
                 c.drawBitmap(bmp, sx, sy, a.sprPaint)
 
@@ -1829,7 +2000,8 @@ class WorldScene(
             val span = map.w * 32f + 800f
             val cxw = ((game.time * speed + i * 430f) % span) - 400f
             val cyw = 110f + (i % 3) * 200f + (i / 3) * 110f + sin(game.time * 0.13f + i * 2f) * 50f
-            c.drawOval(RectF(cxw - camXv - w / 2f, cyw - camYv - 60f, cxw - camXv + w / 2f, cyw - camYv + 60f), cloudPaint)
+            scratchRect.set(cxw - camXv - w / 2f, cyw - camYv - 60f, cxw - camXv + w / 2f, cyw - camYv + 60f)
+            c.drawOval(scratchRect, cloudPaint)
         }
     }
 
@@ -1968,23 +2140,30 @@ class WorldScene(
         }
         if (warm > 0.02f) {
             val a = (52f * warm).toInt().coerceIn(0, 255)
-            glowFill.shader = LinearGradient(
-                0f, 0f, 0f, vh * 0.72f,
-                Color.argb(a, 255, 178, 96), Color.argb(0, 255, 178, 96),
-                Shader.TileMode.CLAMP
-            )
+            // 그라디언트는 한 번만 만들고, 밝기는 페인트 알파로 조절한다 —
+            // 새벽/노을 동안 매 프레임 LinearGradient를 새로 만들지 않는다.
+            var sh = shaftShader
+            if (sh == null || shaftShaderH != vh) {
+                sh = LinearGradient(
+                    0f, 0f, 0f, vh * 0.72f,
+                    Color.argb(255, 255, 178, 96), Color.argb(0, 255, 178, 96),
+                    Shader.TileMode.CLAMP
+                )
+                shaftShader = sh
+                shaftShaderH = vh
+            }
+            glowFill.shader = sh
+            glowFill.alpha = a
             c.drawRect(0f, 0f, vw, vh, glowFill)
+            glowFill.alpha = 255
             glowFill.shader = null
         }
     }
 
     /** 비네트 — 화면 가장자리를 은은하게 어둡게 */
     private fun drawVignette(c: Canvas) {
-        c.drawBitmap(
-            game.assets.vignette, null,
-            RectF(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat()),
-            vignettePaint
-        )
+        scratchRect.set(0f, 0f, game.virtW.toFloat(), game.virtH.toFloat())
+        c.drawBitmap(game.assets.vignette, null, scratchRect, vignettePaint)
     }
 
 
@@ -2005,13 +2184,13 @@ class WorldScene(
             n.emoteCd = 7f + rnd.nextFloat() * 8f
             if (n.kind == NpcKind.PROFESSOR && state.questBird == null) continue   // "!" 말풍선이 우선
             val rainy = weather == Weather.RAIN
-            // 사람마다 자기 이모트를 갖고 있으면 그것을 쓴다 (라이더 🚲, 화가 🎨, 낚시꾼 🎣 …)
+            // 사람마다 자기 이모트를 갖고 있으면 그것을 쓴다 (라이더 · 화가 · 낚시꾼 …)
             val opts = n.person.emotes ?: when (n.kind) {
-                NpcKind.VILLAGER -> if (rainy) listOf("☔", "💧", "…") else listOf("♪", "🌸", "🐦")
-                NpcKind.KID -> if (night) listOf("🥱", "🌙") else if (rainy) listOf("☔", "💦") else listOf("♪", "!", "🦋", "😆")
-                NpcKind.ELDER -> if (night) listOf("💤", "🌙") else if (rainy) listOf("☔", "🍵") else listOf("…", "🍵", "☀️")
-                NpcKind.SHOP -> listOf("📷", "✨", "💰")
-                NpcKind.PROFESSOR -> listOf("🔍", "📖", "🐦")
+                NpcKind.VILLAGER -> if (rainy) listOf("rain", "sparkle", "…") else listOf("music", "sparkle", "bird")
+                NpcKind.KID -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "sparkle") else listOf("music", "!", "sparkle", "bird")
+                NpcKind.ELDER -> if (night) listOf("moon", "sparkle") else if (rainy) listOf("rain", "coffee") else listOf("…", "coffee", "sun")
+                NpcKind.SHOP -> listOf("camera", "sparkle", "coin")
+                NpcKind.PROFESSOR -> listOf("search", "book", "bird")
             }
             n.emote = opts[rnd.nextInt(opts.size)]
             n.emoteT = 2.6f
@@ -2055,16 +2234,21 @@ class WorldScene(
             val cx = sx + 16f
             val by = top - 4f - (1f - appear) * 4f + sin(game.time * 3f) * 1.2f
             uiFill.color = Color.argb(a, 253, 250, 240)
-            c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiFill)
-            val tail = Path()
-            tail.moveTo(cx - 4f, by - 1f); tail.lineTo(cx, by + 5f); tail.lineTo(cx + 4f, by - 1f); tail.close()
-            c.drawPath(tail, uiFill)
+            scratchRect.set(cx - 12f, by - 18f, cx + 12f, by)
+            c.drawRoundRect(scratchRect, 7f, 7f, uiFill)
+            scratchPath.reset()
+            scratchPath.moveTo(cx - 4f, by - 1f); scratchPath.lineTo(cx, by + 5f); scratchPath.lineTo(cx + 4f, by - 1f); scratchPath.close()
+            c.drawPath(scratchPath, uiFill)
             uiStroke.strokeWidth = 1.4f
             uiStroke.color = Color.argb(a, 107, 79, 53)
-            c.drawRoundRect(RectF(cx - 12f, by - 18f, cx + 12f, by), 7f, 7f, uiStroke)
-            val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
-            val ew = ep.measureText(em)
-            c.drawText(em, cx - ew / 2, by - 5f, ep)
+            c.drawRoundRect(scratchRect, 7f, 7f, uiStroke)
+            if (UiKit.iconName(em) != null) {
+                UiKit.iconCenter(c, game, em, cx, by - 10f, 15f)
+            } else {
+                val ep = Type.paintPx(12f, false, 0f, Color.argb(a, 74, 55, 40))
+                val ew = ep.measureText(em)
+                c.drawText(em, cx - ew / 2, by - 5f, ep)
+            }
         }
     }
 
@@ -2097,7 +2281,7 @@ class WorldScene(
             val np = Type.paintPx(12f, true, 0.02f, 0xFF4A2E12.toInt())
             val numTxt = tunnel.number.toString()
             val tw = np.measureText(numTxt)
-            c.drawText(numTxt, badgeCx - tw / 2f, badgeCy + 4f, np)
+            c.drawText(numTxt, badgeCx - tw / 2f, badgeCy - (np.descent() + np.ascent()) / 2f, np)
 
             // 가까우면 목적지 라벨도
             val distToPlayer = hypot(tunnel.cx - player.cx, tunnel.cy - player.cy)
@@ -2107,62 +2291,16 @@ class WorldScene(
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(label)
                 uiFill.color = Color.argb(200, 58, 52, 74)
-                c.drawRoundRect(RectF(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f), 6f, 6f, uiFill)
-                c.drawText(label, badgeCx - lw / 2, badgeCy + 21f, lp)
+                scratchRect.set(badgeCx - lw / 2 - 6f, badgeCy + 12f, badgeCx + lw / 2 + 6f, badgeCy + 26f)
+                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
+                c.drawText(label, badgeCx - lw / 2, scratchRect.centerY() - (lp.descent() + lp.ascent()) / 2f, lp)
             }
         }
     }
 
-    /** 현재 위치에서 각 터널로 가는 방향을 번호와 함께 표시 */
+    /** 광장 근처에서만 전체 출구 안내판 표시 (캐릭터 옆 터널 방향 힌트는 띄우지 않는다) */
     private fun drawExitHints(c: Canvas) {
         if (map.tunnels.isEmpty()) return
-        val pSx = (player.cx - camX) * WORLD_SCALE
-        val pSy = (player.cy - camY) * WORLD_SCALE
-        val screenR = 52f
-
-        for (tunnel in map.tunnels) {
-            val dx = tunnel.cx - player.cx
-            val dy = tunnel.cy - player.cy
-            val dist = hypot(dx, dy)
-            if (dist < 1f) continue
-            // 터널 바로 앞에서는 힌트 생략 — 터널 뱃지가 이미 보임
-            if (dist < 90f) continue
-            val nx = dx / dist
-            val ny = dy / dist
-
-            val ix = pSx + nx * screenR + 16f
-            val iy = pSy + ny * screenR
-
-            val target = Regions.byId[tunnel.targetId]
-            val targetName = target?.name ?: tunnel.targetId
-
-            // 번호 원
-            bubbleFill.color = Color.argb(190, 253, 250, 240)
-            c.drawCircle(ix, iy, 10f, bubbleFill)
-            bubbleStroke.color = 0xFFF2B63C.toInt()
-            bubbleStroke.strokeWidth = 1.6f
-            c.drawCircle(ix, iy, 10f, bubbleStroke)
-
-            val np = Type.paintPx(10f, true, 0.02f, 0xFF4A2E12.toInt())
-            val numTxt = tunnel.number.toString()
-            val tw = np.measureText(numTxt)
-            c.drawText(numTxt, ix - tw / 2, iy + 3.5f, np)
-
-            // 방향 화살표
-            val arrow = Regions.dirArrow(tunnel.dir)
-            val ap = Type.paintPx(11f, true, 0f, 0xFFF2B63C.toInt())
-            c.drawText(arrow, ix + 12f, iy + 4f, ap)
-
-            if (dist < 240f) {
-                val lp = Type.paintPx(9f, false, 0f, Color.argb(210, 58, 52, 74))
-                val label = "${tunnel.number}. $targetName"
-                val lw = lp.measureText(label)
-                uiFill.color = Color.argb(175, 255, 252, 240)
-                c.drawRoundRect(RectF(ix + 18f, iy - 8f, ix + 18f + lw + 8f, iy + 6f), 5f, 5f, uiFill)
-                c.drawText(label, ix + 22f, iy + 3f, lp)
-            }
-        }
-
         // 광장 근처에서는 전체 출구 안내판 (지하철 출입구 종합 안내처럼)
         val plazaCx = 21f * 16f + 8f
         val plazaCy = 15f * 16f + 8f
@@ -2179,7 +2317,8 @@ class WorldScene(
                 val lp = Type.paintPx(10f, true, 0.01f, 0xFFF8EFDC.toInt())
                 val lw = lp.measureText(line)
                 uiFill.color = Color.argb(210, 58, 52, 74)
-                c.drawRoundRect(RectF(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f), 6f, 6f, uiFill)
+                scratchRect.set(sx - lw / 2 - 8f, curY - 12f, sx + lw / 2 + 8f, curY + 2f)
+                c.drawRoundRect(scratchRect, 6f, 6f, uiFill)
                 bubbleFill.color = 0xFFF2B63C.toInt()
                 c.drawCircle(sx - lw / 2 - 4f, curY - 5f, 8f, bubbleFill)
                 val np = Type.paintPx(9f, true, 0.02f, 0xFF4A2E12.toInt())

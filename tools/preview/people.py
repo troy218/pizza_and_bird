@@ -294,9 +294,9 @@ def render(direction, pose, look):
 
     ground = 31.4
     footH = 1.7 * sc
-    legLen = 7.5 * sc
-    thigh, shin = 3.9 * sc, 3.6 * sc
-    torsoH = 6.7 * sc
+    legLen = 8.3 * sc
+    thigh, shin = 4.2 * sc, 3.9 * sc
+    torsoH = 6.1 * sc
     headR = 6.5 * sc
     headGap = 6.3 * sc
 
@@ -319,11 +319,11 @@ def render(direction, pose, look):
     else:
         tL, tR = shoulderX - 6.2 * sc, shoulderX + 6.2 * sc
 
-    hipHalf = 3.1 * sc
+    hipHalf = 2.45 * sc
     shHalf = (5.0 if direction == SIDE else 7.0) * sc
 
     def leg_root(side):
-        return hipX + side * hipHalf * (0.35 if direction == SIDE else 1.0)
+        return hipX + side * hipHalf * (0.5 if direction == SIDE else 1.0)
 
     def arm_root(side):
         y = shoulderY + 1.3 * sc + (pose.shoulderR if side > 0 else pose.shoulderL)
@@ -379,10 +379,10 @@ def render(direction, pose, look):
     # ---- 몸통 본체 -------------------------------------------------------
     def draw_torso():
         top = shoulderY - 0.6
-        bot = hipY + 1.4 * sc
+        bot = hipY + 2.3 * sc
         bw = pose.breath * 0.32
-        g.rrect(tL - 0.9 - bw, top - 0.9, tR + 0.9 + bw, bot + 0.9, 3.8 * sc, pal.line)
-        g.rrect(tL - bw, top, tR + bw, bot, 3.3 * sc, pal.top)
+        g.rrect(tL - 0.9 - bw, top - 0.9, tR + 0.9 + bw, bot + 0.6, 3.0 * sc, pal.line)
+        g.rrect(tL - bw, top, tR + bw, bot, 2.6 * sc, pal.top)
         if direction == SIDE:
             g.rrect(tL + (tR - tL) * 0.45, top + 0.8, tR - 0.4, bot - 0.5, 2.2 * sc, pal.top2)
         else:
@@ -622,14 +622,40 @@ def render(direction, pose, look):
 # 자전거 (페달을 밟는 라이더)
 # ---------------------------------------------------------------------------
 
-BIKE_COL = 0xFFC9503A
-BIKE_DARK = 0xFF8A3326
-TIRE = 0xFF3A3A44
-TIRE_IN = 0xFF5A5A66
 RIM = 0xFF23232B
 METAL = 0xFF9AA0AD
-HELMET = 0xFFD9534F
-HELMET_DARK = 0xFFB23F44
+
+
+def _draw_rider_cap(g, look, pal, hx, hy, head_r, direction, sway):
+    """라이더의 탐조 모자 — 자전거를 타도 걸을 때(draw_cap)와 같은 모습."""
+    gear = look.gear
+    if gear is None or gear.cap is None:
+        return
+    cw = head_r + 0.7
+    cap_top = hy - head_r - 1.4
+    cap_bot = hy - head_r * 0.18
+    g.rrect(hx - cw - 0.4, cap_top - 0.4, hx + cw + 0.4, cap_bot + 0.3, 2.2, pal.line)
+    g.rrect(hx - cw, cap_top, hx + cw, cap_bot, 2.1, gear.cap)
+    g.rect(hx - cw + 0.6, cap_top + 0.4, hx + cw - 0.6, cap_top + 1.8, gear.capDark)
+    if direction == SIDE:
+        if gear.brim:
+            g.rrect(hx - cw - 1, cap_bot - 1, hx + cw + 2.1, cap_bot + 0.4, 0.8, pal.line)
+            g.rrect(hx - cw - 0.7, cap_bot - 1, hx + cw + 1.8, cap_bot + 0.1, 0.7, gear.cap)
+        else:
+            g.rect(hx + 1.5, cap_bot - 1, hx + cw + 2.1, cap_bot - 0.1, pal.line)
+            g.rect(hx + 1.5, cap_bot - 0.9, hx + cw + 1.8, cap_bot - 0.4, gear.capDark)
+    elif direction == FRONT:
+        if gear.brim:
+            g.rrect(hx - cw - 1.7, cap_bot - 1, hx + cw + 1.7, cap_bot + 0.6, 0.9, pal.line)
+            g.rrect(hx - cw - 1.3, cap_bot - 1, hx + cw + 1.3, cap_bot + 0.3, 0.8, gear.cap)
+        else:
+            g.rect(hx - cw + 0.5, cap_bot - 1, hx + cw - 0.5, cap_bot + 0.5, pal.line)
+            g.rect(hx - cw + 0.8, cap_bot - 0.9, hx + cw - 0.8, cap_bot + 0.2, gear.capDark)
+    if gear.feather is not None:
+        fx = hx + (-cw + 0.9 if direction == SIDE else cw - 0.9)
+        fs = sway * 0.6
+        g.seg(fx, cap_top + 1, fx + fs - 0.7, cap_top - 1.7, 0.65, 0.4, gear.feather)
+        g.circ(fx + fs - 0.75, cap_top - 1.7, 0.55, gear.feather)
 
 
 def ik2(hx, hy, tx, ty, l1, l2, sign):
@@ -644,8 +670,71 @@ def ik2(hx, hy, tx, ty, l1, l2, sign):
     return bx + (-uy) * h * sign, by + ux * h * sign
 
 
-def render_bike(direction, phase, look, pal_override=None):
+# 자전거 도색·외형 — Data.kt의 BikeColors / BikeStyle 과 값을 맞춘다
+
+class BikeColor:
+    def __init__(self, id, name, argb):
+        self.id, self.name, self.argb = id, name, argb
+
+
+FRAME_COLORS = [
+    BikeColor("red", "레드", 0xFFC9503A),
+    BikeColor("orange", "오렌지", 0xFFE2874C),
+    BikeColor("yellow", "옐로우", 0xFFF2B63C),
+    BikeColor("green", "그린", 0xFF4F8F6A),
+    BikeColor("mint", "민트", 0xFF6FB6C9),
+    BikeColor("blue", "블루", 0xFF3F6FA0),
+    BikeColor("navy", "네이비", 0xFF2F4A6B),
+    BikeColor("purple", "퍼플", 0xFF9F7FC8),
+    BikeColor("pink", "핑크", 0xFFDB6B9A),
+    BikeColor("brown", "브라운", 0xFF8A5A33),
+    BikeColor("black", "블랙", 0xFF3A3A44),
+    BikeColor("ivory", "아이보리", 0xFFF3EDE2),
+]
+
+TIRE_COLORS = [
+    BikeColor("black", "블랙", 0xFF3A3A44),
+    BikeColor("brown", "브라운", 0xFF6B431F),
+    BikeColor("ivory", "아이보리", 0xFFE8E4DC),
+    BikeColor("red", "레드", 0xFFB23F44),
+    BikeColor("blue", "블루", 0xFF4A6FA5),
+    BikeColor("gray", "그레이", 0xFF8A8F9A),
+]
+
+SADDLE_COLORS = [
+    BikeColor("black", "블랙", 0xFF33241C),
+    BikeColor("brown", "브라운", 0xFF8A5A33),
+    BikeColor("red", "레드", 0xFFB23F44),
+    BikeColor("ivory", "아이보리", 0xFFF0E6D2),
+    BikeColor("blue", "블루", 0xFF3F6FA0),
+    BikeColor("green", "그린", 0xFF4F8F6A),
+]
+
+
+class BikeStyle:
+    """자전거 외형 (모델 + 도색 + 부속품) — 스프라이트 생성에 쓰인다."""
+
+    MODELS = ["basic", "city", "minivelo", "mtb", "road", "cruiser",
+              "bmx", "fixie", "ebike", "tandem", "vintage"]
+
+    def __init__(self, model_id="basic", frame=None, tire=None, saddle=None,
+                 basket=False, rack=False, light=False, streamers=False, bell=False):
+        self.modelId = model_id
+        self.frame = frame or FRAME_COLORS[0]
+        self.tire = tire or TIRE_COLORS[0]
+        self.saddle = saddle or SADDLE_COLORS[0]
+        self.basket, self.rack, self.light = basket, rack, light
+        self.streamers, self.bell = streamers, bell
+
+
+def render_bike(direction, phase, look, style=None, pal_override=None):
     """direction: SIDE(오른쪽) / FRONT / BACK, phase: 0~1 페달 회전."""
+    style = style or BikeStyle()
+    bike_col = style.frame.argb
+    bike_dark = shade(bike_col, 0.68)
+    tire_col = style.tire.argb
+    leather = style.saddle.argb
+    kind = style.modelId
     bmp = Bitmap(SIZE, SIZE)
     g = G(bmp)
     pal = pal_override or look.pal
@@ -655,17 +744,16 @@ def render_bike(direction, phase, look, pal_override=None):
     sway = 0.5 * math.sin(ang)
 
     def ring(cx, cy, r, w, col, n=14):
-        prev = None
-        for i in range(n + 1):
+        px, py = cx + r, cy
+        for i in range(1, n + 1):
             a = tau * i / n
-            px, py = cx + math.cos(a) * r, cy + math.sin(a) * r
-            if prev is not None:
-                g.seg(prev[0], prev[1], px, py, w, w, col)
-            prev = (px, py)
+            nx, ny = cx + math.cos(a) * r, cy + math.sin(a) * r
+            g.seg(px, py, nx, ny, w, w, col)
+            px, py = nx, ny
 
-    def wheel(cx, cy, r, spin):
+    def wheel(cx, cy, r, spin, ti=1.1):
         ring(cx, cy, r - 0.5, 1.0, RIM)
-        ring(cx, cy, r - 1.1, 0.5, TIRE)
+        ring(cx, cy, r - ti, max(ti * 0.5, 0.4), tire_col)
         for i in range(4):
             a = spin + i * math.pi / 4
             g.seg(cx - math.cos(a) * (r - 1.8), cy - math.sin(a) * (r - 1.8),
@@ -674,29 +762,90 @@ def render_bike(direction, phase, look, pal_override=None):
         g.circ(cx, cy, 0.7, METAL)
 
     if direction == SIDE:
-        rear, front, wy, r = 7.4, 24.6, 25.6, 5.6
         crank = (16.0, 24.2)
         pr = 2.7
-        saddle = (11.6, 16.6 + bob)
-        bar = (23.0, 15.4 + bob)
-        wheel(rear, wy, r, -ang)
-        wheel(front, wy, r, -ang)
-        # 프레임
-        g.seg(rear, wy, crank[0], crank[1], 0.9, 0.9, BIKE_DARK)
-        g.seg(rear, wy, saddle[0], saddle[1] + 1.4, 0.9, 0.8, BIKE_COL)
-        g.seg(crank[0], crank[1], saddle[0], saddle[1] + 1.4, 1.0, 0.9, BIKE_COL)
-        g.seg(crank[0], crank[1], bar[0] - 0.6, bar[1] + 1.6, 1.0, 0.8, BIKE_COL)
-        g.seg(saddle[0], saddle[1] + 1.4, bar[0] - 0.6, bar[1] + 1.6, 0.8, 0.7, BIKE_COL)
-        g.seg(bar[0] - 0.6, bar[1] + 1.6, front, wy, 0.85, 0.75, METAL)
-        # 안장 / 핸들
-        g.rrect(saddle[0] - 2.6, saddle[1] - 0.2, saddle[0] + 2.0, saddle[1] + 1.4, 0.8, 0xFF33241C)
-        g.rrect(bar[0] - 2.6, bar[1] - 0.4, bar[0] + 1.6, bar[1] + 1.0, 0.7, 0xFF33241C)
-        g.circ(bar[0] + 1.4, bar[1] + 0.3, 1.1, 0xFF23232B)
+        sad_x, sad_y = 11.6, 16.6 + bob
+        bar_x, bar_y = 23.0, 15.4 + bob
+        front_y, front_r = 0.0, 0.0
+        if kind == "minivelo":
+            rear, front, wy, wr, ti = 8.4, 23.6, 26.3, 4.3, 1.0
+        elif kind == "bmx":
+            rear, front, wy, wr, ti = 8.0, 24.0, 26.0, 4.8, 1.5
+            sad_y -= 0.6
+            bar_y -= 1.3
+        elif kind in ("road", "fixie"):
+            rear, front, wy, wr, ti = 7.4, 24.6, 25.6, 5.4, 0.9
+            bar_y -= 0.7
+        elif kind == "mtb":
+            rear, front, wy, wr, ti = 7.3, 24.7, 25.5, 5.9, 1.7
+        elif kind == "cruiser":
+            rear, front, wy, wr, ti = 7.1, 24.9, 25.2, 6.1, 1.9
+            sad_y -= 0.3
+            bar_y += 0.5
+        elif kind == "ebike":
+            rear, front, wy, wr, ti = 7.4, 24.6, 25.6, 5.6, 1.3
+        elif kind == "tandem":
+            rear, front, wy, wr, ti = 6.2, 25.8, 25.6, 5.5, 1.1
+        elif kind == "vintage":
+            rear, front, wy, wr, ti = 7.6, 22.8, 25.9, 4.2, 1.0
+            front_y, front_r = 21.6, 8.2
+            sad_y -= 1.6
+            bar_x = 24.2
+            bar_y -= 3.2
+        else:
+            rear, front, wy, wr, ti = 7.4, 24.6, 25.6, 5.6, 1.1  # basic/city
+        wheel(rear, wy, wr, -ang, ti)
+        if kind == "vintage":
+            wheel(front, front_y, front_r, -ang, 1.3)
+        else:
+            wheel(front, wy, wr, -ang, ti)
+        if kind == "vintage":
+            # 대형 앞바퀴 + 작은 뒷바퀴의 백본 프레임
+            g.seg(rear, wy, sad_x + 1, sad_y + 1.3, 0.9, 0.8, bike_col)
+            g.seg(sad_x + 1, sad_y + 1.3, bar_x - 1.2, bar_y + 1.3, 0.9, 0.8, bike_col)
+            g.seg(bar_x - 1.2, bar_y + 1.3, front, front_y, 0.9, 0.8, bike_col)
+            g.seg(rear, wy, crank[0] - 1.2, crank[1] - 1, 0.7, 0.7, bike_dark)
+        elif kind == "tandem":
+            # 두 사람이 타는 긴 프레임 + 뒤 탑승자 안장
+            g.seg(rear, wy, crank[0] - 4.8, crank[1] - 0.4, 0.9, 0.9, bike_dark)
+            g.seg(rear, wy, sad_x - 4.2, sad_y + 1.6, 0.9, 0.8, bike_col)
+            g.seg(crank[0] - 4.8, crank[1] - 0.4, sad_x - 4.2, sad_y + 1.6, 1.0, 0.9, bike_col)
+            g.seg(crank[0] - 4.8, crank[1] - 0.4, crank[0], crank[1], 1.0, 1.0, bike_dark)
+            g.seg(crank[0], crank[1], sad_x, sad_y + 1.4, 1.0, 0.9, bike_col)
+            g.seg(crank[0], crank[1], bar_x - 0.6, bar_y + 1.6, 1.0, 0.8, bike_col)
+            g.seg(sad_x, sad_y + 1.4, bar_x - 0.6, bar_y + 1.6, 0.8, 0.7, bike_col)
+            g.seg(bar_x - 0.6, bar_y + 1.6, front, wy, 0.85, 0.75, METAL)
+            g.rrect(sad_x - 6.8, sad_y - 0.1, sad_x - 2.8, sad_y + 1.3, 0.8, leather)  # 뒤 안장
+        else:
+            g.seg(rear, wy, crank[0], crank[1], 0.9, 0.9, bike_dark)
+            g.seg(rear, wy, sad_x, sad_y + 1.4, 0.9, 0.8, bike_col)
+            g.seg(crank[0], crank[1], sad_x, sad_y + 1.4, 1.0, 0.9, bike_col)
+            g.seg(crank[0], crank[1], bar_x - 0.6, bar_y + 1.6, 1.0, 0.8, bike_col)
+            g.seg(sad_x, sad_y + 1.4, bar_x - 0.6, bar_y + 1.6, 0.8, 0.7, bike_col)
+            g.seg(bar_x - 0.6, bar_y + 1.6, front, wy, 0.85, 0.75, METAL)
+            if kind == "mtb":
+                g.rrect(bar_x - 1.3, bar_y + 1.6, bar_x + 0.1, bar_y + 5.4, 0.7, METAL)  # 서스펜션 포크
+            if kind == "ebike":
+                g.rrect(13.6, 21.2, 19.2, 24.2, 1.0, RIM)                    # 배터리
+                g.rrect(14.0, 21.5, 18.8, 23.9, 0.9, 0xFF4A4A56)
+                g.rect(14.8, 22.1, 17.8, 22.9, 0xFF6FB6C9)
+        sad_w = 3.2 if kind == "cruiser" else (1.9 if kind in ("road", "fixie", "bmx") else 2.6)
+        g.rrect(sad_x - sad_w, sad_y - 0.2, sad_x + 2.0, sad_y + 1.4, 0.8, leather)
+        g.rrect(bar_x - 2.6, bar_y - 0.4, bar_x + 1.6, bar_y + 1.0, 0.7, leather)
+        if kind in ("road", "fixie"):
+            g.rrect(bar_x + 0.2, bar_y + 0.4, bar_x + 1.8, bar_y + 2.8, 0.9, leather)  # 드롭바
+        g.circ(bar_x + 1.4, bar_y + 0.3, 1.1, RIM)
+
+        # 부속품 — 뒤쪽(짐받이)은 라이더보다 먼저
+        if style.rack:
+            g.rrect(rear - 1.4, wy - wr - 2.4, rear + 5.0, wy - wr - 1.2, 0.5, METAL)
+            g.seg(rear - 0.8, wy - wr - 1.4, rear - 0.4, wy - wr + 1.2, 0.5, 0.5, METAL)
+            g.seg(rear + 4.2, wy - wr - 1.4, rear + 4.4, wy - wr + 1.2, 0.5, 0.5, METAL)
+
         # 라이더
-        hip = (saddle[0] + 0.6, saddle[1] - 0.6)
+        hip = (sad_x + 0.6, sad_y - 0.6)
         shoulder = (hip[0] + 4.2, hip[1] - 6.2)
-        headC = (shoulder[0] + 1.6, shoulder[1] - 4.6)
-        for i, s_ in ((0, 1), (1, -1)):
+        for i in range(2):
             a = ang + (0 if i == 0 else math.pi)
             fx, fy = crank[0] + math.cos(a) * pr, crank[1] + math.sin(a) * pr
             kx, ky = ik2(hip[0], hip[1], fx, fy, 4.4, 4.4, -1)
@@ -708,7 +857,7 @@ def render_bike(direction, phase, look, pal_override=None):
             g.seg(kx, ky, fx, fy, 1.15, 0.9, pants)
             g.seg(crank[0], crank[1], fx, fy, 0.5, 0.5, METAL)
             g.seg(fx - 1.0, fy + 0.4, fx + 1.6, fy + 0.4, 1.05, 0.9, shoe)
-            g.rect(fx - 1.4, fy + 1.0, fx + 1.8, fy + 1.9, 0xFF23232B)
+            g.rect(fx - 1.4, fy + 1.0, fx + 1.8, fy + 1.9, RIM)
         # 몸통 (앞으로 숙임)
         g.seg(hip[0], hip[1], shoulder[0], shoulder[1], 4.4, 3.9, pal.line)
         g.seg(hip[0], hip[1], shoulder[0], shoulder[1], 3.7, 3.2, pal.top)
@@ -716,65 +865,116 @@ def render_bike(direction, phase, look, pal_override=None):
         if look.gear is not None and look.gear.vest is not None:
             g.seg(hip[0] + 0.4, hip[1] - 0.4, shoulder[0] + 0.2, shoulder[1] + 0.6, 2.4, 2.1, look.gear.vest)
         # 팔 (핸들까지)
-        ex, ey = ik2(shoulder[0], shoulder[1], bar[0] - 1.0, bar[1] - 0.2, 3.6, 3.4, -1)
+        ex, ey = ik2(shoulder[0], shoulder[1], bar_x - 1.0, bar_y - 0.2, 3.6, 3.4, -1)
         g.seg(shoulder[0], shoulder[1], ex, ey, 1.8, 1.5, pal.line)
-        g.seg(ex, ey, bar[0] - 1.0, bar[1] - 0.2, 1.4, 1.2, pal.line)
+        g.seg(ex, ey, bar_x - 1.0, bar_y - 0.2, 1.4, 1.2, pal.line)
         g.seg(shoulder[0], shoulder[1], ex, ey, 1.35, 1.1, pal.top2)
-        g.seg(ex, ey, bar[0] - 1.0, bar[1] - 0.2, 0.95, 0.85, pal.skin)
-        g.circ(bar[0] - 1.0, bar[1] - 0.2, 1.15, pal.skin)
-        # 머리 + 헬멧
-        hx, hy = headC
+        g.seg(ex, ey, bar_x - 1.0, bar_y - 0.2, 0.95, 0.85, pal.skin)
+        g.circ(bar_x - 1.0, bar_y - 0.2, 1.15, pal.skin)
+        # 목도리 — 달리는 바람에 뒤로 나부낌
+        if look.gear is not None and look.gear.scarf is not None:
+            sc = look.gear.scarf
+            g.rrect(shoulder[0] - 2.4, shoulder[1] - 1.9, shoulder[0] + 2.8, shoulder[1] + 0.2, 1.0, sc)
+            g.seg(shoulder[0] - 1.8, shoulder[1] - 0.6, shoulder[0] - 5.4,
+                  shoulder[1] + 0.2 + sway * 1.2, 1.1, 0.65, sc)
+        # 머리 — 걸을 때(draw_head)와 같은 헤어스타일 (헬멧으로 바뀌지 않음)
+        hx, hy = shoulder[0] + 1.6, shoulder[1] - 4.6
         g.circ(hx, hy, 5.0, pal.line)
         g.circ(hx, hy, 4.3, pal.skin)
-        g.rrect(hx - 4.6, hy - 4.8, hx + 3.6, hy - 1.4, 2.2, pal.line)
-        g.oval(hx - 4.6, hy - 5.0, hx + 3.8, hy + 0.6, HELMET)
-        g.rect(hx - 4.6, hy - 1.6, hx + 3.8, hy - 0.6, HELMET_DARK)
-        g.rrect(hx - 5.6, hy - 5.2, hx - 3.4, hy - 1.0, 0.8, pal.hair)
-        g.rect(hx - 5.2, hy - 1.4, hx - 3.0, hy + 2.2, pal.hair2)
+        hair_back = 5.2 if look.longHair else 3.1
+        g.rrect(hx - 4.6, hy - 1.8, hx - 2.4, hy + hair_back, 0.9, pal.hair)
+        g.rect(hx - 4.1, hy + 0.8, hx - 2.9, hy + hair_back + 0.4 + sway * 0.5, pal.hair2)
+        g.oval(hx - 4.4, hy - 4.7, hx + 4.4, hy - 0.3, pal.hair)
+        g.poly(pal.hair, hx + 0.2, hy - 2.0, hx + 4.9 - sway * 0.4, hy - 0.6,
+               hx + 3.1, hy + 0.6, hx + 0.4, hy)
         g.rect(hx + 1.6, hy + 0.2, hx + 3.0, hy + 1.8, pal.eye)
         g.rect(hx + 4.0, hy + 1.2, hx + 4.8, hy + 2.2, pal.skin2)
         g.rect(hx + 1.4, hy + 2.6, hx + 2.8, hy + 3.5, pal.blush)
+        _draw_rider_cap(g, look, pal, hx, hy, 4.3, SIDE, sway)
+        # 부속품 — 앞쪽(바구니/전조등/방울/스트리머)
+        if style.basket:
+            g.rrect(bar_x + 1.2, bar_y + 1.2, bar_x + 6.6, bar_y + 5.8, 1.0, 0xFFC9A05C)
+            g.rect(bar_x + 1.8, bar_y + 2.6, bar_x + 6.0, bar_y + 3.2, 0xFFB08840)
+            g.rect(bar_x + 1.8, bar_y + 4.2, bar_x + 6.0, bar_y + 4.8, 0xFFB08840)
+        if style.light:
+            g.circ(bar_x + 1.8, bar_y - 1.3, 1.3, METAL)
+            g.circ(bar_x + 2.4, bar_y - 1.3, 0.75, 0xFFF2E3C2)
+        if style.bell:
+            g.circ(bar_x - 1.3, bar_y - 1.3, 1.05, 0xFFD9A03C)
+            g.circ(bar_x - 1.3, bar_y - 1.7, 0.5, 0xFFF2D06B)
+        if style.streamers:
+            g.seg(bar_x - 1.2, bar_y + 0.6, bar_x - 4.2, bar_y + 1.8, 0.7, 0.4, 0xFFDB6B9A)
+            g.seg(bar_x - 1.4, bar_y + 1.5, bar_x - 4.6, bar_y + 3.2, 0.6, 0.35, 0xFFF2D06B)
         return bmp
 
     # 정면 / 뒷면
-    facing = 1.0 if direction == FRONT else -1.0
     cx = 16.0 + sway * 0.6
-    wheel(16.0, 27.4, 4.5, -ang)
-    g.seg(16.0, 19.0 + bob, 16.0, 24.0, 1.1, 1.0, BIKE_COL)
+    if kind == "minivelo":
+        wr_f = 3.5
+    elif kind in ("bmx", "road", "fixie"):
+        wr_f = 3.9
+    elif kind in ("cruiser", "mtb"):
+        wr_f = 4.8
+    elif kind == "vintage":
+        wr_f = 5.0
+    else:
+        wr_f = 4.5
+    if kind in ("road", "fixie"):   # 핸들바 반폭
+        hw = 6.6
+    elif kind == "cruiser":
+        hw = 9.2
+    elif kind == "bmx":
+        hw = 7.2
+    else:
+        hw = 8.0
+    tf = 1.7 if kind in ("cruiser", "mtb") else (0.9 if kind in ("road", "fixie") else 1.1)
+    wheel(16.0, 27.4, wr_f, -ang, tf)
+    g.seg(16.0, 19.0 + bob, 16.0, 24.0, 1.1, 1.0, bike_col)
     g.seg(14.2, 24.0, 14.2, 27.4, 0.8, 0.7, METAL)
     g.seg(17.8, 24.0, 17.8, 27.4, 0.8, 0.7, METAL)
-    g.rrect(12.6, 23.2, 19.4, 24.8, 0.8, BIKE_DARK)
-    hipY = 21.6 + bob
+    g.rrect(12.6, 23.2, 19.4, 24.8, 0.8, bike_dark)
+    if style.rack:
+        g.rrect(11.6, 23.2, 20.4, 24.2, 0.5, METAL)              # 짐받이(뒤에서 보임)
+    hip_y = 21.6 + bob
     # 다리 (번갈아 오르내림)
     for i, sx in ((0, 1), (1, -1)):
         a = ang + (0 if i == 0 else math.pi)
         py = 25.4 + math.sin(a) * 2.2
         px = cx + sx * 3.6 + math.cos(a) * 0.5
-        kx, ky = ik2(cx + sx * 2.4, hipY, px, py, 3.6, 3.6, sx)
+        root_x = cx + sx * 2.4
+        kx, ky = ik2(root_x, hip_y, px, py, 3.6, 3.6, sx)
         pants = pal.pants if math.sin(a) < 0 else pal.pants2
-        g.seg(cx + sx * 2.4, hipY, kx, ky, 2.0, 1.6, pal.line)
+        g.seg(root_x, hip_y, kx, ky, 2.0, 1.6, pal.line)
         g.seg(kx, ky, px, py, 1.6, 1.3, pal.line)
-        g.seg(cx + sx * 2.4, hipY, kx, ky, 1.5, 1.2, pants)
+        g.seg(root_x, hip_y, kx, ky, 1.5, 1.2, pants)
         g.seg(kx, ky, px, py, 1.15, 0.95, pants)
         g.rrect(px - 1.9, py - 0.3, px + 1.9, py + 1.5, 0.8, pal.shoe)
     # 몸통
     top = 13.6 + bob
-    g.rrect(cx - 6.0, top - 0.9, cx + 6.0, hipY + 1.4, 3.6, pal.line)
-    g.rrect(cx - 5.3, top, cx + 5.3, hipY + 0.8, 3.2, pal.top)
+    g.rrect(cx - 6.0, top - 0.9, cx + 6.0, hip_y + 1.4, 3.6, pal.line)
+    g.rrect(cx - 5.3, top, cx + 5.3, hip_y + 0.8, 3.2, pal.top)
     if direction == BACK:
-        g.rrect(cx - 4.6, top + 1.0, cx + 4.6, hipY + 0.2, 2.4, pal.pack)
-        g.rect(cx - 2.6, top + 2.4, cx + 2.6, hipY - 1.0, pal.pack2)
+        g.rrect(cx - 4.6, top + 1.0, cx + 4.6, hip_y + 0.2, 2.4, pal.pack)
+        g.rect(cx - 2.6, top + 2.4, cx + 2.6, hip_y - 1.0, pal.pack2)
     else:
-        g.rect(cx + 2.4, top + 0.8, cx + 5.0, hipY + 0.4, pal.top2)
+        g.rect(cx + 2.4, top + 0.8, cx + 5.0, hip_y + 0.4, pal.top2)
         if look.gear is not None and look.gear.vest is not None:
-            g.rrect(cx - 5.3, top + 0.6, cx - 2.2, hipY + 0.6, 1.3, look.gear.vest)
-            g.rrect(cx + 2.2, top + 0.6, cx + 5.3, hipY + 0.6, 1.3, look.gear.vest)
+            g.rrect(cx - 5.3, top + 0.6, cx - 2.2, hip_y + 0.6, 1.3, look.gear.vest)
+            g.rrect(cx + 2.2, top + 0.6, cx + 5.3, hip_y + 0.6, 1.3, look.gear.vest)
     # 팔 (핸들로)
     tilt = sway * 0.8
-    g.seg(8.0, 18.4 + bob - tilt, 24.0, 18.4 + bob + tilt, 0.9, 0.9, 0xFF33241C)
+    g.seg(16.0 - hw, 18.4 + bob - tilt, 16.0 + hw, 18.4 + bob + tilt, 0.9, 0.9, leather)
+    if style.basket and direction == FRONT:
+        g.rrect(11.4, 19.9, 20.6, 23.4, 1.0, 0xFFC9A05C)          # 앞바구니
+        g.rect(12.2, 21.1, 19.8, 21.7, 0xFFB08840)
+    if style.light:
+        g.circ(16.0, 17.4 + bob, 1.3, METAL)                      # 전조등
+        g.circ(16.0, 17.4 + bob, 0.75, 0xFFF2E3C2)
+    if style.bell:
+        g.circ(16.0 + hw - 1.6, 17.2 + bob + tilt, 1.05, 0xFFD9A03C)
     for sx in (-1, 1):
         sh = (cx + sx * 5.0, top + 2.2)
-        hand = (8.4 if sx < 0 else 23.6, 18.4 + bob + sx * tilt)
+        hand = (16.0 - hw + 0.4 if sx < 0 else 16.0 + hw - 0.4, 18.4 + bob + sx * tilt)
         ex, ey = ik2(sh[0], sh[1], hand[0], hand[1], 3.4, 3.2, sx)
         g.seg(sh[0], sh[1], ex, ey, 1.8, 1.5, pal.line)
         g.seg(ex, ey, hand[0], hand[1], 1.45, 1.2, pal.line)
@@ -782,30 +982,43 @@ def render_bike(direction, phase, look, pal_override=None):
         g.seg(ex, ey, hand[0], hand[1], 1.0, 0.85, pal.skin)
         g.circ(hand[0], hand[1], 1.15, pal.skin)
     # 손잡이 (손 위로)
-    g.circ(8.0, 18.4 + bob - tilt, 1.4, 0xFF23232B)
-    g.circ(24.0, 18.4 + bob + tilt, 1.4, 0xFF23232B)
-    # 머리 + 헬멧
+    g.circ(16.0 - hw, 18.4 + bob - tilt, 1.4, RIM)
+    g.circ(16.0 + hw, 18.4 + bob + tilt, 1.4, RIM)
+    if style.streamers:
+        # 스트리머 — 손잡이에서 나풀나풀
+        g.seg(16.0 - hw, 19.6 + bob, 16.0 - hw - 1.4, 23 + bob, 0.7, 0.4, 0xFFDB6B9A)
+        g.seg(16.0 - hw + 0.6, 19.8 + bob, 16.0 - hw - 0.4, 23.6 + bob, 0.6, 0.35, 0xFFF2D06B)
+        g.seg(16.0 + hw, 19.6 + bob, 16.0 + hw + 1.4, 23 + bob, 0.7, 0.4, 0xFFDB6B9A)
+        g.seg(16.0 + hw - 0.6, 19.8 + bob, 16.0 + hw + 0.4, 23.6 + bob, 0.6, 0.35, 0xFFF2D06B)
+    # 목도리 — 목에 두르고 자락은 앞으로 남긴다
+    if look.gear is not None and look.gear.scarf is not None:
+        sc = look.gear.scarf
+        g.rrect(cx - 3.4, top - 1.7, cx + 3.4, top + 0.3, 1.0, sc)
+        g.seg(cx + 2.1, top - 0.2, cx + 3.1 + sway * 1.4, top + 3.6, 1.0, 0.7, sc)
+    # 머리 — 걸을 때(draw_head)와 같은 헤어스타일 (헬멧으로 바뀌지 않음)
     hx, hy = cx + sway * 0.5, top - 5.6
     g.circ(hx, hy, 5.4, pal.line)
     g.circ(hx, hy, 4.7, pal.skin if direction == FRONT else pal.hair)
     if direction == FRONT:
+        g.oval(hx - 4.8, hy - 5.1, hx + 4.8, hy - 0.5, pal.hair)
+        hair_len = 5.8 if look.longHair else 3.4
+        g.rrect(hx - 4.8, hy - 1.5, hx - 3.1, hy + hair_len, 0.8, pal.hair)
+        g.rrect(hx + 3.1, hy - 1.5, hx + 4.8, hy + hair_len, 0.8, pal.hair)
+        g.poly(pal.hair, hx - 3.1 + sway * 0.4, hy - 1.2, hx - 1.2, hy + 0.6,
+               hx - 0.4 + sway * 0.4, hy - 1.2)
+        g.poly(pal.hair, hx + 0.6 + sway * 0.4, hy - 1.1, hx + 1.9, hy + 0.6,
+               hx + 3.1 + sway * 0.4, hy - 1.2)
         g.rect(hx - 2.9, hy + 0.4, hx - 1.4, hy + 2.2, pal.eye)
         g.rect(hx + 1.4, hy + 0.4, hx + 2.9, hy + 2.2, pal.eye)
         g.rect(hx - 4.2, hy + 2.6, hx - 2.6, hy + 3.7, pal.blush)
         g.rect(hx + 2.6, hy + 2.6, hx + 4.2, hy + 3.7, pal.blush)
-        g.rect(hx - 4.6, hy + 0.2, hx - 3.4, hy + 4.0, pal.hair)
-        g.rect(hx + 3.4, hy + 0.2, hx + 4.6, hy + 4.0, pal.hair)
     else:
         g.rect(hx - 3.6, hy + 1.6, hx + 3.6, hy + 3.4, pal.hair2)
-    g.oval(hx - 5.2, hy - 5.4, hx + 5.2, hy + 1.2, HELMET)
-    g.rect(hx - 5.0, hy - 1.0, hx + 5.0, hy + 0.2, HELMET_DARK)
-    g.rrect(hx - 5.4, hy - 5.6, hx + 5.4, hy - 4.0, 1.2, pal.line)
+        if look.longHair:
+            g.rrect(hx - 3.0, hy + 1.6, hx + 3.0, hy + 6.2, 1.8, pal.hair2)
+    _draw_rider_cap(g, look, pal, hx, hy, 4.7, direction, sway)
     return bmp
 
-
-# ---------------------------------------------------------------------------
-# NPC 개성 있는 대기 동작
-# ---------------------------------------------------------------------------
 
 NPC_PROFESSOR, NPC_SHOP, NPC_VILLAGER, NPC_KID, NPC_ELDER = 0, 1, 2, 3, 4
 

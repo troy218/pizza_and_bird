@@ -18,7 +18,10 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.StubText
+import android.view.KeyEvent
 import com.pizzaandbird.game.Assets
+import com.pizzaandbird.game.Backup
+import com.pizzaandbird.game.BackupOverlay
 import com.pizzaandbird.game.BakeOverlay
 import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.Birds
@@ -37,6 +40,7 @@ import com.pizzaandbird.game.PizzaKind
 import com.pizzaandbird.game.Pizzas
 import com.pizzaandbird.game.Player
 import com.pizzaandbird.game.RegionSelectScene
+import com.pizzaandbird.game.SaveManager
 import com.pizzaandbird.game.Scene
 import com.pizzaandbird.game.SpawnKind
 import com.pizzaandbird.game.T
@@ -89,15 +93,11 @@ private class FakeResources(d: Float) : Resources() {
 }
 
 private class FakeContext(density: Float) : Context() {
-    private val prefs = object : SharedPreferences {
-        override fun edit() = throw IllegalStateException("not used")
-        override fun getString(key: String, def: String?): String? = def
-        override fun contains(key: String): Boolean = false
-    }
-
     override val resources: Resources = FakeResources(density)
 
-    override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = prefs
+    // [P05] 세이브·백업 코드가 실제로 읽히고 쓰여야 하므로 in-memory prefs 를 그대로 쓴다.
+    override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+        android.content.InMemorySharedPreferences(name)
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +281,38 @@ object PreviewMain {
         renderScreen(game, name)
     }
 
+    /**
+     * 겨울 눈보라 샷 — 날씨를 눈에 고정하고 눈이 쌓일 때까지 시뮬레이션한다.
+     * moving=true면 Shift+D(달리기)로 이동하며 카메라·줌이 요동치는 동안에도
+     * 눈송이가 화면 전체에 그대로 남는지 확인한다.
+     */
+    private fun snowShot(game: Game, moving: Boolean, name: String) {
+        val s = game.state
+        s.day = 25                                // 겨울 (Season.forDay: 22~28일)
+        s.weatherId = "snow"
+        s.weatherSeconds = 9999f
+        s.worldTime = 11.0f
+        s.px = 21f * 16f
+        s.py = 14f * 16f
+        s.onBike = false
+        game.scene = WorldScene(game, "sokcho", SpawnKind.SAVED)
+        s.weatherSeconds = 9999f                  // 시뮬레이션 내내 눈에 고정
+        simulate(game, 10.0f)                     // 눈이 소복이 쌓일 시간
+        if (moving) {
+            game.input.onKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.ACTION_DOWN)
+            game.input.onKeyEvent(KeyEvent.KEYCODE_D, KeyEvent.ACTION_DOWN)
+            simulate(game, 1.8f)                   // 달리며 이동 (줌·카메라 변화)
+            game.input.onKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.ACTION_UP)
+            game.input.onKeyEvent(KeyEvent.KEYCODE_D, KeyEvent.ACTION_UP)
+            simulate(game, 0.4f)
+        } else {
+            simulate(game, 0.5f)
+        }
+        s.worldTime = 11.0f
+        s.weatherSeconds = 9999f
+        renderScreen(game, name)
+    }
+
     private fun photoModeShot(game: Game) {
         val s = game.state
         s.worldTime = 12.5f
@@ -381,6 +413,45 @@ object PreviewMain {
         scene.openOverlay(DecorPickOverlay(scene, 0) {})
         renderScreen(game, "27_decor_pick")
         scene.closeOverlay()
+
+        // [P05] 클라우드 없는 백업 — 코드 만들기 / 코드에서 불러오기
+        backupShots(game, scene)
+    }
+
+    /** 설정 › 백업 코드 만들기 · 코드에서 불러오기 화면 (실제 Backup 로직을 그대로 돌린다) */
+    private fun backupShots(game: Game, scene: Scene) {
+        // 진행 상황을 prefs 에 저장해 두고(설정 › 💾 저장하기와 같은 경로) 코드를 만든다.
+        game.state.started = true
+        SaveManager.save(game.context, game.state)
+        val prefs = game.context.getSharedPreferences(SaveManager.prefsName(), Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("feat_album_v1", "{\"photos\":[{\"id\":1,\"stars\":5}]}")
+            .putInt("feat_ach_count_v1", 13)
+            .commit()
+
+        val export = BackupOverlay(scene, BackupOverlay.Mode.CREATE)
+        scene.openOverlay(export)
+        simulate(game, 0.7f)      // 백그라운드 스레드가 코드를 만드는 동안 프레임 진행
+        renderScreen(game, "30_backup_code")
+
+        // 방금 만든 코드를 클립보드에 넣은 상황 → 불러오기 확인 카드
+        val code = getField<String>(export, "code")
+        android.content.PreviewClipboard.text = code
+        scene.closeOverlay()
+        val restore = BackupOverlay(scene, BackupOverlay.Mode.RESTORE)
+        scene.openOverlay(restore)
+        simulate(game, 0.3f)
+        renderScreen(game, "31_backup_restore_idle")
+
+        setField(restore, "pendingCode", code)
+        setField(restore, "info", Backup.inspect(code).getOrNull())
+        setField(restore, "step", Class.forName("com.pizzaandbird.game.BackupOverlay\$Step")
+            .enumConstants.first { it.toString() == "CONFIRM" })
+        simulate(game, 0.35f)
+        renderScreen(game, "32_backup_restore_confirm")
+
+        scene.closeOverlay()
+        game.input.rawMode = false
     }
 
     /** 화면비 적응 검증: 20:9 · 16:10 울트라와이드 샷 */

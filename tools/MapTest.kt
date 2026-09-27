@@ -63,6 +63,18 @@ fun main() {
     // 2.1 지역 맵 팔레트와 실제 해안 방위가 구별되는지
     check(Regions.ALL.map { RegionMapStyles.forRegion(it).foliageFilter }.toSet().size >= 5,
         "지역별 풀 팔레트가 충분히 구별되지 않음")
+    val natureStyles = Regions.ALL.map { RegionMapStyles.forRegion(it).natureArt }
+    check(natureStyles.map { it.rocks }.toSet().size >= 10, "지역별 바위 실루엣 선택이 충분히 다르지 않음")
+    check(natureStyles.map { it.trees }.toSet().size >= 10, "지역별 나무 종류 선택이 충분히 다르지 않음")
+    for ((i, nature) in natureStyles.withIndex()) {
+        check(nature.grass.all { it in 0..5 }, "잔디 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+        check(nature.tallGrass.all { it in 0..3 }, "억새 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+        check(nature.flowers.all { it in 0..5 }, "꽃 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+        check(nature.reeds.all { it in 0..3 }, "갈대 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+        check(nature.rocks.all { it in 0..8 }, "바위 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+        check(nature.mountains.all { it in 0..3 }, "산 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+        check(nature.trees.all { it in 0..11 }, "나무 변형 인덱스 오류 region=${Regions.ALL[i].id}")
+    }
     check(Regions.byId["incheon"]!!.waterEdges == setOf(Dir.W), "인천은 서해 쪽이어야 함")
     check(Regions.byId["gangneung"]!!.waterEdges == setOf(Dir.E), "강릉은 동해 쪽이어야 함")
     check(Regions.byId["jeju"]!!.waterEdges == setOf(Dir.N, Dir.E, Dir.S, Dir.W), "제주 해안 방향 오류")
