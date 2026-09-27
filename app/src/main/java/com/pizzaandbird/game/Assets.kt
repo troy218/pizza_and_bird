@@ -2079,7 +2079,7 @@ class Assets(private val context: Context) {
                     inRock(cv, p, k, x + w * 0.62f, top + 3f, 1f, 25f, fade(P_BAS_D, 150))
                 }
                 for (x in floatArrayOf(9.6f, 17.2f, 23.4f)) {
-                    p.color = fade(0xFF101416, 190)
+                    p.color = fade(0xFF101416.toInt(), 190)
                     cv.drawRect(x, 8f, x + 1.4f, 30f, p)
                 }
             }
@@ -2090,11 +2090,11 @@ class Assets(private val context: Context) {
                 for (i in 0..4) {
                     val x = floatArrayOf(6f, 11f, 17f, 23f, 27f)[i]
                     val y0 = floatArrayOf(8f, 11f, 5f, 10f, 15f)[i]
-                    inRock(cv, p, k, x, y0, 1.3f, 30f - y0, fade(0xFF14181A, 170))
+                    inRock(cv, p, k, x, y0, 1.3f, 30f - y0, fade(0xFF14181A.toInt(), 170))
                     inRock(cv, p, k, x + 1.4f, y0 + 1f, 1.1f, 29f - y0, fade(P_BAS_L, 120))
                     inRock(cv, p, k, x + 2.6f, y0 + 2f, 0.8f, 28f - y0, fade(P_BAS_H, 70))
                 }
-                inRock(cv, p, k, 3f, 27f, 26f, 3f, fade(0xFF2C3234, 200))
+                inRock(cv, p, k, 3f, 27f, 26f, 3f, fade(0xFF2C3234.toInt(), 200))
             }
             6 -> { // 현무암 자갈 — 기공이 구멍난 검은 부순 돌
                 rockShadow(cv, p, 16f, 28.5f, 9f, 2.2f)
@@ -2105,8 +2105,8 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.45f),
                         BASALT, bands = 2, speck = 1, rim = false, topBand = 0.36f)
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.35f, cy[i] + ch[i] * 0.32f, 1f, 1f, fade(0xFF0C0F10, 200))
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.58f, cy[i] + ch[i] * 0.5f, 1f, 1f, fade(0xFF0C0F10, 170))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.35f, cy[i] + ch[i] * 0.32f, 1f, 1f, fade(0xFF0C0F10.toInt(), 200))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.58f, cy[i] + ch[i] * 0.5f, 1f, 1f, fade(0xFF0C0F10.toInt(), 170))
                 }
             }
             7 -> { // 현무암 방패바위 — 물에 닳은 매끈한 검은 바위
@@ -2116,7 +2116,7 @@ class Assets(private val context: Context) {
                 for (i in 0..3) {
                     val dx = floatArrayOf(19f, 22f, 13f, 17f)[i]
                     val dy = floatArrayOf(17f, 21f, 25f, 23f)[i]
-                    inRock(cv, p, k, dx, dy, 1f, 1f, fade(0xFF0C0F10, 170))
+                    inRock(cv, p, k, dx, dy, 1f, 1f, fade(0xFF0C0F10.toInt(), 170))
                 }
             }
             // ═══ 해식 퇴적암 — 동해안 ═══════════════════════════════════
@@ -2144,7 +2144,7 @@ class Assets(private val context: Context) {
                     inRock(cv, p, k, 6f, y, 22f, 1.2f, fade(P_SED_D, 95))
                     inRock(cv, p, k, 6f, y + 1.2f, 22f, 0.9f, fade(P_SED_H, 80))
                 }
-                inRock(cv, p, k, 5f, 23.4f, 24f, 3.2f, fade(0xFF2B343A, 200))
+                inRock(cv, p, k, 5f, 23.4f, 24f, 3.2f, fade(0xFF2B343A.toInt(), 200))
                 inRock(cv, p, k, 5f, 22.6f, 24f, 1f, fade(P_SED_H, 140))
                 inRock(cv, p, k, 5f, 26.6f, 24f, 3.4f, fade(P_SED_D, 90))
                 weedFringe(cv, p, k, 7f, 26.4f, 19f, 2.2f, fade(P_SED_A, 150))
@@ -2167,7 +2167,7 @@ class Assets(private val context: Context) {
                     2f, 24f, 5f, 19f, 13f, 18f, 22f, 19f, 30f, 23f, 30f, 26f, 16f, 28f, 3f, 26f
                 )
                 val k = rockBody(cv, p, r, body, SEDIMENT, bands = 4, speck = 5)
-                inRock(cv, p, k, 2f, 22f, 30f, 1.4f, fade(0xFF3A4A50, 200))
+                inRock(cv, p, k, 2f, 22f, 30f, 1.4f, fade(0xFF3A4A50.toInt(), 200))
                 weedFringe(cv, p, k, 4f, 24.4f, 24f, 2.4f, fade(P_SED_A, 190))
                 for (i in 0..3) {
                     val dx = floatArrayOf(9f, 18f, 24f, 14f)[i]
@@ -2185,7 +2185,7 @@ class Assets(private val context: Context) {
                     val cx = floatArrayOf(11f, 20f, 23f)[i]
                     val cy = floatArrayOf(20f, 18f, 24f)[i]
                     val rad = floatArrayOf(1.9f, 1.5f, 1.7f)[i]
-                    inRockOval(cv, p, k, cx, cy, rad, rad * 0.9f, fade(0xFF4A5247, 200))
+                    inRockOval(cv, p, k, cx, cy, rad, rad * 0.9f, fade(0xFF4A5247.toInt(), 200))
                     inRockOval(cv, p, k, cx - 0.5f, cy - 0.6f, rad * 0.45f, rad * 0.4f, fade(P_LIM_H, 190))
                 }
                 inRock(cv, p, k, 6f, 26f, 22f, 1.6f, fade(P_LIM_D, 120))
@@ -2198,7 +2198,7 @@ class Assets(private val context: Context) {
                     val cx = floatArrayOf(13f, 21f, 16f, 23f)[i]
                     val cy = floatArrayOf(14f, 19f, 24f, 9f)[i]
                     val rad = floatArrayOf(2.2f, 1.8f, 1.6f, 1.4f)[i]
-                    inRockOval(cv, p, k, cx, cy, rad, rad, fade(0xFF515949, 180))
+                    inRockOval(cv, p, k, cx, cy, rad, rad, fade(0xFF515949.toInt(), 180))
                     inRockOval(cv, p, k, cx - 0.6f, cy - 0.7f, rad * 0.4f, rad * 0.4f, fade(P_LIM_H, 170))
                 }
                 inRock(cv, p, k, 8f, 27f, 19f, 2f, fade(P_LIM_D, 110))
@@ -2212,7 +2212,7 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.4f),
                         LIMESTONE, bands = 2, speck = 1, rim = false, topBand = 0.36f)
-                    inRock(cv, p, k, cx[i] + cw[i] * 0.3f, cy[i] + ch[i] * 0.34f, 1f, 1f, fade(0xFF4A5247, 200))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.3f, cy[i] + ch[i] * 0.34f, 1f, 1f, fade(0xFF4A5247.toInt(), 200))
                 }
             }
             // ═══ 사암 — 철원 평야·대구 분지 ═════════════════════════════
@@ -2251,7 +2251,7 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.42f),
                         SANDSTONE, bands = 2, speck = 1, rim = false, topBand = 0.34f)
-                    inRock(cv, p, k, cx[i], cy[i] + ch[i] * 0.5f, cw[i], 0.9f, fade(P_SAN_D, 110))
+                    inRock(cv, p, k, cx[i].toFloat(), cy[i] + ch[i] * 0.5f, cw[i], 0.9f, fade(P_SAN_D, 110))
                 }
             }
             // ═══ 인공 석재 — 항구 방파제·한옥 돌담·도시 화단 ═══════════════
@@ -2288,7 +2288,7 @@ class Assets(private val context: Context) {
                         inRock(cv, p, k, x + 0.5f, y + 0.8f, bw - 2f, 0.9f, fade(P_CON_H, 130))
                     }
                 }
-                p.color = fade(0xFF5F824E, 170)
+                p.color = fade(0xFF5F824E.toInt(), 170)
                 for (i in 0..4) cv.drawRect(5f + i * 4.4f, 20f, 7.4f + i * 4.4f, 21.6f, p)
             }
             20 -> { // 조경 화단석 — 다듬어 네모난 화단 돌
@@ -2302,7 +2302,7 @@ class Assets(private val context: Context) {
                     val body = floatArrayOf(x, y + h, x + 0.5f, y + 0.6f, x + w - 0.8f, y, x + w, y + h - 0.5f)
                     rockBody(cv, p, r, body, CONCRETE, bands = 2)
                 }
-                p.color = fade(0xFFB4B9B4, 220)
+                p.color = fade(0xFFB4B9B4.toInt(), 220)
                 cv.drawRect(4f, 28f, 28f, 29.6f, p)
             }
             21 -> { // 호안석 가비온 — 철망에 꿰매 돌을 채운 제방
@@ -2311,11 +2311,11 @@ class Assets(private val context: Context) {
                 val k = rockBody(cv, p, r, body, GABION, bands = 4, speck = 10, speckCol = c(0xFF525A5F))
                 for (i in 0..3) {
                     val y = floatArrayOf(15.6f, 19.6f, 23.6f, 27.4f)[i]
-                    inRock(cv, p, k, 4f, y, 25f, 1f, fade(0xFF2E363A, 205))
+                    inRock(cv, p, k, 4f, y, 25f, 1f, fade(0xFF2E363A.toInt(), 205))
                 }
                 var wx = 4f
                 while (wx < 29f) {
-                    inRock(cv, p, k, wx, 12f, 1f, 16f, fade(0xFF2E363A, 205))
+                    inRock(cv, p, k, wx, 12f, 1f, 16f, fade(0xFF2E363A.toInt(), 205))
                     wx += 3f
                 }
                 val gx = intArrayOf(7, 14, 21, 9, 17, 24)
@@ -2326,7 +2326,7 @@ class Assets(private val context: Context) {
                     rockBody(cv, p, r, lump(r, gx[i] + gw[i] / 2f, gy[i] + gh[i] / 2f, gw[i], gh[i], 7, 0.35f),
                         STONES_IN_CAGE, bands = 2, speck = 1, rim = false, topBand = 0.34f)
                 }
-                inRock(cv, p, k, 6f, 12.6f, 20f, 1.4f, fade(0xFF8E959B, 190))
+                inRock(cv, p, k, 6f, 12.6f, 20f, 1.4f, fade(0xFF8E959B.toInt(), 190))
             }
             // ═══ 자연 쇳돌 — 강가·갯벌·숲·해안 ═════════════════════════════
             22 -> { // 강 자갈 더미 — 물에 둥글게 닳은 자갈
@@ -2360,7 +2360,7 @@ class Assets(private val context: Context) {
                 for (i in cx.indices) {
                     val k = rockBody(cv, p, r, lump(r, cx[i].toFloat(), cy[i], rad[i], rad[i] * 0.86f, 9, 0.3f),
                         SANDSTONE, bands = 3, speck = 2, rim = false)
-                    inRockOval(cv, p, k, cx[i].toFloat(), cy[i], rad[i] * 0.5f, rad[i] * 0.4f, fade(0xFF8A6A4E, 150))
+                    inRockOval(cv, p, k, cx[i].toFloat(), cy[i], rad[i] * 0.5f, rad[i] * 0.4f, fade(0xFF8A6A4E.toInt(), 150))
                 }
             }
             25 -> { // 조개 자갈 — 조개껍데기가 부서진 하얀 자갈밭
@@ -2392,9 +2392,9 @@ class Assets(private val context: Context) {
                     val y = 8f + i * 5f
                     inRock(cv, p, k, 10f, y, 13f, 1.4f, fade(P_SED_D, 140))
                 }
-                inRock(cv, p, k, 9f, 24f, 15f, 3f, fade(0xFF2F383E, 170))
+                inRock(cv, p, k, 9f, 24f, 15f, 3f, fade(0xFF2F383E.toInt(), 170))
                 weedFringe(cv, p, k, 10f, 27f, 11f, 2f, fade(P_SED_A, 170))
-                inRock(cv, p, k, 9f, 28.4f, 15f, 2f, fade(0xFF3E4A50, 200))
+                inRock(cv, p, k, 9f, 28.4f, 15f, 2f, fade(0xFF3E4A50.toInt(), 200))
             }
             else -> { // 갈대 곁 도라돌 — 물가 갈대 사이에 놓인 도라돌
                 rockShadow(cv, p, 16f, 28f, 8f, 2.2f)
