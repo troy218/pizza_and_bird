@@ -31,9 +31,16 @@ tools/preview/
 │   ├── json_stubs.kt               org.json 최소 구현
 │   ├── mainactivity_stub.kt        MainActivity 스텁 (Game.kt 컴파일용)
 │   └── preview_main.kt             프리뷰 렌더러 (모든 화면 스크린샷)
-├── fonts/              NotoSansKR (자동 다운로드, git 미포함)
+├── fonts/              NotoSansKR — 글꼴 대체(폴백)용 (자동 다운로드, git 미포함)
 └── out/                렌더링 결과 (git 미포함)
 ```
+
+### 글꼴
+
+스크린샷은 **게임에 내장된 글꼴 그대로** 나온다. `Typeface.createFromAsset` 스텁이
+`app/src/main/assets/font/*.ttf` 를 실제로 읽고(주아·고운돋움), 자간(letterSpacing)도
+기기와 같게 적용한다. 글꼴에 없는 글자(이모지 등)는 안드로이드(Minikin)처럼
+`tools/preview/fonts/NotoSansKR-*.ttf` 로 자동 대체된다 — 이 폴백 글꼴만 자동 다운로드한다.
 
 ### CI 자동 실행
 

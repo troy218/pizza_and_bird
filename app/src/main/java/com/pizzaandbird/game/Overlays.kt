@@ -1112,6 +1112,12 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             if (footR.height() > dp(scene, 62f)) {
                 c.drawText("조이스틱은 왼쪽 아래 어디든 잡으면 그 자리에 생겨요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
             }
+            // 내장 글꼴 출처 표기 (SIL Open Font License 1.1 — assets/font/OFL.txt)
+            if (footR.height() > dp(scene, 76f)) {
+                textP.textSize = dp(scene, 9f)
+                c.drawText("글꼴: 주아(Jua) · 고운돋움(Gowun Dodum) — SIL Open Font License 1.1",
+                    left + dp(scene, 12f), ty + dp(scene, 61f), textP)
+            }
         }
     }
 }

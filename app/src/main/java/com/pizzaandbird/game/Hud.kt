@@ -89,10 +89,8 @@ class Hud(private val game: Game) {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
     }
-    // 컨트롤 레이블용 텍스트 페인트 (본문 타이포그래피는 Type이 담당)
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
-    }
+    // 컨트롤 레이블용 텍스트 페인트 (글꼴·본문 타이포그래피는 Type이 담당)
+    private val text = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true)
     // ----- 조이스틱 애니메이션 상태 (게임 스레드 전용) -----
     private var stickVX = 0f             // 부드러운 캡 벡터 (-1..1)
     private var stickVY = 0f
@@ -1435,7 +1433,7 @@ class Hud(private val game: Game) {
     private fun fieldTagRect(): RectF? {
         if (!showMinimap || regionLabel.isEmpty() || mmR <= 0f || game.screenW <= 0) return null
         val reg = Regions.byId[game.state.region]
-        measurePaint.typeface = Typeface.DEFAULT_BOLD
+        measurePaint.typeface = Type.face(true)
         measurePaint.textSize = dp(12.2f)
         val nameW = measurePaint.measureText(regionLabel)
         measurePaint.typeface = serif
@@ -1523,7 +1521,7 @@ class Hud(private val game: Game) {
         fx.color = Color.argb(160, 255, 206, 186)
         c.drawCircle(wx - dp(1.1f), wy - dp(1.2f), dp(1.35f), fx)
 
-        inkText.typeface = Typeface.DEFAULT_BOLD
+        inkText.typeface = Type.face(true)
         inkText.textSize = dp(12.2f)
         inkText.color = 0xFF36261A.toInt()
         val nameX = rect.left + dp(20f)

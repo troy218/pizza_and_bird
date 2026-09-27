@@ -374,6 +374,7 @@ app/src/main/java/com/pizzaandbird/game/
 └── Overlays.kt          대화상자 / 메뉴 6탭(피자 탭은 화덕·일반 서브탭) / 피자 굽기 3단계 / 카메라 상점·장비 가방 / 장식 상점 / 자전거 상점(모델·도색·부속품) / 폴라로이드 사진 결과 / 확대 가능한 전국 지도
 
 tools/make_icons.py      런처 아이콘 생성 (순수 Python, 의존성 0)
+tools/build_fonts.py     내장 글꼴(주아·고운돋움) 서브셋 생성 — assets/font 갱신
 tools/generate_bird_checklist.py  공식 조류목록 Kotlin 데이터 생성
 tools/MapTest.kt         맵 로직 검증 스크립트 (144개 맵 조합 + 길 연결성 자동 테스트)
 tools/preview/           미리보기 (길 디자인 · 캐릭터 애니메이션 시트/GIF — tools/preview/README.md)
@@ -399,6 +400,29 @@ tools/typecheck.sh       안드로이드 SDK 없이 Kotlin 소스만 빠르게 �
 - 곡 배치를 바꾸려면 각 씬의 `playBgm(R.raw.bgm_*)` 호출만 수정하면 됩니다 (`Scenes.kt`/`WorldScene.kt`/`HomeScene.kt`)
 - 효과음 이벤트 매핑은 `Audio.kt`의 `Sfx` enum 주석 참고
 - 메뉴(☰) → 설정에서 음악/효과음을 각각 켜고 끌 수 있고, 설정은 세이브에 저장됩니다
+
+### ✍️ 글꼴 (타이포그래피)
+
+힐링 게임다운 **동글동글하고 따뜻한 글씨**를 위해 둥근 한글 글꼴 두 벌을 앱에 내장했습니다
+(둘 다 SIL Open Font License 1.1 — 상업 이용 가능).
+
+![타이포그래피 비교](docs/img/typography.png)
+
+| 쓰임 | 글꼴 | 파일 | 느낌 |
+|---|---|---|---|
+| 제목·버튼·이름 (굵은 역할) | **Jua** 주아 | `assets/font/display_jua.ttf` | 손으로 꾹꾹 눌러 쓴 듯 도톰하고 둥근 글씨 |
+| 본문·설명 (보통 역할) | **Gowun Dodum** 고운돋움 | `assets/font/body_gowundodum.ttf` | 획이 부드러워 오래 읽어도 편한 글씨 |
+| 숫자·영문 라벨 | 코드로 만든 5×7 **픽셀 폰트** | `Type.kt`의 `PixelFont` | 픽셀 아트와 결을 맞춘 레트로 숫자 |
+
+- 크기·굵기·자간·줄간격은 전부 `Type.kt` 의 `Role` 이 정합니다 (화면에서 dp 를 직접 잡지 마세요).
+  `Role.bold = true` → 주아, `false` → 고운돋움으로 **자동 연결**됩니다 (가짜 볼드 없음 — 획이 뭉개지지 않아요).
+- 용량을 줄이려고 **필요한 글자만 남긴 서브셋**(둘이 합쳐 2.6MB, 한글 2,367자)을 넣었습니다.
+  게임 대사·지역명과 공식 조류 598종 이름이 모두 들어가며, 혹시 없는 글자(이모지 등)는
+  안드로이드가 시스템 글꼴로 자동 대체합니다.
+- **글꼴 교체**: `app/src/main/assets/font/` 에 ttf/otf 를 넣기만 하면 됩니다.
+  이름이 `display…` 면 제목용, `body…` 면 본문용으로 자동 배치되고, 폴더를 비우면 시스템 글꼴로 돌아갑니다.
+- **서브셋 재생성**: `pip3 install fonttools && python3 tools/build_fonts.py`
+- 라이선스 전문·출처는 `app/src/main/assets/font/OFL.txt` (게임 안 설정 탭 맨 아래에도 표기됩니다)
 
 ### 콘텐츠 추가 방법
 - **새 목록 갱신**: `한반도_조류_전체목록_2025.txt` 갱신 후 `python3 tools/generate_bird_checklist.py` 실행 → `Birds.ALL`/도감/스폰/박사 의뢰에 자동 반영 (`active = "night"`로 밤새 지정 가능)
@@ -453,4 +477,6 @@ tools/typecheck.sh       안드로이드 SDK 없이 Kotlin 소스만 빠르게 �
 
 ## 📄 라이선스
 
-아직 미정 (출시 전 결정 예정)
+- 게임 코드·아트: 아직 미정 (출시 전 결정 예정)
+- 내장 글꼴: **Jua**(배달의민족 주아) · **Gowun Dodum**(고운돋움) — SIL Open Font License 1.1
+  (전문: `app/src/main/assets/font/OFL.txt`)
