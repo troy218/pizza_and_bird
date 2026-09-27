@@ -270,4 +270,19 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ] \
     exit $PB_EXIT
 fi
 
+# CI 오류 요약을 Checks 어노테이션에도 노출한다. Actions 로그 다운로드가
+# 차단된 환경에서도 컴파일 오류 위치와 원인을 확인할 수 있다.
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    PB_BUILD_LOG="$(mktemp)"
+    "$JAVACMD" "$@" > "$PB_BUILD_LOG" 2>&1
+    PB_EXIT=$?
+    cat "$PB_BUILD_LOG"
+    if [ "$PB_EXIT" -ne 0 ]; then
+        grep -E '(^e: |^error:|^FAILURE:|^\* What went wrong:|^> |^Caused by:)' "$PB_BUILD_LOG" \
+            | head -30 | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+    fi
+    rm -f "$PB_BUILD_LOG"
+    exit "$PB_EXIT"
+fi
+
 exec "$JAVACMD" "$@"
