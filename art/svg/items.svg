@@ -1,0 +1,376 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- ================================================================
+       Pizza and Bird — 아이템/장식 벡터 마스터 (2x 픽셀 그리드)
+       게임 내 최종 크기의 2배 좌표로 제작. tools/build_art.py 로 변환.
+       피자 44x28 / 클로버 28 / 칼라 40x32 / 집 28 / 태양 32 / 달 28
+       장식 64x64
+       ================================================================ -->
+
+  <!-- ============ 피자 (최종 22x14) ============ -->
+  <symbol id="art_pizza" viewBox="0 0 44 28">
+    <ellipse cx="22" cy="24" rx="15" ry="3" fill="#000000" fill-opacity="0.18"/>
+    <circle cx="22" cy="13" r="11" fill="#C97B3F"/>
+    <circle cx="22" cy="12.4" r="11" fill="#E8A75C"/>
+    <path d="M13.4,7.2 A10.4,10.4 0 0 1 22,2.2 L22,4.4 A8.6,8.6 0 0 0 14.8,8 Z" fill="#F2C078"/>
+    <circle cx="22" cy="12.4" r="8.8" fill="#F2B63C"/>
+    <circle cx="22" cy="12.4" r="8.2" fill="#F7CE5B"/>
+    <path d="M16.5,8.2 A8,8 0 0 1 21,5.6 L21,7 A6.6,6.6 0 0 0 17.4,9.2 Z" fill="#FBE9A8"/>
+    <!-- 페퍼로니 -->
+    <circle cx="17.2" cy="9.8" r="2.1" fill="#B23F44"/><circle cx="17.2" cy="9.6" r="1.8" fill="#E2574C"/><rect x="16.4" y="8.8" width="1" height="0.9" fill="#F08878"/>
+    <circle cx="26.6" cy="9" r="2.1" fill="#B23F44"/><circle cx="26.6" cy="8.8" r="1.8" fill="#E2574C"/><rect x="25.8" y="8" width="1" height="0.9" fill="#F08878"/>
+    <circle cx="22" cy="14.8" r="2.1" fill="#B23F44"/><circle cx="22" cy="14.6" r="1.8" fill="#E2574C"/><rect x="21.2" y="13.8" width="1" height="0.9" fill="#F08878"/>
+    <circle cx="15.8" cy="15" r="2" fill="#B23F44"/><circle cx="15.8" cy="14.8" r="1.7" fill="#E2574C"/><rect x="15" y="14" width="1" height="0.9" fill="#F08878"/>
+    <circle cx="28" cy="15.8" r="2" fill="#B23F44"/><circle cx="28" cy="15.6" r="1.7" fill="#E2574C"/><rect x="27.2" y="14.8" width="1" height="0.9" fill="#F08878"/>
+    <!-- 바질/피망 -->
+    <rect x="19.4" y="10.4" width="1.8" height="1.4" fill="#4F8F52"/>
+    <rect x="24.2" y="12.8" width="1.8" height="1.4" fill="#4F8F52"/>
+    <rect x="18.2" y="16.8" width="1.6" height="1.2" fill="#6FAE57"/>
+    <rect x="25.6" y="17.6" width="1.6" height="1.2" fill="#6FAE57"/>
+    <!-- 치즈 그림자/광택 -->
+    <path d="M15,18 A8.2,8.2 0 0 0 29,18 L28,16.8 A6.8,6.8 0 0 1 16,16.8 Z" fill="#EDC04A"/>
+  </symbol>
+
+  <!-- ============ 네잎클로버 (최종 14x14) ============ -->
+  <symbol id="art_clover" viewBox="0 0 28 28">
+    <path d="M13.6,14.5 L15,14.5 L12.8,24.4 L11.4,24 Z" fill="#7D9C4F"/>
+    <circle cx="9.6" cy="9.6" r="5" fill="#3F7D46"/>
+    <circle cx="18.4" cy="9.6" r="5" fill="#3F7D46"/>
+    <circle cx="9.6" cy="18.4" r="5" fill="#3F7D46"/>
+    <circle cx="18.4" cy="18.4" r="5" fill="#3F7D46"/>
+    <circle cx="9.6" cy="9.2" r="4" fill="#4F9E57"/>
+    <circle cx="18.4" cy="9.2" r="4" fill="#4F9E57"/>
+    <circle cx="9.2" cy="18.4" r="4" fill="#4F9E57"/>
+    <circle cx="18.4" cy="18.4" r="4" fill="#4F9E57"/>
+    <circle cx="8.8" cy="8.4" r="1.9" fill="#6BBA72"/>
+    <circle cx="17.9" cy="8.4" r="1.7" fill="#6BBA72"/>
+    <circle cx="8.5" cy="17.9" r="1.6" fill="#6BBA72"/>
+    <path d="M14,4.2 A5,5 0 0 0 14,14 Z" fill="#000000" fill-opacity="0"/>
+    <path d="M21.6,4.4 L22.3,6.1 L24,6.8 L22.3,7.5 L21.6,9.2 L20.9,7.5 L19.2,6.8 L20.9,6.1 Z" fill="#FDFDF8"/>
+  </symbol>
+
+  <!-- ============ 칼라 (최종 20x16) ============ -->
+  <symbol id="art_camera" viewBox="0 0 40 32">
+    <rect x="0" y="8" width="3" height="5" fill="#23232B"/>
+    <rect x="37" y="8" width="3" height="5" fill="#23232B"/>
+    <rect x="13" y="3" width="10" height="5" fill="#23232B"/>
+    <rect x="14.4" y="4.4" width="7.2" height="2" fill="#4A4A55"/>
+    <rect x="32" y="4" width="4.4" height="3.6" fill="#B23F44"/>
+    <rect x="32.5" y="4.5" width="3.4" height="2.6" fill="#E2574C"/>
+    <rect x="5.5" y="3.6" width="5.4" height="4" fill="#C9A227"/>
+    <rect x="6.2" y="4.2" width="4" height="2.8" fill="#F2D06B"/>
+    <rect x="6.8" y="4.7" width="1.6" height="1.2" fill="#FFF3C0"/>
+    <rect x="2" y="7" width="36" height="22" rx="3" fill="#23232B"/>
+    <rect x="3" y="8" width="34" height="20" rx="2.4" fill="#4A4A55"/>
+    <rect x="3" y="8" width="34" height="4.4" rx="2" fill="#6B6B78"/>
+    <rect x="3" y="25" width="34" height="3" rx="1.4" fill="#3A3A44"/>
+    <rect x="3" y="11.6" width="5" height="13.4" rx="1.6" fill="#3A3A44"/>
+    <rect x="4.2" y="14" width="2.6" height="1.4" fill="#23232B"/>
+    <rect x="4.2" y="17" width="2.6" height="1.4" fill="#23232B"/>
+    <rect x="4.2" y="20" width="2.6" height="1.4" fill="#23232B"/>
+    <circle cx="21" cy="18" r="9" fill="#23232B"/>
+    <circle cx="21" cy="18" r="7.6" fill="#6B6B78"/>
+    <circle cx="21" cy="18" r="6.4" fill="#3A6E93"/>
+    <circle cx="21" cy="18" r="5.4" fill="#8FC3E3"/>
+    <circle cx="21" cy="18" r="3" fill="#5B8FB8"/>
+    <circle cx="18.8" cy="15.8" r="1.9" fill="#C3E4F2"/>
+    <rect x="23.9" y="20.4" width="1.5" height="1.3" fill="#FDFDF8"/>
+    <rect x="30" y="10.6" width="5" height="3" rx="0.8" fill="#F2D06B"/>
+    <rect x="31" y="11.4" width="3" height="1.4" fill="#FFF3C0"/>
+  </symbol>
+
+  <!-- ============ 집 (최종 14x14) ============ -->
+  <symbol id="art_house" viewBox="0 0 28 28">
+    <ellipse cx="14" cy="25.6" rx="11" ry="2" fill="#000000" fill-opacity="0.18"/>
+    <rect x="19" y="2" width="4" height="6.6" fill="#A5432F"/>
+    <rect x="19.6" y="2.6" width="2.8" height="5.4" fill="#C96A4D"/>
+    <rect x="18.6" y="1.6" width="4.8" height="1.6" fill="#8F3F2B"/>
+    <polygon points="1.6,12.4 14,2.8 26.4,12.4" fill="#8F3F2B"/>
+    <polygon points="2.8,11.8 14,3.6 25.2,11.8" fill="#B55338"/>
+    <polygon points="4.4,11 14,4.4 14,6.6 6.8,11" fill="#D4694A"/>
+    <rect x="4" y="12" width="20" height="12.4" fill="#E0C9A2"/>
+    <rect x="4.8" y="12" width="18.4" height="11.6" fill="#F6E7C6"/>
+    <rect x="20.8" y="12" width="2.4" height="11.6" fill="#E0C9A2"/>
+    <rect x="6" y="14.2" width="5.6" height="5.6" fill="#C9A87B"/>
+    <rect x="6.7" y="14.9" width="4.2" height="4.2" fill="#9FD0E8"/>
+    <polygon points="6.7,14.9 9.4,14.9 6.7,17.6" fill="#C3E4F2"/>
+    <rect x="8.5" y="14.9" width="0.8" height="4.2" fill="#C9A87B"/>
+    <rect x="6.7" y="16.7" width="4.2" height="0.8" fill="#C9A87B"/>
+    <rect x="13.6" y="14.8" width="6.4" height="9.2" fill="#6B431F"/>
+    <rect x="14.4" y="15.6" width="4.8" height="8.4" fill="#8A5A33"/>
+    <rect x="15.2" y="16.4" width="3.2" height="2.6" fill="#7A4A2B"/>
+    <circle cx="18.2" cy="19.9" r="0.75" fill="#F2D06B"/>
+    <rect x="12.8" y="24" width="8" height="1.6" fill="#C9A87B"/>
+  </symbol>
+
+  <!-- ============ 태양 (최종 16x16) ============ -->
+  <symbol id="art_sun" viewBox="0 0 32 32">
+    <polygon points="16,1 18.2,6.2 16,8.4 13.8,6.2" fill="#F2B63C"/>
+    <polygon points="31,16 25.8,13.8 23.6,16 25.8,18.2" fill="#F2B63C"/>
+    <polygon points="16,31 13.8,25.8 16,23.6 18.2,25.8" fill="#F2B63C"/>
+    <polygon points="1,16 6.2,18.2 8.4,16 6.2,13.8" fill="#F2B63C"/>
+    <polygon points="25.1,6.9 23.9,10.9 21.1,8.1" fill="#F7CE5B"/>
+    <polygon points="25.1,25.1 21.1,23.9 23.9,21.1" fill="#F7CE5B"/>
+    <polygon points="6.9,25.1 8.1,21.1 10.9,23.9" fill="#F7CE5B"/>
+    <polygon points="6.9,6.9 10.9,8.1 8.1,10.9" fill="#F7CE5B"/>
+    <circle cx="16" cy="16" r="7.4" fill="#F2B63C"/>
+    <circle cx="16" cy="16" r="6.6" fill="#F7CE5B"/>
+    <circle cx="13.9" cy="13.7" r="3.8" fill="#FBE9A8"/>
+    <circle cx="12.8" cy="12.9" r="1.8" fill="#FDF6E0"/>
+  </symbol>
+
+  <!-- ============ 달 (최종 14x14) ============ -->
+  <symbol id="art_moon" viewBox="0 0 28 28">
+    <path d="M20.7,7.6 C12.4,5.4 4.4,8.4 2.2,14 C4,20.2 7.8,23.2 12.9,23.8 C11.9,17.8 14.2,11.6 20.7,7.6 Z" fill="#DFD08A"/>
+    <path d="M20.2,8.4 C12.9,6.4 5.4,9.2 3.4,14 C5,19.4 8.4,22.2 13,22.8 C12.2,17.4 14.4,11.8 20.2,8.4 Z" fill="#F7E9A8"/>
+    <circle cx="7.4" cy="12" r="1.5" fill="#E8D598"/>
+    <circle cx="10.6" cy="17.6" r="1" fill="#E8D598"/>
+    <circle cx="8.8" cy="8.8" r="0.8" fill="#E8D598"/>
+    <polygon points="22,16.4 22.6,17.9 24.1,18.5 22.6,19.1 22,20.6 21.4,19.1 19.9,18.5 21.4,17.9" fill="#FDFDF8"/>
+    <polygon points="17.6,2.6 18,3.6 19,4 18,4.4 17.6,5.4 17.2,4.4 16.2,4 17.2,3.6" fill="#FDFDF8"/>
+    <circle cx="24.4" cy="10.8" r="0.9" fill="#FDFDF8"/>
+  </symbol>
+
+  <!-- ============ 장식: 선인장 화분 (최종 32x32) ============ -->
+  <symbol id="art_decor_cactus" viewBox="0 0 64 64">
+    <ellipse cx="32" cy="57" rx="15" ry="3" fill="#000000" fill-opacity="0.2"/>
+    <rect x="18" y="23.4" width="6" height="11.4" rx="3" fill="#3F7D46"/>
+    <rect x="18.8" y="22.6" width="5" height="10.4" rx="2.5" fill="#4F9E57"/>
+    <rect x="19.7" y="24" width="1.5" height="7.4" rx="0.7" fill="#6BBA72"/>
+    <rect x="12.6" y="29" width="12" height="6" rx="3" fill="#3F7D46"/>
+    <rect x="13.2" y="28.2" width="10.8" height="5" rx="2.5" fill="#4F9E57"/>
+    <rect x="40" y="27" width="6" height="9" rx="3" fill="#3F7D46"/>
+    <rect x="40.8" y="26.2" width="5" height="8.4" rx="2.5" fill="#4F9E57"/>
+    <rect x="42" y="28" width="1.5" height="6" rx="0.7" fill="#6BBA72"/>
+    <rect x="39.4" y="31.8" width="7" height="5.6" rx="2.8" fill="#3F7D46"/>
+    <rect x="39.4" y="31" width="6" height="5" rx="2.5" fill="#4F9E57"/>
+    <rect x="27.6" y="13.6" width="9.8" height="29" rx="4.9" fill="#3F7D46"/>
+    <rect x="28.6" y="12.8" width="8.2" height="28.6" rx="4.1" fill="#4F9E57"/>
+    <rect x="30.4" y="16" width="1.6" height="23.4" rx="0.8" fill="#6BBA72"/>
+    <rect x="34" y="17" width="1.4" height="21" rx="0.7" fill="#44874C"/>
+    <rect x="30.9" y="20.5" width="1" height="1" fill="#FDF6E8"/>
+    <rect x="34.2" y="26.5" width="1" height="1" fill="#FDF6E8"/>
+    <rect x="30.9" y="33.5" width="1" height="1" fill="#FDF6E8"/>
+    <rect x="21.5" y="27" width="1" height="1" fill="#FDF6E8"/>
+    <rect x="42.5" y="30" width="1" height="1" fill="#FDF6E8"/>
+    <!-- 꼴 -->
+    <circle cx="30" cy="11.4" r="2" fill="#E87A93"/>
+    <circle cx="35" cy="11.4" r="2" fill="#E87A93"/>
+    <circle cx="32.5" cy="8.9" r="2.2" fill="#E87A93"/>
+    <circle cx="29.2" cy="10.6" r="1.9" fill="#F2A3B3"/>
+    <circle cx="35.6" cy="10.6" r="1.9" fill="#F2A3B3"/>
+    <circle cx="32.4" cy="8" r="2" fill="#F2A3B3"/>
+    <circle cx="32.4" cy="10.2" r="1.5" fill="#F7CE5B"/>
+    <!-- 화분 -->
+    <rect x="21" y="40.6" width="22" height="3" fill="#6B4F35"/>
+    <polygon points="20,43.6 44,43.6 41,56 23,56" fill="#A85834"/>
+    <polygon points="20.8,44.2 43.2,44.2 40.6,55.4 23.4,55.4" fill="#B5673F"/>
+    <polygon points="23,44.2 27,44.2 25.6,55.4 23.4,55.4" fill="#D08A63"/>
+    <rect x="17.6" y="37.6" width="28.8" height="5" rx="1.2" fill="#C97B50"/>
+    <rect x="18.6" y="38.4" width="26.8" height="2.4" rx="1" fill="#DE9468"/>
+    <rect x="17.6" y="41" width="28.8" height="1.6" fill="#8F4526"/>
+  </symbol>
+
+  <!-- ============ 장식: 원목 책장 ============ -->
+  <symbol id="art_decor_bookshelf" viewBox="0 0 64 64">
+    <ellipse cx="32" cy="57.4" rx="20" ry="2.6" fill="#000000" fill-opacity="0.2"/>
+    <rect x="9" y="5" width="46" height="52" rx="1.6" fill="#4E3119"/>
+    <rect x="10" y="6" width="44" height="50" rx="1.2" fill="#6B431F"/>
+    <rect x="12.4" y="8.8" width="39.2" height="44.6" fill="#8A5A33"/>
+    <rect x="50.2" y="6" width="3.8" height="50" fill="#5A3718"/>
+    <rect x="10" y="6" width="44" height="2.6" fill="#7F5528"/>
+    <!-- 선반 1단 책 -->
+    <rect x="14" y="12" width="4" height="12.4" fill="#B23F44"/>
+    <rect x="14.6" y="12.8" width="2.8" height="11" fill="#E2574C"/>
+    <rect x="18.8" y="13.4" width="3.6" height="11" fill="#2F5A94"/>
+    <rect x="19.4" y="14.2" width="2.4" height="9.4" fill="#3F6FB0"/>
+    <rect x="23" y="12.6" width="3" height="11.8" fill="#C9A227"/>
+    <rect x="23.5" y="13.4" width="2" height="10.2" fill="#F2D06B"/>
+    <rect x="26.8" y="13" width="4.4" height="11.4" fill="#3F7D46"/>
+    <rect x="27.5" y="13.8" width="3" height="9.8" fill="#4F9E57"/>
+    <polygon points="32,13.2 35.2,24.4 38.6,24.4 35.4,12" fill="#8A62BA"/>
+    <polygon points="32.8,13.6 35.6,23.4 37.2,23.4 34.5,12.8" fill="#C3A3E8"/>
+    <rect x="39.4" y="14" width="3.4" height="10.4" fill="#C2603A"/>
+    <rect x="40" y="14.8" width="2.2" height="8.8" fill="#E8863C"/>
+    <rect x="43.6" y="15" width="5.6" height="9.4" fill="#4A4A55"/>
+    <rect x="44.4" y="15.8" width="4" height="7.8" fill="#F2EBDD"/>
+    <circle cx="46.4" cy="19.8" r="1.6" fill="#E2574C"/>
+    <!-- 선반 1 판자 -->
+    <rect x="10" y="24.4" width="44" height="2.8" fill="#6B431F"/>
+    <rect x="10" y="24.4" width="44" height="1" fill="#8A6A45"/>
+    <!-- 선반 2단: 책 묶음 + 화분 -->
+    <rect x="14" y="29.4" width="13" height="2.6" fill="#B23F44"/>
+    <rect x="15" y="26.8" width="11" height="2.6" fill="#2F5A94"/>
+    <rect x="16" y="28.2" width="11.6" height="1.2" fill="#F2EBDD"/>
+    <rect x="15.6" y="30.8" width="9" height="1" fill="#F2EBDD"/>
+    <rect x="29" y="27" width="4" height="11.6" fill="#3F7D46"/>
+    <rect x="29.6" y="27.8" width="2.8" height="9.8" fill="#4F9E57"/>
+    <rect x="33.8" y="28.4" width="3" height="10.2" fill="#C9A227"/>
+    <rect x="34.3" y="29.2" width="2" height="8.6" fill="#F2D06B"/>
+    <circle cx="44.2" cy="31" r="4.4" fill="#3F7D46"/>
+    <circle cx="44.2" cy="30.4" r="3.8" fill="#4F9E57"/>
+    <circle cx="42.6" cy="28.4" r="1.6" fill="#6BBA72"/>
+    <polygon points="40.6,34 47.8,34 46.6,38.6 41.8,38.6" fill="#A85834"/>
+    <rect x="40" y="32.8" width="8.4" height="2" fill="#C97B50"/>
+    <!-- 선반 2 판자 -->
+    <rect x="10" y="38.6" width="44" height="2.8" fill="#6B431F"/>
+    <rect x="10" y="38.6" width="44" height="1" fill="#8A6A45"/>
+    <!-- 아래 칸: 수납함 + 큰 책 -->
+    <rect x="13.4" y="43.6" width="12" height="9.8" fill="#A87B4F"/>
+    <rect x="14.4" y="44.6" width="10" height="7.8" fill="#C89B6A"/>
+    <rect x="13.4" y="47.6" width="12" height="1.8" fill="#8A6242"/>
+    <rect x="17.8" y="43.6" width="2.4" height="9.8" fill="#8A6242"/>
+    <rect x="27.4" y="42.8" width="4.4" height="10.6" fill="#2F5A94"/>
+    <rect x="28.1" y="43.6" width="3" height="9" fill="#3F6FB0"/>
+    <rect x="32.6" y="44" width="3.6" height="9.4" fill="#B23F44"/>
+    <rect x="33.2" y="44.8" width="2.4" height="7.8" fill="#E2574C"/>
+    <rect x="37" y="45" width="3" height="8.4" fill="#C9A227"/>
+    <rect x="37.5" y="45.8" width="2" height="6.8" fill="#F2D06B"/>
+    <circle cx="46" cy="47.4" r="5" fill="#5D6470"/>
+    <rect x="45" y="42.8" width="2" height="9.2" fill="#FDF6E8"/>
+    <path d="M41.6,45 A5,5 0 0 1 46,42.4 L46,44.4 A3,3 0 0 0 43.4,46 Z" fill="#9AA3AD"/>
+    <!-- 나뭇결 -->
+    <rect x="10.6" y="12" width="1.2" height="12" fill="#5A3718"/>
+    <rect x="10.6" y="30" width="1.2" height="8" fill="#5A3718"/>
+  </symbol>
+
+  <!-- ============ 장식: 포근한 러그 ============ -->
+  <symbol id="art_decor_rug" viewBox="0 0 64 64">
+    <rect x="4.4" y="23" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="4.4" y="28" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="4.4" y="33" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="4.4" y="38" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="4.4" y="43" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="56.4" y="23" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="56.4" y="28" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="56.4" y="33" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="56.4" y="38" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <rect x="56.4" y="43" width="3.2" height="1.8" fill="#E8D5C4"/>
+    <ellipse cx="32" cy="33.6" rx="26" ry="17.6" fill="#8F3F2B"/>
+    <ellipse cx="32" cy="33" rx="26" ry="17" fill="#B55338"/>
+    <ellipse cx="32" cy="33" rx="22" ry="13.8" fill="#D96C64"/>
+    <ellipse cx="32" cy="33" rx="17.6" ry="10.6" fill="#F2D06B"/>
+    <ellipse cx="32" cy="33" rx="13" ry="7.4" fill="#D96C64"/>
+    <ellipse cx="32" cy="33" rx="7.6" ry="4.2" fill="#FDF6E8"/>
+    <polygon points="32,29.8 35,33 32,36.2 29,33" fill="#E8863C"/>
+    <!-- 땀땀 스티치 -->
+    <rect x="12.6" y="26.2" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="20" y="23.4" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="29" y="22.4" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="38" y="22.8" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="46" y="25" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="12.6" y="39.4" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="20" y="42" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="29" y="42.8" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="38" y="42.2" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+    <rect x="46" y="39.8" width="3" height="1.4" fill="#FDF6E8" fill-opacity="0.75"/>
+  </symbol>
+
+  <!-- ============ 장식: 스탠드 조명 ============ -->
+  <symbol id="art_decor_lamp" viewBox="0 0 64 64">
+    <ellipse cx="32" cy="57.6" rx="14" ry="2.8" fill="#F7CE5B" fill-opacity="0.16"/>
+    <ellipse cx="32" cy="56.4" rx="9.4" ry="2.8" fill="#23232B"/>
+    <ellipse cx="32" cy="55.6" rx="8.4" ry="2.4" fill="#3A3F4A"/>
+    <ellipse cx="32" cy="55" rx="6.6" ry="1.6" fill="#5A626C"/>
+    <rect x="30.4" y="22" width="3.2" height="33" fill="#3A3F4A"/>
+    <rect x="31.2" y="22" width="1.6" height="33" fill="#5A626C"/>
+    <ellipse cx="32" cy="22.4" rx="3.6" ry="1.4" fill="#6B6B78"/>
+    <!-- 갓 -->
+    <polygon points="21,8.6 43,8.6 47.6,27 16.4,27" fill="#C97B50"/>
+    <polygon points="22,9.6 42,9.6 45.8,25.6 18.2,25.6" fill="#E8A75C"/>
+    <polygon points="24.4,11.4 39.6,11.4 42,23.6 22,23.6" fill="#F7CE5B"/>
+    <polygon points="26,12.4 38,12.4 39.6,22.6 24.4,22.6" fill="#FBE9A8"/>
+    <ellipse cx="32" cy="9" rx="11" ry="2.2" fill="#A85834"/>
+    <ellipse cx="32" cy="26.6" rx="15.2" ry="2.6" fill="#A85834"/>
+    <ellipse cx="32" cy="25.8" rx="13.6" ry="1.8" fill="#DE9468"/>
+    <circle cx="32" cy="29.6" r="2.4" fill="#FFF3C0"/>
+    <circle cx="32" cy="29.6" r="5.2" fill="#F7CE5B" fill-opacity="0.22"/>
+    <!-- 스위치 줄 -->
+    <rect x="42.8" y="26.6" width="1.3" height="6.4" fill="#8A6A4F"/>
+    <circle cx="43.4" cy="34" r="1.5" fill="#C9A87B"/>
+  </symbol>
+
+  <!-- ============ 장식: 탐조 트로피 ============ -->
+  <symbol id="art_decor_trophy" viewBox="0 0 64 64">
+    <ellipse cx="32" cy="57" rx="15" ry="2.6" fill="#000000" fill-opacity="0.2"/>
+    <polygon points="15,8 22.6,13.6 21.4,15.4 13.4,10" fill="#F7CE5B" fill-opacity="0"/>
+    <!-- 손잡이 -->
+    <path d="M19.4,16.6 C13.4,16.6 11.4,23.4 16,26.8 L17.4,24.4 C14.8,22.2 15.6,19 19.6,18.8 Z" fill="#B8860B"/>
+    <path d="M44.6,16.6 C50.6,16.6 52.6,23.4 48,26.8 L46.6,24.4 C49.2,22.2 48.4,19 44.4,18.8 Z" fill="#B8860B"/>
+    <path d="M19.4,16.2 C13.4,16.2 11.6,22.6 15.6,26 L16.6,23.8 C14.4,21.6 15.2,18.6 19.8,18.4 Z" fill="#D99B26"/>
+    <path d="M44.6,16.2 C50.6,16.2 52.4,22.6 48.4,26 L47.4,23.8 C49.6,21.6 48.8,18.6 44.2,18.4 Z" fill="#D99B26"/>
+    <!-- 컵 몸통 -->
+    <path d="M18.6,12.6 C18.6,25.4 24.4,33 32,33 C39.6,33 45.4,25.4 45.4,12.6 Z" fill="#D99B26"/>
+    <path d="M19.8,13.2 C19.8,24.6 25,31.8 32,31.8 C39,31.8 44.2,24.6 44.2,13.2 Z" fill="#F2B63C"/>
+    <path d="M21.6,14 C22,23 26,29 29.4,30.6 L28,32.2 C23.6,30 19.8,23.4 19.8,14.4 Z" fill="#FBE9A8"/>
+    <ellipse cx="32" cy="12.8" rx="13.6" ry="3.2" fill="#B8860B"/>
+    <ellipse cx="32" cy="12.4" rx="12.4" ry="2.6" fill="#F7CE5B"/>
+    <ellipse cx="32" cy="12.4" rx="9.6" ry="1.8" fill="#D99B26"/>
+    <!-- 별 엠블럼 -->
+    <polygon points="32,17.4 33.6,22 38.4,22.1 34.7,25 36.1,29.8 32,27.2 27.9,29.8 29.3,25 25.6,22.1 30.4,22" fill="#FFF3C0"/>
+    <!-- 스탠드 -->
+    <rect x="28.6" y="33" width="6.8" height="8" fill="#D99B26"/>
+    <rect x="29.8" y="33" width="4.4" height="8" fill="#F2B63C"/>
+    <ellipse cx="32" cy="41.4" rx="9" ry="2.4" fill="#B8860B"/>
+    <ellipse cx="32" cy="40.8" rx="8" ry="2" fill="#D99B26"/>
+    <!-- 나무 베이스 -->
+    <rect x="18.6" y="42.6" width="26.8" height="13.4" rx="1.6" fill="#4E3119"/>
+    <rect x="19.6" y="43.4" width="24.8" height="11.8" rx="1.2" fill="#6B431F"/>
+    <rect x="19.6" y="43.4" width="24.8" height="2.4" fill="#8A5A33"/>
+    <rect x="25" y="47.6" width="14" height="4.6" fill="#C9A227"/>
+    <rect x="25.8" y="48.2" width="12.4" height="3.4" fill="#E8D5A3"/>
+    <rect x="28" y="49.2" width="8" height="1" fill="#8A6A4F"/>
+    <!-- 반짝이 -->
+    <polygon points="49,8 49.8,10 51.8,10.8 49.8,11.6 49,13.6 48.2,11.6 46.2,10.8 48.2,10" fill="#FDFDF8"/>
+    <polygon points="13.6,31.6 14.1,32.9 15.4,33.4 14.1,33.9 13.6,35.2 13.1,33.9 11.8,33.4 13.1,32.9" fill="#FDFDF8"/>
+  </symbol>
+
+  <!-- ============ 장식: 빈티지 라디오 ============ -->
+  <symbol id="art_decor_radio" viewBox="0 0 64 64">
+    <ellipse cx="33" cy="55.4" rx="19" ry="2.6" fill="#000000" fill-opacity="0.2"/>
+    <!-- 안테나 -->
+    <polygon points="39,15.2 40,16.2 46.6,5.4 45.6,4.4" fill="#6B6B78"/>
+    <circle cx="46.1" cy="4.4" r="1.7" fill="#9AA0AD"/>
+    <circle cx="38.6" cy="16.4" r="2" fill="#4A4A55"/>
+    <!-- 손잡이 -->
+    <path d="M23.6,15.4 C23.6,9.8 27.4,8 32,8 C36.6,8 40.4,9.8 40.4,15.4 L37.6,15.4 C37.6,11.8 35,10.6 32,10.6 C29,10.6 26.4,11.8 26.4,15.4 Z" fill="#4E3119"/>
+    <!-- 본체 -->
+    <rect x="11" y="15" width="42" height="37" rx="4.6" fill="#4E3119"/>
+    <rect x="12" y="16" width="40" height="35" rx="4" fill="#8A5A33"/>
+    <rect x="14.6" y="18.6" width="34.8" height="29.4" rx="3" fill="#A87B4F"/>
+    <rect x="12" y="48.6" width="40" height="2.4" rx="1.2" fill="#6B431F"/>
+    <rect x="14.6" y="18.6" width="34.8" height="2.4" rx="1.2" fill="#9C6B40"/>
+    <!-- 스피커 그릴 -->
+    <rect x="17.4" y="21.6" width="17.6" height="23.4" rx="2.2" fill="#8A6242"/>
+    <rect x="18.4" y="22.6" width="15.6" height="21.4" rx="1.8" fill="#C89B6A"/>
+    <rect x="20.4" y="25" width="11.6" height="1.5" fill="#7A5A33"/>
+    <rect x="20.4" y="28.4" width="11.6" height="1.5" fill="#7A5A33"/>
+    <rect x="20.4" y="31.8" width="11.6" height="1.5" fill="#7A5A33"/>
+    <rect x="20.4" y="35.2" width="11.6" height="1.5" fill="#7A5A33"/>
+    <rect x="20.4" y="38.6" width="11.6" height="1.5" fill="#7A5A33"/>
+    <rect x="20.4" y="42" width="2.8" height="1.5" fill="#7A5A33"/>
+    <rect x="26" y="42" width="6" height="1.5" fill="#7A5A33"/>
+    <!-- 주파수 창 -->
+    <rect x="37.8" y="21.6" width="10" height="12.4" rx="1.8" fill="#6B431F"/>
+    <rect x="38.8" y="22.6" width="8" height="10.4" rx="1.2" fill="#C9A227"/>
+    <rect x="39.6" y="23.4" width="6.4" height="8.8" rx="0.8" fill="#FFF3C0"/>
+    <rect x="40.3" y="24.6" width="1" height="5.4" fill="#8A6A4F"/>
+    <rect x="42" y="25.4" width="1" height="4.6" fill="#8A6A4F"/>
+    <rect x="43.7" y="24.2" width="1" height="5.8" fill="#8A6A4F"/>
+    <rect x="44.9" y="24.6" width="1.2" height="7" fill="#E2574C"/>
+    <!-- 노브 -->
+    <circle cx="40.6" cy="39.8" r="3.1" fill="#23232B"/>
+    <circle cx="40.6" cy="39.8" r="2.5" fill="#4A4A55"/>
+    <rect x="40" y="37.8" width="1.2" height="1.8" fill="#FDF6E8"/>
+    <circle cx="40" cy="39.2" r="0.8" fill="#6B6B78"/>
+    <circle cx="45.6" cy="39.8" r="3.1" fill="#23232B"/>
+    <circle cx="45.6" cy="39.8" r="2.5" fill="#4A4A55"/>
+    <rect x="45" y="37.8" width="1.2" height="1.8" fill="#FDF6E8"/>
+    <circle cx="45" cy="39.2" r="0.8" fill="#6B6B78"/>
+    <!-- VU 램프 -->
+    <circle cx="43.1" cy="46.6" r="2.2" fill="#6B431F"/>
+    <circle cx="43.1" cy="46.6" r="1.6" fill="#F2D06B"/>
+    <!-- 다리 -->
+    <rect x="15.6" y="52" width="5" height="3.4" rx="1" fill="#4E3119"/>
+    <rect x="43.4" y="52" width="5" height="3.4" rx="1" fill="#4E3119"/>
+  </symbol>
+</svg>

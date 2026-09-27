@@ -283,6 +283,7 @@ app/src/main/java/com/pizzaandbird/game/
 ├── GameView.kt          SurfaceView 게임 루프 (60fps)
 ├── Game.kt              씬 관리, 가상 해상도(960×540) 스케일링, 페이드 전환, 햅틱
 ├── Input.kt             멀티터치 D패드 + A/B/카메라/메뉴/달리기/간식 + 키보드
+├── Assets.kt            픽셀 아트 코드 생성(새 13체형·깃무늬·비행·캐릭터 티어·도로 부속) + art/svg → VectorDrawable 87종 래스터
 ├── Assets.kt            모든 픽셀 아트를 코드로 생성 (이미지 파일 0개! 새 13체형·깃무늬·비행 프레임)
 ├── CharacterArt.kt      관절(골격) 기반 캐릭터 애니메이션 — 사람/자전거/고양이 포즈를 계산해 프레임 생성
 ├── Audio.kt             효과음(SoundPool) + BGM/환경음(MediaPlayer, 페이드 인·아웃) — res/raw의 sfx_*/amb_*/bgm_*
@@ -335,6 +336,7 @@ tools/preview_grass_live.py  살아있는 풀 프리뷰 (리그 포즈시트 + �
 - **장식 소품**: `Decors.ALL`에 추가 (아트는 자동 생성은 아니고 `Assets.buildDecorArt`에 추가)
 - **카메라 장비**: `Cameras.kt`의 `CameraGear.COMPACTS / BODIES / LENSES / TELECONVS / ACCESSORIES`에 항목 추가 → 상점·장비 가방·아이콘·인게임 스프라이트에 자동 반영 (`CamLook`으로 생김새 지정)
 - **집 인테리어**: `HouseStyles.ALL`에 스타일과 원화 가격을 추가 → 집 안 인테리어 보드에서 구매/적용
+- **아트 파이프라인 (NPC/고양이/타일/아이콘/데코)**: `art/svg/*.svg` (64px 그리드, `<symbol id="art_*">`) — `python3 tools/build_art.py` 로 VectorDrawable 생성, `python3 tools/svg_preview.py --zoom 5` 로 미리보기, `python3 tools/bird_preview.py` 로 새 치환 검증
 
 ---
 
