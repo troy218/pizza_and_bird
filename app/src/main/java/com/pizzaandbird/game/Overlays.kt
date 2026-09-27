@@ -556,7 +556,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         // 레벨 / 칭호
         val a = g.assets
         val ps = a.playerSet(s.gender, s.gearTier())
-        val avatar = ps.down[0]
+        val avatar = ps.idle.frame(Dir.S, (g.time / Anim.IDLE.frameTime).toInt())
         val ak = dp(scene, 2.2f)
         c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
 
@@ -2109,8 +2109,9 @@ class LevelUpOverlay(
         c.drawText(t1, r.centerX() - textP.measureText(t1) / 2, r.top + dp(scene, 42f), textP)
 
         val a = g.assets
-        val ps = a.playerSet(s.gender, s.gearTier())
-        val bmp = ps.down[0]
+        // 레벨업 축하 — 폴짝폴짝 뛰며 만세!
+        val cheer = a.cheerFrames(s.gender, s.gearTier())
+        val bmp = cheer[(g.time / 0.1f).toInt() % cheer.size]
         val k = dp(scene, 3.4f)
         val bx = r.centerX() - bmp.width * k / 2f
         val by = r.top + dp(scene, 58f)
