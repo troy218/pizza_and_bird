@@ -1,0 +1,262 @@
+# preview build 2026-09-27 06:05:20Z
+# commit: d764047921df3d7bab71a5a8048c4730bcbc9f1f
+# gradle exit code: 0
+>> kotlin 컴파일러 다운로드 중...
+>> 프리뷰 컴파일 (게임 소스 + 스텁)...
+# status: compile-failed
+
+----- gradle build log (error lines + last 120) -----
+...
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugResources
+> Task :app:mergeDebugShaders
+> Task :app:packageDebugResources
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:checkDebugDuplicateClasses
+> Task :app:parseDebugLocalResources
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:compileDebugKotlin
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790489040072.json
+
+BUILD SUCCESSFUL in 1m 27s
+33 actionable tasks: 33 executed
+
+----- preview render log (last 200 lines) -----
+        inkText.typeface = Typeface.DEFAULT_BOLD
+                           ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Hud.kt:1085:17: error: unresolved reference 'typeface'.
+        inkText.typeface = serif
+                ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Hud.kt:1100:38: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+            c.rotate(wobble * 0.55f, cx, y)
+                                     ^^
+app/src/main/java/com/pizzaandbird/game/Hud.kt:1100:42: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+            c.rotate(wobble * 0.55f, cx, y)
+                                         ^
+app/src/main/java/com/pizzaandbird/game/Maps.kt:211:23: error: unresolved reference 'skew'.
+                    c.skew(k, 0f)
+                      ^^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:36:75: error: unresolved reference 'letterSpacing'.
+private val textP = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply { letterSpacing = 0.01f }
+                                                                          ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:1807:25: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+        c.rotate(-2.1f, cx, cy)
+                        ^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:1807:29: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+        c.rotate(-2.1f, cx, cy)
+                            ^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:1917:27: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+            c.rotate(-9f, sCx, sCy)
+                          ^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:1917:32: error: too many arguments for 'fun rotate(degrees: Float): Unit'.
+            c.rotate(-9f, sCx, sCy)
+                               ^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:8:25: error: unresolved reference 'PorterDuff'.
+import android.graphics.PorterDuff
+                        ^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:9:25: error: unresolved reference 'PorterDuffColorFilter'.
+import android.graphics.PorterDuffColorFilter
+                        ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:12:25: error: unresolved reference 'Typeface'.
+import android.graphics.Typeface
+                        ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:60:23: error: unresolved reference 'Typeface'.
+    private var base: Typeface? = null
+                      ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:67:36: error: unresolved reference 'typeface'.
+        for ((p, bold) in bound) p.typeface = face(bold)
+                                   ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:70:47: error: unresolved reference 'Typeface'.
+    private fun loadFromAssets(ctx: Context): Typeface? = try {
+                                              ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:71:33: error: unresolved reference 'list'.
+        val files = (ctx.assets.list("font") ?: emptyArray())
+                                ^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:71:49: error: cannot infer type for this parameter. Please specify it explicitly.
+        val files = (ctx.assets.list("font") ?: emptyArray())
+                                                ^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:72:14: error: overload resolution ambiguity between candidates:
+fun <T> Array<out T>.filter(predicate: (T) -> Boolean): List<T>
+fun BooleanArray.filter(predicate: (Boolean) -> Boolean): List<Boolean>
+fun ByteArray.filter(predicate: (Byte) -> Boolean): List<Byte>
+fun CharArray.filter(predicate: (Char) -> Boolean): List<Char>
+fun DoubleArray.filter(predicate: (Double) -> Boolean): List<Double>
+fun FloatArray.filter(predicate: (Float) -> Boolean): List<Float>
+fun IntArray.filter(predicate: (Int) -> Boolean): List<Int>
+fun LongArray.filter(predicate: (Long) -> Boolean): List<Long>
+fun ShortArray.filter(predicate: (Short) -> Boolean): List<Short>
+fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T>
+fun <K, V> Map<out K, V>.filter(predicate: (Map.Entry<K, V>) -> Boolean): Map<K, V>
+fun UByteArray.filter(predicate: (UByte) -> Boolean): List<UByte>
+fun UIntArray.filter(predicate: (UInt) -> Boolean): List<UInt>
+fun ULongArray.filter(predicate: (ULong) -> Boolean): List<ULong>
+fun UShortArray.filter(predicate: (UShort) -> Boolean): List<UShort>
+fun <T> Sequence<T>.filter(predicate: (T) -> Boolean): Sequence<T>
+fun CharSequence.filter(predicate: (Char) -> Boolean): CharSequence
+fun String.filter(predicate: (Char) -> Boolean): String
+            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+             ^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:72:23: error: unresolved reference 'it'.
+            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+                      ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:72:52: error: unresolved reference 'it'.
+            .filter { it.endsWith(".ttf", true) || it.endsWith(".otf", true) }
+                                                   ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:73:26: error: overload resolution ambiguity between candidates:
+fun <T, R : Comparable<R>> Array<out T>.sortedByDescending(crossinline selector: (T) -> R?): List<T>
+fun <R : Comparable<R>> BooleanArray.sortedByDescending(crossinline selector: (Boolean) -> R?): List<Boolean>
+fun <R : Comparable<R>> ByteArray.sortedByDescending(crossinline selector: (Byte) -> R?): List<Byte>
+fun <R : Comparable<R>> CharArray.sortedByDescending(crossinline selector: (Char) -> R?): List<Char>
+fun <R : Comparable<R>> DoubleArray.sortedByDescending(crossinline selector: (Double) -> R?): List<Double>
+fun <R : Comparable<R>> FloatArray.sortedByDescending(crossinline selector: (Float) -> R?): List<Float>
+fun <R : Comparable<R>> IntArray.sortedByDescending(crossinline selector: (Int) -> R?): List<Int>
+fun <R : Comparable<R>> LongArray.sortedByDescending(crossinline selector: (Long) -> R?): List<Long>
+fun <R : Comparable<R>> ShortArray.sortedByDescending(crossinline selector: (Short) -> R?): List<Short>
+fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T>
+fun <T, R : Comparable<R>> Sequence<T>.sortedByDescending(crossinline selector: (T) -> R?): Sequence<T>
+        val pick = files.sortedByDescending {
+                         ^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:74:17: error: unresolved reference 'it'.
+            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
+                ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:74:46: error: unresolved reference 'it'.
+            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
+                                             ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:74:76: error: unresolved reference 'it'.
+            if (it.contains("bold", true) || it.contains("black", true) || it.contains("heavy", true)) 1 else 0
+                                                                           ^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:75:11: error: overload resolution ambiguity between candidates:
+fun <T> Array<out T>.firstOrNull(): T?
+fun BooleanArray.firstOrNull(): Boolean?
+fun ByteArray.firstOrNull(): Byte?
+fun CharArray.firstOrNull(): Char?
+fun DoubleArray.firstOrNull(): Double?
+fun FloatArray.firstOrNull(): Float?
+fun IntArray.firstOrNull(): Int?
+fun LongArray.firstOrNull(): Long?
+fun ShortArray.firstOrNull(): Short?
+fun <T> Iterable<T>.firstOrNull(): T?
+fun <T> List<T>.firstOrNull(): T?
+fun UByteArray.firstOrNull(): UByte?
+fun UIntArray.firstOrNull(): UInt?
+fun ULongArray.firstOrNull(): ULong?
+fun UShortArray.firstOrNull(): UShort?
+fun CharProgression.firstOrNull(): Char?
+fun IntProgression.firstOrNull(): Int?
+fun LongProgression.firstOrNull(): Long?
+fun UIntProgression.firstOrNull(): UInt?
+fun ULongProgression.firstOrNull(): ULong?
+fun <T> Sequence<T>.firstOrNull(): T?
+fun CharSequence.firstOrNull(): Char?
+        }.firstOrNull()
+          ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:76:27: error: unresolved reference 'Typeface'.
+        if (pick != null) Typeface.createFromAsset(ctx.assets, "font/$pick") else null
+                          ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:83:11: error: unresolved reference 'typeface'.
+        p.typeface = face(bold)
+          ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:88:30: error: unresolved reference 'Typeface'.
+    fun face(bold: Boolean): Typeface {
+                             ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:91:26: error: unresolved reference 'Typeface'.
+            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+                         ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:91:66: error: unresolved reference 'Typeface'.
+            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+                                                                 ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:91:85: error: unresolved reference 'Typeface'.
+            b == null -> Typeface.create("sans-serif", if (bold) Typeface.BOLD else Typeface.NORMAL)
+                                                                                    ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:92:21: error: unresolved reference 'Typeface'.
+            bold -> Typeface.create(b, Typeface.BOLD)
+                    ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:92:40: error: unresolved reference 'Typeface'.
+            bold -> Typeface.create(b, Typeface.BOLD)
+                                       ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:123:17: error: unresolved reference 'typeface'.
+                typeface = face(bold)
+                ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:125:17: error: unresolved reference 'letterSpacing'.
+                letterSpacing = track
+                ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:135:17: error: unresolved reference 'typeface'.
+                typeface = face(role.bold)
+                ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:137:17: error: unresolved reference 'letterSpacing'.
+                letterSpacing = role.track
+                ^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:410:38: error: unresolved reference 'PorterDuffColorFilter'.
+    private val tints = HashMap<Int, PorterDuffColorFilter>()
+                                     ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:460:18: error: unresolved reference 'colorFilter'.
+        bmpPaint.colorFilter = tints.getOrPut(rgb) {
+                 ^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:460:38: error: cannot infer type for this parameter. Please specify it explicitly.
+        bmpPaint.colorFilter = tints.getOrPut(rgb) {
+                                     ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:460:52: error: cannot infer type for this parameter. Please specify it explicitly.
+        bmpPaint.colorFilter = tints.getOrPut(rgb) {
+                                                   ^
+app/src/main/java/com/pizzaandbird/game/Type.kt:461:13: error: unresolved reference 'PorterDuffColorFilter'.
+            PorterDuffColorFilter(rgb, PorterDuff.Mode.SRC_IN)
+            ^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:461:40: error: unresolved reference 'PorterDuff'.
+            PorterDuffColorFilter(rgb, PorterDuff.Mode.SRC_IN)
+                                       ^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:467:17: error: unresolved reference 'set'.
+            src.set(i * ADVANCE, 0, i * ADVANCE + GW, CELL_H)
+                ^^^
+app/src/main/java/com/pizzaandbird/game/Type.kt:479:25: error: unresolved reference 'WHITE'.
+        p.color = Color.WHITE
+                        ^^^^^
+app/src/main/java/com/pizzaandbird/game/Viewfinder.kt:10:25: error: unresolved reference 'Typeface'.
+import android.graphics.Typeface
+                        ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Viewfinder.kt:110:9: error: unresolved reference 'typeface'.
+        typeface = Typeface.MONOSPACE
+        ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Viewfinder.kt:110:20: error: unresolved reference 'Typeface'.
+        typeface = Typeface.MONOSPACE
+                   ^^^^^^^^
+tools/preview/src/preview_main.kt:191:61: error: unresolved reference 'CameraGear'.
+        s.ownedGear.addAll(listOf("b_apsc_mid", "l_100400", CameraGear.ACC_STRAP))
+                                                            ^^^^^^^^^^
