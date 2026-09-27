@@ -261,7 +261,20 @@ class WorldFx(private val map: GameMap, seed: Long) {
     private var smokeT = 0f
     private var stepSide = false
 
-    // 화면 공간 날씨 입자
+    // -------------------------------------------------------------------
+    // 화면 공간 날씨 입자 (비/눈) — 카메라와 완전히 분리된다.
+    //
+    // 월드 입자(연기·풀잎·나비)와 달리 화면(가상 px) 좌표를 쓰므로 캐릭터가
+    // 움직여도 함께 밀리지 않는다. 영역 크기는 월드 시야(viewW/viewH)가 아니라
+    // 실제 화면(game.virtW/virtH)을 기준으로 삼는다 — 줌(달리기·자전거·망원)이
+    // 바뀌어도 비/눈 영역이 늘어나거나 줄지 않는다.
+    //
+    // ※ 과거 버그: viewW*WORLD_SCALE(= virtW/zoom)을 영역으로 쓰는 바람에
+    //    눈이 화면 왼쪽 위 1/zoom²에만 내리고, 이동(줌 변화)할 때마다 눈 영역이
+    //    같이 움직였다. setScreen/drawWeather가 화면 크기를 단일 소유한다.
+    // -------------------------------------------------------------------
+    private var scrW = 960f
+    private var scrH = 540f
     private val dropX = FloatArray(120)
     private val dropY = FloatArray(120)
     private val dropV = FloatArray(120)
@@ -273,6 +286,53 @@ class WorldFx(private val map: GameMap, seed: Long) {
     private val splashY = FloatArray(26)
     private val splashT = FloatArray(26)
     private var weatherInit = false
+
+    /** 화면 크기 등록 — 바뀌면 입자를 비례 재배치한다 (폴더블/분할화면 대응) */
+    fun setScreen(w: Float, h: Float) {
+        val nw = w.coerceAtLeast(1f)
+        val nh = h.coerceAtLeast(1f)
+        if (weatherInit && nw == scrW && nh == scrH) return
+        if (weatherInit && scrW > 0f && scrH > 0f) {
+            val kx = nw / scrW
+            val ky = nh / scrH
+            for (i in dropX.indices) { dropX[i] *= kx; dropY[i] *= ky }
+            for (i in flakeX.indices) { flakeX[i] *= kx; flakeY[i] *= ky }
+            for (i in splashT.indices) { splashX[i] *= kx; splashY[i] *= ky }
+        }
+        scrW = nw
+        scrH = nh
+        if (!weatherInit) initWeatherParticles()
+    }
+
+    private fun initWeatherParticles() {
+        weatherInit = true
+        for (i in dropX.indices) {
+            dropX[i] = rnd.nextFloat() * scrW
+            dropY[i] = rnd.nextFloat() * scrH
+            dropV[i] = 420f + rnd.nextFloat() * 220f
+        }
+        for (i in flakeX.indices) {
+            flakeX[i] = rnd.nextFloat() * scrW
+            flakeY[i] = rnd.nextFloat() * scrH
+            flakeV[i] = flakeSpeed(i)
+            flakePh[i] = rnd.nextFloat() * 6f
+        }
+        for (i in splashT.indices) {
+            splashT[i] = rnd.nextFloat()
+            splashX[i] = rnd.nextFloat() * scrW
+            splashY[i] = rnd.nextFloat() * scrH
+        }
+    }
+
+    /** 눈송이 깊이 등급 (0 = 먼/작음 · 2 = 가까운/큼) — 크고 가까울수록 빠르고 진하다 */
+    private fun flakeTier(i: Int): Int = i % 3
+    private fun flakeSize(tier: Int): Float = when (tier) { 0 -> 1.6f; 1 -> 2.4f; else -> 3.2f }
+    private fun flakeAlpha(tier: Int): Int = when (tier) { 0 -> 150; 1 -> 195; else -> 235 }
+    private fun flakeSpeed(i: Int): Float = when (flakeTier(i)) {
+        0 -> 20f + rnd.nextFloat() * 12f
+        1 -> 30f + rnd.nextFloat() * 14f
+        else -> 44f + rnd.nextFloat() * 18f
+    }
 
     private val fill = Paint()
     private val aa = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -551,27 +611,19 @@ class WorldFx(private val map: GameMap, seed: Long) {
     private fun chimneyTop(): Pair<Float, Float> = (24 * 16f + 9f) to (8 * 16f - 3f)
 
     private fun updateWeatherParticles(dt: Float) {
-        val vw = viewW * WORLD_SCALE
-        val vh = viewH * WORLD_SCALE
-        if (!weatherInit) {
-            weatherInit = true
-            for (i in dropX.indices) {
-                dropX[i] = rnd.nextFloat() * vw; dropY[i] = rnd.nextFloat() * vh; dropV[i] = 420f + rnd.nextFloat() * 220f
-            }
-            for (i in flakeX.indices) {
-                flakeX[i] = rnd.nextFloat() * vw; flakeY[i] = rnd.nextFloat() * vh
-                flakeV[i] = 26f + rnd.nextFloat() * 30f; flakePh[i] = rnd.nextFloat() * 6f
-            }
-            for (i in splashT.indices) splashT[i] = rnd.nextFloat()
-        }
+        // 화면 공간 입자 — 월드 시야(viewW/viewH)가 아닌 화면 크기(scrW/scrH)로만
+        // 굴린다. 카메라 이동·줌과 무관하므로 비/눈이 캐릭터를 따라다니지 않는다.
+        if (!weatherInit) initWeatherParticles()
+        val vw = scrW
+        val vh = scrH
         when (weather) {
             Weather.RAIN -> {
                 for (i in dropX.indices) {
                     dropY[i] += dropV[i] * dt
                     dropX[i] += dropV[i] * 0.22f * dt
-                    if (dropY[i] > vh || dropX[i] > vw) {
-                        dropY[i] = -rnd.nextFloat() * 40f
-                        dropX[i] = rnd.nextFloat() * (vw + 100f) - 100f
+                    if (dropY[i] > vh + 20f || dropX[i] > vw + 20f) {
+                        dropY[i] = -20f - rnd.nextFloat() * 40f
+                        dropX[i] = rnd.nextFloat() * (vw + 120f) - 120f
                     }
                 }
                 for (i in splashT.indices) {
@@ -586,9 +638,16 @@ class WorldFx(private val map: GameMap, seed: Long) {
             Weather.SNOW -> {
                 for (i in flakeX.indices) {
                     flakeY[i] += flakeV[i] * dt
+                    // 위상별 흔들림 + 완만한 동풍 — 캐릭터 이동과 무관한 고유 운동
                     flakeX[i] += sin(time * 1.3f + flakePh[i]) * 14f * dt + 5f * dt
-                    if (flakeY[i] > vh) { flakeY[i] = -4f; flakeX[i] = rnd.nextFloat() * vw }
-                    if (flakeX[i] > vw) flakeX[i] = 0f
+                    if (flakeY[i] > vh + 4f) {
+                        flakeY[i] = -4f
+                        flakeX[i] = rnd.nextFloat() * vw
+                        flakeV[i] = flakeSpeed(i)
+                    }
+                    // 좌우 순환 — 흔들림에 밀려 화면 밖으로 나가도 반대편에서 돌아온다
+                    if (flakeX[i] > vw + 4f) flakeX[i] -= vw + 8f
+                    else if (flakeX[i] < -4f) flakeX[i] += vw + 8f
                 }
             }
             else -> {}
@@ -890,9 +949,14 @@ class WorldFx(private val map: GameMap, seed: Long) {
     // 그리기 — 날씨 (화면 공간, 조명 이전)
     // -------------------------------------------------------------------
 
-    fun drawWeather(c: Canvas, vw: Int, vh: Int) {
-        val w = vw.toFloat()
-        val h = vh.toFloat()
+    /**
+     * 날씨 그리기 (화면 공간 — 카메라 변환 밖에 있어야 한다).
+     * 크기는 setScreen()으로 등록된 화면 크기를 쓴다. 호출부가 월드 시야 크기를
+     * 실수로 넘겨 비/눈 영역이 어긋나던 일을 구조적으로 막는다.
+     */
+    fun drawWeather(c: Canvas) {
+        val w = scrW
+        val h = scrH
         when (weather) {
             Weather.CLOUDY -> {
                 fill.color = Color.argb(30, 70, 78, 96)
@@ -933,9 +997,10 @@ class WorldFx(private val map: GameMap, seed: Long) {
             Weather.SNOW -> {
                 fill.color = Color.argb(22, 210, 222, 240)
                 c.drawRect(0f, 0f, w, h, fill)
-                fill.color = Color.argb(225, 250, 252, 255)
                 for (i in flakeX.indices) {
-                    val s = if (i % 3 == 0) 3f else 2f
+                    val tier = flakeTier(i)
+                    fill.color = Color.argb(flakeAlpha(tier), 250, 252, 255)
+                    val s = flakeSize(tier)
                     c.drawRect(flakeX[i], flakeY[i], flakeX[i] + s, flakeY[i] + s, fill)
                 }
             }
