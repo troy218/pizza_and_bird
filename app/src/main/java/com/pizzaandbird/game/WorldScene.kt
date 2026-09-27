@@ -2279,7 +2279,7 @@ class WorldScene(
         val rig = state.rig()
         val carried = CameraShops.catalog(state.region).size
         val flavor = Dialogues.shopkeeper(
-            Dialogues.Ctx(state.region, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)>>>>>>> origin/main
+            Dialogues.Ctx(state.region, state.mainQuestStage, state.season(), weather, state.isNight(), state.day)
         )
         val own = shop.lines[rnd.nextInt(shop.lines.size)]
         val sale = if (shop.saleLabel.isNotEmpty()) " ${shop.saleLabel}" else ""
