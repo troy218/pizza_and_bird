@@ -154,7 +154,6 @@ class HomeScene(game: Game) : Scene(game) {
                     "따끈한 화덕이 준비됐어요. 어떤 피자를 구워볼까요?\n(도우는 무한! 힐링게임이니까요)",
                     listOf(
                         DialogOverlay.Choice("피자 굽기!") {
-                            it.finished = true
                             it.scene.openOverlay(BakeOverlay(it.scene))
                         },
                         DialogOverlay.Choice("나중에")
@@ -328,11 +327,12 @@ class HomeScene(game: Game) : Scene(game) {
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 6f, sy + 24f, sx + 26f, sy + 32f), a.shadowPaint)
         val frame = if (player.moving) ((player.animT / 0.14f).toInt() % 3) else 0
+        val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = when (player.facing) {
-            Dir.E -> a.playerSide[frame]
-            Dir.W -> a.playerSideL[frame]
-            Dir.N -> a.playerUp[frame]
-            else -> a.playerDown[frame]
+            Dir.E -> ps.side[frame]
+            Dir.W -> ps.sideL[frame]
+            Dir.N -> ps.up[frame]
+            else -> ps.down[frame]
         }
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
 

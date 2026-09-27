@@ -3,6 +3,7 @@ package com.pizzaandbird.game
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import kotlin.math.abs
 import kotlin.math.sin
@@ -66,7 +67,8 @@ class DialogOverlay(
     private val disableKeys: Boolean = false
 ) : Overlay(scene) {
 
-    class Choice(val label: String, val action: (DialogOverlay) -> Unit = { it.finished = true })
+    /** 선택지. action을 실행한 뒤 대화상자는 자동으로 닫힌다 (닫힘 처리를 따로 안 해도 됨). */
+    class Choice(val label: String, val action: (DialogOverlay) -> Unit = {})
 
     private val choices: List<Choice> =
         if (choices.isEmpty()) listOf(Choice("확인")) else choices
@@ -157,7 +159,7 @@ class DialogOverlay(
 class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private enum class Tab(val label: String) {
-        STATUS("상태"), PIZZA("피자"), BOOK("도감"), SETTINGS("설정")
+        STATUS("상태"), GROW("성장"), PIZZA("피자"), BOOK("도감"), SETTINGS("설정")
     }
 
     private var tab = Tab.STATUS
@@ -236,15 +238,17 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
         // 탭
         tabRects.clear()
-        val tabW = (panelR.width() - dp(scene, 48f)) / 4f
+        val nTabs = Tab.values().size
+        val tabGap = dp(scene, 6f)
+        val tabW = (panelR.width() - dp(scene, 24f) - tabGap * (nTabs - 1)) / nTabs
         for ((i, t) in Tab.values().withIndex()) {
             val r = RectF(
-                panelR.left + dp(scene, 12f) + i * (tabW + dp(scene, 8f)), panelR.top + dp(scene, 10f),
-                panelR.left + dp(scene, 12f) + i * (tabW + dp(scene, 8f)) + tabW, panelR.top + dp(scene, 38f)
+                panelR.left + dp(scene, 12f) + i * (tabW + tabGap), panelR.top + dp(scene, 10f),
+                panelR.left + dp(scene, 12f) + i * (tabW + tabGap) + tabW, panelR.top + dp(scene, 38f)
             )
             fillP.color = if (t == tab) 0xFF6B4F35.toInt() else 0xFFF2E3C2.toInt()
             c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), fillP)
-            textP.textSize = dp(scene, 12.5f)
+            textP.textSize = dp(scene, 12f)
             textP.color = if (t == tab) 0xFFF8EFDC.toInt() else 0xFF6B4F35.toInt()
             c.drawText(t.label, r.centerX() - textP.measureText(t.label) / 2, r.centerY() - (textP.descent() + textP.ascent()) / 2, textP)
             tabRects.add(r to t)
@@ -253,6 +257,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         btnRects.clear()
         when (tab) {
             Tab.STATUS -> drawStatus(c)
+            Tab.GROW -> drawGrow(c)
             Tab.PIZZA -> drawPizza(c)
             Tab.BOOK -> drawBook(c)
             Tab.SETTINGS -> drawSettings(c)
@@ -272,7 +277,12 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val nextCam = if (s.cameraLevel < CameraDefs.LEVELS.size) CameraDefs.LEVELS[s.cameraLevel] else null
         val decorLuck = s.decorLuck()
 
+        val lvLine = if (s.level >= Progression.MAX_LEVEL)
+            "탐조가 Lv.${s.level} 「${s.title()}」 (최고 레벨!)"
+        else
+            "탐조가 Lv.${s.level} 「${s.title()}」  경험치 ${s.exp}/${s.expToNext()}"
         val lines = listOf(
+            lvLine + (if (s.skillPoints > 0) "  · 숙련포인트 ${s.skillPoints}" else ""),
             "지갑: ${won(s.money)}",
             "배고픔: ${s.hunger.toInt()}/100   행운: ${s.luck.toInt()}/100" + (if (decorLuck > 0) " (+${decorLuck} 장식)" else ""),
             "카메라: ${cam.name} (촬영 반경 ${cam.rangeTiles}칸)" +
@@ -299,6 +309,133 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         }
     }
 
+    private fun drawGrow(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val left = panelR.left + dp(scene, 16f)
+        val right = panelR.right - dp(scene, 16f)
+        var ty = contentTop() + dp(scene, 6f)
+
+        // 레벨 / 칭호
+        val a = g.assets
+        val ps = a.playerSet(s.gender, s.gearTier())
+        val avatar = ps.down[0]
+        val ak = dp(scene, 2.2f)
+        c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
+
+        val tx = left + avatar.width * ak + dp(scene, 12f)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("Lv.${s.level}  ${s.title()}", tx, ty + dp(scene, 16f), textP)
+
+        // 경험치 바
+        val bx = tx
+        val bw = right - tx
+        val byBar = ty + dp(scene, 24f)
+        val bh = dp(scene, 10f)
+        fillP.color = 0xFFD6C5A4.toInt()
+        c.drawRoundRect(RectF(bx, byBar, bx + bw, byBar + bh), bh / 2, bh / 2, fillP)
+        if (s.level < Progression.MAX_LEVEL) {
+            val prog = s.expProgress()
+            if (prog > 0.01f) {
+                fillP.color = 0xFF6FBA6B.toInt()
+                c.drawRoundRect(RectF(bx, byBar, bx + bw * prog, byBar + bh), bh / 2, bh / 2, fillP)
+            }
+        } else {
+            fillP.color = 0xFFF2D06B.toInt()
+            c.drawRoundRect(RectF(bx, byBar, bx + bw, byBar + bh), bh / 2, bh / 2, fillP)
+        }
+        strokeP.color = 0xFF6B4F35.toInt()
+        strokeP.strokeWidth = dp(scene, 1.4f)
+        c.drawRoundRect(RectF(bx, byBar, bx + bw, byBar + bh), bh / 2, bh / 2, strokeP)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val expTxt = if (s.level >= Progression.MAX_LEVEL) "최고 레벨 달성!" else "경험치 ${s.exp} / ${s.expToNext()}"
+        c.drawText(expTxt, bx, byBar + bh + dp(scene, 12f), textP)
+
+        // 숙련 포인트
+        textP.textSize = dp(scene, 12.5f)
+        textP.color = if (s.skillPoints > 0) 0xFF3F6FB0.toInt() else 0xFF8A7360.toInt()
+        val spTxt = "숙련 포인트(SP): ${s.skillPoints}"
+        c.drawText(spTxt, tx, byBar + bh + dp(scene, 28f), textP)
+
+        // 돈으로 SP 구매 (탐조 강습)
+        val tc = s.trainingCost()
+        val trR = RectF(right - dp(scene, 150f), byBar + bh + dp(scene, 16f), right, byBar + bh + dp(scene, 40f))
+        if (s.money >= tc) {
+            drawButton(c, scene, trR, "탐조 강습 ₩${fmtMoney(tc)}", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
+            btnRects.add(Triple(trR, "train") {
+                val cost = scene.game.state.trainingCost()
+                if (scene.game.state.money >= cost) {
+                    scene.game.state.money -= cost
+                    scene.game.state.skillPoints += 1
+                    SaveManager.save(scene.game.context, scene.game.state)
+                    scene.game.toast("탐조 강습 수료! 숙련 포인트 +1 🎓")
+                } else {
+                    scene.game.toast("돈이 부족해요!")
+                }
+            })
+        } else {
+            drawButton(c, scene, trR, "강습 ₩${fmtMoney(tc)}", Color.argb(100, 200, 190, 175), Color.argb(150, 74, 55, 40), 10.5f)
+        }
+
+        ty = byBar + bh + dp(scene, 46f)
+
+        // 스킬 목록 (가로로 넉넉한 1줄 카드)
+        val rowH = ((contentBottom() - ty) / Skills.ALL.size).coerceIn(dp(scene, 28f), dp(scene, 46f))
+        for (def in Skills.ALL) {
+            val rank = s.skillRank(def.id)
+            val r = RectF(left, ty, right, ty + rowH - dp(scene, 5f))
+            fillP.color = 0xFFFDF6E8.toInt()
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), fillP)
+            strokeP.color = 0xFFC9A87B.toInt()
+            strokeP.strokeWidth = dp(scene, 1.3f)
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), strokeP)
+
+            val midY = r.centerY() - (textP.descent() + textP.ascent()) / 2f
+
+            textP.textSize = dp(scene, 17f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(def.emoji, r.left + dp(scene, 8f), r.centerY() + dp(scene, 6f), textP)
+
+            textP.textSize = dp(scene, 12.5f)
+            c.drawText(def.name, r.left + dp(scene, 34f), midY, textP)
+
+            textP.textSize = dp(scene, 10f)
+            textP.color = 0xFF6FAE6F.toInt()
+            c.drawText("+${def.perRank}", r.left + dp(scene, 130f), midY, textP)
+
+            // 랭크 표시 (●/○)
+            val dots = "●".repeat(rank) + "○".repeat(def.maxRank - rank)
+            textP.textSize = dp(scene, 12f)
+            textP.color = 0xFFB5651D.toInt()
+            val dotsW = textP.measureText(dots)
+            val dotsX = r.right - dp(scene, 96f) - dotsW - dp(scene, 6f)
+            c.drawText(dots, dotsX, r.centerY() + dp(scene, 4f), textP)
+
+            // 강화 버튼
+            val br = RectF(r.right - dp(scene, 92f), r.centerY() - dp(scene, 13f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 13f))
+            when {
+                rank >= def.maxRank -> drawButton(c, scene, br, "MAX", Color.argb(90, 200, 190, 175), Color.argb(150, 74, 55, 40), 11f)
+                s.skillPoints <= 0 -> drawButton(c, scene, br, "SP 필요", Color.argb(110, 200, 190, 175), Color.argb(160, 74, 55, 40), 10.5f)
+                else -> {
+                    drawButton(c, scene, br, "강화 SP1", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 11f)
+                    val id = def.id
+                    btnRects.add(Triple(br, "up_$id") {
+                        if (scene.game.state.upgradeSkill(id)) {
+                            SaveManager.save(scene.game.context, scene.game.state)
+                            val nr = scene.game.state.skillRank(id)
+                            scene.game.toast("${def.emoji} ${def.name} 강화! (랭크 $nr)")
+                        } else {
+                            scene.game.toast("숙련 포인트가 부족해요!")
+                        }
+                    })
+                }
+            }
+            ty += rowH
+        }
+    }
+
     private fun drawPizza(c: Canvas) {
         val g = scene.game
         val s = g.state
@@ -307,7 +444,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
         textP.textSize = dp(scene, 12.5f)
         textP.color = 0xFF6B4F35.toInt()
-        c.drawText("화덕에서 토핑을 골라 구울 수 있어요. (최대 ${PIZZA_CAP}개)", x, ty, textP)
+        c.drawText("화덕에서 토핑을 골라 구울 수 있어요. (최대 ${s.pizzaCapEff()}개)", x, ty, textP)
         ty += dp(scene, 20f)
 
         for (t in Toppings.ALL) {
@@ -502,11 +639,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF8A7360.toInt()
         ty += dp(scene, 6f)
-        c.drawText("Pizza and Bird v0.2.1-beta01", x, ty, textP)
+        c.drawText("Pizza and Bird v0.3.0-beta01", x, ty, textP)
         ty += dp(scene, 15f)
         c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", x, ty, textP)
         ty += dp(scene, 15f)
-        c.drawText("낮과 밤이 흐르고, 밤에는 올빼미가 나와요!", x, ty, textP)
+        c.drawText("새를 찍어 경험치를 모으면 탐조가 레벨이 올라요!", x, ty, textP)
     }
 }
 
@@ -999,7 +1136,10 @@ class PhotoResultOverlay(
     private val stars: Int,
     private val isNew: Boolean,
     private val count: Int,
-    private val questLine: String?
+    private val questLine: String?,
+    private val expGain: Int = 0,
+    private val levelsGained: Int = 0,
+    private val prevLevel: Int = 1
 ) : Overlay(scene) {
 
     private var t = 0f
@@ -1032,7 +1172,15 @@ class PhotoResultOverlay(
             return
         }
         val tap = input.consumeTapScreen()
-        if (input.justA || input.justB || input.justBack || tap != null) finished = true
+        if (input.justA || input.justB || input.justBack || tap != null) {
+            if (t < 0.25f) return   // 셔터 직후 오발 방지
+            if (levelsGained > 0) {
+                // 레벨업 축하 화면으로 이어짐 (오버레이 체이닝)
+                scene.openOverlay(LevelUpOverlay(scene, prevLevel, scene.game.state.level))
+            } else {
+                finished = true
+            }
+        }
     }
 
     override fun draw(c: Canvas) {
@@ -1048,7 +1196,7 @@ class PhotoResultOverlay(
 
         dim(c, scene)
         val cw = minOf(w * 0.7f, dp(scene, 390f))
-        val chh = dp(scene, 246f)
+        val chh = dp(scene, 246f + (if (questLine != null) 16f else 0f) + (if (expGain > 0) 44f else 0f))
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
@@ -1143,14 +1291,126 @@ class PhotoResultOverlay(
         val cnt = "촬영 ${count}회 · 최고 ★$best" + if (def.englishName.isNotBlank()) " · ${def.englishName}" else ""
         c.drawText(cnt, r.centerX() - textP.measureText(cnt) / 2, y1 + dp(scene, 19f), textP)
 
+        var yq = y1 + dp(scene, 40f)
         if (questLine != null) {
+            textP.textSize = dp(scene, 11.5f)
             textP.color = 0xFF3F6FB0.toInt()
-            c.drawText(questLine, r.centerX() - textP.measureText(questLine) / 2, y1 + dp(scene, 38f), textP)
+            c.drawText(questLine, r.centerX() - textP.measureText(questLine) / 2, yq, textP)
+            yq += dp(scene, 17f)
+        }
+
+        // 경험치 획득 + 경험치 바
+        if (expGain > 0) {
+            val s2 = g.state
+            textP.textSize = dp(scene, 12f)
+            textP.color = 0xFF6FAE6F.toInt()
+            val expTxt = if (levelsGained > 0) "경험치 +$expGain  · 레벨 업! ✨" else "경험치 +$expGain"
+            c.drawText(expTxt, r.centerX() - textP.measureText(expTxt) / 2, yq, textP)
+
+            val ebx = r.left + dp(scene, 40f)
+            val ebw = r.width() - dp(scene, 80f)
+            val eby = yq + dp(scene, 8f)
+            val ebh = dp(scene, 8f)
+            fillP.color = 0xFFD6C5A4.toInt()
+            c.drawRoundRect(RectF(ebx, eby, ebx + ebw, eby + ebh), ebh / 2, ebh / 2, fillP)
+            val prog = s2.expProgress()
+            if (prog > 0.01f) {
+                fillP.color = 0xFF6FBA6B.toInt()
+                c.drawRoundRect(RectF(ebx, eby, ebx + ebw * prog, eby + ebh), ebh / 2, ebh / 2, fillP)
+            }
+            strokeP.color = 0xFF6B4F35.toInt()
+            strokeP.strokeWidth = dp(scene, 1.2f)
+            c.drawRoundRect(RectF(ebx, eby, ebx + ebw, eby + ebh), ebh / 2, ebh / 2, strokeP)
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF8A7360.toInt()
+            val lvTxt = if (s2.level >= Progression.MAX_LEVEL) "Lv.${s2.level} MAX"
+                else "Lv.${s2.level}  (${s2.exp}/${s2.expToNext()})"
+            c.drawText(lvTxt, r.centerX() - textP.measureText(lvTxt) / 2, eby + ebh + dp(scene, 12f), textP)
         }
 
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val hint = "화면을 탭해 탐조를 계속해요"
+        val hint = if (levelsGained > 0) "화면을 탭해 계속" else "화면을 탭해 탐조를 계속해요"
+        c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 레벨업 축하
+// ---------------------------------------------------------------------------
+
+class LevelUpOverlay(
+    scene: Scene,
+    private val fromLevel: Int,
+    private val toLevel: Int
+) : Overlay(scene) {
+
+    private var t = 0f
+
+    override fun update(dt: Float) { t += dt }
+
+    override fun handleInput(input: Input) {
+        val tap = input.consumeTapScreen()
+        if (t < 0.3f) return
+        if (input.justA || input.justB || input.justBack || tap != null) finished = true
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 150)
+
+        val cw = minOf(w * 0.62f, dp(scene, 360f))
+        val chh = dp(scene, 244f)
+        val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
+        panel(c, r, scene)
+
+        val ringA = (0.4f + 0.6f * abs(sin(t * 3.2f)))
+        strokeP.color = Color.argb((200 * ringA).toInt(), 242, 208, 107)
+        strokeP.strokeWidth = dp(scene, 3f)
+        c.drawRoundRect(RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 4f)), dp(scene, 10f), dp(scene, 10f), strokeP)
+
+        textP.textSize = dp(scene, 22f)
+        textP.color = 0xFFB5651D.toInt()
+        val t1 = "🎉 레벨 업! 🎉"
+        c.drawText(t1, r.centerX() - textP.measureText(t1) / 2, r.top + dp(scene, 42f), textP)
+
+        val a = g.assets
+        val ps = a.playerSet(s.gender, s.gearTier())
+        val bmp = ps.down[0]
+        val k = dp(scene, 3.4f)
+        val bx = r.centerX() - bmp.width * k / 2f
+        val by = r.top + dp(scene, 58f)
+        c.drawOval(RectF(bx + dp(scene, 6f), by + bmp.height * k - dp(scene, 4f), bx + bmp.width * k - dp(scene, 6f), by + bmp.height * k + dp(scene, 4f)), a.shadowPaint)
+        c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+
+        textP.textSize = dp(scene, 18f)
+        textP.color = 0xFF4A3728.toInt()
+        val lv = "Lv.$fromLevel  →  Lv.$toLevel"
+        c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + bmp.height * k + dp(scene, 26f), textP)
+
+        textP.textSize = dp(scene, 13f)
+        textP.color = 0xFF6FAE6F.toInt()
+        val title = "「 ${Progression.title(toLevel)} 」"
+        c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + bmp.height * k + dp(scene, 46f), textP)
+
+        textP.textSize = dp(scene, 11.5f)
+        textP.color = 0xFF3F6FB0.toInt()
+        val sp = "숙련 포인트 +${s.skillPoints}  (메뉴 › 성장 에서 능력 강화!)"
+        c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + bmp.height * k + dp(scene, 64f), textP)
+
+        if (Progression.gearTier(fromLevel) != Progression.gearTier(toLevel)) {
+            textP.textSize = dp(scene, 11f)
+            textP.color = 0xFFB5651D.toInt()
+            val gearMsg = "새 탐조 장비를 갖췄어요! 👒"
+            c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 26f), textP)
+        }
+
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val hint = "탭해서 닫기"
         c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
     }
 }
@@ -1159,27 +1419,414 @@ class PhotoResultOverlay(
 // 큰 지도
 // ---------------------------------------------------------------------------
 
+/**
+ * 전국 탐조 지도 — 실제 한반도 모양 위에 32개 지역을 표시한다.
+ * 손가락으로 끌어 이동, 두 손가락으로 확대/축소, 지역을 누르면 상세 정보.
+ */
 class MapOverlay(scene: Scene) : Overlay(scene) {
 
-    override fun handleInput(input: Input) {
-        val tap = input.consumeTapScreen()
-        if (input.justA || input.justB || input.justBack || tap != null) finished = true
+    private var mapR = RectF()
+    private var scale = 1f          // 정규화 1단위 -> 화면 px
+    private var offX = 0f
+    private var offY = 0f
+    private var fitScale = 1f
+    private var inited = false
+
+    private var selected: RegionDef? = null
+
+    // 버튼
+    private var closeR = RectF()
+    private var zoomInR = RectF()
+    private var zoomOutR = RectF()
+    private var resetR = RectF()
+    private var homeR = RectF()
+
+    // 터치 추적
+    private class P(var x: Float, var y: Float, val sx: Float, val sy: Float, var moved: Boolean = false)
+
+    private val pts = LinkedHashMap<Int, P>()
+    private var pinchDist = 0f
+    private var pinchMidX = 0f
+    private var pinchMidY = 0f
+
+    init {
+        scene.game.input.rawMode = true
     }
+
+    private fun close() {
+        scene.game.input.rawMode = false
+        finished = true
+    }
+
+    private fun sx(nx: Float) = offX + nx * scale
+    private fun sy(ny: Float) = offY + ny * scale
+
+    private fun layout() {
+        val g = scene.game
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        mapR = RectF(dp(scene, 10f), dp(scene, 44f), w - dp(scene, 10f), h - dp(scene, 10f))
+        if (!inited) {
+            val b = KoreaMap.southBounds
+            fitScale = minOf(
+                (mapR.width() - dp(scene, 24f)) / b.width(),
+                (mapR.height() - dp(scene, 24f)) / b.height()
+            )
+            scale = fitScale
+            centerOn(b.centerX(), b.centerY())
+            inited = true
+        }
+    }
+
+    private fun centerOn(nx: Float, ny: Float) {
+        offX = mapR.centerX() - nx * scale
+        offY = mapR.centerY() - ny * scale
+        clamp()
+    }
+
+    /** 지도가 화면 밖으로 완전히 빠져나가지 않도록 */
+    private fun clamp() {
+        val b = KoreaMap.southBounds
+        val m = dp(scene, 60f)
+        offX = offX.coerceIn(mapR.left + m - b.right * scale, mapR.right - m - b.left * scale)
+        offY = offY.coerceIn(mapR.top + m - b.bottom * scale, mapR.bottom - m - b.top * scale)
+    }
+
+    private fun zoomAt(factor: Float, cx: Float, cy: Float) {
+        val old = scale
+        scale = (scale * factor).coerceIn(fitScale * 0.7f, fitScale * 16f)
+        val k = scale / old
+        offX = cx - (cx - offX) * k
+        offY = cy - (cy - offY) * k
+        clamp()
+    }
+
+    private fun regionAt(x: Float, y: Float): RegionDef? {
+        var best: RegionDef? = null
+        var bestD = dp(scene, 26f)
+        for (reg in Regions.ALL) {
+            val dx = sx(reg.mmX) - x
+            val dy = sy(reg.mmY) - y
+            val d = kotlin.math.sqrt(dx * dx + dy * dy)
+            if (d < bestD) { bestD = d; best = reg }
+        }
+        return best
+    }
+
+    override fun handleInput(input: Input) {
+        if (input.justB || input.justBack || input.justMap) { close(); return }
+        if (!inited) return
+
+        evloop@ for (ev in input.rawEvents) {
+            when (ev.kind) {
+                Input.RawEv.DOWN -> {
+                    pts[ev.id] = P(ev.x, ev.y, ev.x, ev.y)
+                    if (pts.size == 2) startPinch()
+                }
+                Input.RawEv.MOVE -> {
+                    val p = pts[ev.id] ?: continue@evloop
+                    val dx = ev.x - p.x
+                    val dy = ev.y - p.y
+                    p.x = ev.x; p.y = ev.y
+                    if (kotlin.math.abs(ev.x - p.sx) + kotlin.math.abs(ev.y - p.sy) > dp(scene, 6f)) p.moved = true
+                    if (pts.size == 1) {
+                        offX += dx; offY += dy
+                        clamp()
+                    } else if (pts.size >= 2) {
+                        val list = pts.values.toList()
+                        val a = list[0]; val b = list[1]
+                        val nd = kotlin.math.sqrt(
+                            (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)
+                        )
+                        val mx = (a.x + b.x) / 2f
+                        val my = (a.y + b.y) / 2f
+                        if (pinchDist > 1f && nd > 1f) zoomAt(nd / pinchDist, mx, my)
+                        offX += mx - pinchMidX
+                        offY += my - pinchMidY
+                        pinchDist = nd; pinchMidX = mx; pinchMidY = my
+                        clamp()
+                        for (q in pts.values) q.moved = true
+                    }
+                }
+                Input.RawEv.UP -> {
+                    val p = pts.remove(ev.id)
+                    if (pts.size == 1) startPinch()
+                    if (p != null && !p.moved) onTap(ev.x, ev.y)
+                }
+            }
+        }
+    }
+
+    private fun startPinch() {
+        val list = pts.values.toList()
+        if (list.size >= 2) {
+            val a = list[0]; val b = list[1]
+            pinchDist = kotlin.math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y))
+            pinchMidX = (a.x + b.x) / 2f
+            pinchMidY = (a.y + b.y) / 2f
+        } else {
+            pinchDist = 0f
+        }
+    }
+
+    private fun onTap(x: Float, y: Float) {
+        val g = scene.game
+        if (closeR.contains(x, y)) { close(); return }
+        if (zoomInR.contains(x, y)) { zoomAt(1.4f, mapR.centerX(), mapR.centerY()); return }
+        if (zoomOutR.contains(x, y)) { zoomAt(1f / 1.4f, mapR.centerX(), mapR.centerY()); return }
+        if (resetR.contains(x, y)) {
+            scale = fitScale
+            centerOn(KoreaMap.southBounds.centerX(), KoreaMap.southBounds.centerY())
+            selected = null
+            return
+        }
+        if (homeR.contains(x, y)) {
+            val cur = Regions.byId[g.state.region]
+            if (cur != null) {
+                scale = (fitScale * 3.2f).coerceAtMost(fitScale * 16f)
+                centerOn(cur.mmX, cur.mmY)
+                selected = cur
+            }
+            return
+        }
+        if (mapR.contains(x, y)) {
+            val hit = regionAt(x, y)
+            selected = if (hit != null && hit == selected) null else hit
+            if (hit != null) g.haptic()
+        }
+    }
+
+    // ------------------------------------------------------------------
 
     override fun draw(c: Canvas) {
         val g = scene.game
-        dim(c, scene)
         val w = g.screenW.toFloat()
         val h = g.screenH.toFloat()
-        val r = minOf(w, h) * 0.36f
-        g.hud.drawMinimap(c, w / 2f, h / 2f - dp(scene, 8f), r, true)
+        val s = g.state
+        dim(c, scene, 190)
+        layout()
 
-        textP.textSize = dp(scene, 13f)
+        // 바다
+        fillP.color = if (s.isNight()) 0xFF2A4A5E.toInt() else 0xFF9FD3E8.toInt()
+        c.drawRoundRect(mapR, dp(scene, 10f), dp(scene, 10f), fillP)
+
+        c.save()
+        val clip = Path()
+        clip.addRoundRect(mapR, dp(scene, 10f), dp(scene, 10f), Path.Direction.CW)
+        c.clipPath(clip)
+
+        drawGrid(c)
+
+        // 육지
+        c.save()
+        c.translate(offX, offY)
+        c.scale(scale, scale)
+        val detail = if (scale > fitScale * 1.8f) 2 else 1
+        KoreaMap.drawLand(c, scale, detail, s.isNight())
+        c.restore()
+
+        drawLinks(c)
+        drawRegions(c)
+
+        c.restore()
+
+        // 테두리
+        strokeP.color = 0xFF6B4F35.toInt()
+        strokeP.strokeWidth = dp(scene, 2.5f)
+        c.drawRoundRect(mapR, dp(scene, 10f), dp(scene, 10f), strokeP)
+
+        // 제목
+        textP.textSize = dp(scene, 15f)
         textP.color = 0xFFF8EFDC.toInt()
-        val t1 = "한국 지도 — 자전거로 터널을 지나 이동해요"
-        c.drawText(t1, w / 2f - textP.measureText(t1) / 2, h - dp(scene, 40f), textP)
-        textP.textSize = dp(scene, 11f)
-        val t2 = "🏠 우리 집   🔴 현재 위치   방문 ${g.state.visited.size}/${Regions.ALL.size}   (탭해서 닫기)"
-        c.drawText(t2, w / 2f - textP.measureText(t2) / 2, h - dp(scene, 20f), textP)
+        val t1 = "🗺 대한민국 탐조 지도"
+        c.drawText(t1, dp(scene, 14f), dp(scene, 30f), textP)
+        textP.textSize = dp(scene, 10.5f)
+        val t2 = "방문 ${s.visited.size}/${Regions.ALL.size} · 두 손가락으로 확대 · 끌어서 이동 · 지역을 누르면 정보"
+        c.drawText(t2, dp(scene, 170f), dp(scene, 29f), textP)
+
+        drawButtons(c)
+        drawLegend(c)
+        selected?.let { drawInfo(c, it) }
+    }
+
+    private fun drawGrid(c: Canvas) {
+        strokeP.color = Color.argb(45, 255, 255, 255)
+        strokeP.strokeWidth = dp(scene, 0.8f)
+        var lon = 124f
+        while (lon <= 132f) {
+            val x = sx(KoreaMap.nx(lon))
+            if (x > mapR.left && x < mapR.right) c.drawLine(x, mapR.top, x, mapR.bottom, strokeP)
+            lon += 1f
+        }
+        var lat = 33f
+        while (lat <= 43f) {
+            val y = sy(KoreaMap.ny(lat))
+            if (y > mapR.top && y < mapR.bottom) c.drawLine(mapR.left, y, mapR.right, y, strokeP)
+            lat += 1f
+        }
+    }
+
+    private fun drawLinks(c: Canvas) {
+        val s = scene.game.state
+        for ((a, b) in Regions.allLinks()) {
+            val ra = Regions.byId[a] ?: continue
+            val rb = Regions.byId[b] ?: continue
+            val known = a in s.visited || b in s.visited
+            strokeP.color = if (known) Color.argb(190, 255, 255, 255) else Color.argb(70, 255, 255, 255)
+            strokeP.strokeWidth = dp(scene, if (known) 1.8f else 1.1f)
+            c.drawLine(sx(ra.mmX), sy(ra.mmY), sx(rb.mmX), sy(rb.mmY), strokeP)
+        }
+    }
+
+    private fun drawRegions(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val showAllNames = scale > fitScale * 1.5f
+        for (reg in Regions.ALL) {
+            val x = sx(reg.mmX)
+            val y = sy(reg.mmY)
+            val outside = x < mapR.left - dp(scene, 40f) || x > mapR.right + dp(scene, 40f) ||
+                    y < mapR.top - dp(scene, 40f) || y > mapR.bottom + dp(scene, 40f)
+            if (outside) continue
+
+            val visited = reg.id in s.visited
+            val isCurrent = reg.id == s.region
+            val isHome = reg.id == s.homeRegion
+            val r = dp(scene, if (isCurrent) 8f else 6f)
+
+            if (isCurrent) {
+                strokeP.color = Color.argb(150, 226, 87, 76)
+                strokeP.strokeWidth = dp(scene, 2f)
+                c.drawCircle(x, y, r + dp(scene, 4f) + dp(scene, 2f) * sin(g.time * 4f), strokeP)
+            }
+            fillP.color = when {
+                isCurrent -> 0xFFE2574C.toInt()
+                visited -> reg.kind.color
+                else -> Color.argb(150, 120, 116, 108)
+            }
+            c.drawCircle(x, y, r, fillP)
+            strokeP.color = if (selected?.id == reg.id) 0xFF4A3728.toInt() else Color.argb(220, 255, 255, 255)
+            strokeP.strokeWidth = dp(scene, if (selected?.id == reg.id) 2.6f else 1.4f)
+            c.drawCircle(x, y, r, strokeP)
+
+            if (isHome) {
+                textP.textSize = dp(scene, 11f)
+                textP.color = 0xFF4A3728.toInt()
+                c.drawText("🏠", x - dp(scene, 6f), y - r - dp(scene, 3f), textP)
+            }
+
+            if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
+                val nm = if (visited) reg.name else "? ${reg.name}"
+                textP.textSize = dp(scene, if (isCurrent) 11.5f else 10.5f)
+                val tw = textP.measureText(nm)
+                fillP.color = Color.argb(170, 255, 252, 240)
+                c.drawRoundRect(
+                    RectF(x - tw / 2 - dp(scene, 3f), y + r + dp(scene, 1f), x + tw / 2 + dp(scene, 3f), y + r + dp(scene, 14f)),
+                    dp(scene, 3f), dp(scene, 3f), fillP
+                )
+                textP.color = if (isCurrent) 0xFFD1372C.toInt() else if (visited) 0xFF3A2A24.toInt() else Color.argb(170, 58, 42, 36)
+                c.drawText(nm, x - tw / 2, y + r + dp(scene, 11f), textP)
+            }
+        }
+    }
+
+    private fun drawButtons(c: Canvas) {
+        val g = scene.game
+        val w = g.screenW.toFloat()
+        val bs = dp(scene, 34f)
+        closeR = RectF(w - dp(scene, 14f) - bs, dp(scene, 6f), w - dp(scene, 14f), dp(scene, 6f) + bs * 0.9f)
+        zoomInR = RectF(mapR.right - dp(scene, 12f) - bs, mapR.bottom - dp(scene, 12f) - bs * 2 - dp(scene, 8f), mapR.right - dp(scene, 12f), mapR.bottom - dp(scene, 12f) - bs - dp(scene, 8f))
+        zoomOutR = RectF(mapR.right - dp(scene, 12f) - bs, mapR.bottom - dp(scene, 12f) - bs, mapR.right - dp(scene, 12f), mapR.bottom - dp(scene, 12f))
+        resetR = RectF(mapR.left + dp(scene, 12f), mapR.bottom - dp(scene, 12f) - bs, mapR.left + dp(scene, 12f) + dp(scene, 76f), mapR.bottom - dp(scene, 12f))
+        homeR = RectF(resetR.right + dp(scene, 8f), resetR.top, resetR.right + dp(scene, 8f) + dp(scene, 76f), resetR.bottom)
+
+        drawButton(c, scene, closeR, "✕ 닫기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12f)
+        drawButton(c, scene, zoomInR, "＋", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 17f)
+        drawButton(c, scene, zoomOutR, "－", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 17f)
+        drawButton(c, scene, resetR, "전체 보기", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 11.5f)
+        drawButton(c, scene, homeR, "📍 내 위치", 0xFFF8EFDC.toInt(), 0xFF4A3728.toInt(), 11.5f)
+    }
+
+    private fun drawLegend(c: Canvas) {
+        val x0 = mapR.left + dp(scene, 12f)
+        var y = mapR.top + dp(scene, 16f)
+        fillP.color = Color.argb(190, 255, 252, 240)
+        val lw = dp(scene, 92f)
+        val lh = dp(scene, 14f) * RegionKind.values().size + dp(scene, 10f)
+        c.drawRoundRect(RectF(x0 - dp(scene, 6f), y - dp(scene, 12f), x0 + lw, y - dp(scene, 12f) + lh), dp(scene, 6f), dp(scene, 6f), fillP)
+        for (k in RegionKind.values()) {
+            fillP.color = k.color
+            c.drawCircle(x0 + dp(scene, 2f), y - dp(scene, 3f), dp(scene, 4f), fillP)
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(k.label, x0 + dp(scene, 10f), y, textP)
+            y += dp(scene, 14f)
+        }
+    }
+
+    private fun drawInfo(c: Canvas, reg: RegionDef) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val cardW = minOf(dp(scene, 320f), mapR.width() - dp(scene, 24f))
+        val cardH = dp(scene, 132f)
+        val r = RectF(
+            mapR.right - dp(scene, 12f) - cardW, mapR.top + dp(scene, 12f),
+            mapR.right - dp(scene, 12f), mapR.top + dp(scene, 12f) + cardH
+        )
+        fillP.color = Color.argb(245, 248, 239, 220)
+        c.drawRoundRect(r, dp(scene, 10f), dp(scene, 10f), fillP)
+        strokeP.color = reg.kind.color
+        strokeP.strokeWidth = dp(scene, 2.5f)
+        c.drawRoundRect(r, dp(scene, 10f), dp(scene, 10f), strokeP)
+
+        val x = r.left + dp(scene, 12f)
+        var y = r.top + dp(scene, 20f)
+        textP.textSize = dp(scene, 14f)
+        textP.color = 0xFF4A3728.toInt()
+        val title = "${reg.emoji} ${reg.name}"
+        c.drawText(title, x, y, textP)
+        val tw = textP.measureText(title)
+        textP.textSize = dp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        c.drawText(reg.english, x + tw + dp(scene, 6f), y, textP)
+        val badge = when {
+            reg.id == s.region -> "현재 위치"
+            reg.id == s.homeRegion -> "우리 집"
+            reg.id in s.visited -> "방문함"
+            else -> "미방문"
+        }
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = if (reg.id == s.region) 0xFFD1372C.toInt() else 0xFF6B4F35.toInt()
+        c.drawText(badge, r.right - dp(scene, 12f) - textP.measureText(badge), y, textP)
+
+        y += dp(scene, 15f)
+        textP.textSize = dp(scene, 9.5f)
+        textP.color = 0xFF6FAE6F.toInt()
+        c.drawText("${reg.kind.label} · ${reg.habitatLabels}", x, y, textP)
+
+        y += dp(scene, 14f)
+        textP.color = 0xFF6B4F35.toInt()
+        c.drawText("🐦 " + Regions.signatureBirds(reg).joinToString(", ") { it.name }, x, y, textP)
+
+        y += dp(scene, 14f)
+        textP.color = 0xFF3F6FB0.toInt()
+        c.drawText("📅 추천 시기: ${reg.season}", x, y, textP)
+
+        y += dp(scene, 14f)
+        textP.color = 0xFF8A7360.toInt()
+        for (ln in g.hud.wrapText(if (reg.tip.isNotEmpty()) reg.tip else reg.desc, textP, r.width() - dp(scene, 24f)).take(2)) {
+            c.drawText(ln, x, y, textP)
+            y += dp(scene, 12f)
+        }
+
+        y += dp(scene, 2f)
+        val exits = Regions.exits(reg.id).values.mapNotNull { Regions.byId[it]?.name }
+        textP.color = 0xFF8A7360.toInt()
+        val ex = "🚲 연결: " + if (exits.isEmpty()) "-" else exits.joinToString(", ")
+        for (ln in g.hud.wrapText(ex, textP, r.width() - dp(scene, 24f)).take(2)) {
+            c.drawText(ln, x, y, textP)
+            y += dp(scene, 12f)
+        }
     }
 }
