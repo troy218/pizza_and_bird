@@ -13,6 +13,8 @@ object R {
         val amb_hum = 3
         val amb_wind = 4
         val bgm_home = 6
+        val bgm_mountain = 5
+        val bgm_sea = 28
         val bgm_title = 7
         val bgm_world = 8
         val sfx_bike_bell = 9

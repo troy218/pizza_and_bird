@@ -2,6 +2,7 @@ package com.pizzaandbird.game
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
@@ -10,6 +11,7 @@ import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.util.LruCache
 import java.util.Random
 import kotlin.math.roundToInt
 
@@ -2335,13 +2337,7 @@ begin(T.SIGN)
             // 글씨 줄
             px(c, p, 7f, 6.4f, 11f, 1.6f, c(0xFF4A3728))
             px(c, p, 7f, 9.6f, 8f, 1.4f, c(0xFF4A3728))
-            // 화살표
-            val path = Path()
-            p.color = c(0xFF4A3728)
-            path.moveTo(21f, 6.6f); path.lineTo(25.6f, 9.6f); path.lineTo(21f, 12.4f)
-            path.close()
-            c.drawPath(path, p)
-            px(c, p, 18.4f, 8.6f, 3.4f, 2f, c(0xFF4A3728))
+            // 지도에서 실제 연결 방향(N/E/S/W)을 받아 그릴 수 있도록 판자 화살표 자리는 비워 둔다.
             // 못
             dot(c, p, 5.6f, 5f, c(0xFF33241C))
             dot(c, p, 26.4f, 5f, c(0xFF33241C))
@@ -3044,15 +3040,51 @@ begin(T.LAMP)
     fun birdW(id: String): Float = bird(id).width.toFloat()
     fun birdH(id: String): Float = bird(id).height.toFloat()
 
+    // -----------------------------------------------------------------------
+    // 조류 대도감 실제 사진 및 썸네일 (LruCache)
+    // -----------------------------------------------------------------------
+    private val photoCache = LruCache<Int, Bitmap>(24)
+    private val thumbCache = LruCache<Int, Bitmap>(128)
+
+    /** 조류 고화질 실제 사진 (assets/birds/{num}.jpg) */
+    fun birdPhoto(num: Int): Bitmap? {
+        if (num <= 0) return null
+        photoCache.get(num)?.let { return it }
+        return try {
+            context.assets.open("birds/$num.jpg").use { stream ->
+                BitmapFactory.decodeStream(stream)?.also {
+                    photoCache.put(num, it)
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 도감 그리드용 최적화 썸네일 (assets/birds_thumb/{num}.jpg) */
+    fun birdThumb(num: Int): Bitmap? {
+        if (num <= 0) return null
+        thumbCache.get(num)?.let { return it }
+        return try {
+            context.assets.open("birds_thumb/$num.jpg").use { stream ->
+                BitmapFactory.decodeStream(stream)?.also {
+                    thumbCache.put(num, it)
+                }
+            }
+        } catch (_: Exception) {
+            birdPhoto(num)
+        }
+    }
+
     // 아트 빌더는 모든 데이터 필드(artIds 등) 선언 이후에 실행돼야 한다 —
     // 클래스 끝에 두어 초기화 순서 문제(Kotlin 프로퍼티 선언 순서)를 원천 차단한다.
     // 새는 여기서 만들지 않는다 — bird(id) 가 종별 지연 생성 (시작 시간 단축)
     init {
+        BirdEncyclopedia.init(context)
         buildCat()
         buildGrassRig()
         buildTiles()
         buildIcons()
         buildDecorArt()
     }
-
 }

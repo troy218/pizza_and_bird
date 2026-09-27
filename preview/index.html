@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍕 Pizza and Bird : 📚 조류 대도감 (한반도 598종)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<style>
+  :root {
+    --cream-hi: #fffcf3;
+    --cream: #f8efdc;
+    --cream-deep: #efddb8;
+    --card-hi: #fffbef;
+    --card-lo: #f5e7ca;
+    --card-sel-hi: #fff6dc;
+    --card-sel-lo: #f8e2b0;
+    --ink: #2e2118;
+    --brown: #4a3728;
+    --brown-mid: #6b4f35;
+    --brown-line: #c9a87b;
+    --gold: #f2b63c;
+    --gold-hi: #ffd97a;
+    --gold-deep: #b5651d;
+    --green: #6fba6b;
+    --green-deep: #4e8a4e;
+    --red: #e2574c;
+    --blue: #3f6fb0;
+    --muted: #8a7360;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1e1924;
+    color: var(--ink);
+    font-family: 'Pretendard', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+  }
+
+  /* 헤더 */
+  .app-header {
+    width: 100%;
+    max-width: 1100px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .app-title {
+    color: #f6ecdc;
+    font-size: 24px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-title span.badge {
+    background: var(--gold-deep);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .toggle-btn {
+    background: #2f2738;
+    color: #e5dac9;
+    border: 1px solid #4a3e59;
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toggle-btn:hover {
+    background: #3e334d;
+    border-color: var(--gold);
+    color: #fff;
+  }
+  .toggle-btn.active {
+    background: var(--gold);
+    color: var(--brown);
+    border-color: var(--gold-deep);
+  }
+
+  /* 도감 완성도 바 */
+  .progress-card {
+    background: linear-gradient(180deg, var(--card-hi), var(--card-lo));
+    border: 2px solid var(--brown-line);
+    border-radius: 14px;
+    padding: 14px 20px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--brown);
+  }
+  .progress-track {
+    width: 100%;
+    height: 12px;
+    background: #dfcfb2;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #c2b295;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, var(--green), #8fd694);
+    border-radius: 5px;
+    transition: width 0.4s ease;
+  }
+  .progress-sub {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* 검색 및 필터 바 */
+  .filter-bar {
+    width: 100%;
+    max-width: 1100px;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+    background: #2a2333;
+    border: 1px solid #453754;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  .search-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(242,182,60,0.25);
+  }
+  .filter-select {
+    background: #2a2333;
+    border: 1px solid #453754;
+    color: #f0e6d6;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .filter-select:focus {
+    border-color: var(--gold);
+  }
+
+  /* 도감 메인 패널 */
+  .book-panel {
+    width: 100%;
+    max-width: 1100px;
+    background: linear-gradient(180deg, var(--cream-hi), var(--cream-deep));
+    border: 3px solid var(--brown-mid);
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* 그리드 목록 */
+  .bird-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+    min-height: 480px;
+  }
+
+  /* 새 카드 */
+  .bird-card {
+    background: linear-gradient(180deg, #fffcf5, #f5ecd8);
+    border: 1.5px solid var(--brown-line);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(50,30,10,0.08);
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    position: relative;
+    user-select: none;
+  }
+  .bird-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 14px rgba(70,40,15,0.18);
+    border-color: var(--gold-deep);
+  }
+  .bird-card:active {
+    transform: translateY(1px);
+  }
+
+  /* 썸네일 액자 */
+  .card-thumb {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    background: #2a231d;
+    border-radius: 7px;
+    border: 1.5px solid #d4c1a5;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.25s;
+  }
+  .bird-card:hover .card-thumb img {
+    transform: scale(1.08);
+  }
+  .card-thumb .thumb-tag {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    font-size: 8.5px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+
+  /* 카드 텍스트 */
+  .card-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .card-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+  .card-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-sub {
+    font-size: 11px;
+    color: var(--brown-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-chips {
+    display: flex;
+    gap: 4px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #e8d9c0;
+    color: #5a4430;
+  }
+  .chip.status {
+    background: #fcd5d0;
+    color: #a82e24;
+  }
+
+  /* 페이징 */
+  .pagination-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 10px;
+    border-top: 1px solid #decab0;
+    margin-top: 4px;
+  }
+  .page-btn {
+    background: var(--gold);
+    color: var(--brown);
+    border: 1px solid var(--gold-deep);
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.15s;
+  }
+  .page-btn:hover:not(:disabled) {
+    background: #f9c758;
+    transform: translateY(-1px);
+  }
+  .page-btn:disabled {
+    background: #d8cbbc;
+    color: #8c7e6e;
+    border-color: #bdae9c;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  .page-indicator {
+    background: #f2e3c2;
+    color: var(--brown-mid);
+    padding: 5px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    border: 1px solid #d9be95;
+  }
+
+  /* =================================================================
+     상세 도감 모달 (BirdDetailOverlay)
+     ================================================================= */
+  .modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(14, 10, 18, 0.78);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease-out;
+  }
+  .modal-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 880px;
+    background: linear-gradient(180deg, var(--cream-hi), var(--cream-deep));
+    border: 3px solid var(--brown-mid);
+    border-radius: 18px;
+    box-shadow: 0 16px 45px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.7);
+    padding: 22px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transform: translateY(16px);
+    transition: transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  .modal-backdrop.open .modal-card {
+    transform: translateY(0);
+  }
+
+  /* 모달 헤더 */
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 2px solid #dfcbb1;
+    padding-bottom: 12px;
+  }
+  .modal-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .modal-no-badge {
+    background: var(--brown-mid);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 9px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+  }
+  .modal-bird-name {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--ink);
+  }
+  .modal-tier-badge {
+    background: var(--gold);
+    color: var(--brown);
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .modal-status-badge {
+    background: #e54d42;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .modal-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e2cca8;
+    border: 1px solid #c2a882;
+    color: var(--brown);
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .modal-close-btn:hover {
+    background: #f0debe;
+    transform: rotate(90deg);
+  }
+
+  /* 모달 본문 (좌측 사진 액자 vs 우측 설명) */
+  .modal-body {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  .modal-left {
+    flex: 1 1 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .modal-right {
+    flex: 1 1 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* 고화질 사진 액자 */
+  .photo-frame {
+    background: #faf6ed;
+    border: 2px solid #c9af8b;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 4px 12px rgba(40,25,15,0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .photo-canvas-box {
+    width: 100%;
+    height: 250px;
+    background: #25201b;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .photo-canvas-box img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .photo-stamp {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(242, 182, 60, 0.92);
+    color: var(--brown);
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 4px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--gold-deep);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  }
+  .photo-credit-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10.5px;
+    color: var(--muted);
+    padding: 2px 4px;
+  }
+  .photo-credit-bar .credit-text {
+    font-weight: 600;
+    color: #6b5847;
+  }
+
+  /* 우측 상세 설명 카드 */
+  .meta-box {
+    background: #fffcf7;
+    border: 1.5px solid #decbb2;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .meta-row {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--brown);
+  }
+  .meta-row strong {
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .meta-row em {
+    font-style: italic;
+    color: #4a5a78;
+    font-weight: 600;
+  }
+  .desc-divider {
+    height: 1px;
+    background: #e2cca8;
+    margin: 4px 0;
+  }
+  .desc-box {
+    background: #fdfaf3;
+    border: 1.5px solid #decbb2;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+  .desc-box-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--brown-mid);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .desc-text {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: #2e231c;
+    word-break: keep-all;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .desc-source {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    margin-top: 4px;
+  }
+
+  /* 모달 하단 네비게이션 */
+  .modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2px solid #dfcbb1;
+    padding-top: 12px;
+  }
+  .nav-btn {
+    background: var(--gold);
+    color: var(--brown);
+    border: 1px solid var(--gold-deep);
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .nav-btn:hover:not(:disabled) {
+    background: #f9c758;
+  }
+  .nav-btn:disabled {
+    background: #d8cbbc;
+    color: #8c7e6e;
+    cursor: not-allowed;
+  }
+  .shortcut-hint {
+    font-size: 11px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="title-bar">
+    <h1 class="app-title">
+      🍕 Pizza and Bird
+      <span style="font-size: 20px; opacity: 0.85;">·</span>
+      📚 조류 대도감
+      <span class="badge">공식 598종 고화질 사진도감</span>
+    </h1>
+    <div class="header-actions">
+      <button class="toggle-btn active" id="btnMode">🖼 사진 모드</button>
+    </div>
+  </div>
+
+  <div class="progress-card">
+    <div class="progress-labels">
+      <span>📚 조류 대도감 수록 현황: 598종 / 598종</span>
+      <span style="color: var(--gold-deep);">100% 사진 & 생태 설명 탑재!</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill"></div>
+    </div>
+    <div class="progress-sub">
+      <span>한국조류학회 조류목록 개정판 2025 v2.1 & IOC World Bird List v15.1 기준</span>
+      <span>24목 · 85과 · 383아종 고화질 사진 및 생태 설명 완벽 통합</span>
+    </div>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <input type="text" id="searchInput" class="search-input" placeholder="새 이름, 학명, 영문명, 과 검색... (예: 기러기, 알락, Circus)">
+  <select id="orderSelect" class="filter-select">
+    <option value="">모든 목 (전체 24목)</option>
+  </select>
+  <select id="familySelect" class="filter-select">
+    <option value="">모든 과 (전체 85과)</option>
+  </select>
+</div>
+
+<main class="book-panel">
+  <div class="bird-grid" id="birdGrid">
+    <!-- 새 카드들이 여기에 렌더링됩니다 -->
+  </div>
+
+  <div class="pagination-bar">
+    <button class="page-btn" id="btnPrevPage">◀ 이전 페이지</button>
+    <div class="page-indicator" id="pageIndicator">1 / 50</div>
+    <button class="page-btn" id="btnNextPage">다음 페이지 ▶</button>
+  </div>
+</main>
+
+<!-- 상세 도감 모달 -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal-card" id="modalCard">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="modal-no-badge" id="mNo">No. 001</span>
+        <h2 class="modal-bird-name" id="mName">흑기러기</h2>
+        <span class="modal-tier-badge" id="mTier">일반 ★★★</span>
+        <span class="modal-status-badge" id="mStatus" style="display:none;">보전: VU</span>
+      </div>
+      <button class="modal-close-btn" id="mClose">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- 좌측: 고화질 사진 액자 -->
+      <div class="modal-left">
+        <div class="photo-frame">
+          <div class="photo-canvas-box">
+            <img id="mPhoto" src="" alt="새 사진">
+            <div class="photo-stamp">📸 도감 등록 완료</div>
+          </div>
+          <div class="photo-credit-bar">
+            <span class="credit-text" id="mCredit">📷 Liam Steele · CC-BY</span>
+            <span id="mObs" style="font-size:10px;">관찰 26,281건</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측: 메타데이터 & 한국어 설명 -->
+      <div class="modal-right">
+        <div class="meta-box">
+          <div class="meta-row">
+            <strong>학명:</strong> <em id="mSci">Branta bernicla</em>
+            &nbsp;·&nbsp;
+            <strong>영명:</strong> <span id="mEng">Brant Goose</span>
+          </div>
+          <div class="meta-row">
+            <strong>분류:</strong> <span id="mOrderFamily">기러기목 · 오리과</span>
+            &nbsp;·&nbsp;
+            <strong>범주:</strong> <span id="mCat">가-1</span>
+          </div>
+          <div class="meta-row" id="mSubsRow">
+            <strong>아종:</strong> <span id="mSubs">Branta bernicla nigricans</span>
+          </div>
+        </div>
+
+        <div class="desc-box">
+          <div class="desc-box-title">
+            <span>📖</span> 한국어 생태 및 식별 설명
+          </div>
+          <div class="desc-text" id="mDesc">
+            설명이 여기에 표시됩니다.
+          </div>
+          <div class="desc-source" id="mDescSrc">
+            설명 근거: 한국어 위키백과 서두
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="nav-btn" id="mPrevBtn">◀ 이전 새</button>
+      <div class="shortcut-hint">단축키: [◀ / A] 이전 &nbsp; [▶ / D] 다음 &nbsp; [ESC] 닫기</div>
+      <button class="nav-btn" id="mNextBtn">다음 새 ▶</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let allBirds = [];
+let filteredBirds = [];
+let currentPage = 0;
+const pageSize = 12; // 3x4
+let currentModalNum = 1;
+
+// 요소 참조
+const birdGrid = document.getElementById('birdGrid');
+const pageIndicator = document.getElementById('pageIndicator');
+const btnPrevPage = document.getElementById('btnPrevPage');
+const btnNextPage = document.getElementById('btnNextPage');
+const searchInput = document.getElementById('searchInput');
+const orderSelect = document.getElementById('orderSelect');
+const familySelect = document.getElementById('familySelect');
+const modalBackdrop = document.getElementById('modalBackdrop');
+const mClose = document.getElementById('mClose');
+const mPrevBtn = document.getElementById('mPrevBtn');
+const mNextBtn = document.getElementById('mNextBtn');
+
+// 모달 내부 요소
+const mNo = document.getElementById('mNo');
+const mName = document.getElementById('mName');
+const mTier = document.getElementById('mTier');
+const mStatus = document.getElementById('mStatus');
+const mPhoto = document.getElementById('mPhoto');
+const mCredit = document.getElementById('mCredit');
+const mObs = document.getElementById('mObs');
+const mSci = document.getElementById('mSci');
+const mEng = document.getElementById('mEng');
+const mOrderFamily = document.getElementById('mOrderFamily');
+const mCat = document.getElementById('mCat');
+const mSubsRow = document.getElementById('mSubsRow');
+const mSubs = document.getElementById('mSubs');
+const mDesc = document.getElementById('mDesc');
+const mDescSrc = document.getElementById('mDescSrc');
+
+async function init() {
+  try {
+    const res = await fetch('birds_encyclopedia.json');
+    allBirds = await res.json();
+    filteredBirds = [...allBirds];
+
+    // 필터 옵션 채우기
+    const orders = [...new Set(allBirds.map(b => b.order).filter(Boolean))];
+    orders.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o;
+      opt.textContent = o;
+      orderSelect.appendChild(opt);
+    });
+
+    const families = [...new Set(allBirds.map(b => b.family).filter(Boolean))];
+    families.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      familySelect.appendChild(opt);
+    });
+
+    renderPage();
+  } catch (err) {
+    console.error('Failed to load birds encyclopedia:', err);
+  }
+}
+
+function applyFilters() {
+  const query = searchInput.value.trim().toLowerCase();
+  const selOrder = orderSelect.value;
+  const selFamily = familySelect.value;
+
+  filteredBirds = allBirds.filter(b => {
+    if (selOrder && b.order !== selOrder) return false;
+    if (selFamily && b.family !== selFamily) return false;
+    if (query) {
+      const matchName = b.name.toLowerCase().includes(query);
+      const matchSci = b.sci.toLowerCase().includes(query);
+      const matchEng = b.eng.toLowerCase().includes(query);
+      const matchFamily = b.family.toLowerCase().includes(query);
+      if (!matchName && !matchSci && !matchEng && !matchFamily) return false;
+    }
+    return true;
+  });
+
+  currentPage = 0;
+  renderPage();
+}
+
+searchInput.addEventListener('input', applyFilters);
+orderSelect.addEventListener('change', applyFilters);
+familySelect.addEventListener('change', applyFilters);
+
+function renderPage() {
+  const totalPages = Math.max(1, Math.ceil(filteredBirds.length / pageSize));
+  currentPage = Math.max(0, Math.min(currentPage, totalPages - 1));
+
+  pageIndicator.textContent = `${currentPage + 1} / ${totalPages} (총 ${filteredBirds.length}종)`;
+  btnPrevPage.disabled = currentPage === 0;
+  btnNextPage.disabled = currentPage >= totalPages - 1;
+
+  birdGrid.innerHTML = '';
+  const pageItems = filteredBirds.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+  pageItems.forEach(bird => {
+    const card = document.createElement('div');
+    card.className = 'bird-card';
+    card.onclick = () => openModal(bird.num);
+
+    const padNum = String(bird.num).padStart(3, '0');
+    const thumbUrl = `birds_thumb/${bird.num}.jpg`;
+
+    card.innerHTML = `
+      <div class="card-thumb">
+        <img src="${thumbUrl}" alt="${bird.name}" loading="lazy" onerror="this.src='birds/${bird.num}.jpg'">
+        <span class="thumb-tag">No.${padNum}</span>
+      </div>
+      <div class="card-info">
+        <span class="card-num">No. ${padNum}</span>
+        <div class="card-name">${bird.name}</div>
+        <div class="card-sub">${bird.family || bird.order}</div>
+        <div class="card-chips">
+          <span class="chip">${bird.order}</span>
+          ${bird.status ? `<span class="chip status">${bird.status}</span>` : ''}
+        </div>
+      </div>
+    `;
+    birdGrid.appendChild(card);
+  });
+}
+
+btnPrevPage.onclick = () => { if (currentPage > 0) { currentPage--; renderPage(); } };
+btnNextPage.onclick = () => { if (currentPage < Math.ceil(filteredBirds.length / pageSize) - 1) { currentPage++; renderPage(); } };
+
+// 모달 열기
+function openModal(birdNum) {
+  const bird = allBirds.find(b => b.num === birdNum);
+  if (!bird) return;
+  currentModalNum = birdNum;
+
+  const padNum = String(bird.num).padStart(3, '0');
+  mNo.textContent = `No. ${padNum}`;
+  mName.textContent = bird.name;
+  mTier.textContent = `${bird.order} · ${bird.family}`;
+
+  if (bird.status) {
+    mStatus.style.display = 'inline-block';
+    mStatus.textContent = `보전: ${bird.status}`;
+  } else {
+    mStatus.style.display = 'none';
+  }
+
+  mPhoto.src = `birds/${bird.num}.jpg`;
+  mCredit.textContent = bird.author ? `📷 ${bird.author} (${bird.license.toUpperCase()})` : '📷 iNaturalist 조류 사진';
+  mObs.textContent = bird.obs ? `관찰 ${bird.obs.toLocaleString()}건` : '';
+
+  mSci.textContent = bird.sci || '—';
+  mEng.textContent = bird.eng || '—';
+  mOrderFamily.textContent = `${bird.order} · ${bird.family}`;
+  mCat.textContent = bird.cat || '가-1 (공식 기록종)';
+
+  if (bird.subs && bird.subs.length > 0) {
+    mSubsRow.style.display = 'block';
+    mSubs.textContent = bird.subs.join(', ');
+  } else {
+    mSubsRow.style.display = 'none';
+  }
+
+  mDesc.textContent = bird.desc || '설명 준비 중입니다.';
+  mDescSrc.textContent = `설명 근거: ${bird.descSrc || '한국조류학회 2025'}`;
+
+  mPrevBtn.disabled = currentModalNum <= 1;
+  mNextBtn.disabled = currentModalNum >= allBirds.length;
+
+  modalBackdrop.classList.add('open');
+}
+
+function closeModal() {
+  modalBackdrop.classList.remove('open');
+}
+
+mClose.onclick = closeModal;
+modalBackdrop.onclick = (e) => {
+  if (e.target === modalBackdrop) closeModal();
+};
+
+mPrevBtn.onclick = () => {
+  if (currentModalNum > 1) openModal(currentModalNum - 1);
+};
+mNextBtn.onclick = () => {
+  if (currentModalNum < allBirds.length) openModal(currentModalNum + 1);
+};
+
+// 키보드 조작
+window.addEventListener('keydown', (e) => {
+  if (modalBackdrop.classList.contains('open')) {
+    if (e.key === 'Escape') closeModal();
+    else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+      if (currentModalNum > 1) openModal(currentModalNum - 1);
+    } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+      if (currentModalNum < allBirds.length) openModal(currentModalNum + 1);
+    }
+  } else {
+    if (e.key === 'ArrowLeft') {
+      if (currentPage > 0) { currentPage--; renderPage(); }
+    } else if (e.key === 'ArrowRight') {
+      const totalPages = Math.ceil(filteredBirds.length / pageSize);
+      if (currentPage < totalPages - 1) { currentPage++; renderPage(); }
+    }
+  }
+});
+
+init();
+</script>
+
+</body>
+</html>

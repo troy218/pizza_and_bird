@@ -274,29 +274,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     }
 
     private fun showBirdInfo(def: BirdDef) {
-        val s = scene.game.state
-        val n = s.birdCounts[def.id] ?: 0
-        val subs = when {
-            def.subspecies.isEmpty() -> "아종: —"
-            def.subspecies.size <= 3 -> "아종: ${def.subspecies.joinToString(", ")}"
-            else -> "아종: ${def.subspecies.take(3).joinToString(", ")} 외 ${def.subspecies.size - 3}개"
-        }
-        val seenLine = if (n > 0) {
-            "촬영: ${n}회 · 최고 ${"★".repeat(s.bestStars[def.id] ?: 1)}"
-        } else {
-            "미촬영 · ${def.tier.label} ${def.tier.starText()}"
-        }
-        val meta = listOfNotNull(
-            seenLine,
-            if (def.scientificName.isNotBlank()) "학명: ${def.scientificName}" else null,
-            if (def.englishName.isNotBlank()) "영명: ${def.englishName}" else null,
-            if (def.orderName.isNotBlank() || def.familyName.isNotBlank()) "분류: ${def.orderName} · ${def.familyName}" else null,
-            if (def.category.isNotBlank()) "범주: ${def.category}" else null,
-            subs,
-            "출현: ${def.activeLabel} · 서식: ${def.habitats.joinToString("·") { HabitatLabels[it] ?: it }}"
-        ).joinToString("\n")
-        val body = if (n > 0) "${def.desc}\n\n$meta" else meta
-        scene.openOverlay(DialogOverlay(scene, "${def.name} ${def.tier.starText()}", body))
+        scene.openOverlay(BirdDetailOverlay(scene, def.birdNum))
     }
 
     override fun draw(c: Canvas) {
@@ -915,6 +893,8 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     companion object {
         /** 마지막으로 보던 피자 계열 탭 (메뉴를 닫았다 열어도 유지) */
         private var lastPizzaKindTab: PizzaKind = PizzaKind.OVEN
+        /** 도감 표시 모드 (사진 모드 vs 도트 모드) */
+        private var bookPhotoMode: Boolean = true
     }
 
     private var bookRects: Map<String, RectF> = emptyMap()
@@ -953,6 +933,18 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFF8A7360.toInt()
         c.drawText(OfficialBirdChecklist.SOURCE_TITLE, areaLeft, contentTop() + dp(scene, 33f), textP)
 
+        // 도감 모드 전환 버튼 (사진 썸네일 vs 도트 스프라이트)
+        val modeLabel = if (bookPhotoMode) "🖼 사진 모드" else "👾 도트 모드"
+        textP.textSize = dp(scene, 8.2f)
+        val modeBtnW = textP.measureText(modeLabel) + dp(scene, 16f)
+        val modeBtnH = dp(scene, 17f)
+        val modeBtnR = RectF(areaLeft + areaW - modeBtnW, contentTop() + dp(scene, 21f), areaLeft + areaW, contentTop() + dp(scene, 21f) + modeBtnH)
+        drawButton(c, scene, modeBtnR, modeLabel, 0xFFF2E3C2.toInt(), 0xFF5A4430.toInt(), 8.5f)
+        btnRects.add(Triple(modeBtnR, modeLabel) {
+            bookPhotoMode = !bookPhotoMode
+            g.sfx(Audio.Sfx.TAP, 0.45f)
+        })
+
         val areaTop = contentTop() + dp(scene, 38f)
         val pagerH = dp(scene, 30f)
         val areaH = contentBottom() - areaTop - pagerH
@@ -984,31 +976,77 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             cuteCard(c, r, if (seen) UiKit.lighten(tierColor, 118) else UiKit.CARD_HI,
                 if (seen) tierColor else Color.argb(200, 201, 168, 123), if (seen) 2f else 1.2f, stitched = false)
 
-            val bmp = a.bird(def.id)
-            val maxH = chh - dp(scene, 8f)
-            val k = (maxH / bmp.height).coerceAtMost(dp(scene, 0.95f))
-            val bx = r.left + dp(scene, 4f)
-            val by = r.centerY() - bmp.height * k / 2f
-            if (seen) {
-                // 등급 색상의 은은한 후광
-                fillP.color = Color.argb(40, Color.red(tierColor), Color.green(tierColor), Color.blue(tierColor))
-                c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 15f), fillP)
-                c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+            var tx = r.left + dp(scene, 8f)
+
+            if (bookPhotoMode) {
+                // [사진 모드]: 각 셀에 사진 썸네일 액자
+                val thumbBoxSize = chh - dp(scene, 8f)
+                val thumbR = RectF(
+                    r.left + dp(scene, 4f), r.top + dp(scene, 4f),
+                    r.left + dp(scene, 4f) + thumbBoxSize, r.top + dp(scene, 4f) + thumbBoxSize
+                )
+                fillP.color = 0xFF2A231D.toInt()
+                c.drawRoundRect(thumbR, dp(scene, 4f), dp(scene, 4f), fillP)
+
+                val thumb = a.birdThumb(def.birdNum)
+                if (thumb != null) {
+                    val saveCount = c.save()
+                    c.clipRect(thumbR)
+                    val scale = Math.max(thumbR.width() / thumb.width.toFloat(), thumbR.height() / thumb.height.toFloat())
+                    val tw = thumb.width * scale
+                    val th = thumb.height * scale
+                    val tdx = thumbR.left + (thumbR.width() - tw) / 2f
+                    val tdy = thumbR.top + (thumbR.height() - th) / 2f
+                    c.drawBitmap(thumb, null, RectF(tdx, tdy, tdx + tw, tdy + th), a.sprPaint)
+
+                    // 미촬영 종은 부드러운 딤 레이어 + ? 표시 (실루엣 보존)
+                    if (!seen) {
+                        fillP.color = Color.argb(145, 30, 25, 20)
+                        c.drawRect(thumbR, fillP)
+                        textP.textSize = dp(scene, 9.5f)
+                        textP.color = 0xFFF8EFDC.toInt()
+                        c.drawText("?", thumbR.centerX() - textP.measureText("?") / 2f, thumbR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+                    }
+                    c.restoreToCount(saveCount)
+                } else {
+                    val bmp = a.bird(def.id)
+                    val k = (thumbBoxSize / bmp.height).coerceAtMost(dp(scene, 0.85f))
+                    val bx = thumbR.centerX() - bmp.width * k / 2f
+                    val by = thumbR.centerY() - bmp.height * k / 2f
+                    c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+                }
+
+                strokeP.color = if (seen) Color.argb(160, 218, 175, 110) else Color.argb(70, 100, 90, 80)
+                strokeP.strokeWidth = dp(scene, 1f)
+                c.drawRoundRect(thumbR, dp(scene, 4f), dp(scene, 4f), strokeP)
+
+                tx = thumbR.right + dp(scene, 6f)
             } else {
-                fillP.color = Color.argb(95, 150, 140, 130)
-                c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 7f), fillP)
-                textP.textSize = dp(scene, 9.5f)
-                textP.color = 0xFFF8EFDC.toInt()
-                c.drawText("?", bx + bmp.width * k / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+                // [도트 모드]: 기존 픽셀 도트 스프라이트
+                val bmp = a.bird(def.id)
+                val maxH = chh - dp(scene, 8f)
+                val k = (maxH / bmp.height).coerceAtMost(dp(scene, 0.95f))
+                val bx = r.left + dp(scene, 4f)
+                val by = r.centerY() - bmp.height * k / 2f
+                if (seen) {
+                    fillP.color = Color.argb(40, Color.red(tierColor), Color.green(tierColor), Color.blue(tierColor))
+                    c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 15f), fillP)
+                    c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+                } else {
+                    fillP.color = Color.argb(95, 150, 140, 130)
+                    c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 7f), fillP)
+                    textP.textSize = dp(scene, 9.5f)
+                    textP.color = 0xFFF8EFDC.toInt()
+                    c.drawText("?", bx + bmp.width * k / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+                }
+                tx = bx + bmp.width * k + dp(scene, 5f)
             }
 
-            val tx = bx + bmp.width * k + dp(scene, 5f)
-            // 글 세 줄(약 40dp)을 칸 세로 가운데에
             val top0 = r.centerY() - dp(scene, 20f)
-            textP.textSize = dp(scene, 10.4f)
+            textP.textSize = dp(scene, 10.2f)
             textP.color = if (seen) 0xFF4A3728.toInt() else Color.argb(175, 74, 55, 40)
             c.drawText(def.name, tx, top0 + dp(scene, 12f), textP)
-            textP.textSize = dp(scene, 8.4f)
+            textP.textSize = dp(scene, 8.2f)
             textP.color = 0xFF8A7360.toInt()
             val baseLine2 = if (seen) {
                 val best = s.bestStars[def.id] ?: 1
@@ -2643,7 +2681,8 @@ class PhotoResultOverlay(
             Tier.RARE -> 0xFF3F6FB0.toInt()
             Tier.LEGEND -> 0xFFB65342.toInt()
         }
-        val sub = "${def.tier.label} · ${def.activeLabel}" +
+        val numPrefix = if (def.birdNum > 0) "No. ${String.format("%03d", def.birdNum)} · " else ""
+        val sub = "$numPrefix${def.tier.label} · ${def.seasonLabel} · ${def.timeWindowLabel}" +
                 (if (def.englishName.isNotBlank()) " · ${def.englishName}" else "")
         c.drawText(sub, card.centerX() - textP.measureText(sub) / 2, capTop + dp(scene, 28f), textP)
         fillP.color = tierColor
