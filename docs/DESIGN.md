@@ -472,7 +472,6 @@ Kotlin 리그·바람 필드·상태 머신을 Python(PIL)로 1:1 재현해 이�
   - 데드존 0.18R / 최대 0.90R (`Hud.STICK_DEAD/STICK_MAX`), 캡 반경 `stickKnobR`, 캡 이동 = baseR - knobR
   - **탭 보존**: 조이스틱 구역에서 움직임 없이 떼면 월드 탭으로 처리(상호작용 유지), 조금 끌면 스틱 확정(햅틱)
   - **설정 → 🕹️ 조이스틱**: `움직이는 스틱`(끄면 고정 자리에서만 잡힘) / `민 만큼 속도`(아날로그: `Input.moveScale` = 0.5+0.5×|v|, 카메라 모드 50%와 곱)
-- **CI**: GitHub Actions — push 시 debug/release APK 빌드, `v*` 태그 시 Release 발행
 - **테스트**: `tools/MapTest.kt` — 144개(12지역×12홈) 맵 조합 + 스폰/경로/이정표/경계/**길 연결성** 자동 검증
 - **미리보기 도구**: `tools/preview/*.py` — 기기 없이 맵 한 장을 PNG로 렌더링 (같은 알고리즘의 파이썬 판)
 - **카메라 실험실**: `tools/camera_lab/index.html` — `CameraRig`와 **같은 수식**의 자바스크립트 판.
