@@ -7,8 +7,9 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v5: 8칸 집 꾸미기 레이아웃/세트 효과와 방향·자세·지역·시간·날씨가
- * 포함된 촬영 사진집 메타데이터를 추가했다. 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
+ * 세이브 형식 v6: 선택 퀘스트와 터널 이동 사이에도 이어지는 자전거 길안내 계획을 추가했다.
+ * v5: 8칸 집 꾸미기 레이아웃/세트 효과와 방향·자세·지역·시간·날씨가 포함된 사진집 메타데이터,
+ * 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
  *   화면 연출(몰입 카메라) 설정 + 피자 배열 확장([피자id*3 + 품질], 12종 = 화덕피자 6 + 일반 피자 6).
  *   (v2/v3의 9칸 피자 배열 = 치즈/버섯/불고기 → 같은 id를 유지하므로 앞 9칸에 그대로 들어간다)
  * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
@@ -52,6 +53,8 @@ class GameState {
     val activeQuests = ArrayList<QuestData>()       // 다양한 종류의 서브 의뢰 목록 (최대 3개 동시 진행)
     val dailyQuests = ArrayList<DailyQuestData>()   // 오늘의 일일 탐조 미션 (매일 3개)
     var lastDailyDay = 1                            // 일일 미션이 갱신된 날짜
+    var trackedQuestId: String? = null               // 메뉴/HUD에서 선택한 퀘스트
+    var questTravelPlan: QuestTravelPlan? = null     // 터널 씬이 바뀌어도 이어지는 자전거 길안내
 
     // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
     var mainQuestStarted = false
@@ -517,6 +520,8 @@ class GameState {
         activeQuests.clear()
         dailyQuests.clear()
         lastDailyDay = 1
+        trackedQuestId = null
+        questTravelPlan = null
         mainQuestStarted = false
         mainQuestStage = 0
         mainQuestFinished = false
@@ -547,7 +552,7 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 5)
+        put("v", 6)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
@@ -573,6 +578,8 @@ class GameState {
         put("activeQuests", JSONArray().apply { activeQuests.forEach { put(it.toJson()) } })
         put("dailyQuests", JSONArray().apply { dailyQuests.forEach { put(it.toJson()) } })
         put("lastDailyDay", lastDailyDay)
+        put("trackedQuestId", trackedQuestId ?: "")
+        put("questTravelPlan", questTravelPlan?.toJson() ?: JSONObject.NULL)
         put("mainQuestStarted", mainQuestStarted)
         put("mainQuestStage", mainQuestStage)
         put("mainQuestFinished", mainQuestFinished)
@@ -720,6 +727,8 @@ class GameState {
                 }
             }
             s.lastDailyDay = j.optInt("lastDailyDay", s.day)
+            s.trackedQuestId = j.optString("trackedQuestId", "").ifEmpty { null }
+            s.questTravelPlan = j.optJSONObject("questTravelPlan")?.let { QuestTravelPlan.fromJson(it) }
             s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
             s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
             s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size

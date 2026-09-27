@@ -332,40 +332,16 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         scene.openOverlay(BirdDetailOverlay(scene, def.birdNum))
     }
 
-    /**
-     * 메인 퀘스트 자동 진행 — 카드 탭 시 어드바이저의 추천 지역으로 바로 이동.
-     * 이미 추천 위치에 있으면 "도착 후 할 일" 팁으로 답한다.
-     */
+    /** 퀘스트 카드 탭 — 보리 박사/NPC 또는 실제 탐조 자리까지 자전거로 안내한다. */
     private fun autoGoMainQuest() {
-        val g = scene.game
-        val s = g.state
-        if (MainStory.current(s) == null) return
-        val adv = MainQuestAdvisor.advise(s) ?: return
-        // 보고할 기록이 있으면 — 같은 지역 안에서도 보리 박사 바로 옆으로 데려다 준다
-        val readyToReport = MainStory.current(s)?.isComplete(s) == true &&
-            adv.regionId == NpcRoster.PROFESSOR_REGION
-        if (readyToReport) {
-            g.toast("🔍 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}의 보리 박사에게")
-            g.toast(adv.tip)
-            finished = true
-            fastTravel(g, adv.regionId, force = true)
-            return
-        }
-        if (adv.alreadyThere || adv.regionId == s.region) {
-            // 이미 추천 지역 안 — 이동 대신 "그냥 여기" 안내
-            g.toast("${adv.regionName} · ${adv.reason}")
-            g.toast(adv.tip)
-            return
-        }
-        g.toast("${adv.regionName}으로 출발! · ${adv.reason}")
-        g.toast(adv.tip)
+        if (MainStory.current(scene.game.state) == null) return
+        QuestNavigation.startMainQuest(scene.game, scene)
         finished = true
-        fastTravel(g, adv.regionId)
     }
 
     /**
      * 사진용품점 바로가기 — 서울에서는 진열대를 열고,
-     * 다른 지역에서는 서울 이동을 확인한다 (`NpcRoster.SHOP_REGION`).
+     * 다른 지역에서는 서울까지 자전거 길안내를 확인한다 (`NpcRoster.SHOP_REGION`).
      */
     private fun openShopTrip() {
         val g = scene.game
@@ -374,7 +350,10 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             scene.openOverlay(DialogOverlay(
                 scene, "사진용품점 · ${NpcRoster.shopkeeper.title}",
                 "${NpcRoster.shopRegionName} 사진용품점이에요. 카메라·장식·자전거 중 무엇을 볼까요?",
-                shopChoices(scene)
+                shopChoices(scene) + DialogOverlay.Choice("🚲 가게로 자전거 길안내") {
+                    QuestNavigation.startPersonTrip(g, scene, NpcRoster.shopkeeper)
+                    finished = true
+                }
             ))
             return
         }
@@ -384,10 +363,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 "\"장비·장식·자전거는 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}에 있는 " +
                     "우리 가게에서만 팔아. 다른 동네엔 분점이 없어.\"",
                 listOf(
-                    DialogOverlay.Choice("🚲 ${NpcRoster.shopRegionName}으로 이동") {
-                        g.toast("🚲 ${NpcRoster.shopRegionName} ${NpcRoster.shopkeeper.spot.label}로 출발!")
+                    DialogOverlay.Choice("🚲 ${NpcRoster.shopkeeper.name}에게 자전거로 가기") {
+                        QuestNavigation.startPersonTrip(g, it.scene, NpcRoster.shopkeeper)
                         finished = true
-                        fastTravel(g, NpcRoster.SHOP_REGION)
                     },
                     DialogOverlay.Choice("다음에 갈게요")
                 )
@@ -702,12 +680,24 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         textP.color = 0xFF796653.toInt()
         val objective = when {
             s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
-            !s.mainQuestStarted -> "카드를 탭하면 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}의 박사에게 바로 데려다 줘요."
+            !s.mainQuestStarted -> "카드를 누르면 자전거를 타고 박사가 있는 곳까지 직접 달려가요."
             else -> chapter?.objective(s) ?: ""
         }
         val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
         objectiveLines.forEachIndexed { i, line ->
-            c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 13f), textP)
+            c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 12f), textP)
+        }
+        val missingMainSpecies = if (s.mainQuestStarted) {
+            chapter?.collectionDef()?.species?.filterNot { s.hasBirdName(it) }.orEmpty()
+        } else emptyList()
+        if (missingMainSpecies.isNotEmpty()) {
+            textP.textSize = textDp(scene, 9.2f)
+            textP.color = 0xFF8A5A33.toInt()
+            var missingLine = "모을 새: ${missingMainSpecies.take(4).joinToString("·")}" +
+                if (missingMainSpecies.size > 4) " 외" else ""
+            val missingMaxW = mainR.width() - dp(scene, 20f)
+            while (missingLine.length > 4 && textP.measureText(missingLine) > missingMaxW) missingLine = missingLine.dropLast(1)
+            c.drawText(missingLine, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 61f), textP)
         }
         advice?.let { adv ->
             // 추천 위치 한 줄 — "어디로 가야 하는지"를 카드에 직접 보여준다
@@ -721,7 +711,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             textP.color = if (here) 0xFF397547.toInt() else 0xFFB5651D.toInt()
             val maxRecW = mainR.width() - dp(scene, 20f)
             while (rec.length > 4 && textP.measureText(rec) > maxRecW) rec = rec.dropLast(1)
-            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 70f), textP)
+            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 74f), textP)
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = s.questBird?.let { Birds.byId[it]?.name }?.let { "서브 사진 의뢰: $it (시간 제한 없음)" }
@@ -811,13 +801,22 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         } else {
             // 고정 4행에 밀어 넣거나 take(2)로 세 번째 의뢰를 숨기지 않는다.
             QuestManager.ensureDailyQuests(s)
-            data class TaskRow(val title: String, val progress: String, val description: String, val done: Boolean)
-            val tasks = s.activeQuests.map {
-                TaskRow("서브 · [${it.category.label}] ${it.title}",
-                    "${it.progressText} · +₩${fmtMoney(it.rewardMoney)}", it.description, it.isComplete)
-            } + s.dailyQuests.map {
-                TaskRow("일일 · ${it.title}",
-                    "${it.progressText} · +₩${fmtMoney(it.rewardMoney)}", it.description, it.isComplete)
+            data class TaskRow(val title: String, val progress: String, val description: String,
+                               val done: Boolean, val buttonId: String, val action: (() -> Unit)?)
+            val tasks = s.activeQuests.map { q ->
+                TaskRow("서브 · [${q.category.label}] ${q.title}",
+                    "${q.progressText} · +₩${fmtMoney(q.rewardMoney)}", QuestNavigation.requirementText(q),
+                    q.isComplete, "quest_${q.id}", {
+                        QuestNavigation.startQuest(scene.game, scene, q)
+                        finished = true
+                    })
+            } + s.dailyQuests.map { q ->
+                TaskRow("일일 · ${q.title}",
+                    "${q.progressText} · +₩${fmtMoney(q.rewardMoney)}", QuestNavigation.requirementText(q),
+                    q.isComplete, "daily_${q.id}", if (q.completed) null else ({
+                        QuestNavigation.startDailyQuest(scene.game, scene, q)
+                        finished = true
+                    }))
             }
             val availableH = contentBottom() - dp(scene, 26f) - y
             val perPage = (availableH / dp(scene, 42f)).toInt().coerceIn(1, 6)
@@ -835,6 +834,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     left + dp(scene, 8f), r.top + dp(scene, 25f), r.width() - dp(scene, 16f), 9.5f)
                 textP.color = UiKit.MUTED
                 drawFitText(c, scene, task.description, left + dp(scene, 8f), r.bottom - dp(scene, 4f), r.width() - dp(scene, 16f), 8.5f)
+                task.action?.let { btnRects.add(Triple(r, task.buttonId, it)) }
                 y += rowH
             }
             val prev = RectF(left, contentBottom() - dp(scene, 24f), left + dp(scene, 80f), contentBottom())

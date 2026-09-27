@@ -113,6 +113,10 @@ class WorldScene(
     private var dustT = 0f
     private var ambientT = 0f
     private var lastSpeed = 0f
+    private var questPathKey = ""
+    private var questPath = emptyList<PointF>()
+    private var questPathIndex = 0
+    private var questPathGoal: PointF? = null
     private var chirpT = 4f + rnd.nextFloat() * 6f    // 새 지저귐 효과음 타이머
     private var owlT = 6f + rnd.nextFloat() * 10f     // 밤 부엉이 효과음 타이머
 
@@ -156,13 +160,9 @@ class WorldScene(
         state.region = region.id
         state.inHome = false
 
-        // 빠른 이동 도착 지점 — 보리 박사가 있는 지역이면 박사 옆(인사 자리), 아니면 중앙 광장.
-        val professorHere = map.npcs.firstOrNull { it.kind == NpcKind.PROFESSOR }
         val (sx, sy) = when (spawnKind) {
             SpawnKind.SAVED -> state.px to state.py
             SpawnKind.HOME -> 376f to 12.2f * 16f
-            SpawnKind.FAST -> professorHere?.let { it.greetX * 16f to it.greetY * 16f }
-                ?: (18f * 16f to 14f * 16f)   // 중앙 광장
             SpawnKind.LANDMARK ->                      // 랜드마크에서 나오면 정문 바로 앞
                 if (map.landmarkDoorX >= 0) map.landmarkDoorX * 16f to (map.landmarkDoorY + 1) * 16f
                 else 18f * 16f to 14f * 16f
@@ -178,13 +178,6 @@ class WorldScene(
         state.py = sy
         player.facing = when {
             spawnKind == SpawnKind.TUNNEL -> Regions.opposite(spawnDir)
-            spawnKind == SpawnKind.FAST && professorHere != null -> {
-                // 박사 바로 옆에 내려놓으니, 도착하자마자 얼굴을 마주 보게 한다
-                val dx = professorHere.cx - player.cx
-                val dy = professorHere.cy - player.cy
-                if (abs(dx) > abs(dy)) (if (dx > 0) Dir.E else Dir.W) else (if (dy > 0) Dir.S else Dir.N)
-            }
-            spawnKind == SpawnKind.FAST -> Dir.N      // 광장 한가운데를 바라본다
             else -> Dir.S
         }
         // 저장 위치 복귀·터널 이동 시에는 자전거 탑승 상태 유지 (터널을 지나도 내리지 않는다)
@@ -365,6 +358,7 @@ class WorldScene(
         seasonFx.update(dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(), state.isNight())
 
         updatePlayer(dt)
+        finishGuidedArrival()
         updateStats(dt)
         checkTileTriggers()
 
@@ -482,15 +476,13 @@ class WorldScene(
         state.px = player.x
         state.py = player.y
         state.onBike = player.bike
-        game.hud.questLabel = if (photoMode) null else when {
-            state.activeQuests.isNotEmpty() -> {
-                val q = state.activeQuests.first()
-                "의뢰 · [${q.category.label}] ${q.title} (${q.progressText})"
-            }
-            state.questBird != null -> "서브 · ${Birds.byId[state.questBird!!]?.name ?: "?"} 사진"
-            state.mainQuestFinished -> null
-            state.mainQuestStarted -> MainStory.current(state)?.let { "메인 · ${it.title}" }
-            else -> "메인 · ${NpcRoster.professorRegionName} 보리 박사 만나기"
+        val tracker = if (photoMode) null else QuestNavigation.tracker(state)
+        game.hud.questLabel = tracker?.title
+        game.hud.questObjective = tracker?.requirement
+        game.hud.questProgress = tracker?.progress
+        game.hud.questTravelLabel = state.questTravelPlan?.let { plan ->
+            if (plan.targetRegionId == region.id) "🚲 ${plan.targetLabel}로 이동 중"
+            else "🚲 ${Regions.byId[plan.targetRegionId]?.name ?: plan.targetRegionId} 방면으로 이동 중"
         }
 
         // 메인 버튼 맥락 아이콘 (근처 상호작용 대상 — A 버튼 동작과 동일한 우선순위)
@@ -694,10 +686,102 @@ class WorldScene(
         if (state.onBike && state.visited.size >= 3) Healing.unlock(state, "bicycle_ride")
     }
 
+    private fun guidedTravelDirection(): Pair<Float, Float>? {
+        val plan = state.questTravelPlan ?: run {
+            questPathKey = ""
+            questPath = emptyList()
+            questPathGoal = null
+            questPathIndex = 0
+            return null
+        }
+        val routeToTunnel = plan.targetRegionId != map.region.id
+        val key = "${map.region.id}:${if (routeToTunnel) "tunnel" else "target"}:${plan.hashCode()}"
+        if (key != questPathKey) {
+            val goal = if (routeToTunnel) {
+                val nextRegion = QuestNavigation.nextRegionOnRoute(map.region.id, plan.targetRegionId)
+                val tunnel = nextRegion?.let { next -> map.tunnels.firstOrNull { it.targetId == next } }
+                tunnel?.let { PointF(it.tileX * 16f, it.tileY * 16f - 1f) }
+            } else {
+                QuestNavigation.targetForWorld(map, plan, player.x, player.y)
+            }
+            if (goal == null) {
+                QuestNavigation.cancel(
+                    game,
+                    if (routeToTunnel) "목표 지역으로 가는 터널을 찾지 못했어요"
+                    else "이 지역에서 목표 장소를 찾지 못했어요"
+                )
+                questPathKey = ""
+                questPathGoal = null
+                return null
+            }
+            val path = QuestPathfinder.findPath(map, player.x, player.y, goal.x, goal.y)
+            if (path == null) {
+                QuestNavigation.cancel(game, "목표 장소까지 이어지는 길을 찾지 못했어요")
+                questPathKey = ""
+                questPathGoal = null
+                return null
+            }
+            questPathKey = key
+            questPath = path
+            questPathIndex = 0
+            questPathGoal = goal
+        }
+        while (questPathIndex < questPath.size &&
+            hypot(questPath[questPathIndex].x - player.x, questPath[questPathIndex].y - player.y) < 5f
+        ) questPathIndex++
+        val waypoint = questPath.getOrNull(questPathIndex) ?: return null
+        return (waypoint.x - player.x) to (waypoint.y - player.y)
+    }
+
+    private fun finishGuidedArrival() {
+        val plan = state.questTravelPlan ?: return
+        if (plan.targetRegionId != map.region.id) return
+        when (plan.targetKind) {
+            QuestTargetKind.PERSON -> {
+                val npc = map.npcs.firstOrNull { it.person.id == plan.targetKey } ?: return
+                if (hypot(npc.greetCx - player.cx, npc.greetCy - player.cy) > 18f) return
+                val dx = npc.cx - player.cx
+                val dy = npc.cy - player.cy
+                player.facing = if (abs(dx) > abs(dy)) {
+                    if (dx > 0f) Dir.E else Dir.W
+                } else if (dy > 0f) Dir.S else Dir.N
+                player.moving = false
+                state.questTravelPlan = null
+                questPathKey = ""
+                questPath = emptyList()
+                questPathGoal = null
+                SaveManager.save(game.context, state)
+                game.toast("${npc.person.name}에게 도착했어요")
+                talkTo(npc)
+            }
+            QuestTargetKind.BIRDING_SPOT, QuestTargetKind.REGION_CENTER -> {
+                val goal = questPathGoal ?: return
+                if (hypot(goal.x - player.x, goal.y - player.y) > 18f) return
+                state.questTravelPlan = null
+                questPathKey = ""
+                questPath = emptyList()
+                questPathGoal = null
+                SaveManager.save(game.context, state)
+                game.toast("${plan.targetLabel}에 도착했어요. 퀘스트 목표를 진행해 보세요!")
+            }
+            QuestTargetKind.HOME_OVEN -> Unit // 현관 타일을 밟으면 집 안 길안내로 이어진다.
+        }
+    }
+
     private fun updatePlayer(dt: Float) {
         val input = game.input
-        val dx = input.dirX
-        val dy = input.dirY
+        val manualMoving = abs(input.dirX) > 0.02f || abs(input.dirY) > 0.02f
+        if (state.questTravelPlan != null && manualMoving) {
+            QuestNavigation.cancel(game, "직접 조작으로 자전거 길안내를 취소했어요")
+            questPathKey = ""
+        }
+        val guide = if (state.questTravelPlan != null) {
+            player.bike = true
+            state.onBike = true
+            guidedTravelDirection()
+        } else null
+        val dx = guide?.first ?: input.dirX
+        val dy = guide?.second ?: input.dirY
         val moving = abs(dx) > 0.01f || abs(dy) > 0.01f
         player.moving = moving
         if (bumpCd > 0f) bumpCd -= dt
@@ -719,7 +803,7 @@ class WorldScene(
             if (photoMode) speed *= 0.5f        // 카메라 모드에선 살금살금
             speed *= state.speedMult()          // 튼튼한 다리 스킬
             if (state.hunger <= 0f) speed *= 0.55f
-            speed *= input.moveScale            // 스틱을 민 만큼 (아날로그 설정)
+            speed *= (if (guide != null) 1f else input.moveScale) // 자동 길안내는 항상 최고 속도
             val moveStartX = player.x
             val moveStartY = player.y
             if (!moveBy(vx * speed * dt, 0f)) blocked = true
@@ -1887,7 +1971,7 @@ class WorldScene(
                 add(
                     DialogOverlay.Choice("🚲 ${NpcRoster.professorRegionName} 박사에게") {
                         game.toast("🚲 ${NpcRoster.professorRegionName} ${NpcRoster.professor.spot.label}로 출발!")
-                        fastTravel(game, NpcRoster.PROFESSOR_REGION)
+                        QuestNavigation.startPersonTrip(game, this@WorldScene, NpcRoster.professor)
                     }
                 )
             }
@@ -1937,7 +2021,7 @@ class WorldScene(
                     if (!NpcRoster.hasShop(state.region)) {
                         add(DialogOverlay.Choice("🏬 ${NpcRoster.shopRegionName} 상점") {
                             game.toast("🚲 ${NpcRoster.shopTravelHint}")
-                            fastTravel(game, NpcRoster.SHOP_REGION)
+                            QuestNavigation.startPersonTrip(game, this@WorldScene, NpcRoster.shopkeeper)
                         })
                     }
                     add(DialogOverlay.Choice("다음에 올게요"))
@@ -1972,10 +2056,10 @@ class WorldScene(
                     } else {
                         add(DialogOverlay.Choice("목표를 기억할게요"))
                     }
-                    advice?.let { adv ->
-                        if (!adv.alreadyThere && adv.regionId != state.region) {
-                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
-                        }
+                    if (advice != null) {
+                        add(DialogOverlay.Choice("🚲 목표 장소로 이동") {
+                            QuestNavigation.startMainQuest(game, this@WorldScene)
+                        })
                     }
                     add(DialogOverlay.Choice("사진 의뢰 보기") { showSideQuest() })
                 }
@@ -2016,11 +2100,29 @@ class WorldScene(
      */
     private fun showQuestLog() {
         if (photoMode) return
+        // HUD에서 선택한 일일 의뢰도 활성 의뢰보다 우선해서 다시 보여 준다.
+        val selectedDaily = state.dailyQuests.firstOrNull { it.id == state.trackedQuestId && !it.completed }
+        if (selectedDaily != null) {
+            openOverlay(
+                DialogOverlay(
+                    this, selectedDaily.title,
+                    "${QuestNavigation.requirementText(selectedDaily)}\n\n진행: ${selectedDaily.progressText}",
+                    listOf(
+                        DialogOverlay.Choice("🚲 일일 의뢰 목표로 이동") {
+                            QuestNavigation.startDailyQuest(game, this@WorldScene, selectedDaily)
+                        },
+                        DialogOverlay.Choice("계속할게요")
+                    )
+                )
+            )
+            return
+        }
         // 1) 진행 중인 탐조 의뢰(게시판) — 칩이 가장 먼저 보여 주는 내용
         val active = state.activeQuests
-        if (active.isNotEmpty()) {
+        if (active.isNotEmpty() && state.trackedQuestId != "main") {
+            val selected = active.firstOrNull { it.id == state.trackedQuestId } ?: active.first()
             val body = active.joinToString("\n\n") { q ->
-                "[${q.category.label}] ${q.title} (${q.progressText})\n${q.description}\n" +
+                "[${q.category.label}] ${q.title} (${q.progressText})\n${QuestNavigation.requirementText(q)}\n${q.description}\n" +
                     "보상 ${won(q.rewardMoney)} · 경험치 +${q.rewardExp}" +
                     if (q.rewardLuck > 0) " · 행운 +${q.rewardLuck}" else ""
             }
@@ -2028,20 +2130,30 @@ class WorldScene(
                 DialogOverlay(
                     this, "진행 중인 탐조 의뢰 (${active.size}/3)",
                     body,
-                    listOf(DialogOverlay.Choice("계속할게요"))
+                    listOf(
+                        DialogOverlay.Choice("🚲 선택한 의뢰 목표로 이동") {
+                            QuestNavigation.startQuest(game, this@WorldScene, selected)
+                        },
+                        DialogOverlay.Choice("계속할게요")
+                    )
                 )
             )
             return
         }
         val questBird = state.questBird
-        if (questBird != null) {
+        if (questBird != null && state.trackedQuestId != "main") {
             val def = Birds.byId[questBird]
             openOverlay(
                 DialogOverlay(
                     this, "진행 중인 사진 의뢰",
                     "\"${def?.name ?: "그 새"} 사진을 찍어 오게.\n보수는 ${won(state.questReward)}일세.\"\n\n" +
                         "메인 이야기와는 별개의 의뢰예요. 시간 제한은 없으니 원하는 때에 담아 오면 됩니다.",
-                    listOf(DialogOverlay.Choice("계속할게요"))
+                    listOf(
+                        DialogOverlay.Choice("🚲 ${NpcRoster.professorRegionName}의 새 서식지로 이동") {
+                            QuestNavigation.startLegacyBirdTrip(game, this@WorldScene, questBird)
+                        },
+                        DialogOverlay.Choice("계속할게요")
+                    )
                 )
             )
             return
@@ -2060,8 +2172,13 @@ class WorldScene(
             openOverlay(
                 DialogOverlay(
                     this, "메인 이야기 시작",
-                    "${NpcRoster.professorRegionName}의 보리 박사를 찾아가 낡은 탐조 수첩 이야기를 들어보세요.",
-                    listOf(DialogOverlay.Choice("알겠어요"))
+                    "${NpcRoster.professorRegionName}의 보리 박사를 찾아가 낡은 탐조 수첩 이야기를 들어보세요. 퀘스트를 누르면 자전거로 직접 찾아갑니다.",
+                    listOf(
+                        DialogOverlay.Choice("🚲 보리 박사 만나러 가기") {
+                            QuestNavigation.startMainQuest(game, this@WorldScene)
+                        },
+                        DialogOverlay.Choice("알겠어요")
+                    )
                 )
             )
             return
@@ -2079,10 +2196,10 @@ class WorldScene(
                 "\"${chapter.intro}\"\n\n목표: $objective" +
                     (if (ready) "\n기록을 정리할 준비가 됐어요. 보리 박사를 찾아가 보고하세요." else "") + adviceLine,
                 buildList {
-                    advice?.let { adv ->
-                        if (!adv.alreadyThere && adv.regionId != state.region) {
-                            add(DialogOverlay.Choice("이동하기") { fastTravel(game, adv.regionId) })
-                        }
+                    if (advice != null) {
+                        add(DialogOverlay.Choice("🚲 목표 장소로 이동") {
+                            QuestNavigation.startMainQuest(game, this@WorldScene)
+                        })
                     }
                     add(DialogOverlay.Choice("닫기"))
                 }
@@ -2144,6 +2261,8 @@ class WorldScene(
                 SaveManager.save(game.context, state)
                 game.toast("의뢰 수락: [${q.category.label}] ${q.title}")
                 game.sfx(Audio.Sfx.NOTIFY, 0.8f)
+                QuestNavigation.startQuest(game, it.scene, q)
+                it.finished = true
             })
         }
         if (active.isNotEmpty()) {
@@ -2157,10 +2276,14 @@ class WorldScene(
         }
         choices.add(DialogOverlay.Choice("다음에 할게요"))
 
+        val candidateSummary = candidates.joinToString("\n") { q ->
+            "• ${q.title} · ${QuestNavigation.requirementText(q)} · 진행 ${q.progressText}"
+        }
         openOverlay(
             DialogOverlay(
                 this, "보리 박사의 탐조 의뢰 게시판",
-                "\"${statusText}탐조 협회와 지역 주민들이 맡긴 다양한 의뢰가 들어와 있네.\n원하는 조사를 골라 보게나! (최대 3개 동시 진행 가능)\"",
+                "\"${statusText}탐조 협회와 지역 주민들이 맡긴 의뢰네.\n" +
+                    "선택하면 목표 장소까지 자전거로 직접 안내할게.\n\n$candidateSummary\n\n원하는 조사를 골라 보게나! (최대 3개 동시 진행 가능)\"",
                 choices
             )
         )
@@ -2190,6 +2313,12 @@ class WorldScene(
     // -------------------------------------------------------------------
 
     override fun handleInput(input: Input) {
+        if (state.questTravelPlan != null &&
+            (input.justCam || input.justEat || input.justPunch || input.justB || input.justA)
+        ) {
+            QuestNavigation.cancel(game, "직접 조작으로 자전거 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (input.justBack) {
             if (photoMode) {
                 setPhotoMode(false)
@@ -2294,6 +2423,10 @@ class WorldScene(
         // 카메라 오프셋·망원 배율을 모두 역변환한 월드 좌표 (Game.screenToWorld)
         val tap = input.consumeTapWorld()
         if (tap != null) {
+            if (!photoMode && state.questTravelPlan != null) {
+                QuestNavigation.cancel(game, "직접 조작으로 자전거 길안내를 취소했어요")
+                questPathKey = ""
+            }
             if (photoMode) {
                 // 셔터가 닫히는 중이거나 결과 카드가 대기 중이면 무시
                 if (!viewfinder.busy && pendingOverlay == null) trySnapAt(tap.x, tap.y)
@@ -2352,6 +2485,10 @@ class WorldScene(
     }
 
     /** 카메라 모드 전환 — 뷰파인더 연출과 HUD 정리까지 한 번에 */
+    internal fun prepareForQuestTravel() {
+        if (photoMode) setPhotoMode(false)
+    }
+
     private fun setPhotoMode(on: Boolean) {
         if (photoMode == on) return
         photoMode = on
