@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- A little neighborhood oven: warm brick, soot-dark arch, and a live fire. -->
+  <ellipse cx="64" cy="116" rx="49" ry="7" fill="#3b302a" opacity="0.24"/>
+
+  <!-- chimney and drifting warmth -->
+  <circle cx="47" cy="14" r="5" fill="#f0e1c9" opacity="0.55"/>
+  <circle cx="57" cy="9" r="4" fill="#f0e1c9" opacity="0.42"/>
+  <circle cx="67" cy="14" r="5" fill="#f0e1c9" opacity="0.32"/>
+  <rect x="79" y="11" width="22" height="39" rx="4" fill="#713d32"/>
+  <rect x="83" y="15" width="14" height="36" rx="2" fill="#c86c4b"/>
+  <rect x="76" y="8" width="28" height="8" rx="3" fill="#57382f"/>
+  <rect x="80" y="6" width="20" height="3" rx="1.5" fill="#d58a61"/>
+
+  <!-- domed masonry body -->
+  <ellipse cx="63" cy="63" rx="51" ry="49" fill="#713d32"/>
+  <ellipse cx="63" cy="61" rx="46" ry="43" fill="#c86c4b"/>
+  <rect x="12" y="58" width="102" height="50" rx="8" fill="#713d32"/>
+  <rect x="17" y="60" width="92" height="44" rx="5" fill="#c86c4b"/>
+
+  <!-- sunlit brick courses -->
+  <line x1="20" y1="70" x2="38" y2="70" stroke="#e59a6c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="88" y1="70" x2="105" y2="70" stroke="#e59a6c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="20" y1="83" x2="31" y2="83" stroke="#a9503c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="97" y1="83" x2="106" y2="83" stroke="#a9503c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="27" y1="96" x2="42" y2="96" stroke="#e59a6c" stroke-width="2" stroke-linecap="round"/>
+  <line x1="87" y1="96" x2="101" y2="96" stroke="#e59a6c" stroke-width="2" stroke-linecap="round"/>
+  <ellipse cx="38" cy="33" rx="18" ry="8" fill="#e58b62" opacity="0.5"/>
+
+  <!-- arched firebox -->
+  <ellipse cx="63" cy="81" rx="31" ry="31" fill="#59352e"/>
+  <ellipse cx="63" cy="82" rx="26" ry="26" fill="#302a2b"/>
+  <rect x="32" y="81" width="62" height="25" fill="#302a2b"/>
+  <ellipse cx="63" cy="104" rx="31" ry="7" fill="#59352e"/>
+  <ellipse cx="63" cy="103" rx="26" ry="5" fill="#302a2b"/>
+
+  <!-- flame tongues -->
+  <polygon points="44,95 46,84 52,77 53,88 59,72 64,86 70,79 72,91 81,85 83,98" fill="#e65c3e"/>
+  <polygon points="51,98 55,88 60,84 62,92 68,82 70,96 77,91 77,100" fill="#ffad45"/>
+  <polygon points="59,99 61,92 65,87 67,97 71,92 72,101" fill="#ffe17b"/>
+
+  <!-- hearth lip and little embers -->
+  <rect x="28" y="103" width="70" height="7" rx="3.5" fill="#e6a46f"/>
+  <rect x="34" y="106" width="58" height="3" rx="1.5" fill="#f1c38b"/>
+  <circle cx="39" cy="91" r="1.7" fill="#ffd66b"/>
+  <circle cx="84" cy="88" r="1.5" fill="#ffd66b"/>
+  <circle cx="48" cy="79" r="1.2" fill="#fff0a3"/>
+</svg>

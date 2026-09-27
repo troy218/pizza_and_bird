@@ -442,10 +442,15 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         var ty = contentTop() + dp(scene, 10f)
         val x = panelR.left + dp(scene, 18f)
 
-        textP.textSize = dp(scene, 12.5f)
+        textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF6B4F35.toInt()
-        c.drawText("화덕에서 토핑을 골라 구울 수 있어요. (최대 ${s.pizzaCapEff()}개)", x, ty, textP)
-        ty += dp(scene, 20f)
+        c.drawText("화덕에서 토핑을 골라요", x, ty + dp(scene, 12f), textP)
+        c.drawText("장작불에 구워요 · 최대 ${s.pizzaCapEff()}개", x, ty + dp(scene, 27f), textP)
+        g.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(panelR.right - dp(scene, 65f), ty - dp(scene, 5f), panelR.right - dp(scene, 17f), ty + dp(scene, 44f))
+        )
+        ty += dp(scene, 42f)
 
         for (t in Toppings.ALL) {
             // 토핑 아이콘(이모지)
@@ -1007,6 +1012,10 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
         panel(c, r, scene)
 
         val a = g.assets
+        g.illustrations.draw(
+            c, "wood_fired_oven.svg",
+            RectF(r.right - dp(scene, 52f), r.top + dp(scene, 3f), r.right - dp(scene, 8f), r.top + dp(scene, 45f))
+        )
 
         when (step) {
             0 -> {
