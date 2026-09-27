@@ -32,6 +32,9 @@ import kotlin.math.min
 // ---------------------------------------------------------------------------
 
 object Color {
+    const val WHITE = 0xFFFFFFFF.toInt()
+    const val BLACK = 0xFF000000.toInt()
+
     @JvmStatic
     fun argb(a: Int, r: Int, g: Int, b: Int): Int =
         ((a and 0xFF) shl 24) or ((r and 0xFF) shl 16) or ((g and 0xFF) shl 8) or (b and 0xFF)
@@ -152,6 +155,7 @@ class Rect {
     fun centerX(): Int = (left + right) / 2
     fun centerY(): Int = (top + bottom) / 2
     fun contains(x: Int, y: Int): Boolean = x >= left && x < right && y >= top && y < bottom
+    fun set(l: Int, t: Int, r: Int, b: Int) { left = l; top = t; right = r; bottom = b }
 }
 
 class Matrix {
@@ -266,6 +270,21 @@ class RadialGradient(
     )
 }
 
+open class ColorFilter
+open class MaskFilter
+
+class BlurMaskFilter(val radius: Float, val blur: Blur) : MaskFilter() {
+    enum class Blur { NORMAL, SOLID, OUTER, INNER }
+}
+
+class PorterDuffXfermode(val mode: PorterDuff.Mode) : ColorFilter()
+
+object PorterDuff {
+    enum class Mode { SRC, SRC_IN, SRC_OVER, SRC_OUT, DST_IN, DST_OVER, ATOP, XOR, MULTIPLY, SCREEN, ADD }
+}
+
+class PorterDuffColorFilter(val color: Int, val mode: PorterDuff.Mode) : ColorFilter()
+
 open class PathEffect
 
 class DashPathEffect(intervals: FloatArray, phase: Float) : PathEffect() {
@@ -299,7 +318,15 @@ object StubText {
         }
     }
 
-    fun fontFor(size: Float, bold: Boolean): Font {
+    fun fontFor(size: Float, bold: Boolean): Font = fontFor(size, bold, false)
+
+    fun fontFor(size: Float, bold: Boolean, mono: Boolean): Font {
+        if (mono) {
+            val key = "M:" + (if (bold) "B" else "R") + size
+            return fontCache.getOrPut(key) {
+                Font(Font.MONOSPACED, if (bold) Font.BOLD else Font.PLAIN, 12).deriveFont(size)
+            }
+        }
         val base = (if (bold) this.bold else null) ?: regular ?: Font(Font.SANS_SERIF, Font.PLAIN, 12)
         val key = (if (bold && this.bold == null) "B:" else "R:") + size
         return fontCache.getOrPut(key) {
@@ -312,6 +339,30 @@ object StubText {
 
     fun metrics(font: Font): FontMetrics =
         metricsCache.getOrPut(font) { scratch.createGraphics().getFontMetrics(font) }
+}
+
+// ---------------------------------------------------------------------------
+// Typeface
+// ---------------------------------------------------------------------------
+
+class Typeface private constructor(internal val mono: Boolean, internal val fakeBold: Boolean) {
+    companion object {
+        const val NORMAL = 0
+        const val BOLD = 1
+        val MONOSPACE: Typeface = Typeface(mono = true, fakeBold = false)
+        val SANS_SERIF: Typeface = Typeface(mono = false, fakeBold = false)
+        val DEFAULT: Typeface = SANS_SERIF
+
+        @JvmStatic
+        fun create(family: String, style: Int): Typeface = Typeface(false, style == BOLD)
+
+        @JvmStatic
+        fun create(family: Typeface?, style: Int): Typeface =
+            (family ?: SANS_SERIF).let { Typeface(it.mono, style == BOLD || it.fakeBold) }
+
+        @JvmStatic
+        fun createFromAsset(am: android.content.res.AssetManager, path: String): Typeface = Typeface(false, false)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +389,11 @@ class Paint {
     var strokeJoin: Join = Join.MITER
     var pathEffect: PathEffect? = null
     var shader: Shader? = null
+    var typeface: Typeface? = null
+    var letterSpacing: Float = 0f
+    var colorFilter: ColorFilter? = null
+    var xfermode: ColorFilter? = null
+    var maskFilter: MaskFilter? = null
 
     constructor()
 
@@ -622,26 +678,66 @@ class Canvas {
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         colorize(paint)
-        g.font = StubText.fontFor(paint.textSize, paint.isFakeBoldText)
+        g.font = StubText.fontFor(paint.textSize, paint.isFakeBoldText, paint.typeface?.mono == true)
         g.drawString(text, x, y)
+    }
+
+    private fun compOf(paint: Paint, alpha: Float): java.awt.Composite {
+        val xf = paint.xfermode as? PorterDuffXfermode
+        if (xf != null) {
+            val rule = when (xf.mode) {
+                PorterDuff.Mode.SRC -> java.awt.AlphaComposite.SRC
+                PorterDuff.Mode.SRC_IN -> java.awt.AlphaComposite.SRC_IN
+                PorterDuff.Mode.SRC_OUT -> java.awt.AlphaComposite.SRC_OUT
+                PorterDuff.Mode.DST_IN -> java.awt.AlphaComposite.DST_IN
+                PorterDuff.Mode.DST_OUT -> java.awt.AlphaComposite.DST_OUT
+                PorterDuff.Mode.DST_OVER -> java.awt.AlphaComposite.DST_OVER
+                PorterDuff.Mode.XOR -> java.awt.AlphaComposite.XOR
+                PorterDuff.Mode.CLEAR -> java.awt.AlphaComposite.CLEAR
+                else -> java.awt.AlphaComposite.SRC_OVER
+            }
+            return java.awt.AlphaComposite.getInstance(rule, alpha.coerceIn(0f, 1f))
+        }
+        return java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha.coerceIn(0f, 1f))
+    }
+
+    /** PorterDuffColorFilter(SRC_IN) 틴트 시현 — 흰 소스 비트맵을 지정 색으로 물들인다 */
+    private fun tinted(bitmap: Bitmap, paint: Paint): java.awt.image.BufferedImage {
+        val cf = paint.colorFilter as? PorterDuffColorFilter
+            ?: return bitmap.image
+        val img = bitmap.image
+        val w = img.width; val h = img.height
+        val out = java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        val src = img.getRGB(0, 0, w, h, null, 0, w)
+        val dst = IntArray(src.size)
+        for (i in src.indices) {
+            val a = (src[i] ushr 24) and 0xFF
+            if (a == 0) { dst[i] = 0; continue }
+            // SRC_IN: 결과 = src색 × dst알파
+            dst[i] = ((a shl 24) or (cf.color and 0x00FFFFFF))
+        }
+        out.setRGB(0, 0, w, h, dst, 0, w)
+        return out
     }
 
     fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint) {
         val alpha = paint.alpha / 255f
         val oldComp = g.composite
-        if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
-        g.drawImage(bitmap.image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
+        g.composite = compOf(paint, alpha)
+        val img = if (paint.colorFilter != null) tinted(bitmap, paint) else bitmap.image
+        g.drawImage(img, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
 
     fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint) {
         val alpha = paint.alpha / 255f
         val oldComp = g.composite
-        if (alpha < 1f) g.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, alpha)
+        g.composite = compOf(paint, alpha)
+        val base = if (paint.colorFilter != null) tinted(bitmap, paint) else bitmap.image
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
         at.scale((dst.width() / bitmap.width).toDouble(), (dst.height() / bitmap.height).toDouble())
         if (src != null) {
-            val sub = bitmap.image.getSubimage(src.left, src.top, src.width(), src.height())
+            val sub = base.getSubimage(src.left, src.top, src.width(), src.height())
             val sx = dst.width() / sub.width
             val sy = dst.height() / sub.height
             at.setToIdentity()
@@ -649,7 +745,7 @@ class Canvas {
             at.scale(sx.toDouble(), sy.toDouble())
             g.drawImage(sub, at, null)
         } else {
-            g.drawImage(bitmap.image, at, null)
+            g.drawImage(base, at, null)
         }
         g.composite = oldComp
     }
@@ -678,6 +774,14 @@ class Canvas {
     }
 
     fun rotate(degrees: Float) = g.rotate(Math.toRadians(degrees.toDouble()))
+
+    fun rotate(degrees: Float, px: Float, py: Float) {
+        g.rotate(Math.toRadians(degrees.toDouble()), px.toDouble(), py.toDouble())
+    }
+
+    fun skew(sx: Float, sy: Float) {
+        g.transform(java.awt.geom.AffineTransform(1.0, sy.toDouble(), sx.toDouble(), 1.0, 0.0, 0.0))
+    }
 
     fun restoreToCount(count: Int) {
         // Android 시맨틱: save()가 반환한 값 n에 대해 스택을 n-1개가 남을 때까지 되돌린다

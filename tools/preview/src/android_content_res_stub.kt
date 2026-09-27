@@ -4,6 +4,7 @@
 package android.content.res
 
 class AssetManager private constructor() {
+    fun list(path: String): Array<String> = emptyArray()
     companion object {
         private val ASSET_ROOT = java.io.File("app/src/main/assets")
         val INSTANCE = AssetManager()
