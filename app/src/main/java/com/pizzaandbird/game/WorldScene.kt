@@ -51,8 +51,7 @@ class WorldScene(
 
     private val particles = ArrayList<Pt>()
 
-    private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
+    private val tinyPaint = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply {
         color = 0xFF4A3728.toInt()
         textSize = 13f
     }
@@ -71,7 +70,6 @@ class WorldScene(
     private val cloudPaint = Paint().apply { color = Color.argb(26, 18, 30, 56); isAntiAlias = true }
     private val uiFill = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
 
     init {
         state.region = region.id
@@ -1059,7 +1057,6 @@ class WorldScene(
         c.drawCircle((player.cx - camX) * WORLD_SCALE, (player.cy - camY) * WORLD_SCALE, range, dashPaint)
 
         // 새별 거리 힌트
-        uiText.isFakeBoldText = true
         for (b in birds) {
             if (b.state == 2) continue
             val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
@@ -1073,12 +1070,12 @@ class WorldScene(
             }
             val bx = (b.cx - camX) * WORLD_SCALE
             val by = (b.y - camY) * WORLD_SCALE - 16f
-            uiText.textSize = 12f
-            uiText.color = 0xFFF8EFDC.toInt()
-            val tw = uiText.measureText(label)
+            // 월드 캔버스(가상 해상도)라 px 로 크기를 준다
+            val lp = Type.paintPx(12f, true, 0.03f, Type.CREAM)
+            val tw = lp.measureText(label)
             uiFill.color = Color.argb(190, Color.red(col), Color.green(col), Color.blue(col))
             c.drawRoundRect(RectF(bx - tw / 2 - 6f, by - 10f, bx + tw / 2 + 6f, by + 5f), 5f, 5f, uiFill)
-            c.drawText(label, bx - tw / 2, by + 2f, uiText)
+            c.drawText(label, bx - tw / 2, by + 2f, lp)
         }
     }
 
