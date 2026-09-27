@@ -1,269 +1,103 @@
-# preview build 2026-09-27 06:13:30Z
-# commit: 56f63a36b97712ff6803ea9c7bc512b117ef5f27
+# preview build 2026-09-27 06:21:00Z
+# commit: 1cd2b365756ee01c74712d2e9f7eb690c7581142
 # gradle exit code: 0
+>> kotlin 컴파일러 다운로드 중...
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
 
 ----- gradle build log (error lines + last 120) -----
 ...
+Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:mergeReleaseJniLibFolders
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
-> Task :app:buildKotlinToolingMetadata
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:checkReleaseAarMetadata
-> Task :app:generateReleaseResValues
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :app:mergeReleaseResources
-> Task :app:processReleaseMainManifest
-> Task :app:packageReleaseResources
-> Task :app:processReleaseManifest
-> Task :app:processReleaseManifestForPackage
-> Task :app:javaPreCompileRelease
-> Task :app:desugarReleaseFileDependencies
-> Task :app:mergeReleaseStartupProfile
-> Task :app:parseReleaseLocalResources
-> Task :app:mergeExtDexRelease
-> Task :app:mergeReleaseArtProfile
-> Task :app:mergeReleaseShaders
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:mergeReleaseAssets
-> Task :app:compressReleaseAssets
-> Task :app:extractReleaseVersionControlInfo
-> Task :app:collectReleaseDependencies
-> Task :app:processReleaseResources
-> Task :app:optimizeReleaseResources
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-
-> Task :app:compileReleaseKotlin
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:mergeDebugResources
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:packageDebugResources
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:checkDebugDuplicateClasses
+> Task :app:parseDebugLocalResources
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:compileDebugKotlin
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
-> Task :app:compileReleaseJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderRelease
-> Task :app:mergeReleaseGlobalSynthetics
-> Task :app:mergeDexRelease
-> Task :app:processReleaseJavaRes
-> Task :app:compileReleaseArtProfile
-> Task :app:mergeReleaseJavaResource
-> Task :app:packageRelease
-> Task :app:createReleaseApkListingFileRedirect
-> Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790489575349.json
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790489978422.json
 
-BUILD SUCCESSFUL in 35s
-40 actionable tasks: 40 executed
+BUILD SUCCESSFUL in 1m 32s
+33 actionable tasks: 33 executed
 
 ----- preview render log (last 200 lines) -----
-                                      ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:243:39: error: unresolved reference 'drawable'.
-        "tile_house_roof" to Triple(R.drawable.art_tile_house_roof, 64, 64),
-                                      ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:244:39: error: unresolved reference 'drawable'.
-        "tile_house_wall" to Triple(R.drawable.art_tile_house_wall, 64, 64),
-                                      ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:245:38: error: unresolved reference 'drawable'.
-        "tile_house_win" to Triple(R.drawable.art_tile_house_win, 64, 64),
-                                     ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:246:33: error: unresolved reference 'drawable'.
-        "tile_lamp" to Triple(R.drawable.art_tile_lamp, 64, 64),
-                                ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:247:39: error: unresolved reference 'drawable'.
-        "tile_mountain_0" to Triple(R.drawable.art_tile_mountain_0, 64, 64),
-                                      ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:248:39: error: unresolved reference 'drawable'.
-        "tile_mountain_1" to Triple(R.drawable.art_tile_mountain_1, 64, 64),
-                                      ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:249:35: error: unresolved reference 'drawable'.
-        "tile_oven_0" to Triple(R.drawable.art_tile_oven_0, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:250:35: error: unresolved reference 'drawable'.
-        "tile_oven_1" to Triple(R.drawable.art_tile_oven_1, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:251:35: error: unresolved reference 'drawable'.
-        "tile_path_0" to Triple(R.drawable.art_tile_path_0, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:252:35: error: unresolved reference 'drawable'.
-        "tile_path_1" to Triple(R.drawable.art_tile_path_1, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:253:35: error: unresolved reference 'drawable'.
-        "tile_path_2" to Triple(R.drawable.art_tile_path_2, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:254:36: error: unresolved reference 'drawable'.
-        "tile_plaza_0" to Triple(R.drawable.art_tile_plaza_0, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:255:36: error: unresolved reference 'drawable'.
-        "tile_plaza_1" to Triple(R.drawable.art_tile_plaza_1, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:256:35: error: unresolved reference 'drawable'.
-        "tile_reed_0" to Triple(R.drawable.art_tile_reed_0, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:257:35: error: unresolved reference 'drawable'.
-        "tile_reed_1" to Triple(R.drawable.art_tile_reed_1, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:258:35: error: unresolved reference 'drawable'.
-        "tile_rock_0" to Triple(R.drawable.art_tile_rock_0, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:259:35: error: unresolved reference 'drawable'.
-        "tile_rock_1" to Triple(R.drawable.art_tile_rock_1, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:260:35: error: unresolved reference 'drawable'.
-        "tile_sand_0" to Triple(R.drawable.art_tile_sand_0, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:261:35: error: unresolved reference 'drawable'.
-        "tile_sand_1" to Triple(R.drawable.art_tile_sand_1, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:262:35: error: unresolved reference 'drawable'.
-        "tile_sand_2" to Triple(R.drawable.art_tile_sand_2, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:263:33: error: unresolved reference 'drawable'.
-        "tile_sign" to Triple(R.drawable.art_tile_sign, 64, 64),
-                                ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:264:40: error: unresolved reference 'drawable'.
-        "tile_tallgrass_0" to Triple(R.drawable.art_tile_tallgrass_0, 64, 64),
-                                       ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:265:40: error: unresolved reference 'drawable'.
-        "tile_tallgrass_1" to Triple(R.drawable.art_tile_tallgrass_1, 64, 64),
-                                       ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:266:35: error: unresolved reference 'drawable'.
-        "tile_tree_0" to Triple(R.drawable.art_tile_tree_0, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:267:35: error: unresolved reference 'drawable'.
-        "tile_tree_1" to Triple(R.drawable.art_tile_tree_1, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:268:35: error: unresolved reference 'drawable'.
-        "tile_tunnel" to Triple(R.drawable.art_tile_tunnel, 64, 64),
-                                  ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:269:36: error: unresolved reference 'drawable'.
-        "tile_wall_in" to Triple(R.drawable.art_tile_wall_in, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:270:37: error: unresolved reference 'drawable'.
-        "tile_wall_win" to Triple(R.drawable.art_tile_wall_win, 64, 64),
-                                    ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:271:36: error: unresolved reference 'drawable'.
-        "tile_water_0" to Triple(R.drawable.art_tile_water_0, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:272:36: error: unresolved reference 'drawable'.
-        "tile_water_1" to Triple(R.drawable.art_tile_water_1, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:273:36: error: unresolved reference 'drawable'.
-        "tile_water_2" to Triple(R.drawable.art_tile_water_2, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:274:36: error: unresolved reference 'drawable'.
-        "tile_water_3" to Triple(R.drawable.art_tile_water_3, 64, 64),
-                                   ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:284:25: error: unresolved reference 'getDrawable'.
-        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
-                        ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Assets.kt:294:25: error: unresolved reference 'getDrawable'.
-        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
-                        ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:67:13: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
-            intArrayOf(Color.argb(255, r, g, b), Color.argb(150, r, g, b), Color.argb(46, r, g, b), Color.argb(0, r, g, b)),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:68:13: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
-            floatArrayOf(0f, 0.35f, 0.7f, 1f),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:82:37: error: unresolved reference 'FILTER_BITMAP_FLAG'.
-    private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-                                    ^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:88:15: error: unresolved reference 'alpha'.
-        paint.alpha = alpha.coerceIn(0, 255)
-              ^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:101:37: error: unresolved reference 'FILTER_BITMAP_FLAG'.
-    private val punch = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                                    ^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:101:57: error: cannot infer type for this parameter. Please specify it explicitly.
-    private val punch = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                                                        ^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:101:57: error: unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T> T.apply(block: T.() -> Unit): T
-    [R|Contract description]
-     <
-        CallsInPlace(block, EXACTLY_ONCE)
-    >
-    private val punch = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                                                        ^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:101:63: error: cannot infer type for this parameter. Please specify it explicitly.
-    private val punch = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                                                              ^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:102:9: error: unresolved reference 'xfermode'.
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-        ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:102:55: error: unresolved reference 'DST_OUT'.
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                                                      ^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Fx.kt:116:15: error: unresolved reference 'alpha'.
-        punch.alpha = strength.coerceIn(0, 255)
-              ^^^^^
 app/src/main/java/com/pizzaandbird/game/Fx.kt:122:11: error: none of the following candidates is applicable:
 fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint): Unit
 fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint): Unit
         c.drawBitmap(bmp, 0f, 0f, null)
           ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:75:67: error: unresolved reference 'FILTER_BITMAP_FLAG'.
-    private val paperPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-                                                                  ^^^^^^^^^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Hud.kt:82:50: error: unresolved reference 'SERIF'.
     private val serif = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
                                                  ^^^^^
 app/src/main/java/com/pizzaandbird/game/Hud.kt:83:54: error: unresolved reference 'SERIF'.
     private val serifBold = Typeface.create(Typeface.SERIF, Typeface.BOLD)
                                                      ^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:582:13: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
-            intArrayOf(
-            ^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:586:13: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
-            floatArrayOf(0f, 0.22f, 0.50f, 0.78f, 1f),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:606:13: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
-            intArrayOf(Color.argb(132, 62, 118, 142), Color.argb(168, 48, 96, 124)),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:607:13: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
-            floatArrayOf(0f, 1f),
-            ^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:801:13: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
-            intArrayOf(0x00000000, 0x00000000, Color.argb(58, 48, 32, 18)),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:802:13: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
-            floatArrayOf(0f, 0.70f, 1f),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:925:13: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
-            intArrayOf(center, 0x00000000, rim),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:926:13: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
-            floatArrayOf(0f, 0.40f, 1f),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Hud.kt:935:33: error: unresolved reference 'isRecycled'.
         paperBmp?.let { if (!it.isRecycled) return it }
                                 ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:955:13: error: argument type mismatch: actual type is 'kotlin.IntArray', but 'kotlin.Int' was expected.
-            intArrayOf(0x00000000, 0x00000000, 0x385C4024, 0x105C4024, 0x00000000),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Hud.kt:956:13: error: argument type mismatch: actual type is 'kotlin.FloatArray', but 'kotlin.Int' was expected.
-            floatArrayOf(0f, 0.42f, 0.62f, 0.78f, 1f),
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Hud.kt:990:42: error: unresolved reference 'DEFAULT_BOLD'.
         measurePaint.typeface = Typeface.DEFAULT_BOLD
                                          ^^^^^^^^^^^^
 app/src/main/java/com/pizzaandbird/game/Hud.kt:1079:37: error: unresolved reference 'DEFAULT_BOLD'.
         inkText.typeface = Typeface.DEFAULT_BOLD
                                     ^^^^^^^^^^^^
-tools/preview/src/android_stubs_graphics.kt:693:33: error: unresolved reference 'DST_OUT'.
-                PorterDuff.Mode.DST_OUT -> java.awt.AlphaComposite.DST_OUT
-                                ^^^^^^^
-tools/preview/src/android_stubs_graphics.kt:696:33: error: unresolved reference 'CLEAR'.
-                PorterDuff.Mode.CLEAR -> java.awt.AlphaComposite.CLEAR
-                                ^^^^^
+tools/preview/src/android_drawable_stub.kt:80:34: error: unresolved reference 'XmlPullParser'.
+                    while (ev != XmlPullParser.END_DOCUMENT) {
+                                 ^^^^^^^^^^^^^
+tools/preview/src/android_drawable_stub.kt:81:35: error: unresolved reference 'XmlPullParser'.
+                        if (ev == XmlPullParser.START_TAG) {
+                                  ^^^^^^^^^^^^^
+tools/preview/src/android_drawable_stub.kt:165:63: error: 'val' cannot be reassigned.
+                        if (cmd == 'q') { x1 += cx; y1 += cy; x += cx; y += cy }
+                                                              ^
+tools/preview/src/android_drawable_stub.kt:165:72: error: 'val' cannot be reassigned.
+                        if (cmd == 'q') { x1 += cx; y1 += cy; x += cx; y += cy }
+                                                                       ^
+tools/preview/src/android_stubs_graphics.kt:263:1: error: supertype initialization is impossible without a primary constructor.
+class RadialGradient : Shader() {
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_graphics.kt:264:5: error: property must be initialized or be abstract.
+    internal var rgp: java.awt.RadialGradientPaint
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_graphics.kt:280:50: error: unresolved reference 'toFloatArray'.
+        val st = (stops ?: floatArrayOf(0f, 1f)).toFloatArray()
+                                                 ^^^^^^^^^^^^
