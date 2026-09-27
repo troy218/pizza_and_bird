@@ -1474,7 +1474,8 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 // 바깥을 누르면 닫힌다 — 먼저 넣어야(= 나중에 그려야) 항목 탭이 이긴다
                 btnRects.add(Triple(RectF(panelR.left, y0, panelR.right, panelR.bottom), "dex_drop_bg") { dexDrop = -1 })
                 UiKit.panel(c, g, dropR, 10f)
-                val counts = if (dexDrop == 2) BirdIndex.counts(s, dexGroup, dexQuery, s.region) else emptyMap()
+                val counts: Map<String, Int> = if (dexDrop == 2)
+                    BirdIndex.counts(s, dexGroup, dexQuery, s.region) else emptyMap()
                 var iy = dropR.top + dp(scene, 2f)
                 for ((key, label) in items) {
                     val ir = RectF(dropR.left + dp(scene, 4f), iy, dropR.right - dp(scene, 4f), iy + rowH - dp(scene, 1f))
