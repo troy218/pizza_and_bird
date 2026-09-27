@@ -25,6 +25,7 @@ class WorldScene(
     private val state = game.state
     val region: RegionDef = Regions.byId[regionId] ?: Regions.ALL.first()
     val map: GameMap = MapBuilder.build(region, state.homeRegion)
+    private val grass = GrassField(map)
     private val player = Player()
     private val birds = ArrayList<FieldBird>()
     private val cats = ArrayList<Cat>()
@@ -148,6 +149,9 @@ class WorldScene(
 
         // 파티클
         updateParticles(dt)
+
+        // 살아있는 풀 (바람 필드 + 풀잎 상태 머신 + 밟힘 반응)
+        grass.update(dt, game.time, player.x + 8f, player.y + 13f, player.bike)
         spawnAmbient(dt)
         if (player.bike && player.moving) {
             dustT -= dt
@@ -813,6 +817,10 @@ class WorldScene(
         val camXv = camX * WORLD_SCALE
         val camYv = camY * WORLD_SCALE
         map.draw(c, game.assets, camXv, camYv, game.virtW, game.virtH, game.time)
+
+        // 살아있는 풀 — 뒤쪽 레이어(캐릭터보다 위). 밑동이 발보다 위인 풀잎들.
+        val feetY = player.y + 13f
+        grass.draw(c, game.assets, camXv, camYv, game.virtW.toFloat(), game.virtH.toFloat(), feetY, GrassField.LAYER_BACK)
         drawCloudShadows(c, camXv, camYv)
 
         // 엔티티 (y 정렬)
@@ -823,6 +831,9 @@ class WorldScene(
         ents.add(player)
         ents.sortBy { sortY(it) }
         for (e in ents) drawEntity(c, e)
+
+        // 살아있는 풀 — 앞쪽 레이어. 캐릭터가 풀밭을 헤치며 걷는 깊이감
+        grass.draw(c, game.assets, camXv, camYv, game.virtW.toFloat(), game.virtH.toFloat(), feetY, GrassField.LAYER_FRONT)
 
         drawParticles(c, camXv, camYv)
         drawDayNight(c)

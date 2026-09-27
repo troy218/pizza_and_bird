@@ -15,5 +15,12 @@ build/
 *.keystore
 !gradle/wrapper/gradle-wrapper.jar
 
-# 에셋 미리보기용 생성 이미지 (tools/preview_grass.py 실행 결과)
+# 에셋 미리보기용 생성 이미지 (tools/preview_grass*.py 실행 결과)
 tools/grass_preview.png
+tools/grass_rig_sheet.png
+tools/grass_live_still.png
+tools/grass_live_anim.gif
+tools/grass_wave_strip.png
+tools/grass_trample_strip.png
+__pycache__/
+*.pyc
