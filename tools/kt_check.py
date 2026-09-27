@@ -79,6 +79,23 @@ def strip_code(src):
     return "".join(out)
 
 
+def check_table(path):
+    """PixelFont.TABLE 의 각 행은 반드시 Char 리터럴 키여야 한다
+    ( apostrophe 를 "로 감싸면 Pair<String,String> 가 되어 컴파일 에러 )."""
+    problems = []
+    in_table = False
+    for i, raw in enumerate(open(path, encoding="utf-8"), 1):
+        if "private val TABLE" in raw:
+            in_table = True
+            continue
+        if in_table:
+            if raw.strip() == ")":
+                break
+            if not re.match(r"^\s*'((?:\\.|[^'\\])*)'\s+to\s+\"", raw):
+                problems.append("%d: 글리프 키가 Char 리터럴이 아님 → %s" % (i, raw.strip()[:40]))
+    return problems
+
+
 def check(path):
     src = open(path, encoding="utf-8").read()
     code = strip_code(src)
@@ -108,6 +125,8 @@ def main():
             continue
         path = os.path.join(SRC, name)
         problems = check(path)
+        if name == "Type.kt":
+            problems += check_table(path)
         src = open(path, encoding="utf-8").read()
         for m in re.finditer(r"(?<!Insets\.)(?<!Font)Type\.([A-Za-z_][A-Za-z0-9_]*)", src):
             if m.group(1) not in TYPE_MEMBERS:
