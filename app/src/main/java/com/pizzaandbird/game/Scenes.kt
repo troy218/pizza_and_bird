@@ -188,22 +188,26 @@ class TitleScene(game: Game) : Scene(game) {
             color = 0xFF6B4F35.toInt()
         }
 
+        // 시작 버튼에 은은하게 흐르는 빛 — 게임 초입의 분위기를 살려준다
         fun button(rect: RectF, label: String, enabled: Boolean) {
-            fill.color = if (enabled) 0xFFF8EFDC.toInt() else Color.argb(120, 200, 190, 175)
+            val pressed = enabled && game.input.isPressedIn(rect)
+            fill.color = if (!enabled) Color.argb(120, 200, 190, 175)
+            else if (pressed) blendToward(0xFFF8EFDC.toInt(), 0xFF6B4F35.toInt(), 0.16f)
+            else 0xFFF8EFDC.toInt()
             c.drawRoundRect(rect, dp(13f), dp(13f), fill)
             c.drawRoundRect(rect, dp(13f), dp(13f), border)
             val col = if (enabled) Type.INK else Color.argb(140, 74, 55, 40)
             val p = Type.paintAt(16f, true, 0.06f, col)
             val by2 = rect.centerY() - (p.descent() + p.ascent()) / 2
             if (enabled) c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + dp(1.2f), Type.paintAt(16f, true, 0.06f, Type.DROP))
-            c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2, p)
+            c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + if (pressed) dp(1.5f) else 0f, p)
         }
 
         button(startRect, "새로 시작하기", true)
         button(contRect, "이어하기", game.state.started)
 
         // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
-        val info = "v0.3.2 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
+        val info = "v0.3.2 beta · 오프라인 · 한국 32곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
         Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
     }
 
@@ -211,20 +215,24 @@ class TitleScene(game: Game) : Scene(game) {
         val tap = input.consumeTapScreen()
         if (tap != null) {
             when {
-                contRect.contains(tap.x, tap.y) && game.state.started -> continueGame()
+                contRect.contains(tap.x, tap.y) && game.state.started -> {
+                    game.haptic()
+                    continueGame()
+                }
                 startRect.contains(tap.x, tap.y) -> {
+                    game.haptic()
                     game.fadeTo { game.scene = CharacterSelectScene(game) }
                 }
             }
         }
         if (input.justA) {
+            game.haptic()
             if (game.state.started) continueGame() else
                 game.fadeTo { game.scene = CharacterSelectScene(game) }
         }
         if (input.justBack) {
-            if (game.state.started) {
-                game.openExitConfirm()
-            }
+            // 저장이 없어도 백 버튼으로 항상 나갈 수 있어야 한다
+            game.openExitConfirm()
         }
     }
 
@@ -248,7 +256,6 @@ class CharacterSelectScene(game: Game) : Scene(game) {
     private val female = RectF(510f, 245f, 780f, 390f)
     private var nextRect = RectF()
     private var backRect = RectF()
-
     init {
         game.hud.showControls = false
         game.hud.showStats = false

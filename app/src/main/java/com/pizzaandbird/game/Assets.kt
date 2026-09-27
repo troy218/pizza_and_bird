@@ -184,6 +184,7 @@ class Assets(private val context: Context) {
     // tools/build_art.py 가 변환한 VectorDrawable을 래스터화한다.
     // -----------------------------------------------------------------------
 
+    /** 아트 리소스: (drawableId, viewportW, viewportH) */
     private val artIds: Map<String, Triple<Int, Int, Int>> = mapOf(
         "bike_down" to Triple(R.drawable.art_bike_down, 64, 64),
         "bike_side" to Triple(R.drawable.art_bike_side, 64, 64),
