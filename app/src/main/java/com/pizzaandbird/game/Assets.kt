@@ -758,21 +758,30 @@ class Assets(private val context: Context) {
     //   누구인지(이름·옷·사는 지역)는 NpcRoster.kt, 자리는 MapBuilder.placeCast 가 정한다.
     // -----------------------------------------------------------------------
 
-    /** 사람 옷차림([NpcLook]) -> 렌더용 Look. 바디가 요구하는 체형은 자동으로 따라붙는다. */
+    /** 사람 겉모습([NpcLook]) -> 렌더용 Look. 체형·헤어·모자·수염·소품까지 그대로 간다. */
     private fun npcLook(kind: NpcKind, look: NpcLook): CharacterArt.Look {
+        val (skin, skin2) = when (look.skin) {
+            CharacterArt.SKIN_FAIR -> c(0xFFFFE3C4) to c(0xFFF0C39E)
+            CharacterArt.SKIN_TAN -> c(0xFFF5B885) to c(0xFFE09A6E)
+            CharacterArt.SKIN_DEEP -> c(0xFFD99A6B) to c(0xFFB87A52)
+            else -> c(0xFFFFD9B0) to c(0xFFE8B88C)
+        }
         val pal = CharacterArt.Pal(
             hair = c(look.hair.toLong()), hair2 = shade(c(look.hair.toLong()), 0.75f),
-            skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
+            skin = skin, skin2 = skin2,
             top = c(look.top.toLong()), top2 = c(look.top2.toLong()),
             pants = c(look.pants.toLong()), pants2 = shade(c(look.pants.toLong()), 0.75f),
             shoe = c(0xFF3A3A44), line = c(0xFF33241C),
             pack = c(look.pack.toLong()), pack2 = shade(c(look.pack.toLong()), 0.75f),
             eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        // 모자·조끼·목도리 — 탐조가와 같은 파츠를 써서 사람마다 실루엣이 달라진다
-        val gear = if (look.cap == null && look.vest == null && look.scarf == null) null
+        // 새 모자 파츠를 쓰면 탐조가 장비 모자는 비운다 (둘 다 그리면 겹친다).
+        // 모자 색은 명시색 → 옛 cap 색 → 옷색 순으로 정해진다.
+        val useHat = look.hat != CharacterArt.HAT_NONE
+        val gear = if (!useHat && look.cap == null && look.vest == null && look.scarf == null) null
         else CharacterArt.Gear(
-            cap = look.cap, capDark = shade(look.cap ?: 0, 0.72f),
+            cap = if (useHat) null else look.cap,
+            capDark = shade(look.cap ?: 0, 0.72f),
             vest = look.vest, vestDark = shade(look.vest ?: 0, 0.75f),
             scarf = look.scarf,
             brim = look.cap != null
@@ -782,9 +791,19 @@ class Assets(private val context: Context) {
             gear = gear,
             glasses = look.glasses,
             apron = look.apron,
-            cane = look.cane || kind == NpcKind.ELDER,
+            cane = look.cane,
             small = look.small || kind == NpcKind.KID,
-            longHair = look.longHair
+            longHair = look.longHair,
+            body = look.body,
+            hairStyle = look.hairStyle,
+            beard = look.beard,
+            hat = look.hat,
+            hatColor = look.hatColor ?: look.cap ?: 0,
+            bottom = look.bottom,
+            prop = look.prop,
+            propColor = look.propColor ?: 0,
+            wrinkles = look.wrinkles || kind == NpcKind.ELDER,
+            freckles = look.freckles
         )
     }
 
@@ -811,6 +830,24 @@ class Assets(private val context: Context) {
     private val npcHdCache = SpriteLru<String, Array<Bitmap>>(8)
 
     /**
+     * 소품·바디에서 소동작을 정한다 — 같은 VILLAGER 라도 쌍안경 든 관찰원은
+     * 두리번거리고, 붓 든 화가는 붓질하고, 찻잔 든 주인은 홀짝인다.
+     */
+    private fun flavorFor(person: NpcPerson): Int = when (person.look.prop) {
+        CharacterArt.PROP_BRUSH -> CharacterArt.FLAVOR_PAINT
+        CharacterArt.PROP_CUP -> CharacterArt.FLAVOR_SIP
+        CharacterArt.PROP_BINOCS -> CharacterArt.FLAVOR_SCAN
+        CharacterArt.PROP_BOOK -> CharacterArt.FLAVOR_READ
+        CharacterArt.PROP_ROD, CharacterArt.PROP_NET, CharacterArt.PROP_PADDLE ->
+            CharacterArt.FLAVOR_SWAY
+        else -> when (person.kind) {
+            NpcKind.KID -> CharacterArt.FLAVOR_BOUNCE
+            NpcKind.ELDER -> CharacterArt.FLAVOR_NOD
+            else -> CharacterArt.FLAVOR_NONE
+        }
+    }
+
+    /**
      * 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프).
      * @param hd 플레이어와 같은 화질([CHARACTER_PX])로 그릴지 — 월드가 2배 이상 슈퍼샘플일 때 true.
      */
@@ -820,9 +857,15 @@ class Assets(private val context: Context) {
         }
         val lk = npcLook(person.kind, person.look)
         val art = npcArtKind(person.kind)
+        val flavor = flavorFor(person)
+        // 사람마다 박자가 어긋나게 — 옆에 서 있어도 숨결·깜빡임이 겹치지 않는다
+        val seed = ((person.id.hashCode() and 0x7FFFFFFF) % 1000) / 1000f
         val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
         val frames = Array(NPC_FRAMES) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk, px)
+            CharacterArt.render(
+                CharacterArt.FRONT,
+                CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat(), flavor, seed), lk, px
+            )
         }
         if (hd) synchronized(npcHdCache) { npcHdCache[person.id] = frames }
         else npcCache.put(person.id, frames)
@@ -846,6 +889,10 @@ class Assets(private val context: Context) {
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
+
+    /** 랜드마크 안내인 — 테마마다 다른 얼굴 ([NpcRoster.docentFor]) */
+    fun docentBitmap(theme: LandmarkTheme, time: Float, hd: Boolean = false): Bitmap =
+        npcBitmap(NpcRoster.docentFor(theme), time, 1.3f, hd)
 
     val npcProfessor: Bitmap get() = npcFrames(NpcRoster.professor)[0]
     val npcShop: Bitmap get() = npcFrames(NpcRoster.shopkeeper)[0]
