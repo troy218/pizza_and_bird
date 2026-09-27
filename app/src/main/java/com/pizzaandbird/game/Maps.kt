@@ -2424,16 +2424,19 @@ class Player {
 
 /** 필드에 나타난 새 */
 class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
-    var state = 0                    // 0 대기, 1 깡충, 2 도망
-    var idleT = 0.8f
-    private var residenceLeft = 55f + (Math.random() * 65f).toFloat()
+    // 0 대기, 1 짧은 걸음/깡충, 2 플레이어에게서 도망, 3 짧은 활공
+    var state = 0
+    private val movement = BirdMovement.profile(def)
+    private val random = Random(System.nanoTime() xor def.id.hashCode().toLong() xor x.toBits().toLong() xor y.toBits().toLong())
+    var idleT = movement.nextRest(random)
+    private var residenceLeft = 55f + random.nextFloat() * 65f
     var hopFromX = 0f; var hopFromY = 0f
     var hopToX = 0f; var hopToY = 0f
     var hopT = 0f
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
-    /** 지형지물에 시야가 가려져 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
+    /** 지형지물 뒤 — 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
     var hiddenFromPlayer = false
     var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
     var renderPose = BirdPose.PERCHED
@@ -2446,15 +2449,30 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
 
     val cx: Float get() = x + sprW / 2f
     val cy: Float get() = y + sprH * 0.72f
+    val flightFrame: Int get() = if (state == 3) ((hopT * 8f).toInt() and 1) else ((fleeT * 11f).toInt() and 1)
+
+    /** 새가 놀랐을 때의 탈출 방향과 속도도 종별 비행 특성에 맞춘다. */
+    fun startFlee(awayX: Float, awayY: Float) {
+        state = 2
+        val len = sqrt(awayX * awayX + awayY * awayY).coerceAtLeast(0.01f)
+        val dx = awayX / len
+        val dy = awayY / len
+        fleeVx = dx * movement.fleeSpeed * movement.horizontalBias
+        fleeVy = dy * movement.fleeSpeed * 0.55f - movement.fleeLift
+        facing = if (kotlin.math.abs(fleeVx) >= kotlin.math.abs(fleeVy)) {
+            if (fleeVx < 0f) BirdFacing.LEFT else BirdFacing.RIGHT
+        } else {
+            if (fleeVy < 0f) BirdFacing.BACK else BirdFacing.FRONT
+        }
+        renderPose = BirdPose.ALERT
+        fleeT = 0f
+    }
 
     fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
-        // Birds eventually leave even when the player waits still: no permanently full pool.
+        // 새마다 다른 체류 시간. 가만히 기다려도 공간이 영구히 점유되지 않는다.
         residenceLeft -= dt
         if (residenceLeft <= 0f && state == 0) {
-            state = 2
-            fleeVx = if (faceLeft) -65f else 65f
-            fleeVy = -45f
-            fleeT = 0f
+            startFlee(if (faceLeft) -1f else 1f, -0.25f)
         }
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
@@ -2464,73 +2482,39 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
         } * (if (sneaking) 0.6f else 1f) * (if (onBike) bikeScare else 1f) * calmFactor
 
         val fleeR = fleeTiles * 16f
-        val dToPlayer = sqrt((playerCx - cx) * (playerCx - cx) + (playerCy - cy) * (playerCy - cy))
-        // 지형지물 뒤 — 새와 플레이어 사이에 바위·나무·건물이 있어 시야가 막히면
-        // 새는 플레이어를 알아채지 못해 훨씬 가까이 다가가도 도망가지 않는다.
+        val dxPlayer = playerCx - cx
+        val dyPlayer = playerCy - cy
+        val dToPlayer = sqrt(dxPlayer * dxPlayer + dyPlayer * dyPlayer)
         hiddenFromPlayer = dToPlayer < fleeR && map.isOccluded(playerCx, playerCy, cx, cy)
         val effFleeR = if (hiddenFromPlayer) (fleeR * HIDDEN_FLEE_K).coerceAtLeast(9f) else fleeR
 
         when (state) {
             0 -> {
                 if (dToPlayer < effFleeR) {
-                    state = 2
-                    val dx = if (cx - playerCx == 0f) 0.01f else cx - playerCx
-                    val dy = if (cy - playerCy == 0f) -0.01f else cy - playerCy
-                    val len = sqrt(dx * dx + dy * dy)
-                    fleeVx = dx / len * 85f
-                    fleeVy = dy / len * 85f - 35f
-                    facing = if (kotlin.math.abs(fleeVx) >= kotlin.math.abs(fleeVy)) {
-                        if (fleeVx < 0f) BirdFacing.LEFT else BirdFacing.RIGHT
-                    } else {
-                        if (fleeVy < 0f) BirdFacing.BACK else BirdFacing.FRONT
-                    }
-                    renderPose = BirdPose.ALERT
-                    fleeT = 0f
+                    startFlee(cx - playerCx, cy - playerCy)
                     return
                 }
-                // 숨어 있어도 평소 도망 반경 안에선 뭔가 낌새를 느끼고 주위를 두리번거린다
                 if (hiddenFromPlayer && dToPlayer < fleeR) renderPose = BirdPose.ALERT
                 idleT -= dt
-                if (idleT <= 0f) {
-                    // 무작위 방향으로 폴짝
-                    val dirs = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)
-                    val (ddx, ddy) = dirs[(Math.random() * dirs.size).toInt()]
-                    val nx = x + ddx * 16f
-                    val ny = y + ddy * 16f
-                    val tx = ((nx + sprW / 2f) / 16f).toInt()
-                    val ty = ((ny + sprH) / 16f).toInt()
-                    val nearPlayer = sqrt((nx - playerCx) * (nx - playerCx) + (ny - playerCy) * (ny - playerCy)) < 40f
-                    if (BirdEcology.suitability(def, map, tx, ty) > 0.0 && !nearPlayer) {
-                        hopFromX = x; hopFromY = y
-                        hopToX = nx; hopToY = ny
-                        hopT = 0f
-                        state = 1
-                        facing = when {
-                            ddx < 0 -> BirdFacing.LEFT
-                            ddx > 0 -> BirdFacing.RIGHT
-                            ddy < 0 -> BirdFacing.BACK
-                            else -> BirdFacing.FRONT
-                        }
-                        renderPose = BirdPose.ALERT
-                    } else {
-                        idleT = 0.6f
-                    }
-                }
+                if (idleT <= 0f) beginCharacteristicMove(map, playerCx, playerCy)
             }
-            1 -> {
-                hopT += dt / 0.22f
+            1, 3 -> {
+                hopT = (hopT + dt / movement.stepSeconds).coerceAtMost(1f)
+                x = hopFromX + (hopToX - hopFromX) * hopT
+                y = hopFromY + (hopToY - hopFromY) * hopT
                 if (hopT >= 1f) {
                     x = hopToX; y = hopToY
                     state = 0
-                    idleT = 0.7f + (Math.random() * 1.6f).toFloat()
-                    renderPose = when {
-                        Math.random() < 0.28 -> BirdPose.FEEDING
-                        Math.random() < 0.36 -> BirdPose.ALERT
-                        else -> BirdPose.PERCHED
+                    idleT = movement.nextRest(random)
+                    renderPose = when (movement.style) {
+                        BirdMovementStyle.SONG_BIRD -> if (random.nextFloat() < 0.62f) BirdPose.FEEDING else BirdPose.PERCHED
+                        BirdMovementStyle.WADER -> if (random.nextFloat() < 0.55f) BirdPose.FEEDING else BirdPose.PERCHED
+                        BirdMovementStyle.WATERFOWL -> if (random.nextFloat() < 0.25f) BirdPose.FEEDING else BirdPose.PERCHED
+                        BirdMovementStyle.RAPTOR -> if (random.nextFloat() < 0.55f) BirdPose.ALERT else BirdPose.PERCHED
+                        BirdMovementStyle.AERIAL -> BirdPose.PERCHED
+                        BirdMovementStyle.OWL -> if (random.nextFloat() < 0.7f) BirdPose.ALERT else BirdPose.PERCHED
+                        BirdMovementStyle.GROUNDFORAGER -> if (random.nextFloat() < 0.5f) BirdPose.FEEDING else BirdPose.PERCHED
                     }
-                } else {
-                    x = hopFromX + (hopToX - hopFromX) * hopT
-                    y = hopFromY + (hopToY - hopFromY) * hopT
                 }
             }
             2 -> {
@@ -2541,11 +2525,56 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
         }
     }
 
-    val gone: Boolean get() = state == 2 && fleeT > 1.5f
+    private fun beginCharacteristicMove(map: GameMap, playerCx: Float, playerCy: Float) {
+        val dirs = when (movement.style) {
+            BirdMovementStyle.WATERFOWL -> {
+                if (random.nextFloat() < 0.72f) listOf(1 to 0, -1 to 0) else listOf(0 to 1, 0 to -1, 1 to 0, -1 to 0)
+            }
+            BirdMovementStyle.AERIAL, BirdMovementStyle.RAPTOR -> listOf(
+                1 to 0, -1 to 0, 0 to 1, 0 to -1, 1 to 1, -1 to 1, 1 to -1, -1 to -1
+            )
+            else -> listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)
+        }
+        val shuffledDirs = dirs.toMutableList().also { java.util.Collections.shuffle(it, random) }
 
-    /** 점프 중 살짝 들리는 높이 */
+        for ((ddx, ddy) in shuffledDirs) {
+            val nx = x + ddx * 16f * movement.stepTiles
+            val ny = y + ddy * 16f * movement.stepTiles
+            val tx = ((nx + sprW / 2f) / 16f).toInt()
+            val ty = ((ny + sprH) / 16f).toInt()
+            val nextCx = nx + sprW / 2f
+            val nextCy = ny + sprH * 0.72f
+            val nearPlayer = sqrt((nextCx - playerCx) * (nextCx - playerCx) + (nextCy - playerCy) * (nextCy - playerCy)) < 40f
+            if (nearPlayer || BirdEcology.suitability(def, map, tx, ty) <= 0.0) continue
+
+            hopFromX = x; hopFromY = y
+            hopToX = nx; hopToY = ny
+            hopT = 0f
+            // Swallows and raptors glide between perches; ground and water birds stay low.
+            state = if (movement.style == BirdMovementStyle.AERIAL || movement.style == BirdMovementStyle.RAPTOR) 3 else 1
+            facing = when {
+                ddx < 0 -> BirdFacing.LEFT
+                ddx > 0 -> BirdFacing.RIGHT
+                ddy < 0 -> BirdFacing.BACK
+                else -> BirdFacing.FRONT
+            }
+            renderPose = BirdPose.ALERT
+            return
+        }
+
+        // 웅크린 올빼미도 가끔 방향을 바꿔 주위를 살핀다.
+        if (movement.style == BirdMovementStyle.OWL && random.nextFloat() < 0.5f) {
+            facing = listOf(BirdFacing.LEFT, BirdFacing.RIGHT, BirdFacing.FRONT, BirdFacing.BACK)[random.nextInt(4)]
+            renderPose = BirdPose.ALERT
+        }
+        idleT = movement.nextRest(random) * 0.45f
+    }
+
+    val gone: Boolean get() = state == 2 && fleeT > movement.leaveAfter
+
+    /** 종별로 다른 걸음/활공 높이 */
     val hopLift: Float
-        get() = if (state == 1) (kotlin.math.sin((hopT * Math.PI).toFloat()) * 5f) else 0f
+        get() = if (state == 1 || state == 3) (kotlin.math.sin((hopT * Math.PI).toFloat()) * movement.lift) else 0f
 
     companion object {
         /** 지형지물 뒤에 숨었을 때의 도망 반경 배율 — 평소보다 훨씬 가까이 다가갈 수 있다. */

@@ -1119,7 +1119,7 @@ class WorldScene(
         }
 
         // 다종 퀘스트(서식지 탐사, 3성 촬영, 야간 탐조, 비행 포착, 신규 종 발굴 등) 판정
-        val isAction = movingShot || fastShot || b.fleeT > 0f || b.state == 2
+        val isAction = movingShot || fastShot || b.fleeT > 0f || b.state == 2 || b.state == 3
         val completedQuests = QuestManager.onPhotoTaken(
             state, b.def, stars, isNew, state.isNight(), isAction
         )
@@ -1175,10 +1175,7 @@ class WorldScene(
             )
         }
 
-        b.state = 2
-        b.fleeVx = 60f
-        b.fleeVy = -75f
-        b.fleeT = 0f
+        b.startFlee(1f, -1f)
 
         SaveManager.save(game.context, state)
 
@@ -1326,7 +1323,7 @@ class WorldScene(
             return
         }
         // AF — 움직이는 새는 초점을 놓칠 수 있다 (연사가 빠르면 한 번 더 기회)
-        if (target.state == 1) {
+        if (target.state == 1 || target.state == 3) {
             var miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star)
             if (miss && rig.burstRetry()) {
                 miss = rnd.nextFloat() < rig.afMissChance(target.def.tier.star) * 0.5f
@@ -1336,10 +1333,7 @@ class WorldScene(
                 game.toast("초점을 놓쳤어요… 움직이는 새엔 빠른 AF가 필요해요")
                 game.sfx(Audio.Sfx.SHUTTER, 0.7f)
                 game.sfx(Audio.Sfx.FAIL, 0.5f)
-                target.state = 2
-                target.fleeVx = 60f
-                target.fleeVy = -75f
-                target.fleeT = 0f
+                target.startFlee(1f, -1f)
                 return
             }
         }
@@ -2619,10 +2613,9 @@ class WorldScene(
                 }
             }
             is FieldBird -> {
-                val flying = e.state == 2
+                val flying = e.state == 2 || e.state == 3
                 val bmp = if (flying) {
-                    val wingFrame = ((e.fleeT * 11f).toInt() and 1)
-                    a.birdFlight(e.def.id, wingFrame, e.faceLeft)
+                    a.birdFlight(e.def.id, e.flightFrame, e.faceLeft)
                 } else {
                     a.birdPose(e.def.id, e.facing, e.renderPose)
                 }
