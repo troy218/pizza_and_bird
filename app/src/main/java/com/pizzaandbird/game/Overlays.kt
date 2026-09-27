@@ -98,6 +98,7 @@ class DialogOverlay(
 
     private fun pick(i: Int) {
         if (i in choices.indices) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             choices[i].action(this)
             // 액션이 오버레이를 교체하지 않았다면 자동으로 닫기 (예: 피자 굽기로 교체되는 경우 유지)
             if (scene.overlay === this) finished = true
@@ -171,7 +172,7 @@ class DialogOverlay(
 class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private enum class Tab(val label: String, val icon: String) {
-        STATUS("상태", "📊"), PIZZA("피자", "🍕"), BOOK("도감", "📚"), SETTINGS("설정", "⚙")
+        STATUS("상태", "📊"), GROW("성장", "🌱"), PIZZA("피자", "🍕"), BOOK("도감", "📚"), SETTINGS("설정", "⚙")
     }
 
     private var tab = Tab.STATUS
@@ -252,7 +253,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             textP.textSize = dp(scene, 10f)
             textP.color = 0xFF8A7360.toInt()
             val subW = textP.measureText(titleTxt)
-            c.drawText("상태 · 피자 · 도감 · 설정", panelR.left + dp(scene, 18f) + subW + dp(scene, 34f), panelR.top + dp(scene, 25f), textP)
+            c.drawText("상태 · 성장 · 피자 · 도감 · 설정", panelR.left + dp(scene, 18f) + subW + dp(scene, 34f), panelR.top + dp(scene, 25f), textP)
         }
 
         val closeCx = panelR.right - dp(scene, 25f)
@@ -266,13 +267,15 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
         // 탭 — 아이콘 + 선택 탭 골드 밑줄
         tabRects.clear()
-        val tabW = (panelR.width() - dp(scene, 24f) - dp(scene, 8f) * 3f) / 4f
+        val nTabs = Tab.values().size
+        val tabGap = dp(scene, 8f)
+        val tabW = (panelR.width() - dp(scene, 24f) - tabGap * (nTabs - 1)) / nTabs
         val tabTop = panelR.top + dp(scene, 38f)
         val tabH = dp(scene, 28f)
         for ((i, t) in Tab.values().withIndex()) {
             val r = RectF(
-                panelR.left + dp(scene, 12f) + i * (tabW + dp(scene, 8f)), tabTop,
-                panelR.left + dp(scene, 12f) + i * (tabW + dp(scene, 8f)) + tabW, tabTop + tabH
+                panelR.left + dp(scene, 12f) + i * (tabW + tabGap), tabTop,
+                panelR.left + dp(scene, 12f) + i * (tabW + tabGap) + tabW, tabTop + tabH
             )
             if (t == tab) {
                 drawButton(c, scene, r, "${t.icon} ${t.label}", 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 12.5f)
@@ -291,6 +294,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         btnRects.clear()
         when (tab) {
             Tab.STATUS -> drawStatus(c)
+            Tab.GROW -> drawGrow(c)
             Tab.PIZZA -> drawPizza(c)
             Tab.BOOK -> drawBook(c)
             Tab.SETTINGS -> drawSettings(c)
@@ -354,6 +358,34 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val luckTxt = "${s.effectiveLuck().toInt()}" + (if (decorLuck > 0) "(+$decorLuck)" else "")
         c.drawText(luckTxt, valX - textP.measureText(luckTxt), ry, textP)
         y += vitH + dp(scene, 6f)
+
+        // 2.5) 탐조가 레벨 스트립 — 레벨/칭호 + 미니 경험치 바
+        val lvH = dp(scene, 28f)
+        val lvR = RectF(left, y, right, y + lvH)
+        drawCard(c, scene, lvR)
+        textP.textSize = dp(scene, 11f)
+        val lvCy = lvR.centerY() - (textP.descent() + textP.ascent()) / 2f
+        textP.color = 0xFF4A3728.toInt()
+        var lvTxt = "🌱 Lv.${s.level} 「${s.title()}」" + (if (s.skillPoints > 0) " · SP ${s.skillPoints}" else "")
+        val expBarW = dp(scene, 86f)
+        val maxLvW = (right - left) - dp(scene, 24f) - expBarW - dp(scene, 8f)
+        if (textP.measureText(lvTxt) > maxLvW && maxLvW > dp(scene, 40f)) {
+            while (lvTxt.length > 1 && textP.measureText("$lvTxt…") > maxLvW) lvTxt = lvTxt.dropLast(1)
+            lvTxt = "$lvTxt…"
+        }
+        c.drawText(lvTxt, left + dp(scene, 10f), lvCy, textP)
+        if (s.level >= Progression.MAX_LEVEL) {
+            textP.textSize = dp(scene, 10f)
+            textP.color = 0xFFB5651D.toInt()
+            val maxT = "MAX ★"
+            c.drawText(maxT, right - dp(scene, 10f) - textP.measureText(maxT), lvCy, textP)
+        } else {
+            UiKit.bar(
+                c, g, right - dp(scene, 10f) - expBarW, lvR.centerY() - dp(scene, 5f), expBarW, dp(scene, 10f),
+                s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt()
+            )
+        }
+        y += lvH + dp(scene, 6f)
 
         // 3) 카메라 스트립
         val camH = dp(scene, 28f)
@@ -421,6 +453,133 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         }
     }
 
+    private fun drawGrow(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val left = panelR.left + dp(scene, 16f)
+        val right = panelR.right - dp(scene, 16f)
+        var ty = contentTop() + dp(scene, 6f)
+
+        // 레벨 / 칭호
+        val a = g.assets
+        val ps = a.playerSet(s.gender, s.gearTier())
+        val avatar = ps.down[0]
+        val ak = dp(scene, 2.2f)
+        c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
+
+        val tx = left + avatar.width * ak + dp(scene, 12f)
+        textP.textSize = dp(scene, 16f)
+        textP.color = 0xFF4A3728.toInt()
+        c.drawText("Lv.${s.level}  ${s.title()}", tx, ty + dp(scene, 16f), textP)
+
+        // 경험치 바
+        val bx = tx
+        val bw = right - tx
+        val byBar = ty + dp(scene, 24f)
+        val bh = dp(scene, 10f)
+        fillP.color = 0xFFD6C5A4.toInt()
+        c.drawRoundRect(RectF(bx, byBar, bx + bw, byBar + bh), bh / 2, bh / 2, fillP)
+        if (s.level < Progression.MAX_LEVEL) {
+            val prog = s.expProgress()
+            if (prog > 0.01f) {
+                fillP.color = 0xFF6FBA6B.toInt()
+                c.drawRoundRect(RectF(bx, byBar, bx + bw * prog, byBar + bh), bh / 2, bh / 2, fillP)
+            }
+        } else {
+            fillP.color = 0xFFF2D06B.toInt()
+            c.drawRoundRect(RectF(bx, byBar, bx + bw, byBar + bh), bh / 2, bh / 2, fillP)
+        }
+        strokeP.color = 0xFF6B4F35.toInt()
+        strokeP.strokeWidth = dp(scene, 1.4f)
+        c.drawRoundRect(RectF(bx, byBar, bx + bw, byBar + bh), bh / 2, bh / 2, strokeP)
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val expTxt = if (s.level >= Progression.MAX_LEVEL) "최고 레벨 달성!" else "경험치 ${s.exp} / ${s.expToNext()}"
+        c.drawText(expTxt, bx, byBar + bh + dp(scene, 12f), textP)
+
+        // 숙련 포인트
+        textP.textSize = dp(scene, 12.5f)
+        textP.color = if (s.skillPoints > 0) 0xFF3F6FB0.toInt() else 0xFF8A7360.toInt()
+        val spTxt = "숙련 포인트(SP): ${s.skillPoints}"
+        c.drawText(spTxt, tx, byBar + bh + dp(scene, 28f), textP)
+
+        // 돈으로 SP 구매 (탐조 강습)
+        val tc = s.trainingCost()
+        val trR = RectF(right - dp(scene, 150f), byBar + bh + dp(scene, 16f), right, byBar + bh + dp(scene, 40f))
+        if (s.money >= tc) {
+            drawButton(c, scene, trR, "탐조 강습 ₩${fmtMoney(tc)}", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 10.5f)
+            btnRects.add(Triple(trR, "train") {
+                val cost = scene.game.state.trainingCost()
+                if (scene.game.state.money >= cost) {
+                    scene.game.state.money -= cost
+                    scene.game.state.skillPoints += 1
+                    SaveManager.save(scene.game.context, scene.game.state)
+                    scene.game.toast("탐조 강습 수료! 숙련 포인트 +1 🎓")
+                } else {
+                    scene.game.toast("돈이 부족해요!")
+                }
+            })
+        } else {
+            drawButton(c, scene, trR, "강습 ₩${fmtMoney(tc)}", Color.argb(100, 200, 190, 175), Color.argb(150, 74, 55, 40), 10.5f)
+        }
+
+        ty = byBar + bh + dp(scene, 46f)
+
+        // 스킬 목록 (가로로 넉넉한 1줄 카드)
+        val rowH = ((contentBottom() - ty) / Skills.ALL.size).coerceIn(dp(scene, 28f), dp(scene, 46f))
+        for (def in Skills.ALL) {
+            val rank = s.skillRank(def.id)
+            val r = RectF(left, ty, right, ty + rowH - dp(scene, 5f))
+            fillP.color = 0xFFFDF6E8.toInt()
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), fillP)
+            strokeP.color = 0xFFC9A87B.toInt()
+            strokeP.strokeWidth = dp(scene, 1.3f)
+            c.drawRoundRect(r, dp(scene, 8f), dp(scene, 8f), strokeP)
+
+            val midY = r.centerY() - (textP.descent() + textP.ascent()) / 2f
+
+            textP.textSize = dp(scene, 17f)
+            textP.color = 0xFF4A3728.toInt()
+            c.drawText(def.emoji, r.left + dp(scene, 8f), r.centerY() + dp(scene, 6f), textP)
+
+            textP.textSize = dp(scene, 12.5f)
+            c.drawText(def.name, r.left + dp(scene, 34f), midY, textP)
+
+            textP.textSize = dp(scene, 10f)
+            textP.color = 0xFF6FAE6F.toInt()
+            c.drawText("+${def.perRank}", r.left + dp(scene, 130f), midY, textP)
+
+            // 랭크 표시 (●/○)
+            val dots = "●".repeat(rank) + "○".repeat(def.maxRank - rank)
+            textP.textSize = dp(scene, 12f)
+            textP.color = 0xFFB5651D.toInt()
+            val dotsW = textP.measureText(dots)
+            val dotsX = r.right - dp(scene, 96f) - dotsW - dp(scene, 6f)
+            c.drawText(dots, dotsX, r.centerY() + dp(scene, 4f), textP)
+
+            // 강화 버튼
+            val br = RectF(r.right - dp(scene, 92f), r.centerY() - dp(scene, 13f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 13f))
+            when {
+                rank >= def.maxRank -> drawButton(c, scene, br, "MAX", Color.argb(90, 200, 190, 175), Color.argb(150, 74, 55, 40), 11f)
+                s.skillPoints <= 0 -> drawButton(c, scene, br, "SP 필요", Color.argb(110, 200, 190, 175), Color.argb(160, 74, 55, 40), 10.5f)
+                else -> {
+                    drawButton(c, scene, br, "강화 SP1", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 11f)
+                    val id = def.id
+                    btnRects.add(Triple(br, "up_$id") {
+                        if (scene.game.state.upgradeSkill(id)) {
+                            SaveManager.save(scene.game.context, scene.game.state)
+                            val nr = scene.game.state.skillRank(id)
+                            scene.game.toast("${def.emoji} ${def.name} 강화! (랭크 $nr)")
+                        } else {
+                            scene.game.toast("숙련 포인트가 부족해요!")
+                        }
+                    })
+                }
+            }
+            ty += rowH
+        }
+    }
+
     private fun drawPizza(c: Canvas) {
         val g = scene.game
         val s = g.state
@@ -437,10 +596,11 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         c.drawText("🍕 피자 가방", left + dp(scene, 10f), ty + dp(scene, 16f), textP)
         textP.textSize = dp(scene, 11f)
         textP.color = 0xFFB5651D.toInt()
-        val capTxt = "${s.pizzaCount}/${PIZZA_CAP}"
+        val capEff = s.pizzaCapEff()
+        val capTxt = "${s.pizzaCount}/$capEff"
         c.drawText(capTxt, right - dp(scene, 10f) - textP.measureText(capTxt), ty + dp(scene, 16f), textP)
         UiKit.bar(c, g, left + dp(scene, 10f), ty + dp(scene, 22f), right - left - dp(scene, 20f), dp(scene, 9f),
-            s.pizzaCount / PIZZA_CAP.toFloat(), 0xFFFFD97A.toInt(), 0xFFF2A33C.toInt())
+            s.pizzaCount / capEff.toFloat(), 0xFFFFD97A.toInt(), 0xFFF2A33C.toInt())
         ty += headH + dp(scene, 6f)
 
         // 토핑 카드 — 남은 높이에 맞춰 자동 배분
@@ -670,6 +830,16 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             ty += rh + dp(scene, 8f)
         }
 
+        row(if (g.state.musicOn) "🎵" else "🔇", "음악: " + if (g.state.musicOn) "켜짐" else "꺼짐", "배경 음악을 켜고 꺼요", false) {
+            g.state.musicOn = !g.state.musicOn
+            g.audio.setMusic(g.state.musicOn)
+            SaveManager.save(g.context, g.state)
+        }
+        row(if (g.state.sfxOn) "🔊" else "🔈", "효과음: " + if (g.state.sfxOn) "켜짐" else "꺼짐", "새 소리와 버튼음을 켜고 꺼요", false) {
+            g.state.sfxOn = !g.state.sfxOn
+            g.audio.setSfx(g.state.sfxOn)
+            SaveManager.save(g.context, g.state)
+        }
         row("💾", "저장하기", "지금까지의 여행을 안전하게 보관해요", false) {
             SaveManager.save(g.context, g.state)
             g.toast("저장 완료! ✨")
@@ -699,12 +869,12 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             drawCard(c, scene, footR)
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.2.1-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
+            c.drawText("🍕 Pizza and Bird v0.3.0-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)
             if (footR.height() > dp(scene, 62f)) {
-                c.drawText("낮과 밤이 흐르고, 밤에는 올빼미가 나와요! 🌙", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
+                c.drawText("새를 찍어 경험치를 모으면 탐조가 레벨이 올라요!", left + dp(scene, 12f), ty + dp(scene, 47f), textP)
             }
         }
     }
@@ -743,12 +913,14 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         }
         if (s.money < d.cost) {
             g.toast("돈이 부족해요… (${won(d.cost)})")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
             return
         }
         s.money -= d.cost
         s.decorOwned.add(id)
         SaveManager.save(g.context, s)
         g.toast("${d.emoji} ${d.name} 구매! 집의 장식 칸에 놓아보세요")
+        g.sfx(Audio.Sfx.BUY)
     }
 
     override fun draw(c: Canvas) {
@@ -943,12 +1115,14 @@ class HouseStyleOverlay(
             if (id !in g.state.ownedHouseStyles) {
                 if (g.state.money < style.price) {
                     g.toast("돈이 부족해요… 인테리어 비용 ${won(style.price)}")
+                    g.sfx(Audio.Sfx.FAIL, 0.5f)
                     return
                 }
                 g.state.money -= style.price
                 g.state.ownedHouseStyles.add(id)
                 SaveManager.save(g.context, g.state)
                 g.toast("${style.emoji} ${style.name} 구매 완료!")
+                g.sfx(Audio.Sfx.BUY)
             }
             onApply(id)
             finished = true
@@ -1062,6 +1236,8 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                         topping = id
                         step = 1
                         t = 0.6f
+                        scene.game.sfx(Audio.Sfx.TAP, 0.6f)
+                        scene.game.audio.playAmb(R.raw.amb_fire, 0.5f)   // 🔥 화덕 불 소리
                         return
                     }
                 }
@@ -1089,6 +1265,12 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
         }
         lostPizza = !scene.game.state.addPizza(topping, resultQ)
         SaveManager.save(scene.game.context, scene.game.state)
+        scene.game.audio.stopAmb()   // 화덕 불 소리 끄기
+        when (resultQ) {
+            2 -> scene.game.sfx(Audio.Sfx.SPARKLE)          // 걸작!
+            1 -> scene.game.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
+            else -> scene.game.sfx(Audio.Sfx.FAIL, 0.6f)    // 살짝 탐
+        }
     }
 
     override fun draw(c: Canvas) {
@@ -1306,13 +1488,33 @@ class PhotoResultOverlay(
     private val stars: Int,
     private val isNew: Boolean,
     private val count: Int,
-    private val questLine: String?
+    private val questLine: String?,
+    private val expGain: Int = 0,
+    private val levelsGained: Int = 0,
+    private val prevLevel: Int = 1
 ) : Overlay(scene) {
 
     private var t = 0f
+    private var cuedStars = false
+    private var cuedNew = false
+    private var cuedQuest = false
 
     override fun update(dt: Float) {
         t += dt
+        val g = scene.game
+        // 연출에 맞춰 순차 재생: 별점 → 도감 신규 → 의뢰 보수
+        if (!cuedStars && t >= 0.3f) {
+            cuedStars = true
+            g.sfx(Audio.Sfx.SUCCESS, 0.55f + stars * 0.15f)
+        }
+        if (isNew && !cuedNew && t >= 0.75f) {
+            cuedNew = true
+            g.sfx(Audio.Sfx.SPARKLE, 0.9f)
+        }
+        if (questLine != null && !cuedQuest && t >= 1.15f) {
+            cuedQuest = true
+            g.sfx(Audio.Sfx.REWARD, 0.9f)   // 의뢰 보수 ₩
+        }
     }
 
     override fun handleInput(input: Input) {
@@ -1322,7 +1524,15 @@ class PhotoResultOverlay(
             return
         }
         val tap = input.consumeTapScreen()
-        if (input.justA || input.justB || input.justBack || tap != null) finished = true
+        if (input.justA || input.justB || input.justBack || tap != null) {
+            if (t < 0.25f) return   // 셔터 직후 오발 방지
+            if (levelsGained > 0) {
+                // 레벨업 축하 화면으로 이어짐 (오버레이 체이닝)
+                scene.openOverlay(LevelUpOverlay(scene, prevLevel, scene.game.state.level))
+            } else {
+                finished = true
+            }
+        }
     }
 
     override fun draw(c: Canvas) {
@@ -1343,7 +1553,7 @@ class PhotoResultOverlay(
         c.scale(pop, pop, w / 2f, h / 2f)
 
         val cw = minOf(w * 0.7f, dp(scene, 390f))
-        val chh = dp(scene, 252f)
+        val chh = dp(scene, 252f + (if (questLine != null) 20f else 0f) + (if (expGain > 0) 44f else 0f))
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
@@ -1451,6 +1661,7 @@ class PhotoResultOverlay(
         val cnt = "촬영 ${count}회 · 최고 ★$best" + if (def.englishName.isNotBlank()) " · ${def.englishName}" else ""
         c.drawText(cnt, r.centerX() - textP.measureText(cnt) / 2, y1 + dp(scene, 19f), textP)
 
+        var yq = y1 + dp(scene, 40f)
         if (questLine != null) {
             textP.textSize = dp(scene, 11.5f)
             val qw = (textP.measureText(questLine) + dp(scene, 22f)).coerceAtMost(r.width() - dp(scene, 40f))
@@ -1458,11 +1669,112 @@ class PhotoResultOverlay(
                 c, g, RectF(r.centerX() - qw / 2f, y1 + dp(scene, 26f), r.centerX() + qw / 2f, y1 + dp(scene, 46f)),
                 questLine, 0xFF3F6FB0.toInt(), 0xFFFFF8E8.toInt(), 11.5f
             )
+            yq += dp(scene, 22f)
+        }
+
+        // 경험치 획득 + 경험치 바
+        if (expGain > 0) {
+            val s2 = g.state
+            textP.textSize = dp(scene, 12f)
+            textP.color = 0xFF6FAE6F.toInt()
+            val expTxt = if (levelsGained > 0) "경험치 +$expGain  · 레벨 업! ✨" else "경험치 +$expGain"
+            c.drawText(expTxt, r.centerX() - textP.measureText(expTxt) / 2, yq, textP)
+
+            val ebx = r.left + dp(scene, 40f)
+            val ebw = r.width() - dp(scene, 80f)
+            val eby = yq + dp(scene, 8f)
+            val ebh = dp(scene, 8f)
+            UiKit.bar(c, g, ebx, eby, ebw, ebh, s2.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+            textP.textSize = dp(scene, 9.5f)
+            textP.color = 0xFF8A7360.toInt()
+            val lvTxt = if (s2.level >= Progression.MAX_LEVEL) "Lv.${s2.level} MAX"
+                else "Lv.${s2.level}  (${s2.exp}/${s2.expToNext()})"
+            c.drawText(lvTxt, r.centerX() - textP.measureText(lvTxt) / 2, eby + ebh + dp(scene, 12f), textP)
         }
 
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
-        val hint = "화면을 탭해 탐조를 계속해요"
+        val hint = if (levelsGained > 0) "화면을 탭해 계속" else "화면을 탭해 탐조를 계속해요"
+        c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 레벨업 축하
+// ---------------------------------------------------------------------------
+
+class LevelUpOverlay(
+    scene: Scene,
+    private val fromLevel: Int,
+    private val toLevel: Int
+) : Overlay(scene) {
+
+    private var t = 0f
+
+    override fun update(dt: Float) { t += dt }
+
+    override fun handleInput(input: Input) {
+        val tap = input.consumeTapScreen()
+        if (t < 0.3f) return
+        if (input.justA || input.justB || input.justBack || tap != null) finished = true
+    }
+
+    override fun draw(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val w = g.screenW.toFloat()
+        val h = g.screenH.toFloat()
+        dim(c, scene, 150)
+
+        val cw = minOf(w * 0.62f, dp(scene, 360f))
+        val chh = dp(scene, 244f)
+        val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
+        panel(c, r, scene)
+
+        val ringA = (0.4f + 0.6f * abs(sin(t * 3.2f)))
+        strokeP.color = Color.argb((200 * ringA).toInt(), 242, 208, 107)
+        strokeP.strokeWidth = dp(scene, 3f)
+        c.drawRoundRect(RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 4f)), dp(scene, 10f), dp(scene, 10f), strokeP)
+
+        textP.textSize = dp(scene, 22f)
+        textP.color = 0xFFB5651D.toInt()
+        val t1 = "🎉 레벨 업! 🎉"
+        c.drawText(t1, r.centerX() - textP.measureText(t1) / 2, r.top + dp(scene, 42f), textP)
+
+        val a = g.assets
+        val ps = a.playerSet(s.gender, s.gearTier())
+        val bmp = ps.down[0]
+        val k = dp(scene, 3.4f)
+        val bx = r.centerX() - bmp.width * k / 2f
+        val by = r.top + dp(scene, 58f)
+        c.drawOval(RectF(bx + dp(scene, 6f), by + bmp.height * k - dp(scene, 4f), bx + bmp.width * k - dp(scene, 6f), by + bmp.height * k + dp(scene, 4f)), a.shadowPaint)
+        c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+
+        textP.textSize = dp(scene, 18f)
+        textP.color = 0xFF4A3728.toInt()
+        val lv = "Lv.$fromLevel  →  Lv.$toLevel"
+        c.drawText(lv, r.centerX() - textP.measureText(lv) / 2, by + bmp.height * k + dp(scene, 26f), textP)
+
+        textP.textSize = dp(scene, 13f)
+        textP.color = 0xFF6FAE6F.toInt()
+        val title = "「 ${Progression.title(toLevel)} 」"
+        c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + bmp.height * k + dp(scene, 46f), textP)
+
+        textP.textSize = dp(scene, 11.5f)
+        textP.color = 0xFF3F6FB0.toInt()
+        val sp = "숙련 포인트 +${s.skillPoints}  (메뉴 › 성장 에서 능력 강화!)"
+        c.drawText(sp, r.centerX() - textP.measureText(sp) / 2, by + bmp.height * k + dp(scene, 64f), textP)
+
+        if (Progression.gearTier(fromLevel) != Progression.gearTier(toLevel)) {
+            textP.textSize = dp(scene, 11f)
+            textP.color = 0xFFB5651D.toInt()
+            val gearMsg = "새 탐조 장비를 갖췄어요! 👒"
+            c.drawText(gearMsg, r.centerX() - textP.measureText(gearMsg) / 2, r.bottom - dp(scene, 26f), textP)
+        }
+
+        textP.textSize = dp(scene, 10f)
+        textP.color = 0xFF8A7360.toInt()
+        val hint = "탭해서 닫기"
         c.drawText(hint, r.centerX() - textP.measureText(hint) / 2, r.bottom - dp(scene, 10f), textP)
         c.restore()
     }

@@ -173,14 +173,14 @@ class Hud(private val game: Game) {
     }
 
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(126f) + dp(18f)
+    private fun questChipY(): Float = dp(12f) + dp(170f) + dp(22f)
 
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(126f)
+        val h = dp(170f)
 
         // 프리미엄 패널
         val r = RectF(left, top, left + w, top + h)
@@ -233,6 +233,35 @@ class Hud(private val game: Game) {
         text.color = 0xFF6B5A48.toInt()
         c.drawText(s.timeLabel(), left + dp(30f), iy2 + dp(73f), text)
         c.drawText("📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), text)
+
+        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
+
+        // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
+        val weather = s.weather()
+        text.color = 0xFF587083.toInt()
+        text.textSize = dp(11.5f)
+        c.drawText("${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), text)
+
+        // 레벨 + 경험치 바
+        val ly = iy2 + dp(96f)
+        text.textSize = dp(11.5f)
+        text.color = 0xFF4A3728.toInt()
+        c.drawText("Lv.${s.level}", left + dp(12f), ly + dp(12f), text)
+        text.textSize = dp(9f)
+        text.color = 0xFF8A7360.toInt()
+        val tt = s.title()
+        c.drawText(tt, left + dp(46f), ly + dp(11f), text)
+        // 바 (프리미엄 그라데이션)
+        val bx = left + dp(12f)
+        val bw = w - dp(24f)
+        val by = ly + dp(16f)
+        val bh = dp(6f)
+        if (s.level >= Progression.MAX_LEVEL) {
+            UiKit.bar(c, game, bx, by, bw, bh, 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
+        } else {
+            UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+        }
+
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {
