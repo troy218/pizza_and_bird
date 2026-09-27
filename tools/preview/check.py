@@ -65,9 +65,8 @@ def main():
                     tx, ty = int((sx + 8) // 16), int((sy + 13) // 16)
                     check(m.pave[ty][tx] != 0, f'터널 스폰이 길 위가 아님 {rid} {nm} ({tx},{ty})={m.tile[ty][tx]}')
 
-            for (_, nx, ny) in m.npcs:
-                check(not m.solid(nx, ny), f'NPC 막힘 {rid} ({nx},{ny})={m.tile[ny][nx]}')
-                check(not m.solid(nx, ny + 1), f'NPC 앞 막힘 {rid} ({nx},{ny+1})={m.tile[ny+1][nx]}')
+            # 사람(NPC) 배치는 프로토타입에 없다 — Kotlin `MapBuilder.placeCast` 가 담당하고,
+            # 자리 검증은 `tools/MapTest.kt`(캐스팅 무결성 + 서기/대화/도달/간격/박사·상점 위치)가 한다.
 
             for d in ex:
                 tt = {M.N: [(19, 0), (20, 0)], M.S: [(19, h - 1), (20, h - 1)],

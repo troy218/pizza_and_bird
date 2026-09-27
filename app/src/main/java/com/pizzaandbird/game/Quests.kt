@@ -151,7 +151,8 @@ object MainStory {
  *  2. 방문 부족 — 지역 루트 그래프(BFS) 기준 가장 가까운 미방문 지역
  *  3. 레벨·라이퍼·3성 부족 — 아직 못 찍은 새가 가장 많은 지역
  *
- * 보리 박사는 모든 지역 광장에 상주하므로 목표 달성 시 "현재 지역"이 정답이다.
+ * 목표 달성 시 정답은 **보리 박사가 사는 지역**이다 — 박사는 광릉숲 숲속 쉼터 한 곳에만 산다
+ * (`NpcRoster.PROFESSOR_REGION`). 그래서 카드/대화의 🚲 버튼이 그 지역까지 태워 준다.
  */
 object MainQuestAdvisor {
 
@@ -181,14 +182,18 @@ object MainQuestAdvisor {
     }
 
     private fun compute(s: GameState, chapter: MainStory.Chapter): Advice {
-        // 목표 달성 — 지금 이곳이 정답 (보리 박사는 모든 지역의 광장에 있다)
+        // 목표 달성 — 보고는 보리 박사에게. 박사는 한 곳(광릉숲)에만 상주한다.
         if (chapter.isComplete(s)) {
-            val cur = Regions.byId[s.region] ?: Regions.ALL.first()
+            val prof = Regions.byId[NpcRoster.PROFESSOR_REGION] ?: Regions.ALL.first()
+            val here = s.region == prof.id
+            val spot = NpcRoster.professor.spot.label
             return Advice(
-                cur.id, cur.name,
-                "목표 달성 · 현재 지역의 광장에서 보리 박사에게 보고하세요",
-                "보리 박사는 중앙 광장 한가운데 있어요",
-                alreadyThere = true
+                prof.id, prof.name,
+                if (here) "목표 달성 · ${spot}의 보리 박사에게 보고하세요"
+                else "목표 달성 · ${prof.name}의 보리 박사에게 보고하세요",
+                if (here) "보리 박사는 ${spot}에 있어요 — 카드 탭하면 바로 앞까지"
+                else NpcRoster.professorTravelHint,
+                alreadyThere = here
             )
         }
 

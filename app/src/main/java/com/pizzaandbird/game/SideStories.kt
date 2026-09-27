@@ -20,6 +20,7 @@ object SideStories {
     data class Episode(
         val id: String,
         val regionId: String,
+        /** 대사 목소리 참고용 — 실제 담당자는 그 지역 이웃 주민(resident)이다 */
         val npc: NpcKind,
         val title: String,
         val acts: List<Act>,
@@ -375,9 +376,13 @@ object SideStories {
         return if (progressOf(read(ctx), regionId) >= 4) null else ep
     }
 
-    /** 월드 그리기 경로용 💬 마커 조회 — 매 프레임 호출되므로 메모리 캐시만 건드린다. */
-    fun hasMarker(ctx: Context, regionId: String, kind: NpcKind): Boolean =
-        current(ctx, regionId)?.npc == kind
+    /**
+     * 월드 그리기 경로용 💬 마커 조회 — 매 프레임 호출되므로 메모리 캐시만 건드린다.
+     * 에피소드는 그 지역의 **이웃 주민(지역 이야기 담당)** 이 담당한다 — 사람은 한 장소에만 살므로
+     * (`NpcRoster`) 종류(kind) 대신 사람을 곧바로 지정한다. `Episode.npc` 는 대사 목소리 참고용.
+     */
+    fun hasMarker(ctx: Context, regionId: String, person: NpcPerson): Boolean =
+        current(ctx, regionId) != null && person.resident && person.regionId == regionId
 
     private fun allComplete(s: JSONObject): Boolean =
         EPISODES.all { progressOf(s, it.regionId) >= 4 }
@@ -435,9 +440,9 @@ object SideStories {
             return true
         }
 
-        // ② 이 지역의 에피소드 — 담당 NPC에게만 열린다
+        // ② 이 지역의 에피소드 — 그 지역 이웃 주민(이야기 담당)에게만 열린다
         val ep = EPISODES.firstOrNull { it.regionId == regionId } ?: return false
-        if (ep.npc != npc.kind) return false
+        if (!(npc.person.resident && npc.person.regionId == regionId)) return false
         val p = progressOf(s, regionId)
         if (p >= 4) return false
 

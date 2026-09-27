@@ -33,6 +33,8 @@ import com.pizzaandbird.game.Game
 import com.pizzaandbird.game.HomeScene
 import com.pizzaandbird.game.MapOverlay
 import com.pizzaandbird.game.MenuOverlay
+import com.pizzaandbird.game.NpcKind
+import com.pizzaandbird.game.NpcRoster
 import com.pizzaandbird.game.PhotoResultOverlay
 import com.pizzaandbird.game.PizzaKind
 import com.pizzaandbird.game.Pizzas
@@ -539,9 +541,19 @@ object PreviewMain {
             c.drawBitmap(a.bikeSide, px + 72f, py + 14f, a.sprPaint)
             c.drawBitmap(a.bikeSideL, px + 108f, py + 14f, a.sprPaint)
         }
+        // 「한 사람은 한 장소에만」 — 같은 5명이 아니라, 자리가 서로 다른 실제 캐스팅을 뽑아 그린다
         row("npcs") { px, py ->
-            val list = listOf(a.npcProfessor, a.npcShop, a.npcVillager, a.npcKid, a.npcElder)
-            for ((i, b) in list.withIndex()) c.drawBitmap(b, px + i * 36f, py + 14f, a.sprPaint)
+            val cast = listOf(
+                NpcRoster.professor,                        // 광릉숲 숲속 쉼터 · 보리 박사
+                NpcRoster.shopkeeper,                       // 서울 골목 · 사진용품점 남기택
+                NpcRoster.forRegion("chuncheon").first(),   // 의암호 전망 데크 · 노을
+                NpcRoster.forRegion("incheon").first(),     // 소래포구 갯벌 둑길 · 해순
+                NpcRoster.representative(NpcKind.KID),      // 송도/안산 이웃 꼬마
+                NpcRoster.forRegion("hallasan").last()      // 한라산 그루브 · 순옥
+            )
+            for ((i, p) in cast.withIndex()) {
+                c.drawBitmap(a.npcBitmap(p, 0f, i * 0.7f), px + i * 36f, py + 14f, a.sprPaint)
+            }
         }
         row("cat") { px, py ->
             for (i in 0..2) {
