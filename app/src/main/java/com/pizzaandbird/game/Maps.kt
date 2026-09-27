@@ -113,6 +113,11 @@ class GameMap(
         T.ROCK, T.MOUNTAIN -> stonePaint
         else -> fallback
     }
+
+    /** A region chooses its own silhouettes; non-nature tiles keep the global tile pattern. */
+    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int =
+        mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
     /** 이정표 표시 기준점(지도 렌더 좌표, 32px 타일). NaN이면 항상 보인다. */
@@ -237,7 +242,7 @@ class GameMap(
                     val gv = ground[y][x]
                     val gTile = T.ALL[gv]
                     val gBmp = if (gTile == T.WATER) a.tiles[gv][minOf(waterFrame, a.tiles[gv].size - 1)]
-                    else a.tiles[gv][a.tileVariant(gv, x, y)]
+                    else a.tiles[gv][artVariant(a, gTile, x, y)]
                     c.drawBitmap(gBmp, fx, fy, terrainPaint(gTile, a.sprPaint))
 
                     // 물가 거품 (물 타일 가장자리) — 출렁이는 포말 + 반짝임
@@ -336,7 +341,7 @@ class GameMap(
                 // 4) 구조물 / 소품
                 if (!tile.ground && tile != T.OVEN) {
                     val bmp = if (tile == T.RANGE) a.tiles[tv][minOf(ovenFrame, a.tiles[tv].size - 1)]
-                    else a.tiles[tv][a.tileVariant(tv, x, y)]
+                    else a.tiles[tv][artVariant(a, tile, x, y)]
                     if (tile == T.SIGN) {
                         val k = signAlpha(x, y)
                         if (k <= 0f) continue
@@ -756,6 +761,16 @@ object MapBuilder {
                 if (rnd.nextDouble() < density) placeTree(x, y)
             }
         }
+        fun inlandCoastalForest(density: Double) {
+            val edges = (region.waterEdges + region.sandEdges).distinct()
+            val inland = mapStyle.seaDepth + mapStyle.shoreDepth + 1
+            for (edge in edges) when (edge) {
+                Dir.W -> forestBelt(inland, (inland + 5).coerceAtMost(w - 4), 4, h - 5, density)
+                Dir.E -> forestBelt((w - inland - 6).coerceAtLeast(3), w - inland - 1, 4, h - 5, density)
+                Dir.N -> forestBelt(4, w - 5, inland, (inland + 4).coerceAtMost(h - 4), density)
+                Dir.S -> forestBelt(4, w - 5, (h - inland - 5).coerceAtLeast(3), h - inland - 1, density)
+            }
+        }
 
         when (region.id) {
             "seoul" -> {
@@ -910,8 +925,8 @@ object MapBuilder {
                         hillCone(7, 7, 2); hillCone(33, 24, 2)
                     }
                     RegionKind.COAST -> {
-                        // 해안이면 안쪽에 솔숲 벨트 하나
-                        forestBelt(w - 9, w - 4, 4, h - 6, 0.30)
+                        // 바다와 해변의 실제 방향을 따라 곰솔림을 안쪽에 둔다 (서해/동해 뒤집힘 방지).
+                        inlandCoastalForest(0.34)
                     }
                     RegionKind.WETLAND -> {
                         // 습지는 갈대 외에 낮은 둑 풀섶 하나
@@ -1375,12 +1390,98 @@ object MapBuilder {
         val isMountain = region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats
         val isRiver = region.kind == RegionKind.RIVER || "water" in region.habitats
 
+        /** 불규칙한 가장자리로 식생/암석을 모아, 지역마다 알아볼 수 있는 자연 군락을 만든다. */
+        fun naturalPatch(cx: Int, cy: Int, rx: Int, ry: Int, tile: T, density: Float, salt: Int) {
+            val x0 = (cx - rx).coerceAtLeast(2)
+            val x1 = (cx + rx).coerceAtMost(w - 3)
+            val y0 = (cy - ry).coerceAtLeast(2)
+            val y1 = (cy + ry).coerceAtMost(h - 3)
+            for (y in y0..y1) for (x in x0..x1) {
+                if (isPlazaOrRoad(x, y) || reserved[y][x] || pave[y][x] != Pave.NONE) continue
+                if (base[y][x] == T.WATER.ordinal || t[y][x] != T.GRASS.ordinal) continue
+                val dx = (x - cx) / rx.toFloat()
+                val dy = (y - cy) / ry.toFloat()
+                val seed = x * 73856093 xor (y * 19349663) xor region.id.hashCode() xor (salt * 83492791)
+                val roughEdge = Math.floorMod(seed ushr 3, 4) * 0.11f
+                if (dx * dx + dy * dy > 1f + roughEdge) continue
+                if (Math.floorMod(seed, 1000) / 1000f > density) continue
+                when (tile) {
+                    T.ROCK -> placeRock(x, y)
+                    T.MOUNTAIN -> placeMountain(x, y)
+                    T.TREE -> placeTree(x, y)
+                    else -> if (tile.ground) {
+                        setGround(x, y, tile)
+                        reserved[y][x] = true
+                    }
+                }
+            }
+        }
+
+        // 지역 대표 자연물: 강원 바위 능선, 갯벌 갈대섬, 제주 현무암처럼
+        // 무작위 장식만으로는 안 드러나는 지형 실루엣을 산책로 가장자리에 더한다.
+        when (region.id) {
+            "seoul" -> {
+                naturalPatch(30, 22, 3, 2, T.TREE, 0.66f, 1)       // 남산 공원 수목
+                naturalPatch(10, 20, 3, 1, T.FLOWER, 0.82f, 2)     // 한강변 풀꽃
+            }
+            "incheon", "ganghwa", "songdo" -> {
+                naturalPatch(10, 8, 4, 2, T.REED, 0.92f, 3)        // 서해 갯골의 갈대섬
+                naturalPatch(10, 21, 3, 1, T.ROCK, 0.78f, 4)       // 낮은 조개·퇴적암 둔덕
+            }
+            "chuncheon" -> {
+                naturalPatch(13, 22, 3, 2, T.ROCK, 0.78f, 5)       // 호숫가 둥근 자갈
+                naturalPatch(29, 10, 2, 4, T.TREE, 0.72f, 6)       // 소양강변 버드나무
+            }
+            "gangneung" -> {
+                naturalPatch(32, 19, 3, 2, T.ROCK, 0.84f, 7)       // 동해 물결 바위
+                naturalPatch(12, 8, 2, 3, T.TREE, 0.70f, 8)        // 해안 곰솔
+            }
+            "sokcho", "gwangneung", "hallasan" -> {
+                naturalPatch(11, 9, 3, 3, T.ROCK, 0.78f, 9)        // 화강암/현무암 암괴
+                naturalPatch(28, 22, 4, 2, T.TREE, 0.76f, 10)      // 고산 상록수 숲
+            }
+            "daejeon", "gongneung", "geumgang", "imjin", "wangpi" -> {
+                naturalPatch(12, 18, 3, 2, T.ROCK, 0.78f, 11)       // 강바닥 둥근 돌
+                naturalPatch(29, 9, 3, 2, T.REED, 0.78f, 12)       // 여울가 물억새
+            }
+            "jeonju", "cheorwon", "daegu" -> {
+                naturalPatch(12, 21, 5, 2, T.FLOWER, 0.78f, 13)    // 논둑 야생화
+                naturalPatch(29, 8, 4, 1, T.TALLGRASS, 0.80f, 14)  // 들판의 억새 띠
+            }
+            "gwangju" -> {
+                naturalPatch(29, 9, 3, 2, T.TREE, 0.75f, 15)       // 무등산 동백 숲
+                naturalPatch(11, 21, 3, 2, T.ROCK, 0.72f, 16)      // 광주천 이끼 바위
+            }
+            "ulsan" -> {
+                naturalPatch(11, 23, 4, 2, T.TREE, 0.82f, 17)      // 태화강 십리대숲
+                naturalPatch(34, 21, 2, 3, T.ROCK, 0.85f, 18)      // 대왕암 해식 바위
+            }
+            "busan" -> {
+                naturalPatch(34, 20, 2, 4, T.TREE, 0.76f, 19)      // 해안 곰솔
+                naturalPatch(23, 24, 4, 1, T.ROCK, 0.76f, 20)      // 방파제 현무암
+            }
+            "jeju", "hadori" -> {
+                naturalPatch(29, 20, 3, 2, T.ROCK, 0.88f, 21)      // 검은 용암석
+                naturalPatch(11, 9, 4, 2, T.TREE, 0.70f, 22)       // 바람 센 동백·곰솔
+            }
+            "eulsukdo", "suncheon", "ansan", "sihwa", "hwaseong", "junam", "upo" -> {
+                naturalPatch(11, 20, 4, 2, T.REED, 0.92f, 23)      // 습지 갈대밭
+                naturalPatch(29, 9, 3, 2, T.TALLGRASS, 0.82f, 24)  // 물가 풀섶
+            }
+            "maehyang", "gochang", "taean" -> {
+                naturalPatch(10, 21, 4, 2, T.ROCK, 0.80f, 25)      // 갯바위·사구 돌
+                naturalPatch(29, 8, 3, 2, T.TREE, 0.72f, 26)       // 해풍 맞은 소나무
+            }
+        }
+
         // 큰 자연물 군락: 같은 종류를 뭉치되 군락끼리는 충분히 떨어뜨린다.
         val groveCount = when {
-            isMountain -> 6
-            isWet -> 4
-            isCoast -> 3
-            else -> 3
+            isMountain -> 7
+            isWet -> 6
+            isCoast -> 5
+            isRiver -> 5
+            region.city -> 4
+            else -> 4
         }
         repeat(groveCount) {
             val gx = 5 + rnd.nextInt(w - 10)
@@ -1409,12 +1510,12 @@ object MapBuilder {
             val r = rnd.nextDouble()
             when {
                 // 습지·강은 갈대/물억새를 우선하고, 산은 바위와 숲을 우선한다.
-                isWet && r < 0.22 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
-                isRiver && r < 0.13 -> t[y][x] = T.ROCK.ordinal
-                isCoast && r < 0.12 -> t[y][x] = T.ROCK.ordinal
-                isMountain && r < 0.12 -> t[y][x] = T.ROCK.ordinal
+                isWet && r < 0.28 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
+                isRiver && r < 0.17 -> t[y][x] = T.ROCK.ordinal
+                isCoast && r < 0.16 -> t[y][x] = T.ROCK.ordinal
+                isMountain && r < 0.15 -> t[y][x] = T.ROCK.ordinal
                 // 도시 공원·하천 산책로에는 꽃밭을 조금 더 자주 만든다.
-                region.city && r < 0.16 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
+                region.city && r < 0.19 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
                 r < region.treeDensity + region.flowerDensity -> {
                     t[y][x] = T.FLOWER.ordinal
@@ -1514,9 +1615,12 @@ class Npc(val kind: NpcKind, val tileX: Int, val tileY: Int) {
         }
 }
 
-/** 골목을 거니는 고양이 */
+/**
+ * 골목을 거니는 고양이.
+ * 새를 살금살금 쫓다가, 펀치를 맞으면 빙글 돌며 하늘로 날아간다.
+ */
 class Cat(var x: Float, var y: Float) {
-    var state = 0                 // 0 앉아있기, 1 걷기
+    var state = 0                 // 0 앉아있기, 1 걷기, 2 날아감
     var animT = (Math.random() * 3f).toFloat()   // 대기 동작 위상 (고양이마다 다르게)
     var idleT = 1.5f
     var fromX = 0f; var fromY = 0f
@@ -1524,10 +1628,64 @@ class Cat(var x: Float, var y: Float) {
     var hopT = 0f
     var faceLeft = true
 
+    /** 새를 노리는 중 */
+    var stalking = false
+    var pouncing = false
+    var pounceCued = false
+    var pounceT = 0f
+    /** 잡아먹거나 길이 막힌 뒤 잠시 쉬는 시간 */
+    var calmT = 0f
+    /** 지금 노리는 새 (알림이 같은 새에 반복되지 않게) */
+    var preyId: String? = null
+    var stuckT = 0f
+
+    // 펀치 — 날아가는 동안의 물리
+    var launched = false
+    var vx = 0f
+    var vy = 0f
+    var spin = 0f
+    var spinV = 0f
+    var launchT = 0f
+    var air = 0f
+
     val cx: Float get() = x + 14f
     val cy: Float get() = y + 12f
 
+    /** 플레이어가 민 방향으로 퉁겨 보낸다. dir 은 정규화하지 않아도 된다. */
+    fun launch(dirX: Float, dirY: Float, spinSign: Float) {
+        val len = sqrt(dirX * dirX + dirY * dirY).coerceAtLeast(0.001f)
+        vx = dirX / len * 460f
+        vy = dirY / len * 460f
+        spin = 0f
+        spinV = spinSign * 840f
+        launchT = 0f
+        air = 0f
+        launched = true
+        stalking = false
+        pouncing = false
+        pounceCued = false
+        preyId = null
+        calmT = 0f
+        state = 2
+        if (dirX != 0f) faceLeft = dirX < 0f
+    }
+
     fun update(dt: Float, map: GameMap) {
+        if (launched) {
+            val step = dt.coerceAtMost(0.05f)
+            launchT += step
+            val drag = (1f - 0.55f * step).coerceAtLeast(0.9f)
+            vx *= drag
+            vy *= drag
+            x += vx * step
+            y += vy * step
+            spin += spinV * step
+            val u = (launchT / LAUNCH_TIME).coerceIn(0f, 1f)
+            air = sin((u * Math.PI).toFloat()) * 34f
+            animT += step
+            return
+        }
+        if (calmT > 0f) calmT -= dt
         animT += dt
         when (state) {
             0 -> {
@@ -1564,10 +1722,57 @@ class Cat(var x: Float, var y: Float) {
         }
     }
 
-    val walking: Boolean get() = state == 1
-    /** 현재 동작의 진행도 0~1 (걸을 때는 한 칸 이동이 한 사이클) */
-    val phase: Float get() = if (state == 1) hopT else (animT / 3.4f) % 1f
-    val lift: Float get() = if (state == 1) (sin((hopT * Math.PI).toFloat()) * 1.4f) else 0f
+    /**
+     * 새를 향해 다가간다.
+     * @return 1 추적 중, 2 잡았다, 0 길이 막힘
+     */
+    fun chase(tx: Float, ty: Float, dt: Float, map: GameMap): Int {
+        calmT = 0f
+        val dx = tx - cx
+        val dy = ty - cy
+        val dist = sqrt(dx * dx + dy * dy).coerceAtLeast(0.001f)
+        val wasPouncing = pouncing
+        pouncing = dist < 28f
+        if (pouncing && !wasPouncing) pounceCued = false
+        if (!pouncing) pounceCued = false
+        if (pouncing) pounceT += dt * 7f else pounceT = 0f
+        val catchR = if (pouncing) 13f else 10f
+        if (dist <= catchR) return 2
+        val speed = if (pouncing) 128f else 36f
+        val step = if (speed * dt < dist) speed * dt else dist
+        val nx = x + dx / dist * step
+        val ny = y + dy / dist * step
+        val txx = ((nx + 14f) / 16f).toInt()
+        val tyy = ((ny + 14f) / 16f).toInt()
+        if (!map.walkableTile(txx, tyy)) return 0
+        x = nx
+        y = ny
+        state = 1
+        hopT = (hopT + dt / 0.24f) % 1f
+        if (dx != 0f) faceLeft = dx < 0f
+        animT += dt
+        return if (dist - step <= catchR) 2 else 1
+    }
+
+    val walking: Boolean get() = state == 1 || launched
+    /** 현재 동작의 진행도 0~1 (걸을 때는 한 칸 이동이 한 사이클, 날 때는 다리가 허우적) */
+    val phase: Float get() = when {
+        launched -> (launchT * 8f) % 1f
+        state == 1 -> hopT % 1f
+        else -> (animT / 3.4f) % 1f
+    }
+    val lift: Float get() = when {
+        pouncing -> sin((pounceT * Math.PI).toFloat()).coerceAtLeast(0f) * 5f
+        state == 1 && !launched -> sin((hopT * Math.PI).toFloat()) * 1.4f
+        else -> 0f
+    }
+    val gone: Boolean get() = launched && launchT >= LAUNCH_TIME
+    /** 날아가는 막판에 점점 옅어진다 */
+    val fade: Float get() = if (!launched || launchT < 0.86f) 1f else ((LAUNCH_TIME - launchT) / (LAUNCH_TIME - 0.86f)).coerceIn(0f, 1f)
+
+    companion object {
+        const val LAUNCH_TIME = 1.18f
+    }
 }
 
 /** 플레이어 */
@@ -1637,20 +1842,34 @@ class Player {
 class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var state = 0                    // 0 대기, 1 깡충, 2 도망
     var idleT = 0.8f
+    private var residenceLeft = 55f + (Math.random() * 65f).toFloat()
     var hopFromX = 0f; var hopFromY = 0f
     var hopToX = 0f; var hopToY = 0f
     var hopT = 0f
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
-    var faceLeft = true
-    var sprW = 16                    // 스프라이트 크기 (생성 시 Assets에서 설정)
-    var sprH = 15
+    var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
+    var renderPose = BirdPose.PERCHED
+    /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
+    var faceLeft: Boolean
+        get() = facing != BirdFacing.RIGHT
+        set(value) { facing = if (value) BirdFacing.LEFT else BirdFacing.RIGHT }
+    var sprW = 24                    // 고정밀 스프라이트 크기 (생성 시 Assets에서 갱신)
+    var sprH = 24
 
     val cx: Float get() = x + sprW / 2f
-    val cy: Float get() = y + sprH * 0.45f
+    val cy: Float get() = y + sprH * 0.72f
 
     fun update(dt: Float, playerCx: Float, playerCy: Float, onBike: Boolean, sneaking: Boolean, map: GameMap, calmFactor: Float = 1f, bikeScare: Float = 1.4f) {
+        // Birds eventually leave even when the player waits still: no permanently full pool.
+        residenceLeft -= dt
+        if (residenceLeft <= 0f && state == 0) {
+            state = 2
+            fleeVx = if (faceLeft) -65f else 65f
+            fleeVy = -45f
+            fleeT = 0f
+        }
         val fleeTiles = when (def.tier) {
             Tier.COMMON -> 1.7f
             Tier.UNCOMMON -> 2.3f
@@ -1668,7 +1887,12 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     val len = sqrt(dx * dx + dy * dy)
                     fleeVx = dx / len * 85f
                     fleeVy = dy / len * 85f - 35f
-                    faceLeft = fleeVx < 0f
+                    facing = if (kotlin.math.abs(fleeVx) >= kotlin.math.abs(fleeVy)) {
+                        if (fleeVx < 0f) BirdFacing.LEFT else BirdFacing.RIGHT
+                    } else {
+                        if (fleeVy < 0f) BirdFacing.BACK else BirdFacing.FRONT
+                    }
+                    renderPose = BirdPose.ALERT
                     fleeT = 0f
                     return
                 }
@@ -1679,15 +1903,21 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     val (ddx, ddy) = dirs[(Math.random() * dirs.size).toInt()]
                     val nx = x + ddx * 16f
                     val ny = y + ddy * 16f
-                    val tx = ((nx + 7f) / 16f).toInt()
-                    val ty = ((ny + 8f) / 16f).toInt()
+                    val tx = ((nx + sprW / 2f) / 16f).toInt()
+                    val ty = ((ny + sprH) / 16f).toInt()
                     val nearPlayer = sqrt((nx - playerCx) * (nx - playerCx) + (ny - playerCy) * (ny - playerCy)) < 40f
-                    if (map.walkableTile(tx, ty) && !nearPlayer) {
+                    if (BirdEcology.suitability(def, map, tx, ty) > 0.0 && !nearPlayer) {
                         hopFromX = x; hopFromY = y
                         hopToX = nx; hopToY = ny
                         hopT = 0f
                         state = 1
-                        if (ddx != 0) faceLeft = ddx < 0
+                        facing = when {
+                            ddx < 0 -> BirdFacing.LEFT
+                            ddx > 0 -> BirdFacing.RIGHT
+                            ddy < 0 -> BirdFacing.BACK
+                            else -> BirdFacing.FRONT
+                        }
+                        renderPose = BirdPose.ALERT
                     } else {
                         idleT = 0.6f
                     }
@@ -1699,6 +1929,11 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
                     x = hopToX; y = hopToY
                     state = 0
                     idleT = 0.7f + (Math.random() * 1.6f).toFloat()
+                    renderPose = when {
+                        Math.random() < 0.28 -> BirdPose.FEEDING
+                        Math.random() < 0.36 -> BirdPose.ALERT
+                        else -> BirdPose.PERCHED
+                    }
                 } else {
                     x = hopFromX + (hopToX - hopFromX) * hopT
                     y = hopFromY + (hopToY - hopFromY) * hopT

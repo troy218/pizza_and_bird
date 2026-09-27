@@ -14,8 +14,8 @@
 package com.pizzaandbird.preview
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.content.Resources
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -46,15 +46,11 @@ private class AuditResources(d: Float) : Resources() {
 }
 
 private class AuditContext(density: Float) : Context() {
-    private val prefs = object : SharedPreferences {
-        override fun edit() = throw IllegalStateException("not used")
-        override fun getString(key: String, def: String?): String? = def
-        override fun contains(key: String): Boolean = false
-    }
-
     override val resources: Resources = AuditResources(density)
 
-    override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = prefs
+    // [P05] 프리뷰 파이프라인의 in-memory prefs 를 그대로 쓴다(세이브·백업 실동작).
+    override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+        android.content.InMemorySharedPreferences(name)
 }
 
 // ---------------------------------------------------------------------------

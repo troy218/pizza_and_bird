@@ -124,13 +124,13 @@ object Ingredients {
 
 ## 7. 완료 조건 (DoD)
 
-- [ ] `Ingredients.kt`/`DoughOverlay.kt` 신규, `[P07]` KDoc
-- [ ] `Data.kt`는 `Pizzas.ALL` 끝 append(id 12~19)만 — 기존 항목 diff 0 (PR diff로 증명)
-- [ ] `BakeOverlay` 오버로드(뒤추가+기본값)만, 다른 Overlays 코드 무수정
-- [ ] HomeScene 진입 교체(굽기 경로)`만`, 나머지 무수정
-- [ ] 세이브 호환 확인(기존 재고 보존) + 신규 8종 아이콘 캡처 8장 PR 첨부
-- [ ] feat_pantry_v1 키로 재고 저장, 재시작 후 유지
-- [ ] 빌드/kt_check 통과
+- [x] `Ingredients.kt`/`DoughOverlay.kt` 신규, `[P07]` KDoc
+- [x] `Data.kt`는 `Pizzas.ALL` 끝 append(id 12~19)만 — 기존 항목 diff 0 (PR diff로 증명)
+- [x] `BakeOverlay` 오버로드(뒤추가+기본값)만, 다른 Overlays 코드 무수정 (피자 탭 "✈ 특산" 뱃지는 스펙 ①이 허용한 조건부 표시)
+- [x] HomeScene 진입 교체(굽기 경로)만, 나머지 무수정
+- [x] 세이브 호환 확인(기존 재고 보존 — MapTest v4 36칸 마이그레이션 체크) + 아이콘 캡처 `docs/img/p07_special_pizzas.png`
+- [x] feat_pantry_v1 키로 재고 저장, 재시작 후 유지 (프리뷰 스텁 prefs로 왕복 검증)
+- [x] kt_check/MapTest 통과 + kotlinc 전체 타입체크 통과 (gradle assembleDebug 는 CI 게이트)
 
 ## 8. 인터페이스 (내가 남기는 것)
 

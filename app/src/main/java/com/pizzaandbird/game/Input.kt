@@ -7,7 +7,7 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, RUN, EAT, MAP }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -51,7 +51,8 @@ class Input(private val game: Game) {
     var justBack = false
     var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
-    var isRun = false         // 달리기 홀드 (🏃 버튼 / Shift 키)
+    var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
+    var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     // ----- 로우 터치 (확대/이동 가능한 지도 같은 전체화면 오버레이용) -----
     /** true 로 두면 모든 터치가 HUD 버튼 대신 rawEvents 로만 전달된다. */
@@ -208,6 +209,7 @@ class Input(private val game: Game) {
                             KeyEvent.KEYCODE_C -> justCam = true
                             KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
                             KeyEvent.KEYCODE_E -> justEat = true
+                            KeyEvent.KEYCODE_F -> justPunch = true
                             KeyEvent.KEYCODE_BACK -> justBack = true
                         }
                     } else if (ev.act == KeyEvent.ACTION_UP) {
@@ -242,9 +244,8 @@ class Input(private val game: Game) {
         // 아날로그 스틱: 살짝 밀면 살살, 끝까지 밀면 최고 속도
         moveScale = if (game.state.analogStick && moveMag > 0f) 0.5f + 0.5f * moveMag else 1f
 
-        // 달리기 홀드 (버튼 또는 Shift)
-        isRun = Ctrl.RUN in activeControls() ||
-                keys[KeyEvent.KEYCODE_SHIFT_LEFT] == true ||
+        // 달리기 홀드 (터치 HUD에서는 버튼을 덜어내고, 키보드 Shift만 유지)
+        isRun = keys[KeyEvent.KEYCODE_SHIFT_LEFT] == true ||
                 keys[KeyEvent.KEYCODE_SHIFT_RIGHT] == true
     }
 
@@ -256,7 +257,7 @@ class Input(private val game: Game) {
             Ctrl.MENU -> { justMenu = true; game.haptic() }
             Ctrl.EAT -> { justEat = true; game.haptic() }
             Ctrl.MAP -> { justMap = true; game.haptic() }
-            Ctrl.RUN -> game.haptic()
+            Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             else -> {}
         }
     }
@@ -290,6 +291,7 @@ class Input(private val game: Game) {
         justBack = false
         justEat = false
         justMap = false
+        justPunch = false
         tapScreen = null
         rawEvents.clear()
     }

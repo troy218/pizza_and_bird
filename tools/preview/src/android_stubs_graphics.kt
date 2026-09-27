@@ -554,6 +554,7 @@ class Paint {
         maskFilter = paint.maskFilter
         colorFilter = paint.colorFilter
         letterSpacing = paint.letterSpacing
+        textAlign = paint.textAlign
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -588,10 +589,22 @@ class Paint {
 
 class Bitmap private constructor(val image: BufferedImage) {
     enum class Config { ARGB_8888 }
+    enum class CompressFormat { JPEG, PNG, WEBP }
 
     val width: Int get() = image.width
     val height: Int get() = image.height
     val isRecycled: Boolean = false
+    val byteCount: Int get() = width * height * 4
+
+    fun recycle() {}
+
+    fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean =
+        try {
+            javax.imageio.ImageIO.write(image, "png", stream)
+            true
+        } catch (_: Exception) {
+            false
+        }
 
     fun setPixel(x: Int, y: Int, c: Int) {
         if (x in 0 until width && y in 0 until height) image.setRGB(x, y, c)
@@ -664,6 +677,10 @@ class Bitmap private constructor(val image: BufferedImage) {
             g.dispose()
             return Bitmap(out)
         }
+
+        // [P05] 프리뷰 파이프라인이 조류 도감 사진(assets/birds 안의 jpg)을 실제로 읽을 수 있도록
+        // BitmapFactory 를 위한 팩토리를 열어 둔다 (Bitmap 생성자는 파일 안에서만 보인다).
+        fun fromImage(img: BufferedImage): Bitmap = Bitmap(img)
     }
 }
 
@@ -866,10 +883,16 @@ class Canvas {
         record("text", x, y + paint.ascent(), x + tw, y + paint.descent(), paint, text)
         colorize(paint)
         val base = paint.awtFont()
+        // [P05] textAlign 반영 — CENTER/RIGHT면 시작점을 옮겨 그린다
+        val tx = when (paint.textAlign) {
+            Paint.Align.LEFT -> x
+            Paint.Align.CENTER -> x - paint.measureText(text) / 2f
+            Paint.Align.RIGHT -> x - paint.measureText(text)
+        }
         // 글꼴에 없는 글자(이모지·기호)는 기기와 똑같이 시스템 글꼴로 대체해 그린다
         val runs = StubText.runs(text, base, paint.textSize, paint.isFakeBoldText)
         if (runs.size > 1 && paint.style != Paint.Style.STROKE) {
-            var cx = x
+            var cx = tx
             for ((part, font) in runs) {
                 g.font = font
                 g.drawString(part, cx, y)
@@ -882,11 +905,11 @@ class Canvas {
             // 스티커 글자의 테두리 — 글리프 외곽선을 따 와서 실제로 선을 긋는다
             strokeOf(paint)
             val gv = g.font.createGlyphVector(g.fontRenderContext, text)
-            g.draw(AffineTransform.getTranslateInstance(x.toDouble(), y.toDouble())
+            g.draw(AffineTransform.getTranslateInstance(tx.toDouble(), y.toDouble())
                 .createTransformedShape(gv.outline))
             return
         }
-        g.drawString(text, x, y)
+        g.drawString(text, tx, y)
     }
 
     // PixelFont uses a white bitmap tinted with SRC_IN. Preserve its real text color
