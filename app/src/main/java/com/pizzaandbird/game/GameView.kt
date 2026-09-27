@@ -114,11 +114,12 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
                     }
                 }
             }
-            // 60fps 패이싱
-            val elapsedMs = (System.nanoTime() - frameStart) / 1_000_000f
-            if (elapsedMs < 15.5f) {
+            // 프레임 목표를 정확히 60Hz로 맞춘다. 15~16ms 경계에서 0ms sleep으로
+            // 바쁜 대기 루프가 되는 것을 막아 CPU 점유와 발열을 낮춘다.
+            val remainingNanos = 16_666_667L - (System.nanoTime() - frameStart)
+            if (remainingNanos > 0L) {
                 try {
-                    Thread.sleep((16f - elapsedMs).toLong().coerceAtLeast(0L))
+                    Thread.sleep(remainingNanos / 1_000_000L, (remainingNanos % 1_000_000L).toInt())
                 } catch (_: InterruptedException) {
                     return
                 }

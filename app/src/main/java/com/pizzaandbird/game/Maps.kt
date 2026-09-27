@@ -66,6 +66,16 @@ enum class T(
 // 지도
 // ---------------------------------------------------------------------------
 
+data class TunnelInfo(
+    val dir: Dir,
+    val targetId: String,
+    val tileX: Int,
+    val tileY: Int,
+    val cx: Float,
+    val cy: Float,
+    val number: Int
+)
+
 class GameMap(
     val region: RegionDef,
     val w: Int,
@@ -77,7 +87,8 @@ class GameMap(
     val npcs: List<Npc>,
     val hasHouse: Boolean,
     val houseDoorX: Int,
-    val houseDoorY: Int
+    val houseDoorY: Int,
+    val tunnels: List<TunnelInfo> = emptyList()
 ) {
     fun t(x: Int, y: Int): T {
         if (x < 0 || y < 0 || x >= w || y >= h) return T.MOUNTAIN
@@ -625,6 +636,25 @@ object MapBuilder {
             }
         }
 
+        // 8.5 터널 번호 부여 — 북·동·남·서 시계방향, 맵별로 다르게 -------------------
+        val tunnelList = ArrayList<TunnelInfo>()
+        var tunnelNo = 1
+        for (d in listOf(Dir.N, Dir.E, Dir.S, Dir.W)) {
+            val targetId = exits[d] ?: continue
+            val tx: Int
+            val ty: Int
+            val cx: Float
+            val cy: Float
+            when (d) {
+                Dir.N -> { tx = 19; ty = 0; cx = 320f; cy = 8f }
+                Dir.S -> { tx = 19; ty = h - 1; cx = 320f; cy = (h - 1) * 16f + 8f }
+                Dir.W -> { tx = 0; ty = 15; cx = 8f; cy = 256f }
+                Dir.E -> { tx = w - 1; ty = 15; cx = (w - 1) * 16f + 8f; cy = 256f }
+            }
+            tunnelList.add(TunnelInfo(d, targetId, tx, ty, cx, cy, tunnelNo))
+            tunnelNo++
+        }
+
         // 9. 샛길 -------------------------------------------------------------------
         for ((fx, fy) in buildingFronts) {
             val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
@@ -822,7 +852,7 @@ object MapBuilder {
             }
         }
 
-        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY)
+        return GameMap(region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY, tunnelList)
     }
 
     /** 집 내부 맵 (13x9) */
