@@ -797,6 +797,8 @@ object MapBuilder {
                 isRiver && r < 0.13 -> t[y][x] = T.ROCK.ordinal
                 isCoast && r < 0.12 -> t[y][x] = T.ROCK.ordinal
                 isMountain && r < 0.12 -> t[y][x] = T.ROCK.ordinal
+                // 도시 공원·하천 산책로에는 꽃밭을 조금 더 자주 만든다.
+                region.city && r < 0.16 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
                 r < region.treeDensity + region.flowerDensity -> {
                     t[y][x] = T.FLOWER.ordinal
