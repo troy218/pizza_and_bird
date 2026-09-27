@@ -384,7 +384,7 @@ object MapBuilder {
             for (yy in y until y + size) for (xx in x until x + size) {
                 if (!canPave(xx, yy)) continue
                 if (pave[yy][xx] == Pave.STONE) continue
-                if (base[yy][xx] == T.WATER.ordinal) base[yy][xx] = T.GRASS.ordinal   // 물 위를 지나면 둑길
+                if (base[yy][xx] == T.WATER.ordinal) base[yy][xx] = T.SAND.ordinal    // 물 위를 지나면 모래 둑길
                 t[yy][xx] = if (mat == Pave.DIRT) T.PATH.ordinal else T.PLAZA.ordinal
                 pave[yy][xx] = mat
                 reserved[yy][xx] = true
@@ -451,10 +451,11 @@ object MapBuilder {
             return seq
         }
 
-        val bendN = -rnd.nextInt(3)         // 북쪽 구간 사행 (-2..0 — 집을 피해 서쪽으로만)
-        val bendS = rnd.nextInt(3)          // 남쪽 구간 (0..2)
-        val bendW = rnd.nextInt(4) - 2      // 서쪽 구간 (-2..1)
-        val bendE = rnd.nextInt(4) - 2      // 동쪽 구간 (-2..1)
+        // 사행(蛇行)은 1칸까지만 — 2칸을 한 번에 꺾으면 길이 뭉개져 보인다
+        val bendN = -rnd.nextInt(2)         // 북쪽 구간 (-1..0 — 집을 피해 서쪽으로만)
+        val bendS = rnd.nextInt(2)          // 남쪽 구간 (0..1)
+        val bendW = rnd.nextInt(3) - 1      // 서쪽 구간 (-1..1)
+        val bendE = rnd.nextInt(3) - 1      // 동쪽 구간 (-1..1)
 
         val nEnd = 2
         val sEnd = h - 3
@@ -462,13 +463,13 @@ object MapBuilder {
         val eEnd = w - 3
         val centerlines = ArrayList<Pair<Boolean, List<Pair<Int, Int>>>>()   // (세로인가, 중심선)
         centerlines.add(true to walk(
-            listOf(AVE_X to nEnd, AVE_X to 5, AVE_X + bendN to 7, AVE_X + bendN to 9, AVE_X to 10, AVE_X to 11), 2))
+            listOf(AVE_X to nEnd, AVE_X to 4, AVE_X + bendN to 6, AVE_X + bendN to 9, AVE_X to 10, AVE_X to 11), 2))
         centerlines.add(true to walk(
             listOf(AVE_X to PLAZA_Y1 - 1, AVE_X to 20, AVE_X + bendS to 22, AVE_X + bendS to 24,
                 AVE_X to sEnd - 2, AVE_X to sEnd), 2))
         centerlines.add(false to walk(
-            listOf(wEnd to AVE_Y, 5 to AVE_Y, 8 to AVE_Y + bendW, 12 to AVE_Y + bendW,
-                PLAZA_X0 - 2 to AVE_Y, PLAZA_X0 - 1 to AVE_Y), 2))
+            listOf(wEnd to AVE_Y, 6 to AVE_Y, 9 to AVE_Y + bendW, 12 to AVE_Y + bendW,
+                PLAZA_X0 - 3 to AVE_Y, PLAZA_X0 - 1 to AVE_Y), 2))
         centerlines.add(false to walk(
             listOf(PLAZA_X1 to AVE_Y, 28 to AVE_Y, 31 to AVE_Y + bendE, 34 to AVE_Y + bendE,
                 eEnd - 2 to AVE_Y, eEnd to AVE_Y), 2))
@@ -490,14 +491,14 @@ object MapBuilder {
         // 8. 터널 & 진입로 (가장자리 링을 뚫고 나간다) -------------------------------
         fun openTunnel(x: Int, y: Int) {
             t[y][x] = T.TUNNEL.ordinal
-            base[y][x] = T.GRASS.ordinal
+            if (base[y][x] == T.WATER.ordinal) base[y][x] = T.SAND.ordinal
             structure[y][x] = false
             reserved[y][x] = true
         }
         fun approach(x: Int, y: Int) {
             t[y][x] = T.PATH.ordinal
             pave[y][x] = Pave.DIRT
-            base[y][x] = T.GRASS.ordinal
+            if (base[y][x] == T.WATER.ordinal) base[y][x] = T.SAND.ordinal   // 바다를 건너면 모래 둑길
             reserved[y][x] = true
         }
         for (d in exits.keys) {

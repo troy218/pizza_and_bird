@@ -237,7 +237,7 @@ def build(rid: str, home: str) -> GameMap:
                 if m.pave[yy][xx] == PAVE_STONE:
                     continue
                 if m.base[yy][xx] == WATER:
-                    m.base[yy][xx] = GRASS      # 물 위를 지나면 둑길
+                    m.base[yy][xx] = SAND       # 물 위를 지나면 모래 둑길
                 m.tile[yy][xx] = PATH if mat == PAVE_DIRT else PLAZA
                 m.pave[yy][xx] = mat
                 m.reserved[yy][xx] = True
@@ -285,10 +285,11 @@ def build(rid: str, home: str) -> GameMap:
                 return None
         return seq
 
-    bend_n = -(rnd.nextInt(3))          # 북쪽 구간 사행 (-2..0, 집을 피해 서쪽으로만)
-    bend_s = rnd.nextInt(3)             # 남쪽 구간 사행 (0..2)
-    bend_w = rnd.nextInt(4) - 2         # 서쪽 구간 (-2..1)
-    bend_e = rnd.nextInt(4) - 2         # 동쪽 구간 (-2..1)
+    # 사행은 1칸까지만 — 2칸을 한 번에 꺾으면 길이 뭉개져 보인다
+    bend_n = -(rnd.nextInt(2))          # 북쪽 구간 (-1..0, 집을 피해 서쪽으로만)
+    bend_s = rnd.nextInt(2)             # 남쪽 구간 (0..1)
+    bend_w = rnd.nextInt(3) - 1         # 서쪽 구간 (-1..1)
+    bend_e = rnd.nextInt(3) - 1         # 동쪽 구간 (-1..1)
 
     # 남북 간선: 북쪽 끝 -> 광장 -> 남쪽 끝
     north_open = N in ex
@@ -296,14 +297,14 @@ def build(rid: str, home: str) -> GameMap:
     n_end = 2
     s_end = h - 3
     centerlines = []
-    centerlines.append(('V', walk([(AVE_X, n_end), (AVE_X, 5), (AVE_X + bend_n, 7), (AVE_X + bend_n, 9), (AVE_X, 10), (AVE_X, 11)], 2)))
+    centerlines.append(('V', walk([(AVE_X, n_end), (AVE_X, 4), (AVE_X + bend_n, 6), (AVE_X + bend_n, 9), (AVE_X, 10), (AVE_X, 11)], 2)))
     centerlines.append(('V', walk([(AVE_X, PLAZA_Y1 - 1), (AVE_X, 20), (AVE_X + bend_s, 22), (AVE_X + bend_s, 24), (AVE_X, s_end - 2), (AVE_X, s_end)], 2)))
     # 동서 간선
     west_open = W in ex
     east_open = E in ex
     w_end = 2
     e_end = w - 3
-    centerlines.append(('H', walk([(w_end, AVE_Y), (5, AVE_Y), (8, AVE_Y + bend_w), (12, AVE_Y + bend_w), (PLAZA_X0 - 2, AVE_Y), (PLAZA_X0 - 1, AVE_Y)], 2)))
+    centerlines.append(('H', walk([(w_end, AVE_Y), (6, AVE_Y), (9, AVE_Y + bend_w), (12, AVE_Y + bend_w), (PLAZA_X0 - 3, AVE_Y), (PLAZA_X0 - 1, AVE_Y)], 2)))
     centerlines.append(('H', walk([(PLAZA_X1, AVE_Y), (28, AVE_Y), (31, AVE_Y + bend_e), (34, AVE_Y + bend_e), (e_end - 2, AVE_Y), (e_end, AVE_Y)], 2)))
 
     # 막다른 방향은 회차 공간(컬드삭)으로 마무리
@@ -324,48 +325,41 @@ def build(rid: str, home: str) -> GameMap:
         stamp(fx, fy, 1)
 
     # 8. 터널 & 진입로 -------------------------------------------------------
+    def open_tunnel(x, y):
+        m.tile[y][x] = TUNNEL
+        if m.base[y][x] == WATER:
+            m.base[y][x] = SAND
+        m.structure[y][x] = False
+        m.reserved[y][x] = True
+
+    def approach(x, y):
+        m.tile[y][x] = PATH
+        m.pave[y][x] = PAVE_DIRT
+        if m.base[y][x] == WATER:
+            m.base[y][x] = SAND     # 바다를 건너면 모래 둑길
+        m.reserved[y][x] = True
+
     for d in ex:
         if d == N:
             for x in (19, 20):
-                m.tile[0][x] = TUNNEL
-                m.base[0][x] = GRASS
-                m.structure[0][x] = False
-                m.reserved[0][x] = True
-                for y in (1, 2):
-                    m.tile[y][x] = PATH
-                    m.pave[y][x] = PAVE_DIRT
-                    m.base[y][x] = GRASS
-                    m.reserved[y][x] = True
+                open_tunnel(x, 0)
+                approach(x, 1)
+                approach(x, 2)
         elif d == S:
             for x in (19, 20):
-                m.tile[h - 1][x] = TUNNEL
-                m.base[h - 1][x] = GRASS
-                m.reserved[h - 1][x] = True
-                for y in (h - 2, h - 3):
-                    m.tile[y][x] = PATH
-                    m.pave[y][x] = PAVE_DIRT
-                    m.base[y][x] = GRASS
-                    m.reserved[y][x] = True
+                open_tunnel(x, h - 1)
+                approach(x, h - 2)
+                approach(x, h - 3)
         elif d == W:
             for y in (15, 16):
-                m.tile[y][0] = TUNNEL
-                m.base[y][0] = GRASS
-                m.reserved[y][0] = True
-                for x in (1, 2):
-                    m.tile[y][x] = PATH
-                    m.pave[y][x] = PAVE_DIRT
-                    m.base[y][x] = GRASS
-                    m.reserved[y][x] = True
+                open_tunnel(0, y)
+                approach(1, y)
+                approach(2, y)
         else:
             for y in (15, 16):
-                m.tile[y][w - 1] = TUNNEL
-                m.base[y][w - 1] = GRASS
-                m.reserved[y][w - 1] = True
-                for x in (w - 2, w - 3):
-                    m.tile[y][x] = PATH
-                    m.pave[y][x] = PAVE_DIRT
-                    m.base[y][x] = GRASS
-                    m.reserved[y][x] = True
+                open_tunnel(w - 1, y)
+                approach(w - 2, y)
+                approach(w - 3, y)
 
     # 9. 샛길 ---------------------------------------------------------------
     def lane_to_avenue(front):

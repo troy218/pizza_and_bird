@@ -70,8 +70,8 @@ def grassBase(c, p, r, base=0xFF96D07A):
 
 
 def build():
-    begin('GRASS')
     # GRASS (4종 변형)
+    begin('GRASS')
     for i in range(4):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -91,8 +91,8 @@ def build():
                 c.drawRect(20, 9, 22, 11, p)
                 c.drawRect(19.4, 9.6, 22.6, 10.4, p)
         add(tile_painter(_tp))
-    begin('TALLGRASS')
     # TALLGRASS (2종)
+    begin('TALLGRASS')
     for i in range(2):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -111,8 +111,8 @@ def build():
             c.drawRect(6, 8, 7.4, 18, p)
             c.drawRect(22, 6, 23.4, 20, p)
         add(tile_painter(_tp))
-    begin('FLOWER')
     # FLOWER (3색)
+    begin('FLOWER')
     flowerCols = [0xFFF2A3B3, 0xFFF2D06B, 0xFFFDFDF8]
     for i in range(3):
         def _tp(c, p, r, **kw):
@@ -130,44 +130,13 @@ def build():
                 p.color = 0xFFF7CE5B
                 c.drawRect(x + 1.4, y + 0.4, x + 2.8, y + 1.8, p)
         add(tile_painter(_tp))
+    # PATH (길) — 실제 화면에서는 Roads.kt 오토타일이 그린다.
+    # 여기 있는 것은 "사방이 모두 길" 인 안쪽 조각 (미니맵/예비용).
     begin('PATH')
-    # PATH (3종)
-    for i in range(3):
-        def _tp(c, p, r, **kw):
-            globals().update(kw)
-            fill(c, p, 0xFFE5D3A0)
-            specks(c, p, r, 0xFFD6BF87, 9)
-            specks(c, p, r, 0xFFF0E2B8, 6)
-            if i == 1:
-                p.color = 0xFFC9B582
-                c.drawRect(4, 5, 8, 6.4, p)
-                c.drawRect(20, 22, 25, 23.4, p)
-            if i == 2:
-                p.color = 0xFFC9B582
-                c.drawRect(9, 14, 12, 15.4, p)
-                c.drawRect(11, 13.4, 10, 16, p)
-        add(tile_painter(_tp))
+    # PLAZA (석재 포장)
     begin('PLAZA')
-    # PLAZA (2종)
-    for i in range(2):
-        def _tp(c, p, r, **kw):
-            globals().update(kw)
-            fill(c, p, 0xFFD9C9A7)
-            p.color = 0xFFC6B58F
-            c.drawRect(0, 0, 32, 1.6, p)
-            c.drawRect(0, 0, 1.6, 32, p)
-            c.drawRect(0, 15.5, 32, 17, p)
-            c.drawRect(15.5, 0, 17, 32, p)
-            p.color = 0xFFE9DCBC
-            c.drawRect(2.4, 2.4, 14.8, 14.8, p)
-            c.drawRect(18.2, 18.2, 30, 30, p)
-            if i == 1:
-                p.color = 0xFFC6B58F
-                c.drawRect(18.2, 8, 28, 9.4, p)
-                c.drawRect(6, 20, 9, 21.2, p)
-        add(tile_painter(_tp))
-    begin('SAND')
     # SAND (3종)
+    begin('SAND')
     for i in range(3):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -184,8 +153,8 @@ def build():
                 c.drawRect(3, 12, 12, 13.2, p)
                 c.drawRect(18, 24, 28, 25.2, p)
         add(tile_painter(_tp))
-    begin('WATER')
     # WATER (4프레임 애니메이션)
+    begin('WATER')
     for f in range(4):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -203,8 +172,8 @@ def build():
             c.drawRect((3 + off) % 28, 4.6, (3 + off) % 28 + 2.4, 5.6, p)
             c.drawRect((19 + off) % 26, 15.2, (19 + off) % 26 + 2.4, 16.2, p)
         add(tile_painter(_tp))
-    begin('REED')
     # REED (2종)
+    begin('REED')
     for i in range(2):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -221,8 +190,8 @@ def build():
             p.color = 0xFF6FAE57
             c.drawRect(10, 22, 14, 23.2, p)
         add(tile_painter(_tp))
-    begin('TREE')
     # TREE (2종: 활엽수 + 침엽수)
+    begin('TREE')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         prop_shadow(c, p, 16, 29.5, 9.5, 3.4)
@@ -272,12 +241,12 @@ def build():
         c.drawRect(12.4, 9, 15, 10.4, p)
         c.drawRect(8, 22, 10.6, 23.4, p)
     add(tile_painter(_tp))
-    begin('ROCK')
     # ROCK (2종)
+    begin('ROCK')
     for i in range(2):
         def _tp(c, p, r, **kw):
             globals().update(kw)
-            prop_shadow(c, p, 16, 26.5, 9.0, 3.0)
+            prop_shadow(c, p, 16, 26.5, 9, 3)
             if i == 0:
                 p.color = 0xFF5A626C
                 c.drawRect(6, 10, 26, 28, p)
@@ -299,8 +268,8 @@ def build():
                 p.color = 0xFF6FAE57
                 c.drawRect(10, 24, 13, 26, p)
         add(tile_painter(_tp))
-    begin('MOUNTAIN')
     # MOUNTAIN (2종)
+    begin('MOUNTAIN')
     for i in range(2):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -322,8 +291,8 @@ def build():
                 c.drawRect(2, 9, 8, 11, p)
                 c.drawRect(24, 23, 29, 25, p)
         add(tile_painter(_tp))
-    begin('BLDG_WALL')
     # BLDG_WALL
+    begin('BLDG_WALL')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFE9E2D3)
@@ -337,8 +306,8 @@ def build():
         c.drawRect(15, 0, 16.4, 8, p)
         c.drawRect(15, 9.6, 16.4, 20, p)
     add(tile_painter(_tp))
-    begin('BLDG_WIN')
     # BLDG_WIN (2종)
+    begin('BLDG_WIN')
     curtains = [0xFFF2D06B, 0xFFC3A3E8]
     for i in range(2):
         def _tp(c, p, r, **kw):
@@ -359,8 +328,8 @@ def build():
             c.drawRect(7.4, 7.4, 10, 22.6, p)
             c.drawRect(22, 7.4, 24.6, 22.6, p)
         add(tile_painter(_tp))
-    begin('BLDG_ROOF')
     # BLDG_ROOF
+    begin('BLDG_ROOF')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFC96A4D)
@@ -375,8 +344,8 @@ def build():
         c.drawRect(4, 11, 12, 12.4, p)
         c.drawRect(18, 25, 26, 26.4, p)
     add(tile_painter(_tp))
-    begin('HOUSE_ROOF')
     # HOUSE_ROOF
+    begin('HOUSE_ROOF')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFD4694A)
@@ -391,8 +360,8 @@ def build():
         c.drawRect(4, 10, 14, 11.2, p)
         c.drawRect(18, 20, 28, 21.2, p)
     add(tile_painter(_tp))
-    begin('HOUSE_WALL')
     # HOUSE_WALL
+    begin('HOUSE_WALL')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFF6E7C6)
@@ -405,8 +374,8 @@ def build():
         p.color = 0xFFD9B98C
         c.drawRect(13, 0, 15, 14, p)
     add(tile_painter(_tp))
-    begin('HOUSE_WIN')
     # HOUSE_WIN (꽃상자 있는 창문)
+    begin('HOUSE_WIN')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFF6E7C6)
@@ -431,8 +400,8 @@ def build():
         p.color = 0xFFC3A3E8
         c.drawRect(21, 20.6, 23.4, 22.4, p)
     add(tile_painter(_tp))
-    begin('HOUSE_DOOR')
     # HOUSE_DOOR
+    begin('HOUSE_DOOR')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFF6E7C6)
@@ -452,8 +421,8 @@ def build():
         p.color = 0xFFE0C9A2
         c.drawRect(0, 28, 32, 32, p)
     add(tile_painter(_tp))
-    begin('TUNNEL')
     # TUNNEL
+    begin('TUNNEL')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFF77848F)
@@ -479,8 +448,8 @@ def build():
         p.color = 0xFF8A8074
         c.drawRect(8, 28, 24, 32, p)
     add(tile_painter(_tp))
-    begin('FLOOR')
     # FLOOR (2종)
+    begin('FLOOR')
     for i in range(2):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -500,8 +469,8 @@ def build():
             c.drawRect(3, 4, 4, 5, p)
             c.drawRect(27, 25, 28, 26, p)
         add(tile_painter(_tp))
-    begin('WALL_IN')
     # WALL_IN
+    begin('WALL_IN')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFF2E3C2)
@@ -515,8 +484,8 @@ def build():
         p.color = 0xFFE0C9A2
         c.drawRect(0, 27.4, 32, 32, p)
     add(tile_painter(_tp))
-    begin('WALL_WIN')
     # WALL_WIN
+    begin('WALL_WIN')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFF2E3C2)
@@ -538,8 +507,8 @@ def build():
         c.drawRect(0, 23, 32, 24, p)
         c.drawRect(0, 27.4, 32, 32, p)
     add(tile_painter(_tp))
-    begin('OVEN')
     # OVEN (2프레임 — 불꽃 애니메이션)
+    begin('OVEN')
     for f in range(2):
         def _tp(c, p, r, **kw):
             globals().update(kw)
@@ -569,8 +538,8 @@ def build():
             p.color = 0xFF6B6B78
             c.drawRect(9, 29, 23, 30.6, p)
         add(tile_painter(_tp))
-    begin('BED')
     # BED
+    begin('BED')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFCDA775)
@@ -590,8 +559,8 @@ def build():
         p.color = 0xFFF7B2A8
         c.drawRect(18, 11, 27.4, 14, p)
     add(tile_painter(_tp))
-    begin('BOX')
     # BOX
+    begin('BOX')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFCDA775)
@@ -613,8 +582,8 @@ def build():
         p.color = 0xFF8A6A4F
         c.drawRect(13.6, 21, 18.4, 22, p)
     add(tile_painter(_tp))
-    begin('DECOR')
     # DECOR (장식 칸 — 점선 표시)
+    begin('DECOR')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         fill(c, p, 0xFFCDA775)
@@ -631,8 +600,8 @@ def build():
         p.color = 0xFFE8D5A3
         c.drawRect(14.6, 14.6, 17.4, 17.4, p)
     add(tile_painter(_tp))
-    begin('SIGN')
     # SIGN (터널 이정표)
+    begin('SIGN')
     def _tp(c, p, r, **kw):
         globals().update(kw)
         prop_shadow(c, p, 16, 29.5, 6.5, 2.4)
@@ -659,11 +628,11 @@ def build():
         c.drawPath(path, p)
         c.drawRect(16.4, 8.8, 20.4, 10.4, p)
     add(tile_painter(_tp))
-    begin('BENCH')
     # BENCH (벤치)
+    begin('BENCH')
     def _tp(c, p, r, **kw):
         globals().update(kw)
-        prop_shadow(c, p, 16, 27.0, 12.0, 3.2)
+        prop_shadow(c, p, 16, 27, 12, 3.2)
         # 등받이
         p.color = 0xFF6B431F
         c.drawRect(3, 3, 29, 5.4, p)
@@ -683,11 +652,11 @@ def build():
         c.drawRect(4, 19, 6.4, 27, p)
         c.drawRect(25.6, 19, 28, 27, p)
     add(tile_painter(_tp))
-    begin('LAMP')
     # LAMP (가로등)
+    begin('LAMP')
     def _tp(c, p, r, **kw):
         globals().update(kw)
-        prop_shadow(c, p, 16, 30.0, 8.0, 2.4)
+        prop_shadow(c, p, 16, 30, 8, 2.4)
         # 기둥
         p.color = 0xFF3A3F4A
         c.drawRect(14.4, 6, 17.6, 30, p)
@@ -706,6 +675,9 @@ def build():
         c.drawRect(15.4, 7, 16.6, 8.4, p)
     add(tile_painter(_tp))
     flush()
+    import roads as _R
+    ART['PATH'] = [_R.road_tile(_R.PAVE_DIRT, 255, i, False) for i in range(3)]
+    ART['PLAZA'] = [_R.road_tile(_R.PAVE_STONE, 255, i, False) for i in range(2)]
 
 
 build()

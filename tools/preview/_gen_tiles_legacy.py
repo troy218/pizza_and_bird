@@ -10,7 +10,7 @@ ASSETS = os.path.join(HERE, '..', '..', 'app/src/main/java/com/pizzaandbird/game
 
 src = open(ASSETS, encoding='utf-8').read().splitlines()
 s0 = next(i for i, l in enumerate(src) if '// GRASS (4종 변형)' in l)
-e0 = next(i for i, l in enumerate(src) if 'tiles = list.toTypedArray()' in l)
+e0 = next(i for i, l in enumerate(src) if 'medallion = RoadArt.medallion' in l)
 open('/tmp/_bt.kt', 'w', encoding='utf-8').write("\n".join(src[s0:e0]) + "\n")
 
 gen = subprocess.run([sys.executable, os.path.join(HERE, '_kt2py.py'), '/tmp/_bt.kt'],
@@ -34,23 +34,20 @@ PLAZA_BG = {'fill(c, p, 0xFFD9C9A7)', 'p.color = 0xFFC6B58F', 'c.drawRect(0, 0, 
 out = []
 cur = None
 for ln in gen.splitlines():
-    m = re.match(r'^# ([A-Z_]+)\b', ln)
-    if m and m.group(1) in NAMES:
-        if m.group(1) != cur:
-            cur = m.group(1)
-            out.append(f"begin('{cur}')")
-        out.append(ln)
-        continue
     st = ln.strip()
-    if cur in NO_BG_GRASS and st == 'grassBase(c, p, r)':
+    m = re.match(r"^begin\(T\.([A-Z_]+)\)", st)
+    if m and m.group(1) in NAMES:
+        cur = m.group(1)
+        out.append(f"begin('{cur}')")
         continue
-    if cur in NO_BG_PLAZA and st in PLAZA_BG:
+    # 길(PATH/PLAZA)은 roads.py 가 대신 그린다 — 여기서는 건너뛴다
+    if 'RoadArt.tile' in st:
         continue
-    out.append(ln)
-    if cur in SHADOW and st == 'globals().update(kw)':
-        ind = ln[:len(ln) - len(ln.lstrip())]
-        out.append(f'{ind}prop_shadow(c, p, {", ".join(str(v) for v in SHADOW[cur])})')
+    out.append(ln.replace('propShadow(', 'prop_shadow('))
 out.append('flush()')
+out.append("import roads as _R")
+out.append("ART['PATH'] = [_R.road_tile(_R.PAVE_DIRT, 255, i, False) for i in range(3)]")
+out.append("ART['PLAZA'] = [_R.road_tile(_R.PAVE_STONE, 255, i, False) for i in range(2)]")
 
 HEAD = '''#!/usr/bin/env python3
 """Assets.kt 의 타일 아트를 미리보기용으로 옮겨 놓은 자동 생성 파일.
