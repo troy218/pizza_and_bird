@@ -276,5 +276,19 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         card(female,"여자",game.state.gender=="female",game.assets.femaleDown[0])
         p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
     }
-    override fun handleInput(input:Input) { val t=input.consumeTapScreen(); if(t!=null){ if(male.contains(t.x,t.y)) game.state.gender="male"; if(female.contains(t.x,t.y)) game.state.gender="female"; if(male.contains(t.x,t.y)||female.contains(t.x,t.y)) game.haptic() }; if(input.justA && (game.state.gender=="male"||game.state.gender=="female")) game.fadeTo { game.scene=RegionSelectScene(game) } }
+    override fun handleInput(input:Input) {
+        if (input.justBack || input.justB) {
+            game.fadeTo { game.scene = TitleScene(game) }
+            return
+        }
+        val t = input.consumeTapScreen()
+        if (t != null) {
+            if (male.contains(t.x, t.y)) game.state.gender = "male"
+            if (female.contains(t.x, t.y)) game.state.gender = "female"
+            if (male.contains(t.x, t.y) || female.contains(t.x, t.y)) game.haptic()
+        }
+        if (input.justA && (game.state.gender == "male" || game.state.gender == "female")) {
+            game.fadeTo { game.scene = RegionSelectScene(game) }
+        }
+    }
 }
