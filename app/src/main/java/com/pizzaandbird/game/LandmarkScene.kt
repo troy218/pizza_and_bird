@@ -35,6 +35,9 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
     private var camY = 0f
     private var velX = 0f
     private var velY = 0f
+    private var questPathKey = ""
+    private var questPath = emptyList<PointF>()
+    private var questPathIndex = 0
 
     override fun cameraOffset(): PointF = PointF(camX, camY)
 
@@ -81,7 +84,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         game.hud.showMinimap = false
         game.hud.regionLabel = landmark.name
         game.hud.photoModeHint = false
-        game.hud.questLabel = null
+        updateQuestHud()
         game.hud.contextIcon = null
         game.banner(landmark.name)
 
@@ -93,6 +96,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        updateQuestHud()
         applyIndoorAmbience()
         if (overlay != null) {
             game.audio.stopSteps()
@@ -104,9 +108,15 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
 
         player.bike = false
         val input = game.input
-        val dx = input.dirX
-        val dy = input.dirY
-        val moving = dx != 0f || dy != 0f
+        val manualMoving = kotlin.math.abs(input.dirX) > 0.02f || kotlin.math.abs(input.dirY) > 0.02f
+        if (state.questTravelPlan != null && manualMoving) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
+        val guide = if (state.questTravelPlan != null) guidedTravelDirection() else null
+        val dx = guide?.first ?: input.dirX
+        val dy = guide?.second ?: input.dirY
+        val moving = kotlin.math.abs(dx) > 0.01f || kotlin.math.abs(dy) > 0.01f
         player.moving = moving
         if (moving) {
             if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) player.facing = if (dx > 0) Dir.E else Dir.W
@@ -114,7 +124,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             val len = kotlin.math.sqrt(dx * dx + dy * dy)
             val vx = if (len > 0.01f) dx / len else 0f
             val vy = if (len > 0.01f) dy / len else 0f
-            val speed = (if (state.hunger <= 0f) 34f else 55f) * input.moveScale
+            val speed = (if (state.hunger <= 0f) 34f else 55f) * (if (guide != null) 1f else input.moveScale)
             moveBy(vx * speed * dt, 0f)
             moveBy(0f, vy * speed * dt)
             player.play(Anim.WALK, dt, (speed / 55f).coerceIn(0.5f, 1.6f))
@@ -147,6 +157,41 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
                 else -> "pin"
             }
         }
+    }
+
+    private fun updateQuestHud() {
+        val tracker = QuestNavigation.tracker(state)
+        game.hud.questLabel = tracker?.title
+        game.hud.questObjective = tracker?.requirement
+        game.hud.questProgress = tracker?.progress
+        game.hud.questTravelLabel = state.questTravelPlan?.let { "🚲 ${it.targetLabel} · 현관으로 이동 중" }
+    }
+
+    private fun guidedTravelDirection(): Pair<Float, Float>? {
+        val plan = state.questTravelPlan ?: run {
+            questPathKey = ""
+            questPath = emptyList()
+            questPathIndex = 0
+            return null
+        }
+        val key = "landmark:${region.id}:${plan.hashCode()}"
+        if (questPathKey != key) {
+            val goal = PointF(map.landmarkDoorX * 16f + 8f, map.landmarkDoorY * 16f - 1f)
+            val path = QuestPathfinder.findPath(map, player.x, player.y, goal.x, goal.y)
+            if (path == null) {
+                QuestNavigation.cancel(game, "실내 출구까지 이어지는 길을 찾지 못했어요")
+                questPathKey = ""
+                return null
+            }
+            questPathKey = key
+            questPath = path
+            questPathIndex = 0
+        }
+        while (questPathIndex < questPath.size &&
+            hypot(questPath[questPathIndex].x - player.x, questPath[questPathIndex].y - player.y) < 5f
+        ) questPathIndex++
+        val waypoint = questPath.getOrNull(questPathIndex) ?: return null
+        return (waypoint.x - player.x) to (waypoint.y - player.y)
     }
 
     private fun updateRig(dt: Float, vx: Float, vy: Float, gait: Gait) {
@@ -261,12 +306,20 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
     }
 
     override fun handleInput(input: Input) {
+        if (state.questTravelPlan != null && (input.justA || input.justEat)) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (input.justBack || input.justMenu) {
             openOverlay(MenuOverlay(this))
             return
         }
         if (input.justCam) {
             game.toast("실내에선 쉬어도 돼요. 새는 밖에서!")
+            return
+        }
+        if (input.justQuest) {
+            QuestNavigation.openTracker(this)
             return
         }
         if (input.justB) {
@@ -290,6 +343,10 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             return
         }
         val tap = input.consumeTapWorld()
+        if (tap != null && state.questTravelPlan != null) {
+            QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
+            questPathKey = ""
+        }
         if (tap != null) {
             nearestSpot(tap.x, tap.y, tap = true)?.let { interact(it.key) }
         }
@@ -481,6 +538,10 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        Charms.equipped(state)?.let { item ->
+            Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
+                sy + if (item.id == "rain") 12f else 22f, 8f, game.time)
+        }
         val camDir = when (player.facing) {
             Dir.E -> 2
             Dir.W -> 3
