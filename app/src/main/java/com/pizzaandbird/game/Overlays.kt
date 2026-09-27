@@ -804,7 +804,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     textP.color = if (done) 0xFF397547.toInt() else 0xFF4A3728.toInt()
                     c.drawText(q.title, tagR.right + dp(scene, 6f), qr.top + dp(scene, 13f), textP)
 
-                    val progText = "${q.progressText} · +₩${scene.won(q.rewardMoney)}"
+                    val progText = "${q.progressText} · +₩${fmtMoney(q.rewardMoney)}"
                     textP.textSize = textDp(scene, 9.5f)
                     textP.color = if (done) 0xFF2D6930.toInt() else 0xFFB5651D.toInt()
                     c.drawText(progText, qr.right - textP.measureText(progText) - dp(scene, 8f), qr.top + dp(scene, 13f), textP)
@@ -839,7 +839,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 textP.color = if (done) 0xFF397547.toInt() else 0xFF4A3728.toInt()
                 c.drawText(dq.title, tagR.right + dp(scene, 6f), dqr.top + dp(scene, 13f), textP)
 
-                val progText = if (done) "완료! +₩${scene.won(dq.rewardMoney)}" else "${dq.progressText} · +₩${scene.won(dq.rewardMoney)}"
+                val progText = if (done) "완료! +₩${fmtMoney(dq.rewardMoney)}" else "${dq.progressText} · +₩${fmtMoney(dq.rewardMoney)}"
                 textP.textSize = textDp(scene, 9.5f)
                 textP.color = if (done) 0xFF2D6930.toInt() else 0xFF8A7360.toInt()
                 c.drawText(progText, dqr.right - textP.measureText(progText) - dp(scene, 8f), dqr.top + dp(scene, 13f), textP)
@@ -1609,9 +1609,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     "1" -> "1배 (성능 우선)"
                     "2" -> "2배 (고화질)"
                     "3" -> "3배 (최고 화질)"
-                    else -> "자동 (2K 기준)"
+                    else -> "자동 (${g.worldScale}배 · 프레임 우선)"
                 } },
-                "월드 렌더 해상도 — 높을수록 또렷해요",
+                "버벅이면 월드만 낮춰요 (글씨·버튼은 선명하게)",
                 action = {
                     g.state.renderScale = when (g.state.renderScale) {
                         "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"

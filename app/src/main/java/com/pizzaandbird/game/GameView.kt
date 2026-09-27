@@ -96,16 +96,23 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
         while (running) {
             if (holder.surface.isValid) {
                 var canvas: Canvas? = null
+                var frameStart = 0L
+                var frameInterval = 0L
+                var renderNanos = 0L
+                var rendered = false
                 try {
                     canvas = holder.lockCanvas()
                     if (canvas != null) {
-                        val now = System.nanoTime()
-                        var dt = (now - last) / 1_000_000_000f
-                        last = now
+                        frameStart = System.nanoTime()
+                        frameInterval = frameStart - last
+                        var dt = frameInterval / 1_000_000_000f
+                        last = frameStart
                         if (dt > 0.05f) dt = 0.05f
                         if (dt < 0f) dt = 0.016f
                         game.update(dt)
                         game.render(canvas)
+                        renderNanos = System.nanoTime() - frameStart // vsync 대기(unlock)는 CPU 부하에 넣지 않는다
+                        rendered = true
                     }
                 } catch (e: Exception) {
                     // 반복 오류는 로그 폭주를 막되, 원인은 숨기지 않는다.
@@ -116,9 +123,10 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
                     }
                 } finally {
                     if (canvas != null) {
-                        try { holder.unlockCanvasAndPost(canvas) } catch (_: Exception) { }
+                        try { holder.unlockCanvasAndPost(canvas) } catch (_: Exception) { rendered = false }
                     }
                 }
+                if (rendered) game.onFrameRendered(renderNanos, frameInterval)
             }
             nextFrame += FRAME_PERIOD_NANOS
             val now = System.nanoTime()

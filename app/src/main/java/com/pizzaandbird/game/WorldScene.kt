@@ -357,7 +357,11 @@ class WorldScene(
 
         // 살아있는 풀 (바람 필드 + 풀잎 상태 머신 + 밟힘 반응)
         // 풀은 32px 렌더 좌표, 캐릭터는 16px 논리 좌표를 사용한다.
-        grass.update(dt, game.time, (player.x + 8f) * WORLD_SCALE, (player.y + 13f) * WORLD_SCALE, player.bike)
+        grass.update(
+            dt, game.time, (player.x + 8f) * WORLD_SCALE, (player.y + 13f) * WORLD_SCALE, player.bike,
+            viewRig.x * WORLD_SCALE, viewRig.y * WORLD_SCALE,
+            viewRig.viewW * WORLD_SCALE, viewRig.viewH * WORLD_SCALE
+        )
         spawnAmbient(dt)
         // 🌸 힐링 파티클 — 작은 생물(나비/잠자리/반딧불/먼 갈매기/철새 떼) + 계절 향
         Healing.updateCritters(dt, state, region, rnd, viewRig.viewW, viewRig.viewH, viewRig.x, viewRig.y) { m ->
