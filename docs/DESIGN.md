@@ -459,6 +459,28 @@ TitleScene ──새 게임──> RegionSelectScene ──> WorldScene ⇄ Home
      └─ overlay: Dialog / Menu(상태·피자·도감·설정) / CameraFx(화면 연출) / Bake / PhotoResult / Map / DecorShop / DecorPick / RegionSelect(이사)
 ```
 
+### UI 설계 규칙 — `UiKit.kt` (v0.4.2)
+
+모든 오버레이는 레이아웃 XML 없이 Canvas에 직접 그린다. 공통 규칙은 `UiKit`이 강제한다.
+
+- **전폭 바 금지** — 짧은 콘텐츠가 패널 좌우를 끝까지 늘려 쓰면 "구린" 인상이 된다.
+  라벨+값 한 줄 바 대신 **카드/타일**(2~3열)로 묶고, 값은 콘텐츠 너비만큼만 쓴다.
+- **패널은 내용만큼** — `centerPanel(g, wRatio, hRatio, maxW, maxH)`의 `maxH`를
+  행 개수에서 계산해 넘치는 여백을 없앤다. 행이 남으면 행 높이를 키우거나 가운데 정렬.
+- **토큰** — `RAD_PANEL 16 / RAD_CARD 11 / PAD_PANEL 14 / GAP 8 / GAP_SM 5 / ROW 32 / HDR 44` (dp).
+  각도를 직접 쓰지 말 것. 색은 `UiKit.GOLD/CARAMEL/INK/CREAM/MUTED/LEAF` + `tierColor()/tierBg()`.
+- **공용 부품** — `header()`(제목+부제+소지금 뱃지+닫기), `railTabs()`(왼쪽 세로 탭),
+  `segmented()`(`SEG_LEFT/CENTER/RIGHT` — 전폭 탭바 대체), `tile()`, `kvGrid()`, `gaugeRow()`,
+  `card()`, `button()`, `badge()`, `bar()`, `pager()`, `emptyHint()`, `fit()`(말줄임), `sectionLabel()`.
+- **계층** — 카드 안은 ①제목+뱃지 ②본문(효과/스펙) ③보조 한 줄 ④액션 버튼.
+  본문이 3줄이 안 되면 항목 설명(`desc`)을 꺼내 채우고, 남는 세로는 행 간격을 벌려 분산한다.
+- **히트 영역** — 탭 가능 요소는 최소 28dp 높이, 말줄임은 `UiKit.fit`(라벨 우선, 서브가 먼저 잘린다).
+- **다이얼로그 선택** — 버튼은 전폭이 아니라 **문구 크기만큼** 만들어 우측 정렬로 나열,
+  기본(확인)만 금색, 나머지는 크림색.
+- **그림자/테두리** — 카드는 `card()`가 1.2~1.8dp 테두리 + 부드러운 그림자를 처리.
+  선택 상태는 테두리 색+굵기(2dp)로만 표현하고 배경은 과하게 바꾸지 않는다.
+- **이모지** — 프리뷰 렌더러는 폰트 때문에 ☒로 보이지만 실제 앱에서는 정상 렌더링된다.
+
 ## 5. 추후 업데이트 계획 (요청 반영 대기)
 
 1. **출현 조건 고도화** — 공식 598종의 계절/시간대/지역별 희귀도 세분화

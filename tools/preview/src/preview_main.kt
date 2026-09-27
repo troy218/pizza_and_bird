@@ -323,6 +323,25 @@ object PreviewMain {
             renderScreen(game, "17_menu_tab${i + 1}")
         }
 
+        // 장비 가방 / 상점 — UI 다듬기 검수용
+        scene.closeOverlay()
+        scene.openOverlay(com.pizzaandbird.game.GearBagOverlay(scene))
+        simulate(game, 0.4f)
+        renderScreen(game, "17c_gear_bag")
+        scene.closeOverlay()
+        scene.openOverlay(com.pizzaandbird.game.CameraShopOverlay(scene, 1, 0))
+        simulate(game, 0.4f)
+        renderScreen(game, "17d_camera_shop")
+        scene.closeOverlay()
+        scene.openOverlay(com.pizzaandbird.game.GearPickOverlay(scene, com.pizzaandbird.game.GearKind.LENS))
+        simulate(game, 0.4f)
+        renderScreen(game, "17e_gear_pick")
+        scene.closeOverlay()
+        scene.openOverlay(com.pizzaandbird.game.BikeShopOverlay(scene))
+        simulate(game, 0.4f)
+        renderScreen(game, "17f_bike_shop")
+        scene.closeOverlay()
+
         // 피자 굽기
         scene.closeOverlay()
         val bake = BakeOverlay(scene)
