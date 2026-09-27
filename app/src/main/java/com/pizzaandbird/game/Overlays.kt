@@ -90,7 +90,11 @@ class DialogOverlay(
     }
 
     private fun pick(i: Int) {
-        if (i in choices.indices) choices[i].action(this)
+        if (i in choices.indices) {
+            choices[i].action(this)
+            // 액션이 오버레이를 교체하지 않았다면 자동으로 닫기 (예: 피자 굽기로 교체되는 경우 유지)
+            if (scene.overlay === this) finished = true
+        }
     }
 
     override fun draw(c: Canvas) {
@@ -982,6 +986,11 @@ class PhotoResultOverlay(
     }
 
     override fun handleInput(input: Input) {
+        // 열린 직후 0.25초는 셔터 플래시 연출 보호 + 실수 방지 (입력 소비만)
+        if (t < 0.25f) {
+            input.consumeTapScreen()
+            return
+        }
         val tap = input.consumeTapScreen()
         if (input.justA || input.justB || input.justBack || tap != null) finished = true
     }

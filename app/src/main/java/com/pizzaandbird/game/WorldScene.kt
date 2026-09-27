@@ -337,6 +337,8 @@ class WorldScene(
             }
             if (tooClose) continue
             birds.add(FieldBird(def, bx, by))
+            if (def.tier.star >= 3) game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+            if (state.questBird == def.id) game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
             return
         }
     }

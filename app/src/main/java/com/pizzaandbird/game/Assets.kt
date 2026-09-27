@@ -114,7 +114,7 @@ lateinit var playerSideL: Array<Bitmap>      // 왼쪽 방향 (플립)
     // dir: 0=아래(정면) 1=위(뒤) 2=오른쪽(측면) / frame: 0 서있기 1,2 걷기
     // -----------------------------------------------------------------------
 
-    private class Pal(
+    private data class Pal(
         val hair: Int, val hair2: Int, val skin: Int, val skin2: Int,
         val top: Int, val top2: Int, val pants: Int, val pants2: Int,
         val shoe: Int, val line: Int, val pack: Int, val pack2: Int,
