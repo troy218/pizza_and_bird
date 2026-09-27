@@ -499,7 +499,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val next = BirdingRanks.next(lifers)
         textP.textSize = dp(scene, 12f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("라이퍼 $lifers종 · 게임 탐조 등급 「${rank.name}」", left, y + dp(scene, 13f), textP)
+        c.drawText("라이퍼 ${lifers}종 · 게임 탐조 등급 「${rank.name}」", left, y + dp(scene, 13f), textP)
         textP.textSize = dp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
         val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 수집 이정표" else "400종 이상 · 공식 자격이 아닌 수집 이정표"
