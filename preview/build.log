@@ -1,67 +1,245 @@
-# preview build 2026-09-27 03:57:14Z
-# commit: f605a4ee49de9a9ab51403d9ce6d90311c63d302
+# preview build 2026-09-27 04:00:38Z
+# commit: 9f69c283efb8c060dd79d5473021d431031aa8b7
 # gradle exit code: 0
 >> kotlin 컴파일러 다운로드 중...
-WARN: 폰트 다운로드 실패 (NotoSansKR-Regular.ttf)
-WARN: 폰트 다운로드 실패 (NotoSansKR-Bold.ttf)
-# status: no-compiler
+WARN: 폰트 다운로드 실패 (npm @expo-google-fonts/noto-sans-kr)
+>> 프리뷰 컴파일 (게임 소스 + 스텁)...
+# status: compile-failed
 
 ----- gradle build log (error lines + last 120) -----
 ...
+Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:mergeReleaseJniLibFolders
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
-> Task :app:buildKotlinToolingMetadata
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:checkReleaseAarMetadata
-> Task :app:generateReleaseResValues
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :app:processReleaseMainManifest
-> Task :app:mergeReleaseResources
-> Task :app:processReleaseManifest
-> Task :app:packageReleaseResources
-> Task :app:processReleaseManifestForPackage
-> Task :app:parseReleaseLocalResources
-> Task :app:javaPreCompileRelease
-> Task :app:desugarReleaseFileDependencies
-> Task :app:mergeReleaseStartupProfile
-> Task :app:processReleaseResources
-> Task :app:mergeExtDexRelease
-> Task :app:mergeReleaseArtProfile
-> Task :app:mergeReleaseShaders
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:mergeReleaseAssets
-> Task :app:compressReleaseAssets
-> Task :app:extractReleaseVersionControlInfo
-> Task :app:optimizeReleaseResources
-> Task :app:collectReleaseDependencies
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-> Task :app:compileReleaseKotlin
-> Task :app:compileReleaseJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderRelease
-> Task :app:mergeReleaseGlobalSynthetics
-> Task :app:mergeDexRelease
-> Task :app:processReleaseJavaRes
-> Task :app:compileReleaseArtProfile
-> Task :app:mergeReleaseJavaResource
-> Task :app:packageRelease
-> Task :app:createReleaseApkListingFileRedirect
-> Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790481415468.json
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:mergeDebugResources
+> Task :app:processDebugManifest
+> Task :app:packageDebugResources
+> Task :app:processDebugManifestForPackage
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:parseDebugLocalResources
+> Task :app:checkDebugDuplicateClasses
+> Task :app:processDebugResources
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790481584380.json
 
-BUILD SUCCESSFUL in 19s
-40 actionable tasks: 40 executed
+BUILD SUCCESSFUL in 1m 1s
+33 actionable tasks: 33 executed
 
 ----- preview render log (last 200 lines) -----
+app/src/main/java/com/pizzaandbird/game/GameState.kt:255:13: error: argument type mismatch: actual type is 'T', but 'K' was expected.
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/GameState.kt:257:18: error: unresolved reference 'putString'.
+                .putString(KEY, s.toJSON().toString())
+                 ^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/GameState.kt:258:18: error: cannot infer type for this parameter. Please specify it explicitly.
+                .apply()
+                 ^^^^^
+app/src/main/java/com/pizzaandbird/game/GameState.kt:259:32: error: argument type mismatch: actual type is 'kotlin.Unit', but 'K' was expected.
+        } catch (_: Exception) {
+                               ^
+app/src/main/java/com/pizzaandbird/game/GameState.kt:276:70: error: overload resolution ambiguity between candidates:
+fun <T> MutableCollection<out T>.remove(element: T): Boolean
+fun <K, V> MutableMap<out K, V>.remove(key: K): V?
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+                                                                     ^^^^^^
+app/src/main/java/com/pizzaandbird/game/GameState.kt:276:82: error: cannot infer type for this parameter. Please specify it explicitly.
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+                                                                                 ^^^^^
+app/src/main/java/com/pizzaandbird/game/GameState.kt:276:87: error: no value passed for parameter 'block'.
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+                                                                                      ^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:872:20: error: argument type mismatch: actual type is 'android.graphics.RectF', but 'kotlin.Float' was expected.
+        c.drawRect(RectF(bx - dp(scene, 5f), by - dp(scene, 5f), bx + bmp.width * k + dp(scene, 5f), by + bmp.height * k + dp(scene, 5f)), strokeP)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:872:140: error: argument type mismatch: actual type is 'android.graphics.Paint', but 'kotlin.Float' was expected.
+        c.drawRect(RectF(bx - dp(scene, 5f), by - dp(scene, 5f), bx + bmp.width * k + dp(scene, 5f), by + bmp.height * k + dp(scene, 5f)), strokeP)
+                                                                                                                                           ^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:872:140: error: no value passed for parameter 'right'.
+        c.drawRect(RectF(bx - dp(scene, 5f), by - dp(scene, 5f), bx + bmp.width * k + dp(scene, 5f), by + bmp.height * k + dp(scene, 5f)), strokeP)
+                                                                                                                                           ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:872:140: error: no value passed for parameter 'bottom'.
+        c.drawRect(RectF(bx - dp(scene, 5f), by - dp(scene, 5f), bx + bmp.width * k + dp(scene, 5f), by + bmp.height * k + dp(scene, 5f)), strokeP)
+                                                                                                                                           ^^^^^^^^
+app/src/main/java/com/pizzaandbird/game/Overlays.kt:872:140: error: no value passed for parameter 'paint'.
+        c.drawRect(RectF(bx - dp(scene, 5f), by - dp(scene, 5f), bx + bmp.width * k + dp(scene, 5f), by + bmp.height * k + dp(scene, 5f)), strokeP)
+                                                                                                                                           ^^^^^^^^
+tools/preview/src/android_stubs_content.kt:22:11: error: redeclaration:
+interface SharedPreferences : Any
+interface SharedPreferences {
+          ^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:23:35: error: unresolved reference 'Editor'.
+    fun edit(): SharedPreferences.Editor
+                                  ^^^^^^
+tools/preview/src/android_stubs_content.kt:30:11: error: redeclaration:
+interface SharedPreferences : Any
+interface SharedPreferences.Editor {
+          ^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:30:28: error: syntax error: Expecting a top level declaration.
+interface SharedPreferences.Editor {
+                           ^
+tools/preview/src/android_stubs_content.kt:30:29: error: syntax error: Expecting a top level declaration.
+interface SharedPreferences.Editor {
+                            ^^^^^^
+tools/preview/src/android_stubs_content.kt:30:36: error: syntax error: Expecting a top level declaration.
+interface SharedPreferences.Editor {
+                                   ^
+tools/preview/src/android_stubs_content.kt:30:36: error: function declaration must have a name.
+interface SharedPreferences.Editor {
+                                   ^
+tools/preview/src/android_stubs_content.kt:31:5: error: function 'putString' must have a body.
+    fun putString(key: String, value: String): SharedPreferences.Editor
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:31:66: error: unresolved reference 'Editor'.
+    fun putString(key: String, value: String): SharedPreferences.Editor
+                                                                 ^^^^^^
+tools/preview/src/android_stubs_content.kt:32:5: error: function 'putInt' must have a body.
+    fun putInt(key: String, value: Int): SharedPreferences.Editor
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:32:60: error: unresolved reference 'Editor'.
+    fun putInt(key: String, value: Int): SharedPreferences.Editor
+                                                           ^^^^^^
+tools/preview/src/android_stubs_content.kt:33:5: error: function 'putBoolean' must have a body.
+    fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:33:68: error: unresolved reference 'Editor'.
+    fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor
+                                                                   ^^^^^^
+tools/preview/src/android_stubs_content.kt:34:5: error: function 'remove' must have a body.
+    fun remove(key: String): SharedPreferences.Editor
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:34:48: error: unresolved reference 'Editor'.
+    fun remove(key: String): SharedPreferences.Editor
+                                               ^^^^^^
+tools/preview/src/android_stubs_content.kt:35:5: error: function 'clear' must have a body.
+    fun clear(): SharedPreferences.Editor
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:35:36: error: unresolved reference 'Editor'.
+    fun clear(): SharedPreferences.Editor
+                                   ^^^^^^
+tools/preview/src/android_stubs_content.kt:36:5: error: function 'apply' must have a body.
+    fun apply()
+    ^^^^^^^^^^^
+tools/preview/src/android_stubs_content.kt:43:44: error: unresolved reference 'Editor'.
+    override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor {
+                                           ^^^^^^
+tools/preview/src/android_stubs_content.kt:43:80: error: unresolved reference 'Editor'.
+    override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor {
+                                                                               ^^^^^^
+tools/preview/src/android_stubs_content.kt:44:9: error: 'putString' overrides nothing.
+        override fun putString(key: String, value: String): SharedPreferences.Editor {
+        ^^^^^^^^
+tools/preview/src/android_stubs_content.kt:44:79: error: unresolved reference 'Editor'.
+        override fun putString(key: String, value: String): SharedPreferences.Editor {
+                                                                              ^^^^^^
+tools/preview/src/android_stubs_content.kt:48:9: error: 'putInt' overrides nothing.
+        override fun putInt(key: String, value: Int): SharedPreferences.Editor {
+        ^^^^^^^^
+tools/preview/src/android_stubs_content.kt:48:73: error: unresolved reference 'Editor'.
+        override fun putInt(key: String, value: Int): SharedPreferences.Editor {
+                                                                        ^^^^^^
+tools/preview/src/android_stubs_content.kt:52:9: error: 'putBoolean' overrides nothing.
+        override fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor {
+        ^^^^^^^^
+tools/preview/src/android_stubs_content.kt:52:81: error: unresolved reference 'Editor'.
+        override fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor {
+                                                                                ^^^^^^
+tools/preview/src/android_stubs_content.kt:56:9: error: 'remove' overrides nothing.
+        override fun remove(key: String): SharedPreferences.Editor {
+        ^^^^^^^^
+tools/preview/src/android_stubs_content.kt:56:61: error: unresolved reference 'Editor'.
+        override fun remove(key: String): SharedPreferences.Editor {
+                                                            ^^^^^^
+tools/preview/src/android_stubs_content.kt:60:9: error: 'clear' overrides nothing.
+        override fun clear(): SharedPreferences.Editor {
+        ^^^^^^^^
+tools/preview/src/android_stubs_content.kt:60:49: error: unresolved reference 'Editor'.
+        override fun clear(): SharedPreferences.Editor {
+                                                ^^^^^^
+tools/preview/src/android_stubs_content.kt:64:9: error: 'apply' overrides nothing.
+        override fun apply() {}
+        ^^^^^^^^
+tools/preview/src/android_stubs_graphics.kt:532:41: error: unresolved reference 'Rect'.
+    fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint) {
+                                        ^^^^
+tools/preview/src/android_stubs_graphics.kt:539:52: error: unresolved reference 'left'.
+            val sub = bitmap.image.getSubimage(src.left, src.top, src.width(), src.height())
+                                                   ^^^^
+tools/preview/src/android_stubs_graphics.kt:539:62: error: unresolved reference 'top'.
+            val sub = bitmap.image.getSubimage(src.left, src.top, src.width(), src.height())
+                                                             ^^^
+tools/preview/src/android_stubs_graphics.kt:539:71: error: unresolved reference 'width'.
+            val sub = bitmap.image.getSubimage(src.left, src.top, src.width(), src.height())
+                                                                      ^^^^^
+tools/preview/src/android_stubs_graphics.kt:539:84: error: unresolved reference 'height'.
+            val sub = bitmap.image.getSubimage(src.left, src.top, src.width(), src.height())
+                                                                                   ^^^^^^
+tools/preview/src/json_stubs.kt:24:27: error: none of the following candidates is applicable:
+fun put(key: String, value: Int): JSONObject
+fun put(key: String, value: Long): JSONObject
+fun put(key: String, value: Boolean): JSONObject
+fun put(key: String, value: Double): JSONObject
+fun put(key: String, value: String): JSONObject
+fun put(key: String, value: JSONObject): JSONObject
+fun put(key: String, value: JSONArray): JSONObject
+        for ((k, v) in m) put(k.toString(), normalize(v))
+                          ^^^
+tools/preview/src/preview_main.kt:81:51: error: unresolved reference 'DisplayMetrics'.
+    override val displayMetrics: android.graphics.DisplayMetrics =
+                                                  ^^^^^^^^^^^^^^
+tools/preview/src/preview_main.kt:82:26: error: unresolved reference 'DisplayMetrics'.
+        android.graphics.DisplayMetrics().apply { density = d }
+                         ^^^^^^^^^^^^^^
+tools/preview/src/preview_main.kt:82:43: error: cannot infer type for this parameter. Please specify it explicitly.
+        android.graphics.DisplayMetrics().apply { density = d }
+                                          ^^^^^
+tools/preview/src/preview_main.kt:82:49: error: cannot infer type for this parameter. Please specify it explicitly.
+        android.graphics.DisplayMetrics().apply { density = d }
+                                                ^^^^^^^^^^^^^^^
+tools/preview/src/preview_main.kt:82:51: error: unresolved reference 'density'.
+        android.graphics.DisplayMetrics().apply { density = d }
+                                                  ^^^^^^^
+tools/preview/src/preview_main.kt:87:22: error: return type of 'edit' is not a subtype of the return type of the overridden member 'fun edit(): <ERROR TYPE REF: Symbol not found for SharedPreferences.Editor>' defined in 'android/content/SharedPreferences'.
+        override fun edit() = throw IllegalStateException("not used")
+                     ^^^^
+tools/preview/src/preview_main.kt:250:39: error: none of the following candidates is applicable:
+fun plus(other: Byte): Float
+fun plus(other: Double): Double
+fun plus(other: Float): Float
+fun plus(other: Int): Float
+fun plus(other: Long): Float
+fun plus(other: Short): Float
+            val by = player.y + (-46f + (if (i % 2 == 0) 0 else 34f))
+                                      ^
