@@ -150,11 +150,24 @@ class DialogOverlay(
         val h = g.screenH.toFloat()
         val margin = dp(scene, 18f)
 
-        // 본문 줄 수에 맞춰 패널 높이 결정 (본문 = 보통 두께가 읽기 편하다)
+        // 본문 줄 수에 딱 맞춰 패널 높이를 잡는다 — 짧은 대사에 군더더기 공간이
+        // 남지 않고, 긴 대사는 줄 수만큼 늘어나 선택지와 겹치지도 않는다.
+        //   상단 여백(제목 칩 + 첫 줄) 24 + 마지막 줄 하단 + 숨결 간격 14
+        //   + 선택지 버튼 30 + 하단 여백 10
         val bodyPaint = Type.paint(Role.BODY, Type.INK)
         val maxW = w - margin * 2f - dp(scene, 28f)
-        val lines = Type.wrap(body, bodyPaint, maxW).take(8)
-        val panelH = dp(scene, 108f) + dp(scene, 17f) * (lines.size - 3).coerceAtLeast(0)
+        val lineH = Type.lineHeight(Role.BODY)
+        val wrapped = Type.wrap(body, bodyPaint, maxW)
+        val chromeH = dp(scene, 24f) + bodyPaint.descent() + dp(scene, 14f) + dp(scene, 40f)
+        // 아무리 길어도 화면의 78%까지만 — 넘치는 줄은 … 로 마무리
+        val maxLines = (((h * 0.78f - margin - chromeH) / lineH).toInt() + 1).coerceAtLeast(1)
+        var lines = if (wrapped.size > maxLines) wrapped.take(maxLines) else wrapped
+        if (wrapped.size > lines.size && lines.isNotEmpty()) {
+            var last = lines.last()
+            while (last.isNotEmpty() && bodyPaint.measureText("$last…") > maxW) last = last.dropLast(1)
+            lines = lines.dropLast(1) + listOf("$last…")
+        }
+        val panelH = chromeH + lineH * ((lines.size - 1).coerceAtLeast(0))
         val r = RectF(margin, h - margin - panelH, w - margin, h - margin)
 
         // 등장: 아래에서 위로 부드럽게
@@ -1611,7 +1624,11 @@ class DecorPickOverlay(
 
         val rowCount = current.size + 1 // 마지막은 항상 비우기
         val pw = minOf(w * 0.84f, dp(scene, 360f))
-        val ph = minOf(dp(scene, 118f) + dp(scene, 48f) * rowCount, h * 0.9f)
+        // 행 수에 맞는 높이 — 82dp 헤더 + 행 48dp씩 + 간격 5dp + 하단 여백 10dp
+        val ph = minOf(
+            dp(scene, 92f) + dp(scene, 48f) * rowCount + dp(scene, 5f) * (rowCount - 1),
+            h * 0.9f
+        )
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
         panel(c, panelR, scene)
 
@@ -1863,7 +1880,12 @@ class HouseStyleOverlay(
         dim(c, scene, 155)
 
         val pw = minOf(w * 0.86f, dp(scene, 450f))
-        val ph = minOf(h * 0.92f, dp(scene, 360f))
+        // 목록(인테리어 4종) 행 수에 딱 맞는 높이 — 아래쪽 빈자리 없이
+        val nStyles = HouseStyles.ALL.size
+        val ph = minOf(
+            h * 0.92f,
+            dp(scene, 62f) + dp(scene, 60f) * nStyles + dp(scene, 6f) * (nStyles - 1) + dp(scene, 10f)
+        )
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
         panel(c, panelR, scene)
 
@@ -4186,7 +4208,17 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         dim(c, scene, 150)
 
         val pw = minOf(w * 0.94f, dp(scene, 520f))
-        val ph = minOf(h * 0.92f, dp(scene, 420f))
+        // 내용물(제목·현재 조합 카드·모드 버튼·슬롯 4개·액세서리 줄)의 실제
+        // 높이에 맞춘다 — 예전 고정 420dp 아래쪽엔 항상 100dp쯤 빈 자리가 남았다.
+        val accs = CameraGear.ACCESSORIES.filter { it.id in s.ownedGear }
+        val accTxt = if (accs.isEmpty()) "보유 액세서리: 없음 (상점 액세서리 탭)"
+            else "보유 액세서리: " + accs.joinToString(", ") { it.name }
+        textP.textSize = textDp(scene, 10f)
+        val accLines = g.hud.wrapText(accTxt, textP, pw - dp(scene, 28f)).take(2)
+        val ph = minOf(
+            h * 0.92f,
+            dp(scene, 306f) + dp(scene, 12f) * (accLines.size - 1).coerceAtLeast(0)
+        )
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
         panel(c, panelR, scene)
         btnRects.clear()
@@ -4304,14 +4336,11 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         slot("렌즈", lensName, GearKind.LENS, s.useIlc)
         slot("텔레컨버터", CameraGear.tc(s.tcId)?.name ?: "없음", GearKind.TELECONV, s.useIlc)
 
-        // 액세서리
+        // 액세서리 — 패널 높이 계산에 쓴 것과 같은 줄을 그대로 쓴다
         y += dp(scene, 2f)
         textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF6B5A48.toInt()
-        val accs = CameraGear.ACCESSORIES.filter { it.id in s.ownedGear }
-        val accTxt = if (accs.isEmpty()) "보유 액세서리: 없음 (상점 액세서리 탭)"
-            else "보유 액세서리: " + accs.joinToString(", ") { it.name }
-        for (ln in g.hud.wrapText(accTxt, textP, panelR.width() - dp(scene, 28f)).take(2)) {
+        for (ln in accLines) {
             c.drawText(ln, panelR.left + dp(scene, 14f), y + dp(scene, 10f), textP)
             y += dp(scene, 12f)
         }
@@ -4415,8 +4444,31 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         val h = g.screenH.toFloat()
         dim(c, scene, 160)
 
+        pickRects.clear()
+        val list = ArrayList<CamGear?>()
+        list.addAll(owned())
+        if (kind == GearKind.TELECONV) list.add(null)   // "빼기" 항목
+
+        val maxPage = ((list.size - 1) / perPage).coerceAtLeast(0)
+        if (page > maxPage) page = maxPage
+        val from = page * perPage
+        val shown = list.subList(from, minOf(from + perPage, list.size))
+
+        // 패널 높이를 목록 길이에 맞춘다 — 항목 1개(또는 0개)에 400dp짜리
+        // 빈 상자가 뜨는 일이 없게. 이 페이지에 실제로 보이는 행 수만큼만
+        // 높이를 쓴다(마지막 페이지가 짧으면 상자도 같이 짧아진다).
+        val listTop = dp(scene, 46f)
+        val rowH = dp(scene, 50f)
+        val hasPages = maxPage > 0
+        val rowsNeeded = when {
+            list.isEmpty() -> 2                                  // 안내 문구 2줄 몫
+            else -> shown.size.coerceAtLeast(1)
+        }
+        val footerH = if (hasPages) dp(scene, 44f) else dp(scene, 12f)
+        // 마지막 행은 행 간격 5dp를 빼고 끝난다(행 rect가 rowH-5dp라서)
+        val ph = (listTop + rowsNeeded * rowH - dp(scene, 5f) + footerH)
+            .coerceIn(dp(scene, 104f), minOf(h * 0.9f, dp(scene, 400f)))
         val pw = minOf(w * 0.92f, dp(scene, 480f))
-        val ph = minOf(h * 0.9f, dp(scene, 400f))
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
         panel(c, panelR, scene)
 
@@ -4432,18 +4484,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("가진 장비만 보여요 · 상점에서 더 살 수 있어요", panelR.left + dp(scene, 14f), panelR.top + dp(scene, 38f), textP)
 
-        pickRects.clear()
-        val list = ArrayList<CamGear?>()
-        list.addAll(owned())
-        if (kind == GearKind.TELECONV) list.add(null)   // "빼기" 항목
-
-        val maxPage = ((list.size - 1) / perPage).coerceAtLeast(0)
-        if (page > maxPage) page = maxPage
-        val from = page * perPage
-        val shown = list.subList(from, minOf(from + perPage, list.size))
-
-        var ty = panelR.top + dp(scene, 46f)
-        val rowH = dp(scene, 50f)
+        var ty = panelR.top + listTop
         for (gear in shown) {
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH - dp(scene, 5f))
             if (gear == null) {
@@ -4481,21 +4522,38 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         }
 
         if (list.isEmpty()) {
-            textP.textSize = textDp(scene, 11.5f)
+            // 빈 목록 — 큰 아이콘과 두 줄 안내를 콘텐츠 영역 가운데에
+            // 바짝 모아 놓는다(예전엔 400dp 상자 한가운데 글줄 하나만 둥둥 떠 있었다).
+            val cy = panelR.top + listTop + (panelR.height() - listTop - footerH) / 2f
+            val cx = panelR.centerX()
+            textP.textSize = textDp(scene, 24f)
+            textP.color = 0xFFC9A87B.toInt()
+            c.drawText(kind.emoji, cx - textP.measureText(kind.emoji) / 2f, cy - dp(scene, 10f), textP)
+            textP.textSize = textDp(scene, 12.5f)
+            textP.color = 0xFF6B5A48.toInt()
+            val msg = "가진 ${kind.label}이(가) 없어요"
+            c.drawText(msg, cx - textP.measureText(msg) / 2f, cy + dp(scene, 12f), textP)
+            textP.textSize = textDp(scene, 10f)
             textP.color = 0xFF8A7360.toInt()
-            val msg = "가진 ${kind.label}이(가) 없어요. 사진용품점에서 먼저 사 보세요!"
-            c.drawText(msg, panelR.centerX() - textP.measureText(msg) / 2, panelR.centerY(), textP)
+            val sub = "사진용품점에서 먼저 사 보세요!"
+            c.drawText(sub, cx - textP.measureText(sub) / 2f, cy + dp(scene, 30f), textP)
         }
 
-        val by = panelR.bottom - dp(scene, 32f)
-        prevRect = RectF(panelR.left + dp(scene, 14f), by, panelR.left + dp(scene, 74f), by + dp(scene, 24f))
-        nextRect = RectF(panelR.right - dp(scene, 74f), by, panelR.right - dp(scene, 14f), by + dp(scene, 24f))
-        drawButton(c, scene, prevRect, "◀ 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
-        drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
-        textP.textSize = textDp(scene, 10f)
-        textP.color = 0xFF8A7360.toInt()
-        val pg = "${page + 1} / ${maxPage + 1}"
-        c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
+        if (hasPages) {
+            val by = panelR.bottom - dp(scene, 32f)
+            prevRect = RectF(panelR.left + dp(scene, 14f), by, panelR.left + dp(scene, 74f), by + dp(scene, 24f))
+            nextRect = RectF(panelR.right - dp(scene, 74f), by, panelR.right - dp(scene, 14f), by + dp(scene, 24f))
+            drawButton(c, scene, prevRect, "◀ 이전", if (page > 0) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+            drawButton(c, scene, nextRect, "다음 ▶", if (page < maxPage) 0xFFF2E3C2.toInt() else Color.argb(70, 200, 190, 175), 0xFF6B4F35.toInt(), 10.5f)
+            textP.textSize = textDp(scene, 10f)
+            textP.color = 0xFF8A7360.toInt()
+            val pg = "${page + 1} / ${maxPage + 1}"
+            c.drawText(pg, panelR.centerX() - textP.measureText(pg) / 2, by + dp(scene, 16f), textP)
+        } else {
+            // 한 페이지면 넘김 단추가 필요 없다 — 쓸데없는 발판을 치운다
+            prevRect = RectF()
+            nextRect = RectF()
+        }
     }
 }
 

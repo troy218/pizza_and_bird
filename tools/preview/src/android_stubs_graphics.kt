@@ -676,6 +676,24 @@ class Canvas {
     private val stack = ArrayList<Graphics2D>()
     private val owner: Bitmap?
 
+    // ------------------------------------------------------------------
+    // UI 감사(audit) 훅 — 기본값 null 이라 평소 렌더링에 영향 없음.
+    // dialog_audit.kt 가 프레임의 상자/글자 배치를 수치로 재서
+    // "글자量 대비 지나치게 큰 상자"를 찾는 데 쓴다.
+    // ------------------------------------------------------------------
+    interface DrawAudit {
+        fun onDraw(kind: String, l: Float, t: Float, r: Float, b: Float, paint: Paint, text: String?)
+    }
+
+    companion object {
+        @JvmStatic
+        var audit: DrawAudit? = null
+    }
+
+    private fun record(kind: String, l: Float, t: Float, r: Float, b: Float, paint: Paint, text: String? = null) {
+        audit?.onDraw(kind, l, t, r, b, paint, text)
+    }
+
     val width: Int
     val height: Int
 
@@ -759,6 +777,7 @@ class Canvas {
     }
 
     fun drawRect(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) {
+        record("rect", left, top, right, bottom, paint)
         colorize(paint)
         val shape = Rectangle2D.Float(min(left, right), min(top, bottom), kotlin.math.abs(right - left), kotlin.math.abs(bottom - top))
         when (paint.style) {
@@ -771,6 +790,7 @@ class Canvas {
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
 
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
+        record("rrect", rect.left, rect.top, rect.right, rect.bottom, paint)
         colorize(paint)
         val r = max(rx, 0f); val rY = max(ry, 0f)
         val shape = RoundRectangle2D.Float(
@@ -785,6 +805,7 @@ class Canvas {
     }
 
     fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) {
+        record("circle", cx - radius, cy - radius, cx + radius, cy + radius, paint)
         colorize(paint)
         val shape = Ellipse2D.Float(cx - radius, cy - radius, radius * 2f, radius * 2f)
         when (paint.style) {
@@ -828,6 +849,10 @@ class Canvas {
     }
 
     fun drawPath(path: Path, paint: Paint) {
+        runCatching {
+            val b = path.p2d.bounds2D
+            record("path", b.minX.toFloat(), b.minY.toFloat(), b.maxX.toFloat(), b.maxY.toFloat(), paint)
+        }
         colorize(paint)
         when (paint.style) {
             Paint.Style.FILL -> g.fill(path.p2d)
@@ -837,6 +862,8 @@ class Canvas {
     }
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
+        val tw = paint.measureText(text)
+        record("text", x, y + paint.ascent(), x + tw, y + paint.descent(), paint, text)
         colorize(paint)
         val base = paint.awtFont()
         // 글꼴에 없는 글자(이모지·기호)는 기기와 똑같이 시스템 글꼴로 대체해 그린다
@@ -915,6 +942,7 @@ class Canvas {
     }
 
     fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
+        record("bitmap", dst.left, dst.top, dst.right, dst.bottom, paint ?: Paint())
         val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
