@@ -86,7 +86,7 @@ class WorldScene(
     private var ghostHead = 0
     private var ghostFill = 0
     private var ghostT = 0f
-    private var spawnTimer = 1.5f
+    private var spawnTimer = 8f
     private var hungerAcc = 0f
     private var luckAcc = 0f
     private var hungerWarnT = 0f
@@ -159,7 +159,7 @@ class WorldScene(
             game.hud.toast("첫 방문! ${region.name}")
         }
 
-        repeat(2) { trySpawnBird() }
+        spawnTimer = BirdEcology.nextInterval(state.worldTime, state.weather(), rnd)
         spawnCats()
 
         // 카메라 초기 스냅
@@ -315,7 +315,7 @@ class WorldScene(
         spawnTimer -= dt
         if (spawnTimer <= 0f) {
             trySpawnBird()
-            spawnTimer = ((if (state.isNight()) 2f else 2.5f) + rnd.nextFloat() * 3.5f) * weather.spawnK
+            spawnTimer = BirdEcology.nextInterval(state.worldTime, weather, rnd)
         }
 
         // 파티클
@@ -761,25 +761,30 @@ class WorldScene(
     // 새 스폰/촬영
     // -------------------------------------------------------------------
 
-    private fun luckBoost(def: BirdDef): Double =
-        1.0 + (state.effectiveLuck() / 100.0) * (def.tier.star - 1) * 1.4
-
     private fun regionPool(): List<BirdDef> {
-        val n = state.isNight()
-        val pool = Birds.poolFor(map.region, n, state.day, state.worldTime)
-        return if (pool.isEmpty()) Birds.poolFor(map.region, !n) else pool
+        // No opposite-time/season fallback: an empty habitat is a valid encounter outcome.
+        return Birds.poolFor(map.region, state.isNight(), state.day, state.worldTime)
     }
 
     private fun trySpawnBird() {
         if (birds.size >= 3) return
-        val pool = regionPool()
+        // Roll rarity first, independently of how many species the checklist contains.
+        // Missing tiers leave a quiet interval rather than promoting a rarity to certainty.
+        val tierWeights = Tier.values().associateWith {
+            BirdEcology.tierMass(it) * (1.0 + state.effectiveLuck().coerceIn(0f, 100f) / 100.0 * (it.star - 1) * 0.25)
+        }
+        var tierRoll = rnd.nextDouble() * tierWeights.values.sum()
+        val tier = Tier.values().firstOrNull {
+            tierRoll -= tierWeights.getValue(it)
+            tierRoll < 0.0
+        } ?: Tier.COMMON
+        val pool = regionPool().filter { it.tier == tier }
         if (pool.isEmpty()) return
 
         val currentWeather = state.weather()
         val currentSeason = state.season()
         val weights = pool.map {
             Birds.spawnWeight(it, map.region, state.day, state.worldTime) *
-                    luckBoost(it) *
                     weatherBirdMultiplier(it, currentWeather) *
                     seasonBirdMultiplier(it, currentSeason, currentWeather) *
                     SpawnTables.weight(it, map.region.id, map.region.habitats, currentSeason, state.isNight()) // [P02] 계절×지역×시간대
@@ -791,10 +796,11 @@ class WorldScene(
             if (roll <= 0) { def = pool[i]; break }
         }
 
-        for (i in 0 until 30) {
+        for (i in 0 until 80) {
             val tx = 2 + rnd.nextInt(map.w - 4)
             val ty = 2 + rnd.nextInt(map.h - 4)
-            if (!map.walkableTile(tx, ty)) continue
+            val suitability = BirdEcology.suitability(def, map, tx, ty)
+            if (suitability <= 0.0 || rnd.nextDouble() >= suitability) continue
             val bx = tx * 16f + 1f
             val by = ty * 16f + 3f
             val dPlayer = hypot(bx - player.cx, by - player.cy)
