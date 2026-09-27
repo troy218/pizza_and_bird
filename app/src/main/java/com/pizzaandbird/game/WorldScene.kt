@@ -1574,13 +1574,6 @@ class WorldScene(
 
     /**
      * 다이내믹 포커싱(심도) — 초점 반경 밖을 부드럽게 눌러 시선을 피사체로 모은다.
-     *  255), 255, 252, 244)
-            c.drawRect(0f, 0f, vw, vh, uiFill)
-        }
-    }
-
-    /**
-     * 다이내믹 포커싱(심도) — 초점 반경 밖을 부드럽게 눌러 시선을 피사체로 모은다.
      * 렌즈(카메라 등급)가 좋을수록 심도가 얕아진다.
      */
     private fun drawDepthOfField(c: Canvas, vw: Float, vh: Float) {

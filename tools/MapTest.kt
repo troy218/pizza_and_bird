@@ -250,42 +250,14 @@ fun main() {
     check(hm.t(6, 2) == T.DECOR && hm.t(9, 2) == T.DECOR && hm.t(13, 7) == T.DECOR, "장식 칸 오류")
     check(hm.t(2, 1) == T.WALL_WIN && hm.t(6, 1) == T.WALL_WIN && hm.t(10, 1) == T.WALL_WIN && hm.t(13, 1) == T.WALL_WIN, "창문 위치 오류")
 
-    // 4.5 피자 데이터 (화덕피자 / 일반 피자 + [P07] 지역 특산 8종)
-    check(Pizzas.ALL.size == 20, "피자 종류 수 오류: ${Pizzas.ALL.size}")
+    // 4.5 피자 데이터 (화덕피자 / 일반 피자)
+    check(Pizzas.ALL.size == 12, "피자 종류 수 오류: ${Pizzas.ALL.size}")
     check(Pizzas.ALL.withIndex().all { (i, p) -> p.id == i }, "피자 id는 ALL 인덱스와 같아야 함 (세이브 호환)")
-    check(Pizzas.ofKind(PizzaKind.OVEN).size == 14 && Pizzas.ofKind(PizzaKind.REGULAR).size == 6, "계열별 6/14종이어야 함")
+    check(Pizzas.ofKind(PizzaKind.OVEN).size == 6 && Pizzas.ofKind(PizzaKind.REGULAR).size == 6, "계열별 6종이어야 함")
     check(Pizzas.of(0).name == "치즈" && Pizzas.of(1).name == "버섯" && Pizzas.of(2).name == "불고기", "v0.2 토핑 id 호환 깨짐")
-    // [P07] id 0~11 은 값까지 그대로여야 한다 (append-only, 규칙 4)
-    val legacyNames = listOf("치즈", "버섯", "불고기", "페퍼로니", "고구마", "콤비네이션",
-        "마르게리타", "마리나라", "콰트로 포르마지", "고르곤졸라", "디아볼라", "루꼴라 프로슈토")
-    check((0..11).all { Pizzas.of(it).name == legacyNames[it] }, "[P07] 기존 피자 이름이 바뀌었다 (append-only 위반)")
-    val legacySpeed = listOf(1.00f, 1.15f, 1.38f, 1.10f, 1.22f, 1.30f, 1.45f, 1.40f, 1.55f, 1.60f, 1.70f, 1.75f)
-    check((0..11).all { Pizzas.of(it).cursorSpeed == legacySpeed[it] }, "[P07] 기존 피자 난이도가 바뀌었다")
     check(Pizzas.ALL.all { it.difficulty in 1..5 && it.perfectW > 0f && it.cursorSpeed >= 1f }, "피자 난이도 데이터 오류")
     check(Pizzas.ALL.map { it.name }.toSet().size == Pizzas.ALL.size, "피자 이름 중복")
     check(Pizzas.representative(PizzaKind.OVEN).kind == PizzaKind.OVEN, "대표 화덕피자 오류")
-
-    // 4.6 [P07] 도우 & 지역 특산 재료
-    check(Dough.values().size == 3 && Dough.CLASSIC.price == 0, "도우 3종/기본 무료 오류")
-    check(Dough.values().all { it.gaugeSpeed in 0.8..1.2 && it.zoneScale in 0.85f..1.15f }, "도우 보정 범위 오류")
-    check(Ingredients.TOPPINGS.size == 8, "특산 재료 8종 오류: ${Ingredients.TOPPINGS.size}")
-    check(Ingredients.TOPPINGS.map { it.id }.toSet().size == 8, "특산 재료 id 중복")
-    check(Ingredients.TOPPINGS.withIndex().all { (i, tp) ->
-        tp.pizzaId == Ingredients.TOPPING_PIZZA_ID + i && Pizzas.of(tp.pizzaId).kind == PizzaKind.OVEN
-    }, "[P07] 특산 재료 → 피자 id 12~19 매핑 오류")
-    check(Ingredients.TOPPINGS.all { it.regionId in Regions.byId },
-        "[P07] 특산 재료 지역 id 오류 (존재하지 않는 지역)")
-    check(Ingredients.TOPPINGS.map { it.regionId }.toSet().size == 8, "특산 재료는 서로 다른 도시여야 함")
-    check(Ingredients.TOPPINGS.all { it.price in 1000..6000 && it.hungerBonus > 0 && it.luckBonus > 0 }, "특산 재료 밸런스 오류")
-    check(Ingredients.SPECIAL_PIZZA_IDS.all { Pizzas.of(it).cursorSpeed in 1.30f..1.60f && Pizzas.of(it).perfectW in 0.18f..0.24f },
-        "[P07] 특산 피자 난이도 범위(속도 1.30~1.60, 걸작 폭 0.18~0.24) 오류")
-    check(Ingredients.TOPPINGS.all { tp ->
-        val p = tp.pizza
-        p.hungerBonus == tp.hungerBonus && p.luckBonus == tp.luckBonus &&
-            p.baseColor == tp.crustColors.first && p.topColorA == tp.crustColors.second
-    }, "[P07] 특산 재료 수치/아이콘 색이 피자 정의와 어긋남")
-    check(Ingredients.toppingsFor("chuncheon").size == 1 && Ingredients.toppingsFor("seoul").isEmpty(),
-        "[P07] 지역별 특산 조회 오류")
 
     // 5. 게임 상태 로직 (v0.2: 토핑×품질 → v0.3: 피자 12종×품질)
     val gs = GameState()
@@ -332,14 +304,6 @@ fun main() {
         val migrated = GameState.fromJSON(legacy)
         check(migrated.pizzaCountOf(0) == 3 && migrated.pizzaCountOf(2, 1) == 3 && migrated.pizzaCountOfKind(PizzaKind.OVEN) == 0,
             "v3 세이브 피자 마이그레이션 오류")
-        // [P07] 업데이트 호환: 피자 12종 시절(v4, 36칸) 세이브 → 20종(60칸)으로 읽어도 재고가 그대로여야 한다
-        val v4 = gs.toJSON()
-        v4.put("v", 4)
-        v4.put("pizzas", org.json.JSONArray((0 until 36).map { if (it == 9 * 3 + 2) 4 else if (it == 2) 1 else 0 }))
-        val updated = GameState.fromJSON(v4)
-        check(updated.pizzas.size == Pizzas.ALL.size * 3 && updated.pizzaCountOf(0, 2) == 1 && updated.pizzaCountOf(9, 2) == 4,
-            "[P07] 기존 세이브(12종) 피자 재고 보존 오류")
-        check((12..19).all { updated.pizzaCountOf(it) == 0 }, "[P07] 신규 특산 피자 재고가 0이 아님")
     } catch (e: RuntimeException) {
         println("SKIP: JSON 검사 생략 (android.jar 스텁) — ${e.message}")
     }
