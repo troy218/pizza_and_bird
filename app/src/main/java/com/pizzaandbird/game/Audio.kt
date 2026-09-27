@@ -12,10 +12,14 @@ import android.util.Log
  * 게임 오디오: 효과음(SoundPool) + BGM/환경음(MediaPlayer 루프).
  *
  * - 효과음: res/raw/sfx_* (짧은 소리, 동시 재생 가능)
- * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 숲 / 바닷가 / 밤 / 바람 / 화덕 불)
+ *           레벨업 팡파레 · 고양이 야옹 1~3/펀치 · 지형별 발소리(자갈/나무/풀/모래/눈/물/돌)
+ * - 환경음: res/raw/amb_* (한 채널 루프 — 낮 새소리 / 숲 / 바닷가 / 밤 / 바람 / 화덕 불 /
+ *           비 · 장맛비 · 지붕에 떨어지는 비 / 계절: 여름 매미 · 가을 귀뚜라미 · 봄 개구리)
  * - BGM   : res/raw/bgm_* (한 채널 루프 — 타이틀 / 월드 / 산 / 바다 / 집)
  *
  * 곡 배치를 바꾸고 싶으면 씬에서 부르는 R.raw.bgm_* 만 바꾸면 된다.
+ * 원본 소리(audio_src/)를 res/raw 로 다듬는 파이프라인은 tools/build_audio.py.
+ * 계절 3종(매미/귀뚜라미/개구리)은 tools/season_audio.py 합성음 — 실황 녹음으로 교체 예정.
  */
 class Audio(private val context: Context) {
 
@@ -41,11 +45,19 @@ class Audio(private val context: Context) {
         CUCKOO1(R.raw.sfx_cuckoo1),            // 뻐꾸기 1 (숲·산 지역 지저귐)
         CUCKOO2(R.raw.sfx_cuckoo2),            // 뻐꾸기 2 (짧은 한 마디)
         BOOK_OPEN(R.raw.sfx_book_open),        // 📚 도감 펼치기
-        BAG_OPEN(R.raw.sfx_bag_open)           // 🎒 가방/장비 가방 열기
+        BAG_OPEN(R.raw.sfx_bag_open),          // 🎒 가방/장비 가방 열기
+        LEVELUP(R.raw.sfx_levelup),            // 🎉 레벨 업! (만세 모션과 함께)
+        CAT_MEOW1(R.raw.sfx_cat_meow1),        // 🐈 고양이 야옹 1 (쓰다듬기·간식)
+        CAT_MEOW2(R.raw.sfx_cat_meow2),        // 🐈 고양이 야옹 2
+        CAT_MEOW3(R.raw.sfx_cat_meow3),        // 🐈 고양이 야옹 3
+        CAT_PUNCH(R.raw.sfx_cat_punch)         // 👊 펀치 맞고 '냐앙—' 하고 날아가는 소리
     }
 
-    /** 발소리 종류 */
-    enum class Steps { NONE, GRAVEL, WOOD }
+    /**
+     * 발소리 종류 — 발밑 **지형**에 따라 골라 쓴다 (WorldScene.stepKindUnderFeet).
+     *   자갈(흙길) · 나무(집 안) · 풀밭 · 모래 · 눈 · 물 · 돌(광장·실내)
+     */
+    enum class Steps { NONE, GRAVEL, WOOD, GRASS, SAND, SNOW, WATER, STONE }
 
     var sfxOn = true
     var musicOn = true
@@ -63,14 +75,13 @@ class Audio(private val context: Context) {
     private val sfxIds = HashMap<Sfx, Int>()
     private val loaded = HashSet<Int>()
 
-    // 발소리 루프 (SoundPool 스트림)
-    private var stepSample = 0
+    // 발소리 루프 (SoundPool 스트림) — 한 종류당 걷기 루프 하나.
+    // 자갈만 달리기용이 따로 녹음되어 있어 두 벌을 쓴다(나머지는 재생 속도로 구분).
+    private val stepSamples = HashMap<Steps, Int>()
     private var stepStream = 0
     private var stepKind = Steps.NONE
     private var stepRun = false
-    private val stepGravel1: Int   // 걷기
-    private val stepGravel2: Int   // 달리기
-    private val stepWood: Int
+    private var stepGravel2 = 0    // 달리기용 자갈 (더 잦은 걸음으로 녹음된 것)
 
     // BGM / 환경음 (MediaPlayer 루프, 페이드 인/아웃)
     private class Channel(val fadeIn: Float, val fadeOut: Float) {
@@ -101,9 +112,14 @@ class Audio(private val context: Context) {
             if (status == 0) synchronized(loaded) { loaded.add(sampleId) }
         }
         for (s in Sfx.values()) sfxIds[s] = pool.load(context, s.res, 1)
-        stepGravel1 = pool.load(context, R.raw.sfx_step_gravel1, 1)
+        stepSamples[Steps.GRAVEL] = pool.load(context, R.raw.sfx_step_gravel1, 1)
         stepGravel2 = pool.load(context, R.raw.sfx_step_gravel2, 1)
-        stepWood = pool.load(context, R.raw.sfx_step_wood, 1)
+        stepSamples[Steps.WOOD] = pool.load(context, R.raw.sfx_step_wood, 1)
+        stepSamples[Steps.GRASS] = pool.load(context, R.raw.sfx_step_grass, 1)
+        stepSamples[Steps.SAND] = pool.load(context, R.raw.sfx_step_sand, 1)
+        stepSamples[Steps.SNOW] = pool.load(context, R.raw.sfx_step_snow, 1)
+        stepSamples[Steps.WATER] = pool.load(context, R.raw.sfx_step_water, 1)
+        stepSamples[Steps.STONE] = pool.load(context, R.raw.sfx_step_stone, 1)
     }
 
     private fun isLoaded(id: Int) = synchronized(loaded) { id in loaded }
@@ -127,17 +143,18 @@ class Audio(private val context: Context) {
         if (kind == stepKind && run == stepRun) return
         stopSteps()
         if (!sfxOn || paused || kind == Steps.NONE) return
-        val sample = when {
-            kind == Steps.WOOD -> stepWood
-            run -> stepGravel2
-            else -> stepGravel1
-        }
+        val sample = if (kind == Steps.GRAVEL && run) stepGravel2 else stepSamples[kind] ?: return
         if (!isLoaded(sample)) return
         try {
-            val stream = pool.play(sample, 0.34f, 0.34f, 0, -1, if (run) 1.15f else 1f)
+            // 물웅덩이 원본은 걸음이 잦아(0.35초) 조금 늦춰 걷는 리듬에 맞춘다.
+            val rate = when {
+                kind == Steps.WATER -> if (run) 1.0f else 0.88f
+                run -> 1.15f
+                else -> 1f
+            }
+            val stream = pool.play(sample, 0.34f, 0.34f, 0, -1, rate)
             if (stream != 0) {
                 stepStream = stream
-                stepSample = sample
                 stepKind = kind
                 stepRun = run
             }

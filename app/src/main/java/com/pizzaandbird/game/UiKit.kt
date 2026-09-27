@@ -81,6 +81,39 @@ object UiKit {
         "◀" to "arrow_left", "‹" to "arrow_left", "←" to "arrow_left",
         "▶" to "arrow_right", "›" to "arrow_right", "→" to "arrow_right",
         "▲" to "arrow_up", "↑" to "arrow_up", "▼" to "arrow_down", "↓" to "arrow_down"
+    ) + mapOf(
+        // 다른 데이터/UI 화면에 남아 있던 유니코드 아이콘도 모두 로컬 SVG로 통일
+        "🖼" to "photo", "🌠" to "sparkle", "🪶" to "bird", "🌈" to "sparkle",
+        "👟" to "walk", "🚴" to "bike", "🧭" to "map", "🦉" to "bird", "🌧" to "rain",
+        "🪙" to "coin", "🏅" to "trophy", "📍" to "pin", "✈" to "travel", "🚶" to "walk",
+        "❔" to "question", "🔒" to "lock", "👥" to "people", "🔲" to "camera", "➕" to "plus",
+        "📜" to "book", "🔎" to "search", "✍" to "note", "🗄" to "box", "📋" to "note",
+        "📥" to "arrow_down", "📤" to "arrow_up", "😿" to "paw", "🎉" to "sparkle",
+        "✅" to "check", "🙈" to "paw", "⚠️" to "warning", "🍗" to "meat", "🥔" to "vegetable",
+        "🦑" to "fish", "🫘" to "vegetable", "🥬" to "leaf", "🐟" to "fish", "🐖" to "meat",
+        "🪵" to "plant", "🏯" to "landmark", "🛋" to "chair", "🚵" to "bike", "🌴" to "plant",
+        "🤸" to "walk", "🔋" to "sparkle", "🎩" to "sparkle", "🔦" to "sun", "🔔" to "note",
+        "🦵" to "walk", "🤫" to "bird", "🍙" to "bread", "🍀" to "leaf", "👁️" to "search",
+        "🏙" to "house", "🏞" to "landscape", "🌊" to "water", "⛰" to "mountain", "🚄" to "travel",
+        "🍎" to "fruit", "🐳" to "water", "🌉" to "landmark", "🏝" to "landscape", "🥄" to "note",
+        "🕊" to "bird", "🦆" to "bird", "🌳" to "plant", "🏢" to "house", "🦢" to "bird",
+        "🌾" to "plant", "🐚" to "water", "🪿" to "bird", "🦪" to "water", "🪷" to "flower",
+        "🌋" to "mountain", "🗼" to "landmark", "🏛" to "landmark", "🔬" to "search",
+        "🛶" to "boat", "🌫" to "cloud", "🎋" to "plant", "😆" to "sparkle", "🎣" to "fish",
+        "💎" to "sparkle", "🔵" to "sparkle", "🦅" to "bird", "👣" to "walk", "💧" to "water",
+        "🫧" to "water", "🦀" to "fish", "⚡" to "sparkle", "🍃" to "leaf", "🍂" to "leaf",
+        "🐥" to "bird", "🍒" to "fruit", "🍊" to "fruit", "⚓" to "boat", "⛵" to "boat",
+        "🪨" to "mountain", "⛅" to "cloud", "👑" to "trophy", "🛡" to "check", "🛳" to "boat",
+        "🌺" to "flower", "🌬" to "wind", "🍵" to "coffee", "🫖" to "coffee", "🦋" to "flower",
+        "🪰" to "bird", "🌕" to "moon", "🐈‍⬛" to "paw", "🦐" to "fish", "🏬" to "house",
+        "🧴" to "plant", "🧶" to "plant", "🏔" to "mountain", "🌆" to "house", "🌼" to "flower",
+        "🌹" to "flower", "🍓" to "fruit", "🌰" to "fruit", "🤍" to "sparkle", "🫓" to "bread",
+        "🍞" to "bread", "👊" to "fist", "☘️" to "leaf", "☀️" to "sun", "🏖️" to "landscape",
+        "❄️" to "snow", "📷" to "camera", "📸" to "photo", "🎒" to "backpack", "🏠" to "house",
+        "🐦" to "bird", "🚲" to "bike", "📚" to "book", "📖" to "book", "🗺️" to "map",
+        "💬" to "note", "☕" to "coffee", "🛏" to "house", "🚪" to "house", "🌙" to "moon",
+        "★" to "star", "☆" to "star_empty", "✕" to "close", "✓" to "check", "✔" to "check",
+        "♪" to "music", "🎀" to "flower", "🌇" to "sun", "💤" to "moon"
     )
 
     /** SVG 파일 이름으로 변환한다. 아이콘이 아닌 문자열이면 null을 반환한다. */
@@ -107,6 +140,61 @@ object UiKit {
     /** 중심 좌표 기준 아이콘. SVG는 텍스트보다 baseline 차이가 없어 작은 UI에도 안정적이다. */
     fun iconCenter(c: Canvas, game: Game, token: String, cx: Float, cy: Float, size: Float): Boolean {
         return icon(c, game, token, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f))
+    }
+
+    private val unicodeIconTokens by lazy {
+        iconAliases.keys.filter { it.any { ch -> ch.code > 0x7f } }.sortedByDescending { it.length }
+    }
+
+    /** 유니코드 아이콘이 섞인 문장을 SVG 아이콘과 일반 글자로 렌더링한다. */
+    fun iconTextWidth(text: String, paint: Paint): Float {
+        var width = 0f
+        var i = 0
+        var runStart = 0
+        while (i < text.length) {
+            val token = unicodeIconTokens.firstOrNull { text.startsWith(it, i) }
+            if (token == null) {
+                i += Character.charCount(Character.codePointAt(text, i))
+                continue
+            }
+            if (runStart < i) width += paint.measureText(text, runStart, i)
+            width += paint.textSize * 1.04f
+            i += token.length
+            runStart = i
+        }
+        if (runStart < text.length) width += paint.measureText(text, runStart, text.length)
+        return width
+    }
+
+    /** 왼쪽 시작점과 baseline을 기준으로 문장 안의 유니코드 아이콘을 SVG로 바꿔 그린다. */
+    fun drawIconText(c: Canvas, game: Game, text: String, x: Float, baseline: Float, paint: Paint) {
+        var cursor = x
+        var i = 0
+        var runStart = 0
+        val iconSize = paint.textSize * 0.94f
+        while (i < text.length) {
+            val token = unicodeIconTokens.firstOrNull { text.startsWith(it, i) }
+            if (token == null) {
+                i += Character.charCount(Character.codePointAt(text, i))
+                continue
+            }
+            if (runStart < i) {
+                val run = text.substring(runStart, i)
+                c.drawText(run, cursor, baseline, paint)
+                cursor += paint.measureText(run)
+            }
+            val top = baseline - paint.textSize * 0.86f
+            val bounds = RectF(cursor, top, cursor + iconSize, top + iconSize)
+            if (paint.alpha < 255) {
+                val save = c.saveLayerAlpha(bounds, paint.alpha)
+                icon(c, game, token, bounds)
+                c.restoreToCount(save)
+            } else icon(c, game, token, bounds)
+            cursor += paint.textSize * 1.04f
+            i += token.length
+            runStart = i
+        }
+        if (runStart < text.length) c.drawText(text, runStart, text.length, cursor, baseline, paint)
     }
 
     // ------------------------------------------------------------------
@@ -547,16 +635,16 @@ object UiKit {
         val d = game.density
         val tp = Type.paintAt(textSizeDp, true, 0.02f, CREAM)
         var msg = txt
-        var tw = tp.measureText(msg)
+        var tw = iconTextWidth(msg, tp)
         val pad = 9f * d
         // 칩이 화면 밖으로 삐져나오지 않게 — 폭이 모자라면 말줄임, 그래도 좌우 끝에 붙인다.
         val margin = 6f * d
         val maxW = (game.screenW - margin * 2f).coerceAtLeast(60f * d)
         if (tw + pad * 2f > maxW) {
             var t = txt
-            while (t.length > 1 && tp.measureText("$t…") + pad * 2f > maxW) t = t.dropLast(1)
+            while (t.length > 1 && iconTextWidth("$t…", tp) + pad * 2f > maxW) t = t.dropLast(1)
             msg = "$t…"
-            tw = tp.measureText(msg)
+            tw = iconTextWidth(msg, tp)
         }
         var left = cx - (tw + pad * 2f) / 2f
         val maxLeft = (game.screenW - margin - tw - pad * 2f).coerceAtLeast(margin)
@@ -572,7 +660,7 @@ object UiKit {
         stroke.color = Color.argb(170, 233, 196, 106)
         stroke.strokeWidth = 1.4f * d
         c.drawRoundRect(r, 12f * d, 12f * d, stroke)
-        c.drawText(msg, left + pad, Type.midBaseline(tp, cy), tp)
+        drawIconText(c, game, msg, left + pad, Type.midBaseline(tp, cy), tp)
     }
 
     // ------------------------------------------------------------------
@@ -601,17 +689,18 @@ object UiKit {
     ) {
         val d = game.density
         val tp = Type.paintAt(textSizeDp, true, 0.03f, color)
-        val tw = tp.measureText(label)
+        val tw = iconTextWidth(label, tp)
         val ty = r.centerY() - (tp.descent() + tp.ascent()) / 2f
         if (shadow) {
-            c.drawText(label, r.centerX() - tw / 2f, ty + 1f * d, Type.paintAt(textSizeDp, true, 0.03f, Color.argb(80, 40, 26, 12)))
+            drawIconText(c, game, label, r.centerX() - tw / 2f, ty + 1f * d,
+                Type.paintAt(textSizeDp, true, 0.03f, Color.argb(80, 40, 26, 12)))
         }
-        c.drawText(label, r.centerX() - tw / 2f, ty, tp)
+        drawIconText(c, game, label, r.centerX() - tw / 2f, ty, tp)
     }
 
-    /** 왼쪽 정렬 텍스트 (그림자 포함) */
+    /** 왼쪽 정렬 텍스트 (문장에 섞인 아이콘은 SVG로 렌더링) */
     fun drawText(c: Canvas, game: Game, label: String, x: Float, y: Float, textSizeDp: Float, color: Int) {
-        c.drawText(label, x, y, Type.paintAt(textSizeDp, true, 0.02f, color))
+        drawIconText(c, game, label, x, y, Type.paintAt(textSizeDp, true, 0.02f, color))
     }
 
     // ==================================================================

@@ -3,47 +3,64 @@
 /**
  * tools/preview — R 리소스 ID 스텁 (aapt 대체). res/raw·drawable의 파일 목록 기준 자동 생성.
  * drawable은 Context.drawableRegistry에 이름을 등록해 VectorArtDrawable 렌더링에 쓰인다.
- * (갱신: app/src/main/res 파일 목록이 바뀌면 이 파일을 다시 생성할 것)
+ * (갱신: python3 tools/preview/gen_r_stub.py — res/raw·res/drawable 목록이 바뀌면 다시 돌릴 것)
  */
 package com.pizzaandbird.game
 object R {
+
     object raw {
         val amb_birds = 1
-        val amb_fire = 2
-        val amb_forest = 3
-        val amb_hum = 4
-        val amb_night = 5
-        val amb_sea = 6
-        val amb_wind = 7
-        val bgm_home = 8
-        val bgm_mountain = 9
-        val bgm_sea = 10
-        val bgm_title = 11
-        val bgm_world = 12
-        val sfx_bag_open = 13
-        val sfx_bike_bell = 14
-        val sfx_bike_brake = 15
-        val sfx_bird_chirp1 = 16
-        val sfx_bird_chirp2 = 17
-        val sfx_bird_flee = 18
-        val sfx_book_open = 19
-        val sfx_buy = 20
-        val sfx_crow = 21
-        val sfx_cuckoo1 = 22
-        val sfx_cuckoo2 = 23
-        val sfx_eat = 24
-        val sfx_fail = 25
-        val sfx_notify = 26
-        val sfx_owl = 27
-        val sfx_reward = 28
-        val sfx_shutter = 29
-        val sfx_sparkle = 30
-        val sfx_step_gravel1 = 31
-        val sfx_step_gravel2 = 32
-        val sfx_step_wood = 33
-        val sfx_success = 34
-        val sfx_tap = 35
-        val sfx_whoosh = 36
+        val amb_cicada = 2
+        val amb_cricket = 3
+        val amb_fire = 4
+        val amb_forest = 5
+        val amb_frog = 6
+        val amb_hum = 7
+        val amb_night = 8
+        val amb_rain = 9
+        val amb_rain_heavy = 10
+        val amb_rain_roof = 11
+        val amb_sea = 12
+        val amb_wind = 13
+        val bgm_home = 14
+        val bgm_mountain = 15
+        val bgm_sea = 16
+        val bgm_title = 17
+        val bgm_world = 18
+        val sfx_bag_open = 19
+        val sfx_bike_bell = 20
+        val sfx_bike_brake = 21
+        val sfx_bird_chirp1 = 22
+        val sfx_bird_chirp2 = 23
+        val sfx_bird_flee = 24
+        val sfx_book_open = 25
+        val sfx_buy = 26
+        val sfx_cat_meow1 = 27
+        val sfx_cat_meow2 = 28
+        val sfx_cat_meow3 = 29
+        val sfx_cat_punch = 30
+        val sfx_crow = 31
+        val sfx_cuckoo1 = 32
+        val sfx_cuckoo2 = 33
+        val sfx_eat = 34
+        val sfx_fail = 35
+        val sfx_levelup = 36
+        val sfx_notify = 37
+        val sfx_owl = 38
+        val sfx_reward = 39
+        val sfx_shutter = 40
+        val sfx_sparkle = 41
+        val sfx_step_grass = 42
+        val sfx_step_gravel1 = 43
+        val sfx_step_gravel2 = 44
+        val sfx_step_sand = 45
+        val sfx_step_snow = 46
+        val sfx_step_stone = 47
+        val sfx_step_water = 48
+        val sfx_step_wood = 49
+        val sfx_success = 50
+        val sfx_tap = 51
+        val sfx_whoosh = 52
     }
 
     object drawable {

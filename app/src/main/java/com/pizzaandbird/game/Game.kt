@@ -347,7 +347,6 @@ class Game(val context: Context) {
             return
         }
         val ov = scene.overlay
-        if (ov == null && input.rawMode) input.rawMode = false
         if (ov != null) {
             // 입력은 등장 애니메이션과 무관하게 즉시 받는다. 한 프레임의 입력은
             // endFrame()에서 지워지므로 메뉴를 연 터치가 새 오버레이에 다시 전달되지 않는다.
