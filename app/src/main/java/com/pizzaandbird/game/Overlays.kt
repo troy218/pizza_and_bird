@@ -706,7 +706,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val total = Birds.ALL.size
         textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("📚 도감 $done/$total종", areaLeft, contentTop() + dp(scene, 4f), textP)
+        c.drawText("📚 도감 ${done}/${total}종", areaLeft, contentTop() + dp(scene, 4f), textP)
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFFB5651D.toInt()
         val pctTxt = "${(done * 100f / total).toInt()}% 완성!"
