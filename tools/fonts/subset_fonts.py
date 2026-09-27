@@ -2,7 +2,7 @@
 """Pizza and Bird — 번들 글꼴 서브셋 생성기
 ============================================
 
-게임은 완전 오프라인이라 글꼴을 assets/fonts/ 에 번들한다.
+게임은 완전 오프라인이라 글꼴을 assets/font/ 에 번들한다.
 원본 글꼴(주아/고운 돋움/고운 바탕/가경)은 한글 완성자 전체 + 한자 등으로
 개당 수 MB라, 게임 소스에 실제로 등장하는 글자만 남겨 서브셋한다.
 (빠진 글자가 혹시 나오면 안드로이드가 시스템 글꼴로 자동 대체한다.)
@@ -13,9 +13,9 @@
     python3 tools/fonts/subset_fonts.py
 
 원본 TTF를 이 스크립트와 같은 폴더(또는 --src 로 지정한 폴더)에 두고 돌리면
-app/src/main/assets/fonts/ 에 서브셋 결과를 덮어쓴다.
+app/src/main/assets/font/ 에 서브셋 결과를 덮어쓴다.
 원본은 구글 폰트 저장소(https://github.com/google/fonts)의 각 ofl/ 폴더에서
-받을 수 있으며, 라이선스 전문은 app/src/main/assets/fonts/OFL_LICENSE.txt 참고.
+받을 수 있으며, 라이선스 전문은 app/src/main/assets/font/OFL_LICENSE.txt 참고.
 
 대사·새 이름 등 게임 텍스트를 추가했다면 이 스크립트를 다시 실행해
 서브셋에 새 글자가 포함되도록 한다.
@@ -28,7 +28,7 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_MAIN = os.path.join(REPO_ROOT, "app", "src", "main")
-OUT_DIR = os.path.join(SRC_MAIN, "assets", "fonts")
+OUT_DIR = os.path.join(SRC_MAIN, "assets", "font")
 
 # (원본 파일, 저장될 이름)
 FONTS = [

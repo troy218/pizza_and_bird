@@ -55,6 +55,19 @@ java -cp tools/preview/out/classes-preview:$KOTLIN_HOME/lib/kotlin-stdlib.jar \
   com.pizzaandbird.preview.PreviewMain tools/preview/out
 ```
 
+### 입력 회귀 테스트
+
+동일한 프리뷰 스텁으로 실제 `Input`/`Game`/`Scene`을 구동해 **타이틀 → 캐릭터 선택 → 서울 시작 → 월드**, 레터박스 좌표·집/월드 카메라·모달 터치·일시정지 입력 해제를 검사합니다 (JDK 17 + kotlinc 필요).
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/input_smoke.kt $SRCS \
+  -d tools/preview/out/classes-smoke -jvm-target 17
+java -cp "tools/preview/out/classes-smoke:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.InputSmoke
+```
+
 ### 출력물
 
 | 파일 | 내용 |

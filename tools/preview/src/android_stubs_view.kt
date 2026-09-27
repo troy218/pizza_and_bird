@@ -3,7 +3,11 @@
 /** tools/preview — android.view 이벤트 스텁. Input.kt 컴파일용 (실제 이벤트는 발생시키지 않는다). */
 package android.view
 
-class MotionEvent {
+class MotionEvent(
+    val actionMasked: Int = ACTION_DOWN,
+    val actionIndex: Int = 0,
+    private val pointers: List<Triple<Int, Float, Float>> = listOf(Triple(0, 0f, 0f))
+) {
     companion object {
         const val ACTION_DOWN = 0
         const val ACTION_UP = 1
@@ -13,13 +17,11 @@ class MotionEvent {
         const val ACTION_POINTER_UP = 6
     }
 
-    val actionMasked: Int = 0
-    val actionIndex: Int = 0
-    val pointerCount: Int = 0
+    val pointerCount: Int get() = pointers.size
 
-    fun getX(index: Int): Float = 0f
-    fun getY(index: Int): Float = 0f
-    fun getPointerId(index: Int): Int = 0
+    fun getX(index: Int): Float = pointers[index].second
+    fun getY(index: Int): Float = pointers[index].third
+    fun getPointerId(index: Int): Int = pointers[index].first
 }
 
 class KeyEvent {

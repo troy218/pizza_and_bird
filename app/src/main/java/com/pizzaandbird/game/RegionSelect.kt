@@ -45,7 +45,15 @@ object RegionCards {
         val dp = game.density
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.body }
+        // 역할별 페인트: 이름은 진하게, 설명은 보통 두께로
+        val namePaint = Type.paintAt(14f, true, 0.03f, Type.INK)
+        val enPaint = Type.paintAt(8.5f, false, 0f, Type.SOFT)
+        val metaLeaf = Type.paintAt(9.5f, false, 0f, Type.LEAF)
+        val metaBird = Type.paintAt(9.5f, false, 0f, Type.BROWN)
+        val metaSeason = Type.paintAt(9.5f, false, 0f, Type.SKY)
+        val descPaint = Type.paintAt(9.5f, false, 0f, Type.SOFT)
+        val homeOwnedPaint = Type.paintAt(9f, true, 0.02f, Type.SKY)
+        val homeBuyPaint = Type.paintAt(9f, true, 0.02f, Type.CARAMEL)
 
         for ((i, reg) in regions.withIndex()) {
             if (i >= rects.size) break
@@ -66,55 +74,37 @@ object RegionCards {
                 stroke.color = 0xFFFFF8E8.toInt()
                 stroke.strokeWidth = dp * 2f
                 c.drawCircle(ccx, ccy, dp * 11f, stroke)
-                tp.typeface = Fonts.round
-                tp.textSize = dp * 12f
-                tp.color = 0xFFFFF8E8.toInt()
-                c.drawText("✓", ccx - tp.measureText("✓") / 2f, ccy - (tp.descent() + tp.ascent()) / 2f, tp)
+                val vp = Type.paintAt(12f, true, 0.02f, 0xFFFFF8E8.toInt())
+                c.drawText("✓", ccx - vp.measureText("✓") / 2f, Type.midBaseline(vp, ccy), vp)
             }
 
             val x = r.left + dp * 10
             var y = r.top + dp * 16
-            tp.typeface = Fonts.round
-            tp.textSize = dp * 14f
-            tp.color = 0xFF4A3728.toInt()
             val nameLine = "${reg.emoji} ${reg.name}"
-            c.drawText(nameLine, x, y, tp)
-            val nameW = tp.measureText(nameLine)
-            tp.typeface = Fonts.body
-            tp.textSize = dp * 8.5f
-            tp.color = 0xFF8A7360.toInt()
-            c.drawText(reg.english, x + nameW + dp * 6f, y, tp)
+            c.drawText(nameLine, x, y, namePaint)
+            val nameW = namePaint.measureText(nameLine)
+            c.drawText(reg.english, x + nameW + dp * 6f, y, enPaint)
 
             y += dp * 13f
-            tp.textSize = dp * 9.5f
-            tp.color = 0xFF6FAE6F.toInt()
-            c.drawText(reg.habitatLabels, x, y, tp)
+            c.drawText(reg.habitatLabels, x, y, metaLeaf)
 
             y += dp * 12f
-            tp.textSize = dp * 9.5f
-            tp.color = 0xFF6B4F35.toInt()
             val sig = "대표 새: " + Regions.signatureBirds(reg).joinToString(", ") { it.name }
-            c.drawText(sig, x, y, tp)
+            c.drawText(sig, x, y, metaBird)
 
             y += dp * 12f
-            tp.textSize = dp * 9.5f
-            tp.color = 0xFF3F6FB0.toInt()
-            c.drawText("📅 ${reg.season}", x, y, tp)
+            c.drawText("📅 ${reg.season}", x, y, metaSeason)
 
             y += dp * 12f
-            tp.textSize = dp * 9.5f
-            tp.color = 0xFF8A7360.toInt()
-            val descLines = game.hud.wrapText(reg.desc, tp, r.width() - dp * 20f).take(1)
+            val descLines = game.hud.wrapText(reg.desc, descPaint, r.width() - dp * 20f).take(1)
             for (ln in descLines) {
-                c.drawText(ln, x, y, tp)
+                c.drawText(ln, x, y, descPaint)
                 y += dp * 11f
             }
-            tp.textSize = dp * 9f
             val hasHome = reg.id == START_REGION_ID || game.state.ownsHome(reg.id)
-            tp.color = if (hasHome) 0xFF3F6FB0.toInt() else 0xFFB5651D.toInt()
             val homeLine = if (reg.id == START_REGION_ID && !game.state.started) "🏠 시작 집 제공"
             else if (hasHome) "🏠 보유한 집" else "집 매입 ${won(HousePrices.forRegion(reg.id))}"
-            c.drawText(homeLine, x, y + dp * 2f, tp)
+            c.drawText(homeLine, x, y + dp * 2f, if (hasHome) homeOwnedPaint else homeBuyPaint)
         }
     }
 
@@ -136,6 +126,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
     private var cardRects: List<RectF> = emptyList()
     private var area = RectF()
     private var confirmRect = RectF()
+    private var backRect = RectF()
     private val regions = listOf(selected)
 
     init {
@@ -189,18 +180,12 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val dp = game.density
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
+        backRect = RectF(dp * 14f, dp * 14f, dp * 90f, dp * 50f)
+        UiKit.button(c, game, backRect, "◀ 뒤로", 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f)
 
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.round }
-        tp.textSize = dp * 20f
-        tp.color = 0xFF4A3728.toInt()
-        val t1 = "서울에서 시작해볼까요?"
-        c.drawText(t1, w / 2f - tp.measureText(t1) / 2, dp * 30f, tp)
-        tp.typeface = Fonts.body
-        tp.isFakeBoldText = false
-        tp.textSize = dp * 11.5f
-        tp.color = 0xFF5A6B5A.toInt()
-        val t2 = "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요"
-        c.drawText(t2, w / 2f - tp.measureText(t2) / 2, dp * 48f, tp)
+        Type.sticker(c, "서울에서 시작해볼까요?", w / 2f, dp * 32f, Role.DISPLAY, Type.INK)
+        Type.text(c, "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요",
+            w / 2f, dp * 50f, Role.CAPTION, Type.LEAF, 0.5f)
 
         area = RectF(
             dp * 56f, dp * 70f, w - dp * 56f, h - dp * 88f
@@ -213,10 +198,8 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val bar = RectF(dp * 16f, h - barH - dp * 12f, w - dp * 16f, h - dp * 12f)
         UiKit.panel(c, game, bar)
 
-        tp.textSize = dp * 13f
-        tp.color = 0xFF4A3728.toInt()
         val info = "서울에 집을 마련하고 여행을 시작할게요"
-        c.drawText(info, bar.left + dp * 16f, bar.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
+        Type.textCentered(c, info, bar.left + dp * 16f, bar.centerY(), Role.BODY, Type.INK)
 
         val bw = dp * 150f
         confirmRect = RectF(bar.right - bw - dp * 12f, bar.top + dp * 10f, bar.right - dp * 12f, bar.bottom - dp * 10f)
@@ -225,11 +208,14 @@ class RegionSelectScene(game: Game) : Scene(game) {
 
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
-        if (input.justBack) {
-            game.scene = TitleScene(game)
+        if (input.justBack || (tap != null && backRect.contains(tap.x, tap.y))) {
+            game.scene = CharacterSelectScene(game)
             return
         }
-        if (tap != null && confirmRect.contains(tap.x, tap.y)) startGame(selected)
+        if (tap != null && confirmRect.contains(tap.x, tap.y)) {
+            startGame(selected)
+            return
+        }
         if (input.justA) startGame(selected)
     }
 
@@ -304,18 +290,10 @@ class RegionSelectOverlay(
         panelR = RectF(dp * 14f, dp * 14f, w - dp * 14f, h - dp * 14f)
         UiKit.panel(c, game, panelR)
 
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.round }
-        tp.textSize = dp * 16f
-        tp.color = 0xFF4A3728.toInt()
         val t1 = "📦 이사갈 곳을 골라요"
-        c.drawText(t1, panelR.left + dp * 16f, panelR.top + dp * 26f, tp)
-        tp.typeface = Fonts.body
-        tp.isFakeBoldText = false
-        tp.textSize = dp * 11f
-        tp.color = 0xFF8A7360.toInt()
+        Type.text(c, t1, panelR.left + dp * 16f, panelR.top + dp * 28f, Role.TITLE, Type.INK)
         val t2 = "이사 ${won(MOVE_COST)} · 방문한 지역의 집을 매입해 내 집으로 만들 수 있어요"
-        c.drawText(t2, panelR.left + dp * 16f, panelR.top + dp * 44f, tp)
-        UiKit.divider(c, game, panelR.left + dp * 14f, panelR.right - dp * 14f, panelR.top + dp * 52f)
+        Type.text(c, t2, panelR.left + dp * 16f, panelR.top + dp * 46f, Role.CAPTION, Type.SOFT)
 
         area = RectF(
             panelR.left + dp * 12f, panelR.top + dp * 56f,
@@ -337,11 +315,10 @@ class RegionSelectOverlay(
                 UiKit.button(c, game, rr, lbl, 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 11.5f)
             }
             val pg = "${page + 1} / $pages  (방문 ${allRegions.size}곳)"
-            tp.textSize = dp * 12f
-            val pgW = tp.measureText(pg) + dp * 22f
+            val pgW = Type.width(Role.LABEL, pg, Type.INK) + dp * 22f
             UiKit.badge(
                 c, game, RectF(panelR.centerX() - pgW / 2f, navY, panelR.centerX() + pgW / 2f, navY + navH),
-                pg, 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 12f
+                pg, 0xFF6B4F35.toInt(), Type.INK, 12f
             )
             return
         }
@@ -349,8 +326,6 @@ class RegionSelectOverlay(
         // 확인 바 — 카드 배경 + 골드/크림 버튼
         val bar = RectF(panelR.left + dp * 12f, panelR.bottom - dp * 58f, panelR.right - dp * 12f, panelR.bottom - dp * 10f)
         UiKit.card(c, game, bar, 10f, false, 0xFFC9A87B.toInt(), 1.5f)
-        tp.textSize = dp * 12.5f
-        tp.color = 0xFF4A3728.toInt()
         val cur = scene.game.state
         val houseCost = if (cur.ownsHome(selected!!.id)) 0 else HousePrices.forRegion(selected!!.id)
         var info = when {
@@ -362,13 +337,14 @@ class RegionSelectOverlay(
         confirmRect = RectF(bar.right - bw - dp * 10f, bar.top + dp * 8f, bar.right - dp * 10f, bar.bottom - dp * 8f)
         cancelRect = RectF(confirmRect.left - bw - dp * 8f, bar.top + dp * 8f, confirmRect.left - dp * 8f, bar.bottom - dp * 8f)
         // 정보 문구가 버튼과 겹치지 않게 말줄임
+        val infoPaint = Type.paint(Role.BODY, Type.INK)
         val maxIW = cancelRect.left - bar.left - dp * 16f
         if (maxIW > dp * 60f) {
             val origLen = info.length
-            while (info.length > 4 && tp.measureText(info) > maxIW) info = info.dropLast(1)
+            while (info.length > 4 && infoPaint.measureText(info) > maxIW) info = info.dropLast(1)
             if (info.length < origLen) info = info.dropLast(1) + "…"
         }
-        c.drawText(info, bar.left + dp * 10f, bar.centerY() - (tp.descent() + tp.ascent()) / 2, tp)
+        Type.text(c, info, bar.left + dp * 10f, Type.midBaseline(infoPaint, bar.centerY()), Role.BODY, Type.INK)
 
         val label = if (houseCost > 0) "매입 & 이사" else "이사!"
         UiKit.button(c, game, confirmRect, label, 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 13f)

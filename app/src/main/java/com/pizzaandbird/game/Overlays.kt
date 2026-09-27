@@ -31,13 +31,12 @@ abstract class Overlay(val scene: Scene) {
 // 공통 페인트 (서브 UI 직접 그리기용)
 private val fillP = Paint(Paint.ANTI_ALIAS_FLAG)
 private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+// 화면마다 dp 를 직접 지정하는 곳에서 쓰는 공용 텍스트 페인트.
+// 글꼴은 Type 이 관리한다(assets 에 둥근 한글 폰트를 넣으면 그대로 적용).
+private val textP = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply { letterSpacing = 0.01f }
 
-// 기본 본문 글꼴은 부드러운 고운 돋움. 제목/버튼류는 그리는 쪽에서 주아로 바꾸고,
-// 폴라로이드 캡션처럼 손맛이 필요한 곳은 가경으로 갈아 끼운다.
-private val textP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    isFakeBoldText = true
-    typeface = Fonts.body
-}
+/** 폴라로이드 캡션 붓 — 번들 손글씨 글꼴(가경). [Type.init] 이후에 글꼴이 걸린다. */
+private val captionP = Paint(Paint.ANTI_ALIAS_FLAG).apply { letterSpacing = 0.01f }
 
 private fun dp(scene: Scene, v: Float): Float = v * scene.game.density
 
@@ -65,6 +64,40 @@ private fun drawCard(
     selected: Boolean = false, borderColor: Int = 0xFFC9A87B.toInt(), borderW: Float = 1.5f
 ) {
     UiKit.card(c, scene.game, r, 10f, selected, borderColor, borderW)
+}
+
+/** 텍스트가 maxW 안에 들어가도록 글자 크기를 줄여 그린다 (최소 minSize) */
+private fun drawFitText(c: Canvas, scene: Scene, text: String, x: Float, y: Float, maxW: Float, size: Float, minSize: Float = 7.5f) {
+    var sz = size
+    textP.textSize = dp(scene, sz)
+    while (textP.measureText(text) > maxW && sz > minSize) {
+        sz -= 0.5f
+        textP.textSize = dp(scene, sz)
+    }
+    c.drawText(text, x, y, textP)
+}
+
+/** 조리기구 일러스트 — 화덕은 SVG, 가정용 오븐은 타일 아트(RANGE, 불빛 깜빡임) */
+private fun drawStationArt(c: Canvas, scene: Scene, kind: PizzaKind, bounds: RectF) {
+    val g = scene.game
+    if (kind == PizzaKind.OVEN) {
+        g.illustrations.draw(c, "wood_fired_oven.svg", bounds)
+    } else {
+        val a = g.assets
+        val frames = a.tiles[T.RANGE.ordinal]
+        val bmp = frames[((g.time * 3.4f).toInt() % frames.size + frames.size) % frames.size]
+        val sz = minOf(bounds.width(), bounds.height())
+        val dst = RectF(bounds.centerX() - sz / 2f, bounds.centerY() - sz / 2f, bounds.centerX() + sz / 2f, bounds.centerY() + sz / 2f)
+        c.drawBitmap(bmp, null, dst, a.sprPaint)
+    }
+}
+
+/** 피자 아이콘을 폭 w에 맞춰 (비율 유지) 그린다 */
+private fun drawPizzaArt(c: Canvas, scene: Scene, pizzaId: Int, cx: Float, cy: Float, w: Float) {
+    val a = scene.game.assets
+    val bmp = a.pizzaArt(pizzaId)
+    val h = w * bmp.height / bmp.width
+    c.drawBitmap(bmp, null, RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f), a.sprPaint)
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +152,10 @@ class DialogOverlay(
         val h = g.screenH.toFloat()
         val margin = dp(scene, 18f)
 
-        // 본문 줄 수에 맞춰 패널 높이 결정
-        textP.typeface = Fonts.body
-        textP.textSize = dp(scene, 13f)
+        // 본문 줄 수에 맞춰 패널 높이 결정 (본문 = 보통 두께가 읽기 편하다)
+        val bodyPaint = Type.paint(Role.BODY, Type.INK)
         val maxW = w - margin * 2f - dp(scene, 28f)
-        val lines = g.hud.wrapText(body, textP, maxW).take(8)
+        val lines = Type.wrap(body, bodyPaint, maxW).take(8)
         val panelH = dp(scene, 108f) + dp(scene, 17f) * (lines.size - 3).coerceAtLeast(0)
         val r = RectF(margin, h - margin - panelH, w - margin, h - margin)
 
@@ -132,8 +164,6 @@ class DialogOverlay(
         c.translate(0f, enterShift())
         panel(c, r, scene)
 
-        textP.textSize = dp(scene, 11f)
-        textP.color = 0xFF6FAE6F.toInt()
         if (title.isNotEmpty()) {
             val tw = textP.measureText(title)
             val chip = RectF(r.left + dp(scene, 12f), r.top - dp(scene, 11f), r.left + dp(scene, 12f) + tw + dp(scene, 16f), r.top + dp(scene, 11f))
@@ -141,13 +171,11 @@ class DialogOverlay(
             UiKit.button(c, g, chip, title, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 11f)
         }
 
-        // 본문
-        textP.textSize = dp(scene, 13f)
-        textP.color = 0xFF4A3728.toInt()
+        // 본문 — 한 줄에 Type.lineHeight 만큼만 내려간다(줄 간격 통일)
         var ty = r.top + dp(scene, 24f)
         for (ln in lines) {
-            c.drawText(ln, r.left + dp(scene, 14f), ty, textP)
-            ty += dp(scene, 17f)
+            c.drawText(ln, r.left + dp(scene, 14f), ty, bodyPaint)
+            ty += Type.lineHeight(Role.BODY)
         }
 
         // 선택지 — 첫 번째(긍정) 버튼은 골드 프라이머리, 나머지는 크림 세컨더리
@@ -253,14 +281,12 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         panel(c, panelR, scene)
 
         // 헤더 — 타이틀 + 서브 + 원형 닫기 버튼
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
         val titleTxt = "🎒 여행 가방"
         c.drawText(titleTxt, panelR.left + dp(scene, 16f), panelR.top + dp(scene, 26f), textP)
         // 서브 타이틀 (패널이 좁으면 생략 — 닫기 버튼과 겹침 방지)
         if (panelR.width() > dp(scene, 340f)) {
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 10f)
             textP.color = 0xFF8A7360.toInt()
             val subW = textP.measureText(titleTxt)
@@ -334,7 +360,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val walletH = dp(scene, 32f)
         val walletR = RectF(left, y, right, y + walletH)
         UiKit.button(c, g, walletR, "", 0xFFF2B63C.toInt(), 0xFF4A3728.toInt(), 12f)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 12f)
         textP.color = 0xFF6B4F35.toInt()
         c.drawText("💰  내 지갑", left + dp(scene, 12f), walletR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
@@ -343,7 +368,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val moneyTxt = won(s.money)
         c.drawText(moneyTxt, right - dp(scene, 12f) - textP.measureText(moneyTxt), walletR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
         y += walletH + dp(scene, 6f)
-        textP.typeface = Fonts.body
 
         // 2) 컨디션 카드 — 배고픔/행운 그라데이션 바
         val vitH = dp(scene, 52f)
@@ -436,7 +460,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             "📚 도감" to "${s.birdCounts.size}/${Birds.ALL.size}종",
             "🔍 의뢰" to (s.questBird?.let { Birds.byId[it]?.name } ?: "없음"),
             "⏱ 플레이" to timeStr,
-            "🍕 피자" to "${s.pizzaCount}개 · 🧺${s.decorSlots.count { it >= 0 }}/3"
+            "🍕 피자" to "${s.pizzaCount}개 (🔥${s.pizzaCountOfKind(PizzaKind.OVEN)} · 🍕${s.pizzaCountOfKind(PizzaKind.REGULAR)}) · 🧺${s.decorSlots.count { it >= 0 }}/3"
         )
         for (i in cells.indices) {
             val col = i % 2
@@ -469,7 +493,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
 
     private fun drawQuest(c: Canvas) {
         val s = scene.game.state
-        textP.typeface = Fonts.body
         val left = panelR.left + dp(scene, 16f)
         val right = panelR.right - dp(scene, 16f)
         var y = contentTop() + dp(scene, 5f)
@@ -482,7 +505,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         strokeP.color = if (chapter?.isComplete(s) == true) 0xFFF2B63C.toInt() else 0xFFC9A87B.toInt()
         strokeP.strokeWidth = dp(scene, 1.4f)
         c.drawRoundRect(mainR, dp(scene, 9f), dp(scene, 9f), strokeP)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 13f)
         textP.color = 0xFF6B4F35.toInt()
         val mainTitle = when {
@@ -491,7 +513,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             else -> "메인 ${s.mainQuestStage}/${MainStory.CHAPTERS.size - 1} · ${chapter?.title ?: ""}"
         }
         c.drawText(mainTitle, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 18f), textP)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF796653.toInt()
         val objective = when {
@@ -512,11 +533,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         val lifers = s.birdCounts.size
         val rank = BirdingRanks.of(lifers)
         val next = BirdingRanks.next(lifers)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 12f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("라이퍼 ${lifers}종 · 게임 탐조 등급 「${rank.name}」", left, y + dp(scene, 13f), textP)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
         val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 수집 이정표" else "400종 이상 · 공식 자격이 아닌 수집 이정표"
@@ -534,7 +553,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             val r = RectF(left, y, right, y + rowH - dp(scene, 4f))
             fillP.color = if (done) 0xFFE5F4DD.toInt() else 0xFFF7EBD5.toInt()
             c.drawRoundRect(r, dp(scene, 7f), dp(scene, 7f), fillP)
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 11.5f)
             textP.color = if (done) 0xFF397547.toInt() else 0xFF5D4938.toInt()
             c.drawText("${set.icon} ${if (done) "✓ " else ""}${set.name}  ${set.progress(s)}", r.left + dp(scene, 8f), r.top + dp(scene, 15f), textP)
@@ -566,7 +584,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
     private fun drawGrow(c: Canvas) {
         val g = scene.game
         val s = g.state
-        textP.typeface = Fonts.body
         val left = panelR.left + dp(scene, 16f)
         val right = panelR.right - dp(scene, 16f)
         var ty = contentTop() + dp(scene, 6f)
@@ -579,11 +596,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         c.drawBitmap(avatar, null, RectF(left, ty, left + avatar.width * ak, ty + avatar.height * ak), a.sprPaint)
 
         val tx = left + avatar.width * ak + dp(scene, 12f)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("Lv.${s.level}  ${s.title()}", tx, ty + dp(scene, 16f), textP)
-        textP.typeface = Fonts.body
 
         // 경험치 바
         val bx = tx
@@ -693,18 +708,22 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         }
     }
 
+    /** 피자 탭에서 보고 있는 계열 (화덕피자 / 일반 피자) — 메뉴를 닫았다 열어도 유지 */
+    private var pizzaKindTab: PizzaKind = lastPizzaKindTab
+
     private fun drawPizza(c: Canvas) {
         val g = scene.game
         val s = g.state
+        val a = g.assets
         val left = panelR.left + dp(scene, 12f)
         val right = panelR.right - dp(scene, 12f)
         var ty = contentTop()
+        val kind = pizzaKindTab
 
-        // 헤더 — 피자 가방 게이지 + 장작 화덕 일러스트
+        // 헤더 — 피자 가방 게이지 + 계열 서브탭 + 선택한 계열의 조리기구 일러스트
         val headH = dp(scene, 44f)
         val headR = RectF(left, ty, right, ty + headH)
         drawCard(c, scene, headR)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 12f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("🍕 피자 가방", left + dp(scene, 10f), ty + dp(scene, 16f), textP)
@@ -712,90 +731,113 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         textP.color = 0xFFB5651D.toInt()
         val capEff = s.pizzaCapEff()
         val capTxt = "${s.pizzaCount}/$capEff"
-        c.drawText(capTxt, right - dp(scene, 58f) - textP.measureText(capTxt), ty + dp(scene, 16f), textP)
-        UiKit.bar(c, g, left + dp(scene, 10f), ty + dp(scene, 22f), right - left - dp(scene, 68f), dp(scene, 9f),
+        val gaugeW = dp(scene, 120f)
+        c.drawText(capTxt, left + dp(scene, 10f) + gaugeW - textP.measureText(capTxt), ty + dp(scene, 16f), textP)
+        UiKit.bar(c, g, left + dp(scene, 10f), ty + dp(scene, 22f), gaugeW, dp(scene, 9f),
             s.pizzaCount / capEff.toFloat(), 0xFFFFD97A.toInt(), 0xFFF2A33C.toInt())
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 9f)
         textP.color = 0xFF8A7360.toInt()
-        c.drawText("장작 화덕에서 토핑을 골라 구워요", left + dp(scene, 10f), ty + dp(scene, 41f), textP)
-        g.illustrations.draw(
-            c, "wood_fired_oven.svg",
-            RectF(right - dp(scene, 52f), ty + dp(scene, 2f), right - dp(scene, 6f), ty + dp(scene, 42f))
-        )
+        drawFitText(c, scene, "${kind.station}에서 구워요 · ${kind.desc}", left + dp(scene, 10f), ty + dp(scene, 41f), gaugeW + dp(scene, 10f), 9f)
+        // 계열 서브탭 (가운데)
+        val kinds = PizzaKind.values()
+        val tabX0 = left + dp(scene, 10f) + gaugeW + dp(scene, 16f)
+        val tabX1 = right - dp(scene, 62f)
+        val tabW = ((tabX1 - tabX0) - dp(scene, 6f) * (kinds.size - 1)) / kinds.size
+        for ((i, k) in kinds.withIndex()) {
+            val r = RectF(tabX0 + i * (tabW + dp(scene, 6f)), ty + dp(scene, 7f), tabX0 + i * (tabW + dp(scene, 6f)) + tabW, ty + headH - dp(scene, 7f))
+            val sel = k == kind
+            val label = "${k.emoji} ${k.label} ${s.pizzaCountOfKind(k)}"
+            if (sel) drawButton(c, scene, r, label, k.tint, 0xFFFFFBF0.toInt(), 11f)
+            else drawButton(c, scene, r, label, 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 11f)
+            btnRects.add(Triple(r, k.label) {
+                pizzaKindTab = k
+                lastPizzaKindTab = k
+            })
+        }
+        drawStationArt(c, scene, kind, RectF(right - dp(scene, 52f), ty + dp(scene, 2f), right - dp(scene, 6f), ty + dp(scene, 42f)))
         ty += headH + dp(scene, 6f)
 
-        // 토핑 카드 — 남은 높이에 맞춰 자동 배분
+        // 피자 카드 — 2열 × 3행, 남은 높이에 맞춰 자동 배분
+        val list = Pizzas.ofKind(kind)
+        val cols = 2
+        val rows = (list.size + cols - 1) / cols
         val gap = dp(scene, 6f)
-        val rowH = ((contentBottom() - ty - gap * 2f) / 3f).coerceAtLeast(dp(scene, 50f))
-        for (t in Toppings.ALL) {
-            val r = RectF(left, ty, right, ty + rowH)
-            drawCard(c, scene, r)
+        val cellW = (right - left - gap * (cols - 1)) / cols
+        val cellH = ((contentBottom() - ty - gap * (rows - 1)) / rows).coerceAtLeast(dp(scene, 46f))
+        for ((i, p) in list.withIndex()) {
+            val col = i % cols
+            val row = i / cols
+            val r = RectF(
+                left + col * (cellW + gap), ty + row * (cellH + gap),
+                left + col * (cellW + gap) + cellW, ty + row * (cellH + gap) + cellH
+            )
+            val total = s.pizzaCountOf(p.id)
+            drawCard(c, scene, r, false, if (total > 0) kind.tint else 0xFFC9A87B.toInt(), if (total > 0) 2f else 1.5f)
 
-            // 토핑 아이콘 메달
-            UiKit.iconCircle(c, g, left + dp(scene, 24f), r.centerY(), dp(scene, 15f), t.emoji, 16f)
+            // 피자 아이콘 (종류별)
+            drawPizzaArt(c, scene, p.id, r.left + dp(scene, 22f), r.centerY(), dp(scene, 30f))
 
-            val tx = left + dp(scene, 46f)
+            val tx = r.left + dp(scene, 42f)
+            val btnW = dp(scene, 58f)
+            val textW = r.right - dp(scene, 10f) - btnW - tx
             // 이름 + 보유 뱃지
-            textP.typeface = Fonts.round
-            textP.textSize = dp(scene, 12.5f)
-            textP.color = 0xFF4A3728.toInt()
-            val nameTxt = "${t.name} 피자"
-            c.drawText(nameTxt, tx, ty + dp(scene, 18f), textP)
-            val total = s.pizzaCountOf(t.id)
-            val badgeTxt = "×$total"
+            textP.color = if (total > 0) 0xFF4A3728.toInt() else 0xFF8A7360.toInt()
+            val nameTxt = "${p.emoji} ${p.name}"
             textP.textSize = dp(scene, 9.5f)
+            val badgeTxt = "×$total"
             val badgeW = textP.measureText(badgeTxt) + dp(scene, 12f)
-            val nameW = run { textP.textSize = dp(scene, 12.5f); textP.measureText(nameTxt) }
+            drawFitText(c, scene, nameTxt, tx, r.top + dp(scene, 16f), textW - badgeW - dp(scene, 6f), 12f)
+            val nameW = textP.measureText(nameTxt)
             UiKit.badge(
-                c, g, RectF(tx + nameW + dp(scene, 6f), ty + dp(scene, 7f), tx + nameW + dp(scene, 6f) + badgeW, ty + dp(scene, 22f)),
+                c, g, RectF(tx + nameW + dp(scene, 6f), r.top + dp(scene, 5f), tx + nameW + dp(scene, 6f) + badgeW, r.top + dp(scene, 20f)),
                 badgeTxt, if (total > 0) 0xFFF2B63C.toInt() else 0xFFCFC4B4.toInt(),
                 if (total > 0) 0xFF4A2E12.toInt() else 0xFF6B5A48.toInt(), 9.5f
             )
             // 효과 + 난이도
-            textP.typeface = Fonts.body
-            textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
-            val diff = ((t.cursorSpeed - 0.95f) * 10f).toInt().coerceIn(1, 3)
-            val bonusTxt = "배고픔 ${if (t.hungerBonus >= 0) "+" else ""}${t.hungerBonus} · 행운 ${if (t.luckBonus >= 0) "+" else ""}${t.luckBonus} · 난이도 " +
-                    "●".repeat(diff) + "○".repeat(3 - diff)
-            c.drawText(bonusTxt, tx, ty + dp(scene, 32f), textP)
+            val bonusTxt = "배고픔 ${if (p.hungerBonus >= 0) "+" else ""}${p.hungerBonus} · 행운 ${if (p.luckBonus >= 0) "+" else ""}${p.luckBonus} · ${p.difficultyDots()}"
+            drawFitText(c, scene, bonusTxt, tx, r.top + dp(scene, 29f), textW, 9.5f)
             // 품질별 보유 — 등급 색상 텍스트
-            textP.textSize = dp(scene, 9.5f)
-            var cx = tx
-            val cy = ty + dp(scene, 45f)
-            val segs = listOf(
-                "걸작×${s.pizzaCountOf(t.id, 2)}" to 0xFFB5651D.toInt(),
-                "맛있는×${s.pizzaCountOf(t.id, 1)}" to 0xFF4E8A4E.toInt(),
-                "탄×${s.pizzaCountOf(t.id, 0)}" to 0xFF9AA0A8.toInt()
-            )
-            for ((si, seg) in segs.withIndex()) {
-                textP.color = seg.second
-                c.drawText(seg.first, cx, cy, textP)
-                cx += textP.measureText(seg.first) + dp(scene, 8f)
-                if (si < 2) {
-                    textP.color = 0xFFC9B896.toInt()
-                    c.drawText("·", cx - dp(scene, 5f), cy, textP)
+            if (cellH >= dp(scene, 50f)) {
+                textP.textSize = dp(scene, 8.5f)
+                var cx = tx
+                val cy = r.top + dp(scene, 41f)
+                val segs = listOf(
+                    "걸작×${s.pizzaCountOf(p.id, 2)}" to 0xFFB5651D.toInt(),
+                    "맛있는×${s.pizzaCountOf(p.id, 1)}" to 0xFF4E8A4E.toInt(),
+                    "탄×${s.pizzaCountOf(p.id, 0)}" to 0xFF9AA0A8.toInt()
+                )
+                for ((si, seg) in segs.withIndex()) {
+                    textP.color = seg.second
+                    c.drawText(seg.first, cx, cy, textP)
+                    cx += textP.measureText(seg.first) + dp(scene, 7f)
+                    if (si < 2) {
+                        textP.color = 0xFFC9B896.toInt()
+                        c.drawText("·", cx - dp(scene, 4.5f), cy, textP)
+                    }
                 }
             }
 
             // 먹기 버튼
-            val br = RectF(right - dp(scene, 92f), r.centerY() - dp(scene, 14f), right - dp(scene, 10f), r.centerY() + dp(scene, 14f))
-            val enabled = s.pizzaCountOf(t.id) > 0 && s.hunger < 100f
+            val br = RectF(r.right - dp(scene, 8f) - btnW, r.centerY() - dp(scene, 13f), r.right - dp(scene, 8f), r.centerY() + dp(scene, 13f))
+            val enabled = total > 0 && s.hunger < 100f
             if (enabled) {
-                drawButton(c, scene, br, "냠냠 😋", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 12f)
-                btnRects.add(Triple(br, t.name) {
-                    val eaten = scene.game.state.eat(t.id)
+                drawButton(c, scene, br, "냠냠 😋", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 11f)
+                btnRects.add(Triple(br, p.name) {
+                    val eaten = scene.game.state.eat(p.id)
                     if (eaten != null) {
-                        scene.game.toast("냠냠! ${t.emoji} ${t.name} ${eaten.label} (배고픔 +${eaten.hunger + t.hungerBonus}, 행운 +${eaten.luck + t.luckBonus})")
+                        scene.game.toast("냠냠! ${p.emoji} ${p.fullName} · ${eaten.label} (배고픔 +${eaten.hunger + p.hungerBonus}, 행운 +${eaten.luck + p.luckBonus})")
                     }
                 })
             } else {
-                val noPizza = s.pizzaCountOf(t.id) <= 0
-                drawButton(c, scene, br, if (noPizza) "없음" else "든든해", Color.argb(90, 200, 190, 175), Color.argb(140, 74, 55, 40), 11.5f)
+                drawButton(c, scene, br, if (total <= 0) "없음" else "든든해", Color.argb(90, 200, 190, 175), Color.argb(140, 74, 55, 40), 10.5f)
             }
-            ty += rowH + gap
         }
+    }
+
+    companion object {
+        /** 마지막으로 보던 피자 계열 탭 (메뉴를 닫았다 열어도 유지) */
+        private var lastPizzaKindTab: PizzaKind = PizzaKind.OVEN
     }
 
     private var bookRects: Map<String, RectF> = emptyMap()
@@ -821,7 +863,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         // 헤더 — 도감 완성도 게이지
         val done = s.birdCounts.size
         val total = Birds.ALL.size
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("📚 도감 $done/${total}종", areaLeft, contentTop() + dp(scene, 4f), textP)
@@ -831,7 +872,6 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
         c.drawText(pctTxt, areaLeft + areaW - textP.measureText(pctTxt), contentTop() + dp(scene, 4f), textP)
         UiKit.bar(c, g, areaLeft, contentTop() + dp(scene, 9f), areaW, dp(scene, 8f),
             done / total.toFloat(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 8.5f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(OfficialBirdChecklist.SOURCE_TITLE, areaLeft, contentTop() + dp(scene, 29f), textP)
@@ -885,11 +925,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             }
 
             val tx = bx + bmp.width * k + dp(scene, 5f)
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 10.4f)
             textP.color = if (seen) 0xFF4A3728.toInt() else Color.argb(175, 74, 55, 40)
             c.drawText(def.name, tx, r.top + dp(scene, 12f), textP)
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 8.4f)
             textP.color = 0xFF8A7360.toInt()
             val baseLine2 = if (seen) {
@@ -945,11 +983,9 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
                 if (danger) 2f else 1.5f)
             UiKit.iconCircle(c, g, left + dp(scene, 24f), r.centerY(), dp(scene, 14f), icon, 15f,
                 if (danger) 0xFFF28B82.toInt() else 0xFFF2B63C.toInt())
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 13f)
             textP.color = if (danger) 0xFFB03A30.toInt() else 0xFF4A3728.toInt()
             c.drawText(label, left + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText(sub, left + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
@@ -999,7 +1035,7 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             drawCard(c, scene, footR)
             textP.textSize = dp(scene, 10.5f)
             textP.color = 0xFF6B4F35.toInt()
-            c.drawText("🍕 Pizza and Bird v0.3.0-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
+            c.drawText("🍕 Pizza and Bird v0.3.3-beta01", left + dp(scene, 12f), ty + dp(scene, 18f), textP)
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText("완전 오프라인 힐링 게임 · 저장은 자동으로 돼요", left + dp(scene, 12f), ty + dp(scene, 33f), textP)
@@ -1071,11 +1107,9 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
         UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
 
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 15f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("🧺 장식 코너", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("집에 놓으면 행운이 오르는 소품들이에요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
@@ -1102,7 +1136,6 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
             UiKit.iconCircle(c, g, r.left + dp(scene, 22f), r.centerY(), dp(scene, 13f), d.emoji, 15f)
             val tx = r.left + dp(scene, 42f)
             // 이름 + 행운 뱃지
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 12f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(d.name, tx, r.top + dp(scene, 17f), textP)
@@ -1115,7 +1148,6 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
                 luckTxt, 0xFF6FBA6B.toInt(), 0xFFFFF8E8.toInt(), 9f
             )
             // 설명 (말줄임)
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             var desc = d.desc
@@ -1186,7 +1218,6 @@ class DecorPickOverlay(
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
         UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
 
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("✨ 장식 칸 ${slot + 1}에 뭘 놓을까요?", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 29f), textP)
@@ -1203,11 +1234,9 @@ class DecorPickOverlay(
             val r = RectF(panelR.left + dp(scene, 12f), ty, panelR.right - dp(scene, 12f), ty + rowH)
             drawCard(c, scene, r)
             UiKit.iconCircle(c, g, r.left + dp(scene, 24f), r.centerY(), dp(scene, 14f), emoji, 16f, accent)
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(name, r.left + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             c.drawText(sub, r.left + dp(scene, 46f), r.centerY() + dp(scene, 13f), textP)
@@ -1284,11 +1313,9 @@ class HouseStyleOverlay(
         closeRect = RectF(closeCx - dp(scene, 18f), closeCy - dp(scene, 18f), closeCx + dp(scene, 18f), closeCy + dp(scene, 18f))
         UiKit.circleButton(c, g, closeCx, closeCy, dp(scene, 12f), "✕", 11f)
 
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 16f)
         textP.color = 0xFF4A3728.toInt()
         c.drawText("🏠 우리 집 인테리어", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 28f), textP)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText("구매한 스타일은 이사 후에도 계속 사용할 수 있어요", panelR.left + dp(scene, 16f), panelR.top + dp(scene, 44f), textP)
@@ -1315,12 +1342,10 @@ class HouseStyleOverlay(
             UiKit.card(c, g, r, 10f, applied, if (applied) style.accentTint else 0xFFC9A87B.toInt(), if (applied) 2.5f else 1.5f)
 
             UiKit.iconCircle(c, g, r.left + dp(scene, 24f), r.centerY(), dp(scene, 14f), style.emoji, 16f, style.accentTint)
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 12.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(style.name, r.left + dp(scene, 46f), r.centerY() - dp(scene, 1f), textP)
             // 설명 말줄임
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF8A7360.toInt()
             var desc = style.desc
@@ -1346,24 +1371,29 @@ class HouseStyleOverlay(
 }
 
 // ---------------------------------------------------------------------------
-// 피자 굽기 미니게임 (화덕) — 토핑 선택 + 타이밍
+// 피자 굽기 미니게임 — 계열(화덕피자/일반 피자)별 메뉴 선택 + 타이밍
+//   화덕(🔥): 화덕피자 — 커서가 빠르고 노랑 구간이 좁아 금방 탄다. 대신 효과가 크다.
+//   오븐(🍕): 일반 피자 — 느긋하게 익는다. 굽기 쉽고 든든하다.
 // ---------------------------------------------------------------------------
 
-class BakeOverlay(scene: Scene) : Overlay(scene) {
+class BakeOverlay(scene: Scene, private val kind: PizzaKind = PizzaKind.OVEN) : Overlay(scene) {
 
-    private var step = 0                 // 0 토핑 선택, 1 타이밍, 2 결과
-    private var topping = 0
+    private var step = 0                 // 0 메뉴 선택, 1 타이밍, 2 결과
+    private var pizzaId = Pizzas.representative(kind).id
     private var t = 0.6f
     private var stopped = false
     private var resultQ = -1
     private var lostPizza = false
-    private val toppingRects = ArrayList<Pair<RectF, Int>>()
+    private val menuRects = ArrayList<Pair<RectF, Int>>()
     private var cancelRect = RectF()
+
+    private val menu: List<PizzaDef> = Pizzas.ofKind(kind)
+    private val def: PizzaDef get() = Pizzas.of(pizzaId)
 
     private fun cursorPos(): Float = 0.5f + 0.5f * sin(t * 2.6f)
 
     override fun update(dt: Float) {
-        if (step == 1 && !stopped) t += dt * Toppings.of(topping).cursorSpeed
+        if (step == 1 && !stopped) t += dt * def.cursorSpeed
     }
 
     override fun handleInput(input: Input) {
@@ -1372,13 +1402,14 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
             0 -> {
                 if (input.justB || input.justBack) { finished = true; return }
                 if (tap == null) return
-                for ((r, id) in toppingRects) {
+                for ((r, id) in menuRects) {
                     if (r.contains(tap.x, tap.y)) {
-                        topping = id
+                        pizzaId = id
                         step = 1
                         t = 0.6f
                         scene.game.sfx(Audio.Sfx.TAP, 0.6f)
-                        scene.game.audio.playAmb(R.raw.amb_fire, 0.5f)   // 🔥 화덕 불 소리
+                        // 🔥 화덕은 장작불 소리 크게, 가정용 오븐은 은은하게
+                        scene.game.audio.playAmb(R.raw.amb_fire, if (kind == PizzaKind.OVEN) 0.5f else 0.25f)
                         return
                     }
                 }
@@ -1397,16 +1428,16 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
         stopped = true
         step = 2
         val pos = cursorPos()
-        val w = Toppings.of(topping).perfectW
-        val half = w / 2f
+        val half = def.perfectW / 2f
+        val goodW = kind.goodW
         resultQ = when {
-            pos < 0.5f - half - 0.26f || pos > 0.5f + half + 0.26f -> 0
+            pos < 0.5f - half - goodW || pos > 0.5f + half + goodW -> 0
             abs(pos - 0.5f) <= half -> 2
             else -> 1
         }
-        lostPizza = !scene.game.state.addPizza(topping, resultQ)
+        lostPizza = !scene.game.state.addPizza(pizzaId, resultQ)
         SaveManager.save(scene.game.context, scene.game.state)
-        scene.game.audio.stopAmb()   // 화덕 불 소리 끄기
+        scene.game.audio.stopAmb()   // 불 소리 끄기
         when (resultQ) {
             2 -> scene.game.sfx(Audio.Sfx.SPARKLE)          // 걸작!
             1 -> scene.game.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
@@ -1419,79 +1450,99 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
         dim(c, scene)
         val w = g.screenW.toFloat()
         val h = g.screenH.toFloat()
-        val cw = minOf(w * 0.8f, dp(scene, 460f))
-        val chh = dp(scene, 240f)
+        val cw = minOf(w * 0.84f, dp(scene, 500f))
+        val chh = if (step == 0) minOf(h - dp(scene, 16f), dp(scene, 290f)) else dp(scene, 240f)
         val r = RectF((w - cw) / 2f, (h - chh) / 2f, (w + cw) / 2f, (h + chh) / 2f)
         panel(c, r, scene)
 
         val a = g.assets
-        g.illustrations.draw(
-            c, "wood_fired_oven.svg",
-            RectF(r.right - dp(scene, 52f), r.top + dp(scene, 3f), r.right - dp(scene, 8f), r.top + dp(scene, 45f))
-        )
+        drawStationArt(c, scene, kind, RectF(r.right - dp(scene, 52f), r.top + dp(scene, 3f), r.right - dp(scene, 8f), r.top + dp(scene, 45f)))
 
         when (step) {
             0 -> {
-                textP.typeface = Fonts.round
                 textP.textSize = dp(scene, 16f)
                 textP.color = 0xFF4A3728.toInt()
-                val title = "🍕 토핑을 골라요"
-                c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 26f), textP)
+                val title = "${kind.emoji} ${kind.label} — 무엇을 구울까요?"
+                c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 24f), textP)
+                textP.textSize = dp(scene, 9.5f)
+                textP.color = kind.tint
+                val descW = minOf(textP.measureText(kind.desc), r.width() - dp(scene, 130f))
+                drawFitText(c, scene, kind.desc, r.centerX() - descW / 2, r.top + dp(scene, 38f), r.width() - dp(scene, 130f), 9.5f)
 
-                toppingRects.clear()
-                val cardW = (r.width() - dp(scene, 16f) * 4) / 3f
-                for ((i, tp) in Toppings.ALL.withIndex()) {
+                // 3열 × 2행 메뉴 카드
+                menuRects.clear()
+                val cols = 3
+                val gapX = dp(scene, 10f)
+                val gapY = dp(scene, 8f)
+                val top = r.top + dp(scene, 48f)
+                val bottomArea = r.bottom - dp(scene, 50f)
+                val rows = (menu.size + cols - 1) / cols
+                val cardW = (r.width() - dp(scene, 14f) * 2 - gapX * (cols - 1)) / cols
+                val cardH = ((bottomArea - top) - gapY * (rows - 1)) / rows
+                for ((i, p) in menu.withIndex()) {
+                    val col = i % cols
+                    val row = i / cols
                     val cr = RectF(
-                        r.left + dp(scene, 16f) + i * (cardW + dp(scene, 16f)), r.top + dp(scene, 44f),
-                        r.left + dp(scene, 16f) + i * (cardW + dp(scene, 16f)) + cardW, r.top + dp(scene, 156f)
+                        r.left + dp(scene, 14f) + col * (cardW + gapX), top + row * (cardH + gapY),
+                        r.left + dp(scene, 14f) + col * (cardW + gapX) + cardW, top + row * (cardH + gapY) + cardH
                     )
-                    UiKit.card(c, g, cr, 10f, false, 0xFFB5651D.toInt(), 2f)
+                    UiKit.card(c, g, cr, 10f, false, kind.tint, 2f)
 
-                    UiKit.iconCircle(c, g, cr.centerX(), cr.top + dp(scene, 26f), dp(scene, 16f), tp.emoji, 17f)
-                    textP.typeface = Fonts.round
-                    textP.textSize = dp(scene, 13f)
+                    // 아이콘 (왼쪽) + 이름/효과/난이도 (오른쪽)
+                    val isz = minOf(dp(scene, 36f), cardH - dp(scene, 14f))
+                    drawPizzaArt(c, scene, p.id, cr.left + dp(scene, 8f) + isz / 2f, cr.centerY(), isz)
+                    val tx = cr.left + dp(scene, 8f) + isz + dp(scene, 6f)
+                    val textW = cr.right - dp(scene, 6f) - tx
+                    // 보유 수 배지 (오른쪽 위)
+                    val have = g.state.pizzaCountOf(p.id)
+                    var badgeW = 0f
+                    if (have > 0) {
+                        val badge = "×$have"
+                        textP.textSize = dp(scene, 9f)
+                        badgeW = textP.measureText(badge) + dp(scene, 10f)
+                        UiKit.badge(c, g, RectF(cr.right - dp(scene, 6f) - badgeW, cr.top + dp(scene, 5f), cr.right - dp(scene, 6f), cr.top + dp(scene, 19f)),
+                            badge, 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 9f)
+                        badgeW += dp(scene, 4f)
+                    }
                     textP.color = 0xFF4A3728.toInt()
-                    c.drawText(tp.name, cr.centerX() - textP.measureText(tp.name) / 2, cr.top + dp(scene, 62f), textP)
-                    textP.typeface = Fonts.body
-                    textP.textSize = dp(scene, 10f)
+                    drawFitText(c, scene, "${p.emoji} ${p.name}", tx, cr.top + dp(scene, 17f), textW - badgeW, 12f)
                     textP.color = 0xFF8A7360.toInt()
-                    val b1 = "배고픔 ${if (tp.hungerBonus >= 0) "+" else ""}${tp.hungerBonus} · 행운 ${if (tp.luckBonus >= 0) "+" else ""}${tp.luckBonus}"
-                    c.drawText(b1, cr.centerX() - textP.measureText(b1) / 2, cr.top + dp(scene, 78f), textP)
+                    drawFitText(c, scene, "배고픔 ${if (p.hungerBonus >= 0) "+" else ""}${p.hungerBonus} · 행운 ${if (p.luckBonus >= 0) "+" else ""}${p.luckBonus}", tx, cr.top + dp(scene, 31f), textW, 9.5f)
                     // 난이도 — 라벨 + 컬러 도트
-                    val diff = ((tp.cursorSpeed - 0.95f) * 10f).toInt().coerceIn(1, 3)
-                    val dots = "●".repeat(diff) + "○".repeat(3 - diff)
-                    textP.textSize = dp(scene, 10f)
+                    textP.textSize = dp(scene, 9.5f)
                     val dLabel = "구우기 "
-                    val dotsW = textP.measureText(dots)
-                    val labelW = textP.measureText(dLabel)
-                    val dStart = cr.centerX() - (labelW + dotsW) / 2f
                     textP.color = 0xFF8A7360.toInt()
-                    c.drawText(dLabel, dStart, cr.top + dp(scene, 93f), textP)
+                    c.drawText(dLabel, tx, cr.top + dp(scene, 44f), textP)
                     textP.color = 0xFFE8830C.toInt()
-                    c.drawText(dots, dStart + labelW, cr.top + dp(scene, 93f), textP)
-                    val pz = a.pizzaIcon
-                    val psz = dp(scene, 22f)
-                    c.drawBitmap(pz, null, RectF(cr.centerX() - psz / 2, cr.top + dp(scene, 99f), cr.centerX() + psz / 2, cr.top + dp(scene, 99f) + psz), a.sprPaint)
-                    toppingRects.add(cr to tp.id)
+                    c.drawText(p.difficultyDots(), tx + textP.measureText(dLabel), cr.top + dp(scene, 44f), textP)
+                    menuRects.add(cr to p.id)
                 }
 
                 cancelRect = RectF(r.centerX() - dp(scene, 60f), r.bottom - dp(scene, 40f), r.centerX() + dp(scene, 60f), r.bottom - dp(scene, 12f))
                 drawButton(c, scene, cancelRect, "그만두기", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 12f)
+                textP.textSize = dp(scene, 9.5f)
+                textP.color = 0xFF8A7360.toInt()
+                val bag = "가방 ${g.state.pizzaCount}/${g.state.pizzaCapEff()}"
+                c.drawText(bag, r.right - dp(scene, 14f) - textP.measureText(bag), r.bottom - dp(scene, 22f), textP)
             }
             1 -> {
-                val tp = Toppings.of(topping)
-                textP.typeface = Fonts.round
+                val p = def
                 textP.textSize = dp(scene, 16f)
                 textP.color = 0xFF4A3728.toInt()
-                val title = "${tp.emoji} ${tp.name} 피자 굽기"
+                val title = "${p.emoji} ${p.fullName} 굽기"
                 c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.top + dp(scene, 26f), textP)
+                textP.textSize = dp(scene, 9.5f)
+                textP.color = kind.tint
+                val sub = if (kind == PizzaKind.OVEN) "🔥 장작불 400도 — 순식간에 익어요! 커서가 빨라요" else "🍕 가정용 오븐 — 느긋하게 익어요"
+                c.drawText(sub, r.centerX() - textP.measureText(sub) / 2, r.top + dp(scene, 41f), textP)
 
                 // 게이지 — 글로스 + 걸작존 글로우 + 프리미엄 커서
                 val gx = r.left + dp(scene, 26f)
-                val gy = r.centerY() - dp(scene, 6f)
+                val gy = r.centerY() - dp(scene, 2f)
                 val gw = r.width() - dp(scene, 52f)
                 val gh = dp(scene, 28f)
-                val half = tp.perfectW / 2f
+                val half = p.perfectW / 2f
+                val goodW = kind.goodW
                 // 바 섀도우
                 fillP.color = Color.argb(60, 50, 32, 14)
                 c.drawRoundRect(RectF(gx, gy + dp(scene, 2.5f), gx + gw, gy + gh + dp(scene, 2.5f)), dp(scene, 8f), dp(scene, 8f), fillP)
@@ -1502,11 +1553,11 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                     dp(scene, 8f), dp(scene, 8f), fillP
                 )
                 val zones = listOf(
-                    Triple(0f, 0.5f - half - 0.26f, 0xFFE2574C.toInt()),
-                    Triple(0.5f - half - 0.26f, 0.5f - half, 0xFFF2D06B.toInt()),
+                    Triple(0f, 0.5f - half - goodW, 0xFFE2574C.toInt()),
+                    Triple(0.5f - half - goodW, 0.5f - half, 0xFFF2D06B.toInt()),
                     Triple(0.5f - half, 0.5f + half, 0xFF6FBA6B.toInt()),
-                    Triple(0.5f + half, 0.5f + half + 0.26f, 0xFFF2D06B.toInt()),
-                    Triple(0.5f + half + 0.26f, 1f, 0xFFE2574C.toInt())
+                    Triple(0.5f + half, 0.5f + half + goodW, 0xFFF2D06B.toInt()),
+                    Triple(0.5f + half + goodW, 1f, 0xFFE2574C.toInt())
                 )
                 for ((z0, z1, col) in zones) {
                     val zr = RectF(gx + gw * z0, gy, gx + gw * z1, gy + gh)
@@ -1538,7 +1589,7 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                 strokeP.color = 0xFFFFF8E8.toInt()
                 strokeP.strokeWidth = dp(scene, 1.4f)
                 c.drawLine(cx, gy - dp(scene, 8f), cx, gy + gh + dp(scene, 8f), strokeP)
-                // 삼각 포인터 (위/아래)
+                // 삼각 포인터 (위)
                 fillP.color = 0xFF2E2118.toInt()
                 val triS = dp(scene, 5f)
                 val triTop = Path().apply {
@@ -1550,7 +1601,6 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                 c.drawPath(triTop, fillP)
 
                 // 라벨 — 걸작 뱃지 + 양옆 탄 라벨
-                textP.typeface = Fonts.body
                 textP.textSize = dp(scene, 10.5f)
                 textP.color = 0xFF8A7360.toInt()
                 c.drawText("살짝 탐", gx, gy + gh + dp(scene, 18f), textP)
@@ -1574,22 +1624,30 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
             }
             else -> {
                 val q = PizzaQ.of(resultQ)
-                val tp = Toppings.of(topping)
+                val p = def
                 val perfect = resultQ == 2
-                val title = if (lostPizza) "${tp.emoji} ${q.label}… 그런데 두 손이 가득!" else "${tp.emoji} ${q.label} 완성!"
-                textP.typeface = Fonts.round
+                val title = if (lostPizza) "${p.emoji} ${q.label}… 그런데 두 손이 가득!" else "${p.emoji} ${p.name} ${q.label} 완성!"
                 textP.textSize = dp(scene, 16f)
                 textP.color = if (perfect) 0xFFB5651D.toInt() else 0xFF4A3728.toInt()
                 c.drawText(title, r.centerX() - textP.measureText(title) / 2, r.centerY() - dp(scene, 52f), textP)
-                // 품질 별점
+                // 품질 별점 + 계열
                 textP.textSize = dp(scene, 14f)
                 textP.color = 0xFFE8A33C.toInt()
                 val starTxt = "★".repeat(q.stars) + "☆".repeat(3 - q.stars)
-                c.drawText(starTxt, r.centerX() - textP.measureText(starTxt) / 2, r.centerY() - dp(scene, 32f), textP)
+                val starW = textP.measureText(starTxt)
+                textP.textSize = dp(scene, 10f)
+                val kl = "  ${kind.emoji} ${kind.label}"
+                val klW = textP.measureText(kl)
+                val sx0 = r.centerX() - (starW + klW) / 2f
+                textP.textSize = dp(scene, 14f)
+                c.drawText(starTxt, sx0, r.centerY() - dp(scene, 32f), textP)
+                textP.textSize = dp(scene, 10f)
+                textP.color = kind.tint
+                c.drawText(kl, sx0 + starW, r.centerY() - dp(scene, 32f), textP)
 
-                // 피자 + 후광
+                // 피자(종류별 아이콘) + 후광
                 val k = dp(scene, 3.4f)
-                val bmp = a.pizzaIcon
+                val bmp = a.pizzaArt(p.id)
                 val bw = bmp.width * k
                 val bh = bmp.height * k
                 val bx = r.centerX() - bw / 2f
@@ -1612,15 +1670,14 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                     }
                 }
 
-                val info = if (lostPizza) "피자 가방이 가득해서 못 챙겼어요…"
-                else "먹으면 배고픔 +${q.hunger + tp.hungerBonus} · 행운 +${q.luck + tp.luckBonus}"
+                val info = if (lostPizza) "피자 가방이 가득해서 못 챙겼어요… (최대 ${g.state.pizzaCapEff()}개)"
+                else "먹으면 배고픔 +${q.hunger + p.hungerBonus} · 행운 +${q.luck + p.luckBonus}"
                 textP.textSize = dp(scene, 12f)
                 val infoW = (textP.measureText(info) + dp(scene, 24f)).coerceAtMost(r.width() - dp(scene, 24f))
                 UiKit.badge(
                     c, g, RectF(r.centerX() - infoW / 2f, r.bottom - dp(scene, 40f), r.centerX() + infoW / 2f, r.bottom - dp(scene, 18f)),
                     info, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 12f
                 )
-                textP.typeface = Fonts.body
                 textP.textSize = dp(scene, 10.5f)
                 textP.color = 0xFF8A7360.toInt()
                 val hint2 = "탭해서 닫기"
@@ -1753,18 +1810,15 @@ class PhotoResultOverlay(
         strokeP.strokeWidth = dp(scene, 1f)
         c.drawRoundRect(photo, 0f, 0f, strokeP)
 
-        // 캡션: 이름 — 폴라로이드 위 손글씨(가경)
+        // 캡션: 이름 — 손글씨 글꼴로 폴라로이드에 직접 쓴 것처럼
         val capTop = photo.bottom + dp(scene, 12f)
-        textP.typeface = Fonts.handBold
-        textP.isFakeBoldText = false
-        textP.textSize = dp(scene, 18f)
-        textP.color = 0xFF3B2F24.toInt()
+        captionP.typeface = Type.hand(true)
+        captionP.textSize = dp(scene, 18f)
+        captionP.color = 0xFF3B2F24.toInt()
         val nm = def.name
-        c.drawText(nm, card.centerX() - textP.measureText(nm) / 2, capTop + dp(scene, 12f), textP)
+        c.drawText(nm, card.centerX() - captionP.measureText(nm) / 2, capTop + dp(scene, 12f), captionP)
 
         // 캡션: 등급 · 영문명
-        textP.typeface = Fonts.body
-        textP.isFakeBoldText = true
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFF8A7360.toInt()
         val tierColor = when (def.tier) {
@@ -1824,7 +1878,6 @@ class PhotoResultOverlay(
             strokeP.color = 0xFFFFF3E2.toInt()
             strokeP.strokeWidth = dp(scene, 1.4f)
             c.drawRoundRect(RectF(sCx - sw / 2f + dp(scene, 2.5f), sCy - sh / 2f + dp(scene, 2.5f), sCx + sw / 2f - dp(scene, 2.5f), sCy + sh / 2f - dp(scene, 2.5f)), dp(scene, 3f), dp(scene, 3f), strokeP)
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 11f)
             textP.color = 0xFFFFF3E2.toInt()
             val st = "NEW 첫 발견"
@@ -1837,7 +1890,6 @@ class PhotoResultOverlay(
         // 의뢰 보수 & 경험치
         var badgeY = cy + cardH / 2f + dp(scene, 24f)
         if (questLine != null) {
-            textP.typeface = Fonts.round
             textP.textSize = dp(scene, 12.5f)
             val qw = textP.measureText(questLine) + dp(scene, 26f)
             val qr = RectF(cx - qw / 2f, badgeY - dp(scene, 14f), cx + qw / 2f, badgeY + dp(scene, 14f))
@@ -1867,7 +1919,6 @@ class PhotoResultOverlay(
 
         // 안내 (깜빡임)
         val blink = 0.55f + 0.45f * sin(t * 3.4f).coerceIn(0f, 1f)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 11.5f)
         textP.color = Color.argb((215 * blink).toInt().coerceIn(0, 255), 240, 236, 226)
         val hint = if (levelsGained > 0) "화면을 탭해 계속" else "화면을 탭해 탐조를 계속해요"
@@ -2158,7 +2209,6 @@ class LevelUpOverlay(
         strokeP.strokeWidth = dp(scene, 3f)
         c.drawRoundRect(RectF(r.left + dp(scene, 4f), r.top + dp(scene, 4f), r.right - dp(scene, 4f), r.bottom - dp(scene, 4f)), dp(scene, 10f), dp(scene, 10f), strokeP)
 
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 22f)
         textP.color = 0xFFB5651D.toInt()
         val t1 = "🎉 레벨 업! 🎉"
@@ -2184,7 +2234,6 @@ class LevelUpOverlay(
         val title = "「 ${Progression.title(toLevel)} 」"
         c.drawText(title, r.centerX() - textP.measureText(title) / 2, by + bmp.height * k + dp(scene, 46f), textP)
 
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 11.5f)
         textP.color = 0xFF3F6FB0.toInt()
         val sp = "숙련 포인트 +${s.skillPoints}  (메뉴 › 성장 에서 능력 강화!)"
@@ -2343,6 +2392,10 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
                     if (pts.size == 1) startPinch()
                     if (p != null && !p.moved) onTap(ev.x, ev.y)
                 }
+                Input.RawEv.CANCEL -> {
+                    pts.remove(ev.id)
+                    if (pts.size == 1) startPinch()
+                }
             }
         }
     }
@@ -2432,13 +2485,11 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         strokeP.color = Color.argb(150, 233, 196, 106)
         strokeP.strokeWidth = dp(scene, 1.4f)
         c.drawRoundRect(headerR, dp(scene, 10f), dp(scene, 10f), strokeP)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 14f)
         val titleTxt = "🗺 대한민국 탐조 지도"
         val titleW = textP.measureText(titleTxt)
         textP.color = 0xFFF8EFDC.toInt()
         c.drawText(titleTxt, dp(scene, 22f), dp(scene, 29f), textP)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 10.5f)
         textP.color = 0xFFE9C46A.toInt()
         var sub = if (w < dp(scene, 620f)) "방문 ${s.visited.size}/${Regions.ALL.size}"
@@ -2524,7 +2575,6 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
             if (showAllNames || isCurrent || isHome || reg.kind == RegionKind.TOWN) {
                 val nm = if (visited) reg.name else "? ${reg.name}"
-                textP.typeface = Fonts.round
                 textP.textSize = dp(scene, if (isCurrent) 11.5f else 10.5f)
                 val tw = textP.measureText(nm)
                 fillP.color = Color.argb(170, 255, 252, 240)
@@ -2571,7 +2621,6 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         for (k in RegionKind.values()) {
             fillP.color = k.color
             c.drawCircle(x0 + dp(scene, 2f), y - dp(scene, 3f), dp(scene, 4f), fillP)
-            textP.typeface = Fonts.body
             textP.textSize = dp(scene, 9.5f)
             textP.color = 0xFF4A3728.toInt()
             c.drawText(k.label, x0 + dp(scene, 10f), y, textP)
@@ -2601,13 +2650,11 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
         val x = r.left + dp(scene, 12f)
         var y = r.top + dp(scene, 20f)
-        textP.typeface = Fonts.round
         textP.textSize = dp(scene, 14f)
         textP.color = 0xFF4A3728.toInt()
         val title = "${reg.emoji} ${reg.name}"
         c.drawText(title, x, y, textP)
         val tw = textP.measureText(title)
-        textP.typeface = Fonts.body
         textP.textSize = dp(scene, 9f)
         textP.color = 0xFF8A7360.toInt()
         c.drawText(reg.english, x + tw + dp(scene, 6f), y, textP)

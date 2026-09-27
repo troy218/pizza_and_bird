@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 자동 생성: tools/build_art.py (원본: art/svg/tiles_town.svg) — 직접 수정하지 말 것 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FFF2E3C2"
+        android:pathData="M0,0L64,0L64,64L0,64Z"/>
+    <path
+        android:fillColor="#FFEBD9B4"
+        android:pathData="M10,0L19,0L19,52L10,52Z"/>
+    <path
+        android:fillColor="#FFEBD9B4"
+        android:pathData="M30,0L39,0L39,52L30,52Z"/>
+    <path
+        android:fillColor="#FFEBD9B4"
+        android:pathData="M52,0L61,0L61,52L52,52Z"/>
+    <path
+        android:fillColor="#FFE0C9A2"
+        android:pathData="M0,52L64,52L64,55.4L0,55.4Z"/>
+    <path
+        android:fillColor="#FFC9A87B"
+        android:pathData="M0,55.4L64,55.4L64,64L0,64Z"/>
+    <path
+        android:fillColor="#FFE0C9A2"
+        android:pathData="M0,55.4L64,55.4L64,57.4L0,57.4Z"/>
+    <path
+        android:fillColor="#FFB08A5C"
+        android:pathData="M0,62L64,62L64,64L0,64Z"/>
+</vector>

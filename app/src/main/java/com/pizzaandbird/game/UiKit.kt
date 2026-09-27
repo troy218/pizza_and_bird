@@ -44,7 +44,6 @@ object UiKit {
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
 
     // ------------------------------------------------------------------
     // 등장 애니메이션 (0..1, easeOutCubic)
@@ -248,11 +247,8 @@ object UiKit {
         stroke.color = Color.argb(90, 255, 255, 255)
         stroke.strokeWidth = 1f * d
         c.drawCircle(cx, cy, radius - 2.4f * d, stroke)
-        text.typeface = Fonts.round
-        text.textSize = glyphSizeDp * d
-        text.color = glyphCol
-        val tw = text.measureText(glyph)
-        c.drawText(glyph, cx - tw / 2f, cy - (text.descent() + text.ascent()) / 2f, text)
+        val gp = Type.paintAt(glyphSizeDp, true, 0.02f, glyphCol)
+        c.drawText(glyph, cx - gp.measureText(glyph) / 2f, Type.midBaseline(gp, cy), gp)
     }
 
     // ------------------------------------------------------------------
@@ -332,11 +328,8 @@ object UiKit {
         // 광택 점
         fill.color = Color.argb(90, 255, 255, 255)
         c.drawCircle(cx - radius * 0.3f, cy - radius * 0.34f, radius * 0.22f, fill)
-        text.typeface = Fonts.round
-        text.textSize = emojiSizeDp * d
-        text.color = BROWN
-        val tw = text.measureText(emoji)
-        c.drawText(emoji, cx - tw / 2f, cy - (text.descent() + text.ascent()) / 2f + 1f * d, text)
+        val ep = Type.paintAt(emojiSizeDp, false, 0f, BROWN)
+        c.drawText(emoji, cx - ep.measureText(emoji) / 2f, Type.midBaseline(ep, cy) + 1f * d, ep)
     }
 
     // ------------------------------------------------------------------
@@ -357,9 +350,8 @@ object UiKit {
     // ------------------------------------------------------------------
     fun darkChip(c: Canvas, game: Game, cx: Float, cy: Float, txt: String, textSizeDp: Float = 12f) {
         val d = game.density
-        text.typeface = Fonts.round
-        text.textSize = textSizeDp * d
-        val tw = text.measureText(txt)
+        val tp = Type.paintAt(textSizeDp, true, 0.02f, CREAM)
+        val tw = tp.measureText(txt)
         val pad = 9f * d
         val r = RectF(cx - tw / 2f - pad, cy - 12f * d, cx + tw / 2f + pad, cy + 12f * d)
         fill.shader = null
@@ -371,8 +363,7 @@ object UiKit {
         stroke.color = Color.argb(170, 233, 196, 106)
         stroke.strokeWidth = 1.4f * d
         c.drawRoundRect(r, 12f * d, 12f * d, stroke)
-        text.color = CREAM
-        c.drawText(txt, cx - tw / 2f, cy - (text.descent() + text.ascent()) / 2f, text)
+        c.drawText(txt, cx - tw / 2f, Type.midBaseline(tp, cy), tp)
     }
 
     // ------------------------------------------------------------------
@@ -400,23 +391,17 @@ object UiKit {
         textSizeDp: Float, color: Int, shadow: Boolean = true
     ) {
         val d = game.density
-        text.typeface = Fonts.round
-        text.textSize = textSizeDp * d
-        val tw = text.measureText(label)
-        val ty = r.centerY() - (text.descent() + text.ascent()) / 2f
+        val tp = Type.paintAt(textSizeDp, true, 0.03f, color)
+        val tw = tp.measureText(label)
+        val ty = r.centerY() - (tp.descent() + tp.ascent()) / 2f
         if (shadow) {
-            text.color = Color.argb(80, 40, 26, 12)
-            c.drawText(label, r.centerX() - tw / 2f, ty + 1f * d, text)
+            c.drawText(label, r.centerX() - tw / 2f, ty + 1f * d, Type.paintAt(textSizeDp, true, 0.03f, Color.argb(80, 40, 26, 12)))
         }
-        text.color = color
-        c.drawText(label, r.centerX() - tw / 2f, ty, text)
+        c.drawText(label, r.centerX() - tw / 2f, ty, tp)
     }
 
     /** 왼쪽 정렬 텍스트 (그림자 포함) */
     fun drawText(c: Canvas, game: Game, label: String, x: Float, y: Float, textSizeDp: Float, color: Int) {
-        text.typeface = Fonts.round
-        text.textSize = textSizeDp * game.density
-        text.color = color
-        c.drawText(label, x, y, text)
+        c.drawText(label, x, y, Type.paintAt(textSizeDp, true, 0.02f, color))
     }
 }

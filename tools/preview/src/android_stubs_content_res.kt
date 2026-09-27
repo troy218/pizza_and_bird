@@ -17,4 +17,9 @@ class AssetManager {
         val f = File("app/src/main/assets/$path")
         return if (f.exists()) FileInputStream(f) else ByteArrayInputStream(ByteArray(0))
     }
+
+    fun list(path: String): Array<String>? {
+        val dir = File("app/src/main/assets/$path")
+        return if (dir.isDirectory) dir.list() else null
+    }
 }

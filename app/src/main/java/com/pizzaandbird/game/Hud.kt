@@ -12,6 +12,7 @@ import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -59,9 +60,6 @@ class Hud(private val game: Game) {
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
     }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFakeBoldText = true
-    }
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -81,6 +79,8 @@ class Hud(private val game: Game) {
     private val clipPath = Path()
     private val tmpPath = Path()
     private var paperBmp: Bitmap? = null
+    // 종이 잉크 느낌(고운 바탕) — 번들 글꼴이 없으면 시스템 세리프로 물러난다
+    private val serif get() = Type.serif()
     private var routeDashFx: DashPathEffect? = null
 
     private val GLASS_RATIO = 0.745f
@@ -201,8 +201,6 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun draw(c: Canvas) {
-        // HUD의 모든 숫자/라벨/토스트/배너는 동글동글한 주아 글꼴로
-        text.typeface = Fonts.round
         if (showStats) drawStats(c)
         if (showMinimap) {
             drawMinimap(c, mmCx, mmCy, mmR, false)
@@ -250,22 +248,19 @@ class Hud(private val game: Game) {
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(53f))
 
-        // 돈 — 골드 도트 + 금액
+        // 돈 — 골드 도트 + 금액(숫자는 픽셀 폰트)
         fill.color = 0xFFF2B63C.toInt()
         c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), fill)
         stroke.color = 0xFFB5651D.toInt()
         stroke.strokeWidth = dp(1.2f)
         c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), stroke)
-        text.color = 0xFF4A3728.toInt()
-        text.textSize = dp(14f)
-        c.drawText(won(s.money), left + dp(28f), iy2 + dp(36f), text)
+        Type.text(c, won(s.money), left + dp(28f), iy2 + dp(36f), Role.HEADING, Type.INK)
 
         // 피자 / 카메라
-        text.textSize = dp(12f)
         c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        c.drawText("×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), text)
+        Type.text(c, "×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), Role.LABEL, Type.INK)
         c.drawBitmap(a.cameraIcon, null, RectF(left + dp(58f), iy2 + dp(42f), left + dp(58f) + dp(17f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        c.drawText("Lv.${s.cameraLevel}", left + dp(79f), iy2 + dp(53f), text)
+        Type.text(c, "Lv.${s.cameraLevel}", left + dp(79f), iy2 + dp(53f), Role.LABEL, Type.INK)
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(94f))
 
@@ -273,28 +268,19 @@ class Hud(private val game: Game) {
         val night = s.isNight()
         val clockIcon = if (night) a.moonIcon else a.sunIcon
         c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
-        text.textSize = dp(11.5f)
-        text.color = 0xFF6B5A48.toInt()
-        c.drawText(s.timeLabel(), left + dp(30f), iy2 + dp(73f), text)
-        c.drawText("📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), text)
+        Type.text(c, s.timeLabel(), left + dp(30f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
+        Type.text(c, "📷 ${s.photos}", left + dp(79f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
 
         UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
 
         // 날씨: 새 스폰과 월드 연출에 적용되는 현재 상태
         val weather = s.weather()
-        text.color = 0xFF587083.toInt()
-        text.textSize = dp(11.5f)
-        c.drawText("${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), text)
+        Type.text(c, "${weather.icon} ${weather.label}", left + dp(12f), iy2 + dp(92f), Role.LABEL, 0xFF587083.toInt())
 
         // 레벨 + 경험치 바
         val ly = iy2 + dp(96f)
-        text.textSize = dp(11.5f)
-        text.color = 0xFF4A3728.toInt()
-        c.drawText("Lv.${s.level}", left + dp(12f), ly + dp(12f), text)
-        text.textSize = dp(9f)
-        text.color = 0xFF8A7360.toInt()
-        val tt = s.title()
-        c.drawText(tt, left + dp(46f), ly + dp(11f), text)
+        Type.text(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK)
+        Type.text(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT)
         // 바 (프리미엄 그라데이션)
         val bx = left + dp(12f)
         val bw = w - dp(24f)
@@ -329,20 +315,16 @@ class Hud(private val game: Game) {
                 continue
             }
             val yy = y + (1f - inK) * -dp(10f)
-            // 긴 문구는 화면에 맞게 축소/말줄임
-            var sizeDp = 12.5f
-            text.textSize = dp(sizeDp)
-            var msg = m.text
+            // 긴 문구는 화면에 맞게 축소/말줄임 (글꼴은 Type 이 정한다)
+            val tcol = Color.argb(alpha, 248, 239, 220)
             val maxW = game.screenW - dp(70f)
-            if (text.measureText(msg) > maxW) {
-                sizeDp = 11f
-                text.textSize = dp(sizeDp)
-            }
-            if (text.measureText(msg) > maxW && maxW > dp(60f)) {
-                while (msg.length > 4 && text.measureText("$msg…") > maxW) msg = msg.dropLast(1)
-                msg = "$msg…"
-            }
-            val tw = text.measureText(msg)
+            var msg = m.text
+            var tp = Type.paintAt(12.5f, true, 0.02f, tcol)
+            if (tp.measureText(msg) > maxW) tp = Type.paintAt(11f, true, 0.02f, tcol)
+            val full = msg
+            while (msg.length > 4 && tp.measureText("$msg…") > maxW) msg = msg.dropLast(1)
+            if (msg != full) msg = "$msg…"
+            val tw = tp.measureText(msg)
             val cx = game.screenW / 2f
             val pad = dp(10f)
             val r = RectF(cx - tw / 2 - pad, yy - dp(12f), cx + tw / 2 + pad, yy + dp(13f))
@@ -357,9 +339,7 @@ class Hud(private val game: Game) {
             // 왼쪽 골드 도트
             fill.color = Color.argb(alpha, 242, 182, 60)
             c.drawCircle(r.left + dp(10f), yy + dp(0.5f), dp(3f), fill)
-            text.color = Color.argb(alpha, 248, 239, 220)
-            val ty = yy - (text.descent() + text.ascent()) / 2f
-            c.drawText(msg, cx - tw / 2, ty, text)
+            c.drawText(msg, cx - tw / 2, Type.midBaseline(tp, yy), tp)
             y += dp(29f)
         }
     }
@@ -376,8 +356,9 @@ class Hud(private val game: Game) {
         val alpha = (255 * minOf(fadeOut, eased)).toInt().coerceIn(0, 255)
         if (alpha < 4) return
 
-        text.textSize = dp(26f)
-        val tw = text.measureText(bt)
+        val bcol = Color.argb(alpha, 248, 239, 220)
+        val tp = Type.paintAt(26f, true, 0.04f, bcol)
+        val tw = tp.measureText(bt)
         val cx = w / 2f
         val cy = h * 0.24f
         // 등장 팝 스케일
@@ -402,9 +383,7 @@ class Hud(private val game: Game) {
             RectF(r.left + dp(4f), r.top + dp(4f), r.right - dp(4f), r.bottom - dp(4f)),
             dp(13f), dp(13f), stroke
         )
-        text.color = Color.argb(alpha, 248, 239, 220)
-        val ty = cy - (text.descent() + text.ascent()) / 2f
-        c.drawText(bt, cx - tw / 2, ty, text)
+        c.drawText(bt, cx - tw / 2, Type.midBaseline(tp, cy), tp)
         c.restore()
     }
 
@@ -498,10 +477,9 @@ class Hud(private val game: Game) {
             if (running) 0xFFF2D06B.toInt() else if (Ctrl.RUN in active) 0xFFD9A03C.toInt() else Color.argb(220, 74, 74, 88),
             null, 0f
         )
-        text.textSize = dp(17f)
-        text.color = if (running) 0xFF4A3728.toInt() else Color.argb(230, 248, 239, 220)
+        val runCol = if (running) Type.INK else Color.argb(230, 248, 239, 220)
         val runLabel = "»"
-        c.drawText(runLabel, runCx - text.measureText(runLabel) / 2, runCy - (text.descent() + text.ascent()) / 2, text)
+        PixelFont.draw(c, runLabel, runCx, PixelFont.midY(runCy, 3), 3, runCol, 0.5f)
 
         // 간식 (🍕) — 피자 개수 표시
         val pizzaN = game.state.pizzaCount
@@ -523,9 +501,9 @@ class Hud(private val game: Game) {
             stroke.color = 0xFFF2D06B.toInt()
             stroke.strokeWidth = dp(1.4f)
             c.drawCircle(bx, by, dp(8.5f), stroke)
-            text.textSize = dp(10f)
-            text.color = 0xFFF8EFDC.toInt()
-            c.drawText("$pizzaN", bx - text.measureText("$pizzaN") / 2, by - (text.descent() + text.ascent()) / 2, text)
+            val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
+            val nt = "$pizzaN"
+            c.drawText(nt, bx - np.measureText(nt) / 2, Type.midBaseline(np, by), np)
         }
 
         // 메뉴 (≡)
@@ -555,13 +533,12 @@ class Hud(private val game: Game) {
         stroke.strokeWidth = dp(1f)
         c.drawCircle(cx, cy, r - dp(3f), stroke)
         if (label != null) {
-            text.textSize = labelSize
-            val tw = text.measureText(label)
-            val ty = cy - (text.descent() + text.ascent()) / 2f
-            text.color = Color.argb(110, 30, 20, 10)
-            c.drawText(label, cx - tw / 2, ty + dp(1f), text)
-            text.color = 0xFF3A2A24.toInt()
-            c.drawText(label, cx - tw / 2, ty, text)
+            // labelSize 는 이미 px 이므로 dp 로 되돌려(Type.paintAt 은 dp 를 받는다)
+            val p = Type.paintAt(labelSize / d, true, 0.03f, 0xFF3A2A24.toInt())
+            val tw = p.measureText(label)
+            val ty = Type.midBaseline(p, cy)
+            c.drawText(label, cx - tw / 2, ty + dp(1f), Type.paintAt(labelSize / d, true, 0.03f, Color.argb(110, 30, 20, 10)))
+            c.drawText(label, cx - tw / 2, ty, p)
         }
     }
 
@@ -740,11 +717,9 @@ class Hud(private val game: Game) {
             }
 
             if (showNames && (isCurrent || isHome)) {
-                inkText.typeface = Fonts.round
-                inkText.isFakeBoldText = true
-                inkText.textSize = dp(8f)
-                inkText.color = if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt()
-                val tw = inkText.measureText(reg.name)
+                val nm = reg.name
+                val ip = Type.paintAt(8f, true, 0.01f, if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt())
+                val tw = ip.measureText(nm)
                 val ty = y + dot + dp(9f)
                 fx.style = Paint.Style.FILL
                 fx.shader = null
@@ -753,7 +728,7 @@ class Hud(private val game: Game) {
                     RectF(x - tw / 2f - dp(2f), ty - dp(8f), x + tw / 2f + dp(2f), ty + dp(2.5f)),
                     dp(2f), dp(2f), fx
                 )
-                c.drawText(reg.name, x - tw / 2f, ty, inkText)
+                c.drawText(nm, x - tw / 2f, ty, ip)
             }
         }
 
@@ -865,9 +840,7 @@ class Hud(private val game: Game) {
         fx.color = 0xFFBA2E24.toInt()
         c.drawPath(tmpPath, fx)
 
-        // 나침반 방위 글자는 낡은 지도 감성의 세리프(고운 바탕)로
-        inkText.typeface = Fonts.serif
-        inkText.isFakeBoldText = true
+        inkText.typeface = Typeface.create(Type.serif(), Typeface.BOLD)
         inkText.textSize = dp(8.2f)
         val letterR = glass + dp(6.0f)
         val letters = arrayOf("N" to 0, "E" to 90, "S" to 180, "W" to 270)
@@ -1009,11 +982,10 @@ class Hud(private val game: Game) {
     private fun fieldTagRect(): RectF? {
         if (!showMinimap || regionLabel.isEmpty() || mmR <= 0f || game.screenW <= 0) return null
         val reg = Regions.byId[game.state.region]
-        measurePaint.typeface = Fonts.handBold
-        measurePaint.isFakeBoldText = false
+        measurePaint.typeface = Type.hand(true)
         measurePaint.textSize = dp(12.2f)
         val nameW = measurePaint.measureText(regionLabel)
-        measurePaint.typeface = Fonts.serif
+        measurePaint.typeface = serif
         measurePaint.textSize = dp(7.3f)
         val subW = measurePaint.measureText(coordLine(reg))
         val wax = dp(16f)
@@ -1099,17 +1071,13 @@ class Hud(private val game: Game) {
         fx.color = Color.argb(160, 255, 206, 186)
         c.drawCircle(wx - dp(1.1f), wy - dp(1.2f), dp(1.35f), fx)
 
-        // 탐조 메모지의 지역 이름은 손글씨(가경)로 또박또박
-        inkText.typeface = Fonts.handBold
-        inkText.isFakeBoldText = false
+        inkText.typeface = Type.hand(true)
         inkText.textSize = dp(12.2f)
         inkText.color = 0xFF36261A.toInt()
         val nameX = rect.left + dp(20f)
         drawHandInk(c, regionLabel, nameX, rect.top + dp(15.6f), inkText)
 
-        // 좌표는 지도 감성의 세리프(고운 바탕)로
-        inkText.typeface = Fonts.serif
-        inkText.isFakeBoldText = true
+        inkText.typeface = serif
         inkText.textSize = dp(7.3f)
         inkText.color = 0xFF766044.toInt()
         c.drawText(coord, nameX, rect.bottom - dp(8.2f), inkText)
@@ -1140,22 +1108,6 @@ class Hud(private val game: Game) {
     // 텍스트 유틸
     // ------------------------------------------------------------------
 
-    fun wrapText(txt: String, tp: Paint, width: Float): List<String> {
-        val lines = ArrayList<String>()
-        for (para in txt.split("\n")) {
-            var cur = ""
-            for (word in para.split(" ")) {
-                val test = if (cur.isEmpty()) word else "$cur $word"
-                if (tp.measureText(test) <= width) {
-                    cur = test
-                } else {
-                    if (cur.isNotEmpty()) lines.add(cur)
-                    cur = word
-                }
-            }
-            if (cur.isNotEmpty()) lines.add(cur)
-        }
-        return lines
-    }
-
+    /** 줄바꿈 규칙은 Type.wrap 이 담당한다(한글 줄바꿈 — 금칙 문자 처리 포함) */
+    fun wrapText(txt: String, tp: Paint, width: Float): List<String> = Type.wrap(txt, tp, width)
 }

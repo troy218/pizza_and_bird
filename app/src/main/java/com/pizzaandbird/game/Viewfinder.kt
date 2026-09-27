@@ -105,11 +105,7 @@ class Viewfinder(private val game: Game) {
 
     private val fill = Paint()
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    // 뷰파인더 라벨은 따뜻한 둥근 글꼴, 촬영 수치(ISO/조리개/셔터)는 카메라다운 모노스페이스
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Fonts.round
-        isFakeBoldText = true
-    }
+    private val text = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true)
     private val mono = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.MONOSPACE
         isFakeBoldText = true

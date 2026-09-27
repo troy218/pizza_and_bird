@@ -15,8 +15,6 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 게임 객체가 만들어지기 전에 번들 글꼴(주아/고운 돋움/고운 바탕/가경)을 준비한다
-        Fonts.init(applicationContext)
         gameView = GameView(this)
         setContentView(gameView)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
