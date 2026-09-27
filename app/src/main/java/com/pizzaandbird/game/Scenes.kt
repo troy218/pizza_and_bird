@@ -4,7 +4,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PointF
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -34,7 +37,13 @@ abstract class Scene(val game: Game) {
 }
 
 /**
- * 타이틀 화면
+ * 타이틀 화면 — 앱을 열면 가장 먼저 보이는 "시작하기" 화면.
+ *
+ * 구도(위 → 아래):
+ *   · **제목 (화면 정중앙)**: PIZZA and BIRD(픽셀 폰트) + 피자와 새 + 태그라인
+ *   · 시작 버튼 (시작하기 / 이어하기) — 저장이 있으면 두 개, 없으면 하나
+ *   · 아래쪽 잔디 언덕에서 펼쳐지는 작은 장면: 피자 · 목화로즈 오븐 · 새들
+ *     오븐에서는 연기가 피어오르고, 피자 주변으로 반짝이가 뜁니다.
  */
 class TitleScene(game: Game) : Scene(game) {
 
@@ -42,17 +51,41 @@ class TitleScene(game: Game) : Scene(game) {
     private var startRect = RectF()
     private var contRect = RectF()
     private val titlePaint = Paint()
-    private val skyBands = intArrayOf(
-        0xFF7FD4E8.toInt(), 0xFF8FDCEA.toInt(), 0xFFA4E4EE.toInt(),
-        0xFFBCEAF0.toInt(), 0xFFD4F2EC.toInt()
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val hazePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val smokePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val glowRect = RectF()
+
+    /** 제목 뒤의 부드러운 광채 — 레이아웃(화면 크기)이 바뀔 때만 재생성한다. */
+    private var glowShader: Shader? = null
+    private var glowW = 0
+    private var glowH = 0
+
+    /** 하늘 그라데이션 앵커 (위 → 지평선) — 24단계로 보간해 밴드를 부드럽게 만든다. */
+    private val skyAnchors = intArrayOf(
+        0xFF4FB3E4.toInt(), 0xFF9BDCF2.toInt(), 0xFFCDEFF0.toInt(), 0xFFF2FADE.toInt()
     )
-    private val decoSpots = arrayOf(
-        1 to 13, 5 to 14, 9 to 13, 14 to 15, 18 to 13, 22 to 14, 26 to 13, 28 to 15,
-        3 to 16, 7 to 15, 12 to 16, 17 to 16, 21 to 15, 25 to 16,
-        31 to 13, 34 to 15, 37 to 14, 40 to 16
-    )
-    private val treeFractions = floatArrayOf(0.0625f, 0.3125f, 0.5833f, 0.8542f)
-    private val ovenBounds = RectF()
+    private val skyBands: IntArray = run {
+        val stops = floatArrayOf(0f, 0.45f, 0.78f, 1f)
+        val out = IntArray(24)
+        for (i in out.indices) {
+            val u = i / (out.size - 1).toFloat()
+            var s = 1
+            while (s < stops.size - 1 && u > stops[s]) s++
+            val s0 = stops[s - 1]
+            val s1 = stops[s]
+            val k = ((u - s0) / (s1 - s0)).coerceIn(0f, 1f)
+            val a = skyAnchors[s - 1]
+            val b = skyAnchors[s]
+            out[i] = Color.rgb(
+                (Color.red(a) + (Color.red(b) - Color.red(a)) * k).toInt(),
+                (Color.green(a) + (Color.green(b) - Color.green(a)) * k).toInt(),
+                (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * k).toInt()
+            )
+        }
+        out
+    }
 
     init {
         game.hud.showControls = false
@@ -70,102 +103,164 @@ class TitleScene(game: Game) : Scene(game) {
         game.hud.update(dt)
     }
 
+    // ------------------------------------------------------------------
+    // 월드 캔버스 (가상 해상도): 하늘 · 언덕 · 잔디 · 작은 장면
+    // ------------------------------------------------------------------
+
     override fun drawWorld(c: Canvas) {
         val p = titlePaint
         val a = game.assets
         val W = game.virtW.toFloat()          // 화면비 적응 가상 너비
-        val ox = (W - 960f) / 2f              // 16:9 구도를 중앙 유지하기 위한 오프셋
+        val cx = W / 2f
         val span = W + 160f                   // 구름/새 반복 범위
 
-        // 하늘 그라데이션(밴드)
+        // 하늘 그라데이션 (24단계 보간 — 밴드 경계가 안 보일 만큼 부드럽게)
+        val bandH = game.virtH.toFloat() / skyBands.size
         for (i in skyBands.indices) {
             p.color = skyBands[i]
-            c.drawRect(0f, i * 76f, W, (i + 1) * 76f, p)
+            c.drawRect(0f, i * bandH, W, (i + 1) * bandH + 1f, p)
         }
 
-        // 햇살
+        // 해 — 은은한 헤일(4단) + 천천히 도는 광선
+        val sx = W - 170f
+        val sy = 74f
+        p.color = Color.argb(16, 250, 240, 190)
+        c.drawCircle(sx, sy, 104f, p)
+        p.color = Color.argb(24, 250, 240, 190)
+        c.drawCircle(sx, sy, 82f, p)
+        p.color = Color.argb(34, 250, 240, 190)
+        c.drawCircle(sx, sy, 63f, p)
+        p.color = Color.argb(48, 250, 240, 190)
+        c.drawCircle(sx, sy, 49f, p)
         p.color = 0xFFF7EDB8.toInt()
-        c.drawCircle(856f + ox, 84f, 44f, p)
-        p.color = Color.argb(50, 247, 237, 184)
-        c.drawCircle(856f + ox, 84f, 62f, p)
-        p.color = Color.argb(28, 247, 237, 184)
-        c.drawCircle(856f + ox, 84f, 84f, p)
+        c.drawCircle(sx, sy, 44f, p)
         p.color = 0xFFFFFBE0.toInt()
-        c.drawCircle(856f + ox, 84f, 32f, p)
+        c.drawCircle(sx, sy, 32f, p)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 5f
+        p.strokeCap = Paint.Cap.ROUND
+        p.color = Color.argb(110, 251, 239, 168)
+        val rot = t * 0.08f
+        for (i in 0 until 12) {
+            val ang = rot + i * (Math.PI / 6.0).toFloat()
+            val ca = cos(ang)
+            val sa = sin(ang)
+            c.drawLine(sx + ca * 52f, sy + sa * 52f, sx + ca * 70f, sy + sa * 70f, p)
+        }
+        p.style = Paint.Style.FILL
+        p.strokeCap = Paint.Cap.BUTT
 
-        // 구름 (두 겹)
-        p.color = Color.argb(215, 255, 255, 255)
-        drawCloud(c, p, (t * 9f) % span - 120f, 70f, 1.4f)
-        drawCloud(c, p, (t * 5f + 300f) % span - 120f, 130f, 1.0f)
-        drawCloud(c, p, (t * 6.5f + 640f) % span - 120f, 52f, 1.2f)
-        p.color = Color.argb(120, 214, 236, 244)
-        drawCloud(c, p, (t * 3.5f + 120f) % span - 120f, 180f, 2.2f)
-        drawCloud(c, p, (t * 4.5f + 760f) % span - 120f, 110f, 1.8f)
+        // 구름 (가까운 흰 구름 + 먼 푸른 구름)
+        p.color = Color.argb(225, 255, 255, 255)
+        drawCloud(c, p, (t * 9f) % span - 120f, 66f, 1.4f)
+        drawCloud(c, p, (t * 5f + 300f) % span - 120f, 128f, 1.0f)
+        drawCloud(c, p, (t * 6.5f + 640f) % span - 120f, 48f, 1.2f)
+        p.color = Color.argb(105, 214, 236, 244)
+        drawCloud(c, p, (t * 3.5f + 120f) % span - 120f, 186f, 2.2f)
+        drawCloud(c, p, (t * 4.5f + 760f) % span - 120f, 104f, 1.8f)
+        drawCloud(c, p, (t * 3f + 480f) % span - 120f, 240f, 2.6f)
 
         // 날아가는 새 실루엣
         p.color = Color.argb(150, 90, 80, 90)
         p.strokeWidth = 2.4f
         for (i in 0 until 4) {
             val bx = (t * 26f + i * 240f) % span - 80f
-            val by = 90f + i * 38f + sin(t * 2f + i) * 9f
+            val by = 88f + i * 36f + sin(t * 2f + i) * 9f
             c.drawLine(bx, by, bx + 9f, by - 4f, p)
             c.drawLine(bx + 9f, by - 4f, bx + 18f, by, p)
         }
+        // 오른쪽에서 지나가는 작은 V자 무리
+        p.color = Color.argb(85, 90, 80, 90)
+        p.strokeWidth = 1.6f
+        val flockX = W + 60f - ((t * 15f) % (span + 240f))
+        val flockY = 148f + sin(t * 1.3f) * 8f
+        for (i in 0 until 3) {
+            val fx = flockX - i * 15f
+            val fy = flockY + (i % 2) * 7f
+            c.drawLine(fx, fy, fx - 6f, fy - 3f, p)
+            c.drawLine(fx - 6f, fy - 3f, fx - 12f, fy, p)
+        }
 
-        // 먼 언덕 (넓은 화면비에서도 지평선이 빈틈없이 덮이도록 가장자리를 채운다)
-        p.color = 0xFF7ABC7A.toInt()
-        if (W > 962f) { c.drawCircle(ox - 60f, 474f, 230f, p); c.drawCircle(W - ox + 60f, 480f, 240f, p) }
-        c.drawCircle(200f + ox, 470f, 190f, p)
-        c.drawCircle(640f + ox, 492f, 230f, p)
-        p.color = 0xFF68AC6C.toInt()
-        c.drawCircle(420f + ox, 486f, 170f, p)
-        c.drawCircle(880f + ox, 478f, 150f, p)
+        // 지평선 안개 띠 — 하늘과 언덕 사이 깊이를 더해 준다
+        hazePaint.color = Color.argb(38, 255, 255, 255)
+        c.drawRect(0f, 396f, W, 426f, hazePaint)
 
-        // 풀 타일 바닥 (하단 3줄 — 화면비에 맞춰 채운다)
+        // 언덕 (2겹 — 화면비에 따라 중심 대칭)
+        p.color = 0xFF8FCF8E.toInt()
+        c.drawCircle(0.16f * W, 472f, 205f, p)
+        c.drawCircle(0.52f * W, 490f, 235f, p)
+        c.drawCircle(0.88f * W, 474f, 210f, p)
+        p.color = 0xFF79BC78.toInt()
+        c.drawCircle(0.33f * W, 498f, 170f, p)
+        c.drawCircle(0.74f * W, 496f, 185f, p)
+
+        // 잔디 (앞쪽 3줄 — 예전보다 얇게, 화면비로 채운다)
         val grass = a.tiles[T.GRASS.ordinal]
         val flowers = a.tiles[T.FLOWER.ordinal]
-        val tall = a.tiles[T.TALLGRASS.ordinal]
         val maxCol = (game.virtW + 31) / 32
-        for (row in 12..16) {
+        for (row in 14..16) {
             for (col in 0 until maxCol) {
                 val variant = a.tileVariant(T.GRASS.ordinal, col, row)
                 c.drawBitmap(grass[variant], col * 32f, row * 32f, a.sprPaint)
             }
         }
-        // 꽃/풀숲 포인트
-        var visibleSpotIndex = 0
-        for (i in decoSpots.indices) {
-            val (col, row) = decoSpots[i]
-            if (col >= maxCol) continue
-            val bmp = if (visibleSpotIndex % 3 == 2) tall[visibleSpotIndex % tall.size] else flowers[visibleSpotIndex % flowers.size]
-            c.drawBitmap(bmp, col * 32f, row * 32f, a.sprPaint)
-            visibleSpotIndex++
+        // 꽃은 드물게 — 잔디가 시끄럽지 않게
+        val flowerFractions = floatArrayOf(0.035f, 0.115f, 0.215f, 0.30f, 0.435f, 0.575f, 0.66f, 0.795f, 0.885f, 0.965f)
+        for (i in flowerFractions.indices) {
+            val col = (flowerFractions[i] * maxCol).toInt().coerceIn(0, maxCol - 1)
+            val row = if (i % 3 == 0) 16 else 15
+            c.drawBitmap(flowers[i % flowers.size], col * 32f, row * 32f, a.sprPaint)
         }
 
-        // 지평선 나무 (화면비에 따라 분포)
+        // 지평선 나무 (양쪽 끝 — 가운데는 장면/버튼을 위해 비워 둔다)
         val trees = a.tiles[T.TREE.ordinal]
-        for (i in treeFractions.indices) {
-            c.drawBitmap(trees[i % trees.size], treeFractions[i] * W, 352f, a.sprPaint)
-        }
-        val pines = trees.size
-        if (pines > 1) c.drawBitmap(trees[1], 0.719f * W, 356f, a.sprPaint)
+        c.drawBitmap(trees[0], 0.045f * W, 352f, a.sprPaint)
+        c.drawBitmap(trees[1], 0.15f * W, 358f, a.sprPaint)
+        c.drawBitmap(trees[1], 0.85f * W, 358f, a.sprPaint)
+        c.drawBitmap(trees[0], 0.955f * W, 352f, a.sprPaint)
 
-        // 피자 & 새 로고
-        val bob = sin(t * 2.2f) * 5f
-        val pz = a.pizzaIconBig
-        c.drawBitmap(pz, 384f + ox, 336f + bob, a.sprPaint)
-        p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
-        c.drawCircle(658f + ox, 380f, 43f, p)
-        ovenBounds.set(620f + ox, 334f, 696f + ox, 424f)
-        game.illustrations.draw(c, "wood_fired_oven.svg", ovenBounds)
-        val bird = a.bird("sparrow")
-        c.drawBitmap(bird, 296f + ox, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
-        val fb = sin(t * 2.6f + 1f) * 7f
-        c.drawBitmap(a.birdFlipped("sparrow"), 536f + ox, 300f + fb, a.sprPaint)
-        val crane = a.bird("crane")
-        c.drawBitmap(crane, 130f + ox, 300f + sin(t * 1.7f) * 5f, a.sprPaint)
+        // ----------------------------------------------------------------
+        // 작은 장면 — 왼쪽: 피자 + 새 / 오른쪽: 화덕 + 연기 / 새들
+        // 가운데(버튼 자리)는 잔디만 남아 화면이 깔끔해진다.
+        // ----------------------------------------------------------------
+        val side = minOf(280f, W * 0.29f)
+        val lx = cx - side
+        val rx = cx + side
+
+        // 그림자 (요소들이 잔디 위에 "앉아" 있게)
+        shadowPaint.color = Color.argb(52, 45, 80, 40)
+        c.drawOval(lx - 46f, 468f, lx + 46f, 484f, shadowPaint)
+        c.drawOval(rx - 42f, 476f, rx + 42f, 492f, shadowPaint)
+
+        // 피자 (부유하며 살랑살랑)
+        val pizzaY = 410f + sin(t * 2.2f) * 5f
+        c.drawBitmap(a.pizzaIconBig, lx - 44f, pizzaY, a.sprPaint)
+        // 피자 위에 앉은 참새
+        val sparrow = a.bird("sparrow")
+        c.drawBitmap(sparrow, lx + 8f, pizzaY - a.birdH("sparrow") + 10f + sin(t * 2.4f) * 2f, a.sprPaint)
+        // 피자 근처 반짝이
+        UiKit.sparkle(c, lx + 52f, pizzaY + 8f, 10f, Color.argb((120 + 70 * sin(t * 2.6f)).toInt(), 255, 214, 110), t * 2.6f)
+        UiKit.sparkle(c, lx - 58f, pizzaY + 26f, 7f, Color.argb((110 + 70 * sin(t * 2.6f + 2.1f)).toInt(), 255, 232, 150), t * 2.6f + 2.1f)
+
+        // 목화로즈 오븐 + 피어오르는 연기 (크게 불며 사방으로 흐르는 연무)
+        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(rx - 34f, 398f, rx + 34f, 488f))
+        for (i in 0 until 4) {
+            val cyc = ((t * 13f + i * 23f) % 92f) / 92f          // 0..1 상승 진행
+            val px = rx + 10f + sin(t * 1.6f + i * 1.9f) * (5f + cyc * 8f)
+            val py = 398f - cyc * 92f
+            smokePaint.color = Color.argb(((80 - cyc * 80).toInt().coerceAtLeast(0)), 255, 252, 244)
+            val pr = 5f + cyc * 12f
+            c.drawCircle(px, py, pr, smokePaint)
+            c.drawCircle(px + 4f, py - 3f, pr * 0.7f, smokePaint)
+        }
+
+        // 새들 — 왼쪽 날아다니는 올빼미, 오른쪽 서 있는두루미
         val owl = a.bird("owl")
-        c.drawBitmap(owl, 806f + ox, 306f + sin(t * 2.9f) * 4f, a.sprPaint)
+        c.drawBitmap(owl, lx - 128f, 336f + sin(t * 2.9f) * 5f, a.sprPaint)
+        val crane = a.bird("crane")
+        c.drawBitmap(crane, rx + 78f, 492f - a.birdH("crane") + sin(t * 1.7f) * 2f, a.sprPaint)
+        val magpie = a.birdFlipped("magpie")
+        c.drawBitmap(magpie, rx - 128f, 420f + sin(t * 2.2f + 1f) * 4f, a.sprPaint)
     }
 
     private fun drawCloud(c: Canvas, p: Paint, x: Float, y: Float, s: Float) {
@@ -175,56 +270,114 @@ class TitleScene(game: Game) : Scene(game) {
         c.drawRect(x - 8f * s, y, x + 28f * s, y + 9f * s, p)
     }
 
+    // ------------------------------------------------------------------
+    // HUD (실제 화면 해상도): 정중앙 제목 + 버튼
+    // ------------------------------------------------------------------
+
     override fun drawHud(c: Canvas) {
         fun dp(v: Float): Float = v * game.density
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
         val cx = w / 2f
+        val hasSave = game.state.started
 
-        // 로고 — 라틴이라 5x7 픽셀 폰트 + 크림색 테두리(스티커 느낌)
-        Type.sticker(c, "PIZZA and BIRD", cx, dp(58f), Role.HERO, Type.INK)
+        // 등장 연출 — 제목 → 태그라인 → 버튼 순서로 살짝 지연되며 들어온다
+        val titleK = easeOutCubic(clamp01(t / 0.55f))
+        val tagK = easeOutCubic(clamp01((t - 0.15f) / 0.55f))
+        val btnK = easeOutCubic(clamp01((t - 0.35f) / 0.5f))
 
-        // 한글로도 크게
-        Type.sticker(c, "피자와 새", cx, dp(96f), Role.DISPLAY, Type.CARAMEL)
+        // 제목 뒤 부드러운 광채 (화면이 바뀔 때만 셰이더 재생성)
+        val gy = h * 0.355f
+        val gr = minOf(w * 0.30f, h * 1.15f) * (0.85f + 0.15f * titleK)
+        if (glowW != w.toInt() || glowH != h.toInt()) {
+            glowW = w.toInt()
+            glowH = h.toInt()
+            glowShader = RadialGradient(
+                cx, gy, minOf(w * 0.30f, h * 1.15f),
+                intArrayOf(0x6BFFFFFF.toInt(), 0x00FFFFFF.toInt()),
+                floatArrayOf(0f, 1f), Shader.TileMode.CLAMP
+            )
+        }
+        glowPaint.shader = glowShader
+        c.drawCircle(cx, gy, gr, glowPaint)
+        glowPaint.shader = null
 
-        val sub = "피자를 굽고, 자전거를 타고, 새를 찍는 힐링 여행"
-        Type.text(c, sub, cx, dp(122f), Role.CAPTION, Type.LEAF, 0.5f)
+        // 제목 — 화면 세로 정중앙
+        c.save()
+        c.translate(cx, h * 0.34f)
+        val ts = 0.93f + 0.07f * titleK
+        c.scale(ts, ts)
+        c.translate(-cx, -h * 0.34f)
+        val rise = (1f - titleK) * dp(16f)
+        // 라틴 로고 — 5x7 픽셀 폰트 + 크림 테두리 (스티커 느낌)
+        Type.sticker(c, "PIZZA and BIRD", cx, h * 0.295f + rise, Role.HERO, Type.INK)
+        // 한글 타이틀 — 그 아래, 카라멜 색
+        stickerAt(c, "피자와 새", cx, h * 0.415f + rise, 27f, Type.CARAMEL, Type.CREAM)
+        c.restore()
 
-        // 버튼
-        val bw = dp(210f)
-        val bh = dp(44f)
-        val by = h * 0.56f
-        startRect = RectF(cx - bw / 2, by, cx + bw / 2, by + bh)
-        contRect = RectF(cx - bw / 2, by + bh + dp(14f), cx + bw / 2, by + bh * 2 + dp(14f))
+        // 태그라인 + 반짝이 구분선
+        val tagRise = (1f - tagK) * dp(10f)
+        Type.text(c, "피자를 굽고, 자전거를 타고, 새를 찍는 힐링 여행", cx, h * 0.482f + tagRise, Role.CAPTION, Type.MUTED, 0.5f)
+        UiKit.sparkle(c, cx - dp(48f), h * 0.524f, dp(8f), Color.argb(150, 226, 172, 60), t * 2.4f)
+        UiKit.sparkle(c, cx, h * 0.522f, dp(11f), Color.argb(190, 226, 172, 60), t * 2.4f + 2.1f)
+        UiKit.sparkle(c, cx + dp(48f), h * 0.524f, dp(8f), Color.argb(150, 226, 172, 60), t * 2.4f + 4.2f)
 
-        val fill = Paint()
-        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 시작 버튼 — 저장이 있으면 "시작하기 + 이어하기", 없으면 "시작하기" 하나만
+        val bh = dp(46f)
+        val byTop = h * 0.60f
+        c.save()
+        c.translate(cx, byTop + bh / 2)
+        val bs = 0.8f + 0.2f * btnK
+        c.scale(bs, bs)
+        c.translate(-cx, -(byTop + bh / 2))
+        val bRise = (1f - btnK) * dp(12f)
+        if (hasSave) {
+            val bw1 = dp(196f)
+            val bw2 = dp(172f)
+            val gap = dp(22f)
+            val total = bw1 + gap + bw2
+            startRect = RectF(cx - total / 2, byTop + bRise, cx - total / 2 + bw1, byTop + bh + bRise)
+            contRect = RectF(cx - total / 2 + bw1 + gap, byTop + bRise, cx + total / 2, byTop + bh + bRise)
+            UiKit.cuteButton(c, game, startRect, "시작하기", UiKit.GOLD, 0xFF3A2510.toInt(), 15.5f)
+            UiKit.cuteButton(c, game, contRect, "이어하기", UiKit.CREAM, 0xFF5A422C.toInt(), 14.5f)
+        } else {
+            val bw1 = dp(210f)
+            startRect = RectF(cx - bw1 / 2, byTop + bRise, cx + bw1 / 2, byTop + bh + bRise)
+            contRect = RectF(0f, 0f, 0f, 0f)
+            UiKit.cuteButton(c, game, startRect, "시작하기", UiKit.GOLD, 0xFF3A2510.toInt(), 15.5f)
+        }
+        c.restore()
+
+        // 하단 정보
+        val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 새 598종 · made with love & pizza"
+        Type.text(c, info, cx, h - dp(10f), Role.CAPTION, Color.argb(175, 74, 55, 40), 0.5f)
+    }
+
+    /** 커스텀 크기 스티커 텍스트 (Type.sticker는 Role만 받으니 임의 크기용 헬퍼). */
+    private fun stickerAt(c: Canvas, s: String, x: Float, y: Float, sizeDp: Float, color: Int, edgeColor: Int) {
+        val p = Type.paintAt(sizeDp, true, 0.04f, color)
+        val left = x - p.measureText(s) / 2f
+        val off = sizeDp * game.density * 0.055f
+        c.drawText(s, left + off, y + off, Type.paintAt(sizeDp, true, 0.04f, Type.DROP))
+        // 테두리는 매 프레임 새로 만든다 — 캐시된 페인트의 스타일을 건드리면 다른 화면이 뒤틀린다
+        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Type.face(true)
+            textSize = TypeScale.px(sizeDp * game.density)
+            letterSpacing = 0.04f
+            this.color = edgeColor
             style = Paint.Style.STROKE
-            strokeWidth = dp(2.5f)
-            color = 0xFF6B4F35.toInt()
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+            strokeWidth = minOf(sizeDp * game.density * 0.11f, 3.2f * game.density)
         }
+        c.drawText(s, left, y, edge)
+        c.drawText(s, left, y, p)
+    }
 
-        // 시작 버튼에 은은하게 흐르는 빛 — 게임 초입의 분위기를 살려준다
-        fun button(rect: RectF, label: String, enabled: Boolean) {
-            val pressed = enabled && game.input.isPressedIn(rect)
-            fill.color = if (!enabled) Color.argb(120, 200, 190, 175)
-            else if (pressed) blendToward(0xFFF8EFDC.toInt(), 0xFF6B4F35.toInt(), 0.16f)
-            else 0xFFF8EFDC.toInt()
-            c.drawRoundRect(rect, dp(13f), dp(13f), fill)
-            c.drawRoundRect(rect, dp(13f), dp(13f), border)
-            val col = if (enabled) Type.INK else Color.argb(140, 74, 55, 40)
-            val p = Type.paintAt(16f, true, 0.06f, col)
-            val by2 = rect.centerY() - (p.descent() + p.ascent()) / 2
-            if (enabled) c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + dp(1.2f), Type.paintAt(16f, true, 0.06f, Type.DROP))
-            c.drawText(label, rect.centerX() - p.measureText(label) / 2, by2 + if (pressed) dp(1.5f) else 0f, p)
-        }
-
-        button(startRect, "새로 시작하기", true)
-        button(contRect, "이어하기", game.state.started)
-
-        // 하단 정보 — 한글·이모지가 섞여 있어 시스템 폰트로 그려진다
-        val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 공식 새 598종 · 몰입 카메라 · made with pizza"
-        Type.text(c, info, cx, h - dp(12f), Role.CAPTION, Color.argb(180, 74, 55, 40), 0.5f)
+    private fun clamp01(x: Float): Float = x.coerceIn(0f, 1f)
+    private fun easeOutCubic(x: Float): Float {
+        val u = 1f - x
+        return 1f - u * u * u
     }
 
     override fun handleInput(input: Input) {
