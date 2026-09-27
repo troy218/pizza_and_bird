@@ -405,6 +405,14 @@ class HomeScene(game: Game) : Scene(game) {
         val ps = a.playerSet(state.gender, state.gearTier())
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
         c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        // 집 안에서도 카메라는 목에 걸고 다닌다
+        val camDir = when (player.facing) {
+            Dir.E -> 2
+            Dir.W -> 3
+            Dir.N -> 1
+            else -> 0
+        }
+        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)

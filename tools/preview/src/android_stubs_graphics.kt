@@ -202,10 +202,11 @@ class Path {
 
     fun moveTo(x: Float, y: Float) = p2d.moveTo(x, y)
     fun lineTo(x: Float, y: Float) = p2d.lineTo(x, y)
-
-    fun quadTo(x1: Float, y1: Float, x2: Float, y2: Float) = p2d.quadTo(x1, y1, x2, y2)
     fun cubicTo(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) =
         p2d.curveTo(x1, y1, x2, y2, x3, y3)
+    fun quadTo(x1: Float, y1: Float, x2: Float, y2: Float) =
+        p2d.quadTo(x1, y1, x2, y2)
+
 
     fun close() = p2d.closePath()
     fun reset() = p2d.reset()

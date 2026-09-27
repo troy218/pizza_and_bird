@@ -69,6 +69,14 @@ open class Context {
     companion object {
         const val VIBRATOR_SERVICE = "vibrator"
         const val MODE_PRIVATE = 0
+
+        /** 프리뷰용 리소스 id → drawable 이름 (r_stub.kt 가 등록한다) */
+        val drawableRegistry = java.util.concurrent.ConcurrentHashMap<Int, String>()
+    }
+
+    open fun getDrawable(id: Int): android.graphics.drawable.Drawable? {
+        val name = drawableRegistry[id] ?: return null
+        return android.graphics.drawable.VectorArtDrawable.load(name)
     }
 
     open fun getSharedPreferences(name: String, mode: Int): SharedPreferences = InMemorySharedPreferences()
