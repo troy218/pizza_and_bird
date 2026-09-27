@@ -144,6 +144,11 @@ java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 매 프레임 갱신하는지 확인한다. 판정은 `GfxStats.drawBitmap` 횟수(월드 약 2000회,
 건너뛰면 HUD 정도만)로 한다.
 
+`mobile_perf_smoke.kt` 는 자동 화질(지속 부하만 감지·수동 설정 존중·HUD 실해상도 유지),
+지면 청크 캐시의 호출 감소, 물 애니메이션과 화면 밖 풀 culling/재진입을 확인한다.
+위 컴파일 명령에 `tools/preview/mobile_perf_smoke.kt`를 추가하고
+`com.pizzaandbird.preview.MobilePerfSmoke`를 실행하면 된다.
+
 ### 스크린샷 결정성
 
 프리뷰의 `android.os.SystemClock` 는 벽시계가 아니라 **게임 시간(dt)만 흐르는 시계**다

@@ -1612,9 +1612,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     "1" -> "1배 (성능 우선)"
                     "2" -> "2배 (고화질)"
                     "3" -> "3배 (최고 화질)"
-                    else -> "자동 (2K 기준)"
+                    else -> "자동 (${g.worldScale}배 · 프레임 우선)"
                 } },
-                "월드 렌더 해상도 — 높을수록 또렷해요",
+                "버벅이면 월드만 낮춰요 (글씨·버튼은 선명하게)",
                 action = {
                     g.state.renderScale = when (g.state.renderScale) {
                         "auto" -> "1"; "1" -> "2"; "2" -> "3"; else -> "auto"
