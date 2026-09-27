@@ -24,6 +24,21 @@ import kotlin.math.sqrt
 /** 토스트 메시지가 머무는 시간(초) */
 private const val MESSAGE_LIFE = 2.8f
 
+/** 토스트 한 줄의 세로 간격(dp) */
+private const val MESSAGE_STEP = 29f
+
+/**
+ * 한 화면에 동시에 띄우는 토스트 줄 수.
+ * 고정 자리에서 아래로 쌓이므로, 두 줄까지가 지역 배너와 겹치지 않는 한도다.
+ */
+private const val MESSAGE_MAX = 2
+
+/**
+ * 사진 모드 뷰파인더 상단 정보 바의 아래쪽 끝(가상 좌표).
+ * 토스트는 이 바에 가리지 않도록 그 아래에 자리한다.
+ */
+private const val VF_TOP_BAR_BOTTOM = 72f
+
 /** 지역 배너가 머무는 시간(초) */
 private const val BANNER_LIFE = 2.6f
 
@@ -80,6 +95,13 @@ class Hud(private val game: Game) {
     private val messages = ArrayList<Message>()
     private var bannerText: String? = null
     private var bannerT = 0f
+
+    /**
+     * 토스트가 항상 떠 있는 고정 높이(px, 화면 상단 기준).
+     * 화면 크기로만 정해지고(layout에서 한 번 계산) 사진 모드·지역 배너·메시지 개수로는
+     * 흔들리지 않는다 — 즉 토스트는 언제나 이 자리에서 시작해 아래로 쌓인다.
+     */
+    private var toastTopY = 0f
 
     private class Message(var text: String, var t: Float, val life: Float)
 
@@ -208,6 +230,12 @@ class Hud(private val game: Game) {
         mmR = minOf(dp(68f), wf * 0.16f)
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
+
+        // --- 토스트 고정 자리 -------------------------------------------
+        // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
+        // 한 번만 정하므로 카메라 모드로 바뀌어도 토스트는 같은 자리에 뜬다.
+        toastTopY = maxOf(dp(56f), VF_TOP_BAR_BOTTOM * game.viewScale + dp(18f))
+
         softShadow.maskFilter = BlurMaskFilter(dp(3.4f), BlurMaskFilter.Blur.NORMAL)
         buildStickShaders(stickBaseR)
     }
@@ -293,8 +321,15 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun toast(msg: String) {
+        // 같은 문구가 연달아 오면 새로 쌓는 대신 남은 시간만 갱신한다
+        // (줄이 늘어나며 아래 메시지가 밀리는 것을 막는다)
+        val last = messages.lastOrNull()
+        if (last != null && last.text == msg) {
+            last.t = last.life
+            return
+        }
         messages.add(Message(msg, MESSAGE_LIFE, MESSAGE_LIFE))
-        if (messages.size > 3) messages.removeAt(0)
+        if (messages.size > MESSAGE_MAX) messages.removeAt(0)
     }
 
     fun banner(msg: String) {
@@ -518,18 +553,20 @@ class Hud(private val game: Game) {
     }
 
     private fun drawMessages(c: Canvas) {
-        val th = game.screenH.toFloat()
-        var y = dp(20f) + if (photoModeHint) dp(62f) else 0f
-        // 등장한 배너가 토스트와 겹치지 않도록 아래로 밀어 낸다
-        if (bannerText != null && bannerT > 0f) y = maxOf(y, th * 0.24f + dp(40f))
-        for (m in messages) {
+        // 항상 같은 자리(toastTopY)에서 시작해 아래로 쌓는다.
+        // 사진 모드·지역 배너 때문에 자리가 밀리지 않는다 (배너 쪽이 토스트를 피한다).
+        val step = dp(MESSAGE_STEP)
+        var y = toastTopY
+        // 최신 메시지가 언제나 앵커 자리에 오도록 최신 → 오래된 순으로 그린다.
+        // (오래된 메시지가 사라져도 남은 줄은 한 칸씩 내려가지 않는다)
+        for (m in messages.asReversed()) {
             // 등장 슬라이드 + 페이드인/아웃
-            val age = 2.8f - m.t
+            val age = m.life - m.t
             val inK = (age / 0.22f).coerceIn(0f, 1f)
             val outK = (m.t.coerceIn(0f, 0.4f) / 0.4f)
             val alpha = (255 * minOf(inK, outK)).toInt().coerceIn(0, 255)
             if (alpha < 4) {
-                y += dp(28f)
+                y += step
                 continue
             }
             val yy = y + (1f - inK) * -dp(10f)
@@ -558,7 +595,7 @@ class Hud(private val game: Game) {
             fill.color = Color.argb(alpha, 242, 182, 60)
             c.drawCircle(r.left + dp(10f), yy + dp(0.5f), dp(3f), fill)
             c.drawText(msg, cx - tw / 2, Type.midBaseline(tp, yy), tp)
-            y += dp(29f)
+            y += step
         }
     }
 
@@ -584,7 +621,8 @@ class Hud(private val game: Game) {
         }
         val tw = tp.measureText(bt)
         val cx = w / 2f
-        val cy = h * 0.24f
+        // 토스트는 고정 자리를 지키므로, 겹치지 않게 배너 쪽이 토스트 아래로 내려간다
+        val cy = maxOf(h * 0.24f, toastTopY + dp(76f))
         // 등장 팝 스케일
         val scale = 0.86f + 0.14f * eased
         c.save()
