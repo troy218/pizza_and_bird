@@ -70,7 +70,7 @@ class StatsOverlay(
 
         p.textSize = textDp(16f)
         p.color = 0xFF4A3728.toInt()
-        c.drawText("📊 모험 통계", panelR.left + dp(16f), panelR.top + dp(29f), p)
+        UiKit.drawIconText(c, g, "📊 모험 통계", panelR.left + dp(16f), panelR.top + dp(29f), p)
         p.textSize = textDp(9.5f)
         p.color = 0xFF8A7360.toInt()
         c.drawText("이 여행에서 쌓인 발자국과 셔터의 기록", panelR.left + dp(16f), panelR.top + dp(46f), p)
