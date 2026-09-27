@@ -267,6 +267,21 @@ APK 위치: `app/build/outputs/apk/`
 
 요구 사항: JDK 17, Android SDK (API 35)
 
+### 내 Ubuntu 서버에서 직접 APK 빌드 (Actions/배포 토큰 불필요)
+
+Ubuntu x86_64 서버에서 Android Studio 없이 빌드할 수 있습니다. 첫 실행에는 SDK/Gradle 의존성 다운로드가 필요합니다. **비공개 저장소**이므로 아래 clone 방식은 서버에 GitHub SSH 접근 권한이 이미 설정된 경우에만 가능합니다.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl unzip ca-certificates openjdk-17-jdk
+git clone git@github.com:troy218/pizza_and_bird.git
+cd pizza_and_bird
+./tools/build_apk_ubuntu.sh
+# 결과: app/build/outputs/apk/debug/app-debug.apk
+```
+
+GitHub 접근 권한을 서버에 설정하고 싶지 않다면 **PC의 소스를 `rsync`로 복사**해도 됩니다. 작업 브랜치 체크아웃, `rsync` 및 APK를 PC로 가져오는 `scp` 명령, 서명된 release APK 생성법은 [Ubuntu 서버 APK 빌드 안내](docs/UBUNTU_APK.md)를 참고하세요.
+
 ---
 
 ## 📦 GitHub Actions로 베타 APK 받기 (CI)
