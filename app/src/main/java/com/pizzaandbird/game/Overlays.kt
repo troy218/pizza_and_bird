@@ -31,7 +31,9 @@ abstract class Overlay(val scene: Scene) {
 // 공통 페인트 (서브 UI 직접 그리기용)
 private val fillP = Paint(Paint.ANTI_ALIAS_FLAG)
 private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-private val textP = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+// 화면마다 dp 를 직접 지정하는 곳에서 쓰는 공용 텍스트 페인트.
+// 글꼴은 Type 이 관리한다(assets 에 둥근 한글 폰트를 넣으면 그대로 적용).
+private val textP = Type.bind(Paint(Paint.ANTI_ALIAS_FLAG), true).apply { letterSpacing = 0.01f }
 
 private fun dp(scene: Scene, v: Float): Float = v * scene.game.density
 
@@ -147,10 +149,10 @@ class DialogOverlay(
         val h = g.screenH.toFloat()
         val margin = dp(scene, 18f)
 
-        // 본문 줄 수에 맞춰 패널 높이 결정
-        textP.textSize = dp(scene, 13f)
+        // 본문 줄 수에 맞춰 패널 높이 결정 (본문 = 보통 두께가 읽기 편하다)
+        val bodyPaint = Type.paint(Role.BODY, Type.INK)
         val maxW = w - margin * 2f - dp(scene, 28f)
-        val lines = g.hud.wrapText(body, textP, maxW).take(8)
+        val lines = Type.wrap(body, bodyPaint, maxW).take(8)
         val panelH = dp(scene, 108f) + dp(scene, 17f) * (lines.size - 3).coerceAtLeast(0)
         val r = RectF(margin, h - margin - panelH, w - margin, h - margin)
 
@@ -159,8 +161,6 @@ class DialogOverlay(
         c.translate(0f, enterShift())
         panel(c, r, scene)
 
-        textP.textSize = dp(scene, 11f)
-        textP.color = 0xFF6FAE6F.toInt()
         if (title.isNotEmpty()) {
             val tw = textP.measureText(title)
             val chip = RectF(r.left + dp(scene, 12f), r.top - dp(scene, 11f), r.left + dp(scene, 12f) + tw + dp(scene, 16f), r.top + dp(scene, 11f))
@@ -168,13 +168,11 @@ class DialogOverlay(
             UiKit.button(c, g, chip, title, 0xFF6B4F35.toInt(), 0xFFF8EFDC.toInt(), 11f)
         }
 
-        // 본문
-        textP.textSize = dp(scene, 13f)
-        textP.color = 0xFF4A3728.toInt()
+        // 본문 — 한 줄에 Type.lineHeight 만큼만 내려간다(줄 간격 통일)
         var ty = r.top + dp(scene, 24f)
         for (ln in lines) {
-            c.drawText(ln, r.left + dp(scene, 14f), ty, textP)
-            ty += dp(scene, 17f)
+            c.drawText(ln, r.left + dp(scene, 14f), ty, bodyPaint)
+            ty += Type.lineHeight(Role.BODY)
         }
 
         // 선택지 — 첫 번째(긍정) 버튼은 골드 프라이머리, 나머지는 크림 세컨더리
