@@ -1,6 +1,7 @@
-# preview build 2026-09-27 08:28:43Z
-# commit: 24f85b0b423a48fe1394ae4bcd47c57753c5e6fd
+# preview build 2026-09-27 08:35:12Z
+# commit: 034a40f8458b3423c8477cacf22be5283fe9b937
 # gradle exit code: 0
+>> kotlin 컴파일러 다운로드 중...
 r_stub.kt: 변경 없음 (raw 36종 · drawable 87종)
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 >> 프리뷰 렌더링...
@@ -8,64 +9,57 @@ r_stub.kt: 변경 없음 (raw 36종 · drawable 87종)
 
 ----- gradle build log (error lines + last 120) -----
 ...
+Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:mergeReleaseJniLibFolders
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
-> Task :app:buildKotlinToolingMetadata
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:checkReleaseAarMetadata
-> Task :app:generateReleaseResValues
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :app:processReleaseMainManifest
-> Task :app:processReleaseManifest
-> Task :app:processReleaseManifestForPackage
-> Task :app:javaPreCompileRelease
-> Task :app:desugarReleaseFileDependencies
-> Task :app:mergeReleaseStartupProfile
-> Task :app:mergeReleaseResources
-> Task :app:packageReleaseResources
-> Task :app:mergeExtDexRelease
-> Task :app:mergeReleaseArtProfile
-> Task :app:mergeReleaseShaders
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:parseReleaseLocalResources
-> Task :app:mergeReleaseAssets
-> Task :app:processReleaseResources
-> Task :app:compressReleaseAssets
-> Task :app:extractReleaseVersionControlInfo
-> Task :app:optimizeReleaseResources
-> Task :app:collectReleaseDependencies
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-> Task :app:compileReleaseKotlin
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:mergeDebugResources
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:packageDebugResources
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:parseDebugLocalResources
+> Task :app:mergeDebugAssets
+> Task :app:processDebugResources
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:compileDebugKotlin
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
-> Task :app:compileReleaseJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderRelease
-> Task :app:mergeReleaseGlobalSynthetics
-> Task :app:mergeDexRelease
-> Task :app:processReleaseJavaRes
-> Task :app:compileReleaseArtProfile
-> Task :app:mergeReleaseJavaResource
-> Task :app:packageRelease
-> Task :app:createReleaseApkListingFileRedirect
-> Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790497677585.json
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790498016131.json
 
-BUILD SUCCESSFUL in 46s
-40 actionable tasks: 40 executed
+BUILD SUCCESSFUL in 1m 44s
+33 actionable tasks: 33 executed
 
 ----- preview render log (last 200 lines) -----
 org.json.JSONException: no object at 0
