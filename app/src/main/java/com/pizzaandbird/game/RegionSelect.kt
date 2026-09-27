@@ -43,7 +43,7 @@ object RegionCards {
 
     fun draw(c: Canvas, game: Game, rects: List<RectF>, regions: List<RegionDef>, selectedId: String?) {
         val dp = game.density
-        val fill = Paint()
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         // 역할별 페인트: 이름은 진하게, 설명은 보통 두께로
         val namePaint = Type.paintAt(14f, true, 0.03f, Type.INK)
@@ -59,11 +59,24 @@ object RegionCards {
             if (i >= rects.size) break
             val r = rects[i]
             val sel = reg.id == selectedId
-            fill.color = if (sel) 0xFFFDF3D8.toInt() else 0xFFF8EFDC.toInt()
-            c.drawRoundRect(r, dp * 10, dp * 10, fill)
-            stroke.color = if (sel) Type.BERRY else reg.kind.color
-            stroke.strokeWidth = dp * (if (sel) 3f else 2f)
-            c.drawRoundRect(r, dp * 10, dp * 10, stroke)
+            UiKit.card(c, game, r, 10f, sel, if (sel) 0xFFE2574C.toInt() else reg.kind.color, if (sel) 3f else 2f)
+            // 지역 성격 스트립
+            fill.color = reg.kind.color
+            c.drawRoundRect(RectF(r.left + dp * 10, r.top + dp * 5, r.left + dp * 44, r.top + dp * 8), dp * 2, dp * 2, fill)
+            // 선택 핀
+            if (sel) {
+                val ccx = r.right - dp * 2f
+                val ccy = r.top + dp * 2f
+                fill.color = Color.argb(70, 40, 20, 10)
+                c.drawCircle(ccx, ccy + dp * 1.5f, dp * 11f, fill)
+                fill.color = 0xFFE2574C.toInt()
+                c.drawCircle(ccx, ccy, dp * 11f, fill)
+                stroke.color = 0xFFFFF8E8.toInt()
+                stroke.strokeWidth = dp * 2f
+                c.drawCircle(ccx, ccy, dp * 11f, stroke)
+                val vp = Type.paintAt(12f, true, 0.02f, 0xFFFFF8E8.toInt())
+                c.drawText("✓", ccx - vp.measureText("✓") / 2f, Type.midBaseline(vp, ccy), vp)
+            }
 
             val x = r.left + dp * 10
             var y = r.top + dp * 16
@@ -177,33 +190,17 @@ class RegionSelectScene(game: Game) : Scene(game) {
         cardRects = listOf(area)
         RegionCards.draw(c, game, cardRects, regions, selected.id)
 
-        // 하단 확인 바
+        // 하단 확인 바 — 프리미엄 패널 + 골드 버튼
         val barH = dp * 56f
         val bar = RectF(dp * 16f, h - barH - dp * 12f, w - dp * 16f, h - dp * 12f)
-        val fill = Paint()
-        fill.color = 0xFFF8EFDC.toInt()
-        c.drawRoundRect(bar, dp * 12f, dp * 12f, fill)
-        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = dp * 2.5f
-            color = 0xFF6B4F35.toInt()
-        }
-        c.drawRoundRect(bar, dp * 12f, dp * 12f, stroke)
+        UiKit.panel(c, game, bar)
 
         val info = "서울에 집을 마련하고 여행을 시작할게요"
         Type.textCentered(c, info, bar.left + dp * 16f, bar.centerY(), Role.BODY, Type.INK)
 
         val bw = dp * 150f
         confirmRect = RectF(bar.right - bw - dp * 12f, bar.top + dp * 10f, bar.right - dp * 12f, bar.bottom - dp * 10f)
-        val btnStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = dp * 2f
-            color = 0xFFB5651D.toInt()
-        }
-        fill.color = 0xFFF2B63C.toInt()
-        c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, fill)
-        c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, btnStroke)
-        Type.stickerCentered(c, "서울에서 시작!", confirmRect.centerX(), confirmRect.centerY(), Role.HEADING, Type.INK)
+        UiKit.button(c, game, confirmRect, "서울에서 시작!", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 14f)
     }
 
     override fun handleInput(input: Input) {
@@ -282,19 +279,15 @@ class RegionSelectOverlay(
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
 
-        fillDim.color = Color.argb(150, 20, 16, 28)
-        c.drawRect(0f, 0f, w, h, fillDim)
+        UiKit.dim(c, game, 150, bornAt)
 
         panelR = RectF(dp * 14f, dp * 14f, w - dp * 14f, h - dp * 14f)
-        panelFill.color = 0xFFF8EFDC.toInt()
-        c.drawRoundRect(panelR, dp * 12f, dp * 12f, panelFill)
-        panelStroke.color = 0xFF6B4F35.toInt()
-        panelStroke.strokeWidth = dp * 2.5f
-        c.drawRoundRect(panelR, dp * 12f, dp * 12f, panelStroke)
+        UiKit.panel(c, game, panelR)
 
-        Type.text(c, "📦 이사갈 곳을 골라요", panelR.left + dp * 16f, panelR.top + dp * 28f, Role.TITLE, Type.INK)
-        Type.text(c, "이사 ${won(MOVE_COST)} · 방문한 지역의 집을 매입해 내 집으로 만들 수 있어요",
-            panelR.left + dp * 16f, panelR.top + dp * 46f, Role.CAPTION, Type.SOFT)
+        val t1 = "📦 이사갈 곳을 골라요"
+        Type.text(c, t1, panelR.left + dp * 16f, panelR.top + dp * 28f, Role.TITLE, Type.INK)
+        val t2 = "이사 ${won(MOVE_COST)} · 방문한 지역의 집을 매입해 내 집으로 만들 수 있어요"
+        Type.text(c, t2, panelR.left + dp * 16f, panelR.top + dp * 46f, Role.CAPTION, Type.SOFT)
 
         area = RectF(
             panelR.left + dp * 12f, panelR.top + dp * 56f,
@@ -313,48 +306,42 @@ class RegionSelectOverlay(
             prevRect = RectF(panelR.centerX() - dp * 130f, navY, panelR.centerX() - dp * 54f, navY + navH)
             nextRect = RectF(panelR.centerX() + dp * 54f, navY, panelR.centerX() + dp * 130f, navY + navH)
             for ((rr, lbl) in listOf(prevRect to "◀ 이전", nextRect to "다음 ▶")) {
-                panelFill.color = 0xFFF2E3C2.toInt()
-                c.drawRoundRect(rr, dp * 9f, dp * 9f, panelFill)
-                c.drawRoundRect(rr, dp * 9f, dp * 9f, panelStroke)
-                Type.textCentered(c, lbl, rr.centerX(), rr.centerY(), Role.LABEL, Type.INK, 0.5f)
+                UiKit.button(c, game, rr, lbl, 0xFFF2E3C2.toInt(), 0xFF4A3728.toInt(), 11.5f)
             }
-            Type.textCentered(c, "${page + 1} / $pages", panelR.centerX(), navY + navH / 2f, Role.LABEL, Type.INK, 0.5f)
-            Type.text(c, "방문 ${allRegions.size}곳", panelR.centerX(), navY + navH + dp * 14f, Role.CAPTION, Type.SOFT, 0.5f)
+            val pg = "${page + 1} / $pages  (방문 ${allRegions.size}곳)"
+            val pgW = Type.width(Role.LABEL, pg, Type.INK) + dp * 22f
+            UiKit.badge(
+                c, game, RectF(panelR.centerX() - pgW / 2f, navY, panelR.centerX() + pgW / 2f, navY + navH),
+                pg, 0xFF6B4F35.toInt(), Type.INK, 12f
+            )
             return
         }
 
-        // 확인 바
+        // 확인 바 — 카드 배경 + 골드/크림 버튼
         val bar = RectF(panelR.left + dp * 12f, panelR.bottom - dp * 58f, panelR.right - dp * 12f, panelR.bottom - dp * 10f)
+        UiKit.card(c, game, bar, 10f, false, 0xFFC9A87B.toInt(), 1.5f)
         val cur = scene.game.state
         val houseCost = if (cur.ownsHome(selected!!.id)) 0 else HousePrices.forRegion(selected!!.id)
-        val info = when {
+        var info = when {
             selected!!.id == cur.homeRegion -> "지금 사는 곳이에요!"
             houseCost == 0 -> "${selected!!.name} 집 보유 · 이사 ${won(MOVE_COST)} · 보유 ${won(cur.money)}"
             else -> "${selected!!.name} 집 매입 ${won(houseCost)} + 이사 ${won(MOVE_COST)} · 보유 ${won(cur.money)}"
         }
-        Type.textCentered(c, info, bar.left + dp * 8f, bar.centerY(), Role.BODY, Type.INK)
-
         val bw = dp * 110f
         confirmRect = RectF(bar.right - bw - dp * 10f, bar.top + dp * 8f, bar.right - dp * 10f, bar.bottom - dp * 8f)
         cancelRect = RectF(confirmRect.left - bw - dp * 8f, bar.top + dp * 8f, confirmRect.left - dp * 8f, bar.bottom - dp * 8f)
-
-        panelFill.color = 0xFFF2B63C.toInt()
-        c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, panelFill)
-        c.drawRoundRect(confirmRect, dp * 10f, dp * 10f, panelStroke)
-        val label = if (houseCost > 0) "매입 & 이사" else "이사!"
-        Type.textCentered(c, label, confirmRect.centerX(), confirmRect.centerY(), Role.HEADING, Type.INK, 0.5f)
-
-        panelFill.color = 0xFFF2E3C2.toInt()
-        c.drawRoundRect(cancelRect, dp * 10f, dp * 10f, panelFill)
-        c.drawRoundRect(cancelRect, dp * 10f, dp * 10f, panelStroke)
-        Type.textCentered(c, "취소", cancelRect.centerX(), cancelRect.centerY(), Role.HEADING, Type.INK, 0.5f)
-    }
-
-    companion object {
-        private val fillDim = Paint()
-        private val panelFill = Paint()
-        private val panelStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
+        // 정보 문구가 버튼과 겹치지 않게 말줄임
+        val infoPaint = Type.paint(Role.BODY, Type.INK)
+        val maxIW = cancelRect.left - bar.left - dp * 16f
+        if (maxIW > dp * 60f) {
+            val origLen = info.length
+            while (info.length > 4 && infoPaint.measureText(info) > maxIW) info = info.dropLast(1)
+            if (info.length < origLen) info = info.dropLast(1) + "…"
         }
+        Type.text(c, info, bar.left + dp * 10f, Type.midBaseline(infoPaint, bar.centerY()), Role.BODY, Type.INK)
+
+        val label = if (houseCost > 0) "매입 & 이사" else "이사!"
+        UiKit.button(c, game, confirmRect, label, 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 13f)
+        UiKit.button(c, game, cancelRect, "취소", 0xFFF2E3C2.toInt(), 0xFF6B4F35.toInt(), 13f)
     }
 }

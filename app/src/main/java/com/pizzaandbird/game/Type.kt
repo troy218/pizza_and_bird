@@ -156,6 +156,9 @@ object Type {
         return centerY - (p.descent() + p.ascent()) / 2f
     }
 
+    /** 임의 크기 페인트의 세로 가운데 baseline (레거 밖 크기가 필요할 때). */
+    fun midBaseline(p: Paint, centerY: Float): Float = centerY - (p.descent() + p.ascent()) / 2f
+
     /** [text] 를 상자 세로 가운데에 맞춰 그린다. */
     fun textCentered(
         c: Canvas, s: String, x: Float, centerY: Float, role: Role,
