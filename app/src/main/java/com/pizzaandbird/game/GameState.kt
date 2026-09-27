@@ -36,11 +36,12 @@ class GameState {
     val bestStars = LinkedHashMap<String, Int>()    // 도감: 새별 최고 별점
     val photoAlbum = ArrayList<BirdPhotoRecord>()   // 사진집: 실제 지형+방향+자세가 남은 촬영본
     val visited = LinkedHashSet<String>()           // 방문한 지역
+    val landmarksSeen = LinkedHashSet<String>()     // 관람을 마친 지역 랜드마크
     val ownedHomes = LinkedHashSet<String>()        // 매입한 지역별 집
     val ownedHouseStyles = LinkedHashSet<String>()  // 구매한 인테리어 스타일
 
-    var homeRegion = START_REGION_ID       // 집이 있는 지역
-    var region = START_REGION_ID           // 현재 지역
+    var homeRegion = START_REGION_ID       // 현재 정착지(다른 매입 집도 다시 들어갈 수 있음)
+    var region = START_REGION_ID           // 현재 지역 / 실내에서는 나갈 지역
     var houseStyleId = "cozy"              // 현재 집 인테리어
     var px = 0f                    // 월드 좌표(px)
     var py = 0f
@@ -48,6 +49,9 @@ class GameState {
 
     var questBird: String? = null  // 박사 사진 의뢰(서브퀘스트): 촬영할 새
     var questReward = 0
+    val activeQuests = ArrayList<QuestData>()       // 다양한 종류의 서브 의뢰 목록 (최대 3개 동시 진행)
+    val dailyQuests = ArrayList<DailyQuestData>()   // 오늘의 일일 탐조 미션 (매일 3개)
+    var lastDailyDay = 1                            // 일일 미션이 갱신된 날짜
 
     // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
     var mainQuestStarted = false
@@ -71,7 +75,7 @@ class GameState {
     var sfxOn = true               // 설정: 효과음/환경음
 
     // 화질 설정 (2K 렌더링) ------------------------------------------------
-    /** 월드 렌더 배율: "auto"(화면 높이에 맞춤, 최대 3×) / "1" / "2" / "3" */
+    /** 월드 렌더 배율: "auto"(화면 높이로 시작해 프레임이 밀리면 낮춤) / "1" / "2" / "3" */
     var renderScale = "auto"
     /** 화면 출력 보간 — false: 픽셀 느낌(선명, 기본) · true: 부드러운 보간 */
     var smoothScreen = false
@@ -79,6 +83,10 @@ class GameState {
     /** 집 장식 칸 (장식 id, -1 = 빈칸). v5부터 8칸이며, 예전 3칸 세이브는 앞 칸에 그대로 옮긴다. */
     val decorSlots = IntArray(Decors.SLOT_COUNT) { -1 }
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
+
+    // 🌸 힐링 컨텐츠 상태 (v0.4.2 「따뜻한 바람」) — 기본 JSONObject로 세이브/로드가 투명하다.
+    var healing = JSONObject()
+
 
     // 자전거 (탈것은 자전거만!) ------------------------------------------
     val ownedBikes = LinkedHashSet<String>()      // 소유한 자전거 모델 id
@@ -126,6 +134,7 @@ class GameState {
     fun addPizza(pizzaId: Int, quality: Int): Boolean {
         if (pizzaCount >= pizzaCapEff()) return false
         pizzas[pizzaIdx(pizzaId, quality)]++
+        QuestManager.onPizzaBaked(this, Pizzas.of(pizzaId))
         return true
     }
 
@@ -349,6 +358,7 @@ class GameState {
         while (worldTime >= 24f) {
             worldTime -= 24f
             day += 1
+            QuestManager.ensureDailyQuests(this)
         }
     }
 
@@ -356,6 +366,7 @@ class GameState {
     fun sleepUntilMorning() {
         if (worldTime > 7.2f) day += 1
         worldTime = 7.2f
+        QuestManager.ensureDailyQuests(this)
     }
 
     /** 밤(올빼미 등 밤새 출현) 여부 */
@@ -495,6 +506,7 @@ class GameState {
         bestStars.clear()
         photoAlbum.clear()
         visited.clear()
+        landmarksSeen.clear()
         homeRegion = START_REGION_ID
         region = START_REGION_ID
         visited.add(START_REGION_ID)
@@ -508,6 +520,9 @@ class GameState {
         onBike = false
         questBird = null
         questReward = 0
+        activeQuests.clear()
+        dailyQuests.clear()
+        lastDailyDay = 1
         mainQuestStarted = false
         mainQuestStage = 0
         mainQuestFinished = false
@@ -561,6 +576,9 @@ class GameState {
         put("onBike", onBike)
         put("questBird", questBird ?: "")
         put("questReward", questReward)
+        put("activeQuests", JSONArray().apply { activeQuests.forEach { put(it.toJson()) } })
+        put("dailyQuests", JSONArray().apply { dailyQuests.forEach { put(it.toJson()) } })
+        put("lastDailyDay", lastDailyDay)
         put("mainQuestStarted", mainQuestStarted)
         put("mainQuestStage", mainQuestStage)
         put("mainQuestFinished", mainQuestFinished)
@@ -583,6 +601,7 @@ class GameState {
         put("bestStars", JSONObject(bestStars as Map<*, *>))
         put("photoAlbum", JSONArray().apply { photoAlbum.forEach { put(it.toJSON()) } })
         put("visited", JSONArray().apply { visited.forEach { put(it) } })
+        put("landmarksSeen", JSONArray().apply { landmarksSeen.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
         put("ownedBikes", JSONArray().apply { ownedBikes.forEach { put(it) } })
@@ -599,6 +618,7 @@ class GameState {
         put("camFov", camFov)
         put("camDof", camDof)
         put("camLead", camLead)
+        put("healing", healing)
     }
 
     companion object {
@@ -674,6 +694,38 @@ class GameState {
             s.onBike = j.optBoolean("onBike", false)
             s.questBird = j.optString("questBird", "").ifEmpty { null }
             s.questReward = j.optInt("questReward", 0)
+            val aq = j.optJSONArray("activeQuests")
+            if (aq != null) {
+                for (i in 0 until aq.length()) {
+                    val o = aq.optJSONObject(i) ?: continue
+                    QuestData.fromJson(o)?.let { s.activeQuests.add(it) }
+                }
+            } else if (s.questBird != null) {
+                // 기존 저장 데이터 호환: questBird가 있으면 기본 퀘스트로 연동
+                val bDef = Birds.byId[s.questBird!!]
+                if (bDef != null) {
+                    s.activeQuests.add(
+                        QuestData(
+                            id = "bird_${bDef.id}",
+                            category = QuestCategory.BIRD_SPECIES,
+                            title = "${bDef.name} 사진 기록",
+                            description = "${bDef.name}의 선명한 사진을 촬영해 오세요.",
+                            targetKey = bDef.id,
+                            targetCount = 1,
+                            rewardMoney = s.questReward,
+                            rewardExp = Progression.questExp(s.questReward)
+                        )
+                    )
+                }
+            }
+            val dq = j.optJSONArray("dailyQuests")
+            if (dq != null) {
+                for (i in 0 until dq.length()) {
+                    val o = dq.optJSONObject(i) ?: continue
+                    DailyQuestData.fromJson(o)?.let { s.dailyQuests.add(it) }
+                }
+            }
+            s.lastDailyDay = j.optInt("lastDailyDay", s.day)
             s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
             s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
             s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size
@@ -741,6 +793,10 @@ class GameState {
             if (vs != null) {
                 for (i in 0 until vs.length()) s.visited.add(vs.optString(i))
             }
+            val lms = j.optJSONArray("landmarksSeen")
+            if (lms != null) {
+                for (i in 0 until lms.length()) s.landmarksSeen.add(lms.optString(i))
+            }
             val ds = j.optJSONArray("decorSlots")
             if (ds != null) {
                 // v4의 3칸 배치는 새 8칸 레이아웃의 앞 세 칸에 보존한다.
@@ -790,6 +846,8 @@ class GameState {
             s.camFov = j.optBoolean("camFov", true)
             s.camDof = j.optBoolean("camDof", true)
             s.camLead = j.optBoolean("camLead", true)
+            // 🌸 힐링 상태 (v0.4.2 — 없으면 빈 JSONObject)
+            s.healing = j.optJSONObject("healing") ?: JSONObject()
             return s
         }
     }
@@ -827,4 +885,8 @@ object SaveManager {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
         PhotoArchive.clear(ctx)
     }
+
+    // [P05] 백업 코드가 같은 prefs를 읽을 수 있도록 노출 — 기존 save/load/has/clear 는 무수정
+    fun prefsName(): String = PREFS
+    fun saveKey(): String = KEY
 }

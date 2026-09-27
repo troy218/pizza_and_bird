@@ -8,6 +8,10 @@ import com.pizzaandbird.game.*
  *   java -cp <android.jar>:<게임 클래스>:out:<kotlin-stdlib.jar> MapTestKt
  */
 
+// 광장 중심 — 사람 배치 검증의 출발점 (MapBuilder.PLAZA_* 와 같은 값)
+private const val PLAZA_CX = 21
+private const val PLAZA_CY = 15
+
 fun reach(map: GameMap, sx: Int, sy: Int, tx: Int, ty: Int): Boolean {
     if (sx < 0 || sy < 0 || sx >= map.w || sy >= map.h) return false
     if (map.solidTile(sx, sy)) return false
@@ -80,6 +84,35 @@ fun main() {
     check(Birds.ALL.any { it.active == "night" }, "밤새(active=night) 정의 없음")
     check(Birds.ALL.all { it.habitats.isNotEmpty() }, "서식지 없는 새 존재")
 
+    // 2.55 캐스팅 북(NpcRoster) — 「한 사람은 한 장소에만」의 전제 조건
+    run {
+        val ids = NpcRoster.ALL.map { it.id }
+        val dupId = ids.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+        check(dupId.isEmpty(), "NPC id 중복: $dupId")
+        val names = NpcRoster.ALL.map { it.name }
+        val dupName = names.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+        check(dupName.isEmpty(), "NPC 이름 중복: $dupName")
+        check(NpcRoster.ALL.count { it.kind == NpcKind.PROFESSOR } == 1, "보리 박사는 한 명이어야 한다")
+        check(NpcRoster.ALL.count { it.kind == NpcKind.SHOP } == 1, "사진용품점은 한 곳이어야 한다")
+        check(NpcRoster.byId[NpcRoster.professor.id]?.regionId == NpcRoster.PROFESSOR_REGION,
+            "보리 박사 거주지 오류")
+        check(NpcRoster.shopkeeper.regionId == NpcRoster.SHOP_REGION, "사진용품점 위치 오류")
+        for (r in Regions.ALL) {
+            val cast = NpcRoster.forRegion(r.id)
+            check(cast.size >= 2, "사람이 2명 미만인 지역 ${r.id}: ${cast.size}명")
+            check(cast.all { it.regionId == r.id }, "캐스팅 지역 id 오류 ${r.id}")
+            check(cast.count { it.resident } == 1, "이웃 주민이 정확히 한 명이 아닌 지역 ${r.id}")
+            check(cast.all { it.title.isNotBlank() }, "별명(직함)이 없는 사람이 있는 지역 ${r.id}")
+            check(cast.all { it.lines.isNotEmpty() && it.lines.all { l -> l.isNotBlank() } },
+                "대사가 없는 사람이 있는 지역 ${r.id}")
+            // 같은 지역 안에서 옷차림이 같으면 사람 구별이 안 된다
+            val looks = cast.map { listOf(it.look.hair, it.look.top, it.look.pants, it.look.pack) }
+            check(looks.toSet().size == looks.size, "같은 지역 안에서 옷차림 중복 ${r.id}")
+            val spots = cast.map { it.spot }
+            check(spots.toSet().size == spots.size, "같은 지역 안에서 자리(${spots}) 중복 ${r.id}")
+        }
+    }
+
     // 2.6 해안·호수·하천 타일은 지정한 지역 방향과 위치에 놓인다
     for (r in Regions.ALL) {
         val map = MapBuilder.build(r, START_REGION_ID)
@@ -131,10 +164,40 @@ fun main() {
                     "스폰 막힘 region=${r.id} home=${home.id} spawn=$name tile=${map.feetTile(sp.first, sp.second)}")
             }
 
-            // NPC 위치
+            // 지역 사람(NPC) — 캐스팅 북에 있는 그 지역 사람만, 걸어서 갈 수 있는 자리에 선다
+            val cast = NpcRoster.forRegion(r.id)
+            check(map.npcs.size == cast.size,
+                "사람 수 불일치 ${r.id}(home=${home.id}): 캐스팅 ${cast.size}명 · 배치 ${map.npcs.size}명 " +
+                    "(${cast.map { it.name } - map.npcs.map { it.name }})")
+            check(map.npcs.map { it.person.id }.toSet().size == map.npcs.size, "사람 중복 배치 ${r.id}")
             for (n in map.npcs) {
-                check(!map.solidTile(n.tileX, n.tileY), "NPC 막힘 ${r.id} (${n.tileX},${n.tileY}) ${n.kind}")
-                check(!map.solidTile(n.tileX, n.tileY + 1), "NPC 앞 막힘 ${r.id} (${n.tileX},${n.tileY + 1})")
+                check(n.person.regionId == r.id,
+                    "다른 지역 사람이 나타남 ${r.id}: ${n.name}(거주=${n.person.regionId})")
+                check(!map.solidTile(n.tileX, n.tileY), "NPC 막힘 ${r.id} (${n.tileX},${n.tileY}) ${n.name}")
+                check(!map.solidTile(n.tileX, n.tileY + 1), "NPC 앞 막힘 ${r.id} (${n.tileX},${n.tileY + 1}) ${n.name}")
+                check(map.walkableTile(n.greetX, n.greetY),
+                    "인사 자리 막힘 ${r.id} ${n.name} (${n.greetX},${n.greetY})=${map.t(n.greetX, n.greetY)}")
+                check(!map.solidBox(n.greetX * 16f, n.greetY * 16f),
+                    "인사 자리 박스 막힘 ${r.id} ${n.name} (${n.greetX},${n.greetY})")
+                check(reach(map, (PLAZA_CX), (PLAZA_CY), n.tileX, n.tileY),
+                    "걸어서 갈 수 없는 사람 ${r.id} ${n.name} (${n.tileX},${n.tileY}) 자리=${n.person.spot}")
+                val gd = kotlin.math.hypot(
+                    (n.greetX - n.tileX).toDouble(), (n.greetY - n.tileY).toDouble())
+                check(gd <= 1.5, "인사 자리가 너무 멂 ${r.id} ${n.name} (${gd}칸)")
+                for (m in map.npcs) {
+                    if (m === n) continue
+                    val d = kotlin.math.abs(m.tileX - n.tileX) + kotlin.math.abs(m.tileY - n.tileY)
+                    check(d >= 3, "사람이 붙어 있음 ${r.id}: ${n.name}(${n.tileX},${n.tileY}) ↔ ${m.name}(${m.tileX},${m.tileY})")
+                }
+            }
+            // 보리 박사·사진용품점은 자기 동네에만 있다
+            for (n in map.npcs) {
+                if (n.kind == NpcKind.PROFESSOR) {
+                    check(r.id == NpcRoster.PROFESSOR_REGION, "다른 지역에 나타난 보리 박사 ${r.id}")
+                }
+                if (n.kind == NpcKind.SHOP) {
+                    check(r.id == NpcRoster.SHOP_REGION, "다른 지역에 나타난 사진용품점 ${r.id}")
+                }
             }
 
             // 터널 타일 & 플라자까지 경로
@@ -245,6 +308,16 @@ fun main() {
         }
     }
 
+    // 3.5 여러 지역의 매입 집: 이사로 정착지가 바뀌어도 기존 현관은 남아 다시 들어갈 수 있어야 한다.
+    val retainedHomeIds = setOf("seoul", "busan")
+    for (regionId in retainedHomeIds) {
+        val map = MapBuilder.build(Regions.byId[regionId]!!, "busan", retainedHomeIds)
+        check(map.hasHouse, "매입 집이 사라짐 $regionId")
+        check(map.t(map.houseDoorX, map.houseDoorY) == T.HOUSE_DOOR, "매입 집 문 오류 $regionId")
+        check(!map.solidTile(map.houseDoorX, map.houseDoorY), "매입 집 문이 막힘 $regionId")
+        check(reach(map, PLAZA_CX, PLAZA_CY, map.houseDoorX, map.houseDoorY), "매입 집 현관 접근 불가 $regionId")
+    }
+
     // 4. 집 내부 (v0.4: 16x12 확장 레이아웃 — 화덕 우상단, 가정용 오븐은 화덕 왼쪽)
     val hm = MapBuilder.buildHome()
     check(hm.w == 16 && hm.h == 12, "집 내부 16x12 오류: ${hm.w}x${hm.h}")
@@ -262,14 +335,42 @@ fun main() {
     check(hm.t(6, 2) == T.DECOR && hm.t(9, 2) == T.DECOR && hm.t(13, 7) == T.DECOR, "장식 칸 오류")
     check(hm.t(2, 1) == T.WALL_WIN && hm.t(6, 1) == T.WALL_WIN && hm.t(10, 1) == T.WALL_WIN && hm.t(13, 1) == T.WALL_WIN, "창문 위치 오류")
 
-    // 4.5 피자 데이터 (화덕피자 / 일반 피자)
-    check(Pizzas.ALL.size == 12, "피자 종류 수 오류: ${Pizzas.ALL.size}")
+    // 4.5 피자 데이터 (화덕피자 / 일반 피자 + [P07] 지역 특산 8종)
+    check(Pizzas.ALL.size == 20, "피자 종류 수 오류: ${Pizzas.ALL.size}")
     check(Pizzas.ALL.withIndex().all { (i, p) -> p.id == i }, "피자 id는 ALL 인덱스와 같아야 함 (세이브 호환)")
-    check(Pizzas.ofKind(PizzaKind.OVEN).size == 6 && Pizzas.ofKind(PizzaKind.REGULAR).size == 6, "계열별 6종이어야 함")
+    check(Pizzas.ofKind(PizzaKind.OVEN).size == 14 && Pizzas.ofKind(PizzaKind.REGULAR).size == 6, "계열별 6/14종이어야 함")
     check(Pizzas.of(0).name == "치즈" && Pizzas.of(1).name == "버섯" && Pizzas.of(2).name == "불고기", "v0.2 토핑 id 호환 깨짐")
+    // [P07] id 0~11 은 값까지 그대로여야 한다 (append-only, 규칙 4)
+    val legacyNames = listOf("치즈", "버섯", "불고기", "페퍼로니", "고구마", "콤비네이션",
+        "마르게리타", "마리나라", "콰트로 포르마지", "고르곤졸라", "디아볼라", "루꼴라 프로슈토")
+    check((0..11).all { Pizzas.of(it).name == legacyNames[it] }, "[P07] 기존 피자 이름이 바뀌었다 (append-only 위반)")
+    val legacySpeed = listOf(1.00f, 1.15f, 1.38f, 1.10f, 1.22f, 1.30f, 1.45f, 1.40f, 1.55f, 1.60f, 1.70f, 1.75f)
+    check((0..11).all { Pizzas.of(it).cursorSpeed == legacySpeed[it] }, "[P07] 기존 피자 난이도가 바뀌었다")
     check(Pizzas.ALL.all { it.difficulty in 1..5 && it.perfectW > 0f && it.cursorSpeed >= 1f }, "피자 난이도 데이터 오류")
     check(Pizzas.ALL.map { it.name }.toSet().size == Pizzas.ALL.size, "피자 이름 중복")
     check(Pizzas.representative(PizzaKind.OVEN).kind == PizzaKind.OVEN, "대표 화덕피자 오류")
+
+    // 4.6 [P07] 도우 & 지역 특산 재료
+    check(Dough.values().size == 3 && Dough.CLASSIC.price == 0, "도우 3종/기본 무료 오류")
+    check(Dough.values().all { it.gaugeSpeed in 0.8..1.2 && it.zoneScale in 0.85f..1.15f }, "도우 보정 범위 오류")
+    check(Ingredients.TOPPINGS.size == 8, "특산 재료 8종 오류: ${Ingredients.TOPPINGS.size}")
+    check(Ingredients.TOPPINGS.map { it.id }.toSet().size == 8, "특산 재료 id 중복")
+    check(Ingredients.TOPPINGS.withIndex().all { (i, tp) ->
+        tp.pizzaId == Ingredients.TOPPING_PIZZA_ID + i && Pizzas.of(tp.pizzaId).kind == PizzaKind.OVEN
+    }, "[P07] 특산 재료 → 피자 id 12~19 매핑 오류")
+    check(Ingredients.TOPPINGS.all { it.regionId in Regions.byId },
+        "[P07] 특산 재료 지역 id 오류 (존재하지 않는 지역)")
+    check(Ingredients.TOPPINGS.map { it.regionId }.toSet().size == 8, "특산 재료는 서로 다른 도시여야 함")
+    check(Ingredients.TOPPINGS.all { it.price in 1000..6000 && it.hungerBonus > 0 && it.luckBonus > 0 }, "특산 재료 밸런스 오류")
+    check(Ingredients.SPECIAL_PIZZA_IDS.all { Pizzas.of(it).cursorSpeed in 1.30f..1.60f && Pizzas.of(it).perfectW in 0.18f..0.24f },
+        "[P07] 특산 피자 난이도 범위(속도 1.30~1.60, 걸작 폭 0.18~0.24) 오류")
+    check(Ingredients.TOPPINGS.all { tp ->
+        val p = tp.pizza
+        p.hungerBonus == tp.hungerBonus && p.luckBonus == tp.luckBonus &&
+            p.baseColor == tp.crustColors.first && p.topColorA == tp.crustColors.second
+    }, "[P07] 특산 재료 수치/아이콘 색이 피자 정의와 어긋남")
+    check(Ingredients.toppingsFor("chuncheon").size == 1 && Ingredients.toppingsFor("seoul").isEmpty(),
+        "[P07] 지역별 특산 조회 오류")
 
     // 5. 게임 상태 로직 (v0.2: 토핑×품질 → v0.3: 피자 12종×품질)
     val gs = GameState()
@@ -316,6 +417,14 @@ fun main() {
         val migrated = GameState.fromJSON(legacy)
         check(migrated.pizzaCountOf(0) == 3 && migrated.pizzaCountOf(2, 1) == 3 && migrated.pizzaCountOfKind(PizzaKind.OVEN) == 0,
             "v3 세이브 피자 마이그레이션 오류")
+        // [P07] 업데이트 호환: 피자 12종 시절(v4, 36칸) 세이브 → 20종(60칸)으로 읽어도 재고가 그대로여야 한다
+        val v4 = gs.toJSON()
+        v4.put("v", 4)
+        v4.put("pizzas", org.json.JSONArray((0 until 36).map { if (it == 9 * 3 + 2) 4 else if (it == 2) 1 else 0 }))
+        val updated = GameState.fromJSON(v4)
+        check(updated.pizzas.size == Pizzas.ALL.size * 3 && updated.pizzaCountOf(0, 2) == 1 && updated.pizzaCountOf(9, 2) == 4,
+            "[P07] 기존 세이브(12종) 피자 재고 보존 오류")
+        check((12..19).all { updated.pizzaCountOf(it) == 0 }, "[P07] 신규 특산 피자 재고가 0이 아님")
     } catch (e: RuntimeException) {
         println("SKIP: JSON 검사 생략 (android.jar 스텁) — ${e.message}")
     }

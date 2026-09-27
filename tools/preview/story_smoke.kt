@@ -62,7 +62,7 @@ object StorySmoke {
     }
 
     private fun render(g: Game, name: String) {
-        // 오버레이 등장 애니메이션(Game.overlayAnimT, update에서만 진행)이 끝난 뒤 캡처한다
+        // 게임 상태를 몇 프레임 진행한 뒤 캡처한다 (프리뷰 시계는 여기서 0에 고정).
         repeat(6) { g.update(1f / 30f) }
         val bmp = Bitmap.createBitmap(g.screenW, g.screenH, Bitmap.Config.ARGB_8888)
         g.render(Canvas(bmp))
@@ -205,6 +205,14 @@ object StorySmoke {
                     ?: error("${ep.id} 목표를 만족할 수 있는 새가 없다: $goal")
                 g.state.birdCounts[match.id] = 1
                 tempBird = match.id
+            }
+            // [P7] 피자 확장 — Deliver형 목표: 전달용 특산 피자를 미리 구워 둔다.
+            // (에피소드 완료 처리가 피자를 1판 소비하므로 별도 정리는 불필요)
+            if (goal is SideStories.Goal.Deliver) {
+                val min = maxOf(12, goal.pizzaIdMin)
+                val deliverable = Pizzas.ALL.firstOrNull { it.id >= min }
+                    ?: error("${ep.id} 전달 가능한 피자(>=$min)가 정의에 없다")
+                check(g.state.addPizza(deliverable.id, 2)) { "피자 보관 한도 초과로 전달 피자를 못 넣었다" }
             }
 
             // 마무리 + 보상 (막 3)

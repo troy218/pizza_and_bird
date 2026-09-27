@@ -11,9 +11,11 @@ class PhotoAlbumViewerOverlay(
     scene: Scene,
     initialId: String
 ) : Overlay(scene) {
+    override val coversWorld = true
     private var index = scene.game.state.photoAlbum.indexOfFirst { it.id == initialId }
         .let { if (it < 0) scene.game.state.photoAlbum.lastIndex else it }
     private var panel = RectF()
+    private var drawnShift = 0f
     private var closeR = RectF()
     private var prevR = RectF()
     private var nextR = RectF()
@@ -27,10 +29,23 @@ class PhotoAlbumViewerOverlay(
     private fun dp(v: Float): Float = v * scene.game.density
     private fun records(): List<BirdPhotoRecord> = scene.game.state.photoAlbum
 
+    /** 지금 보고 있는 사진을 먼저, 다음/이전 사진은 뒤에서 미리 읽는다. */
+    private fun prefetchNeighbours() {
+        val all = records()
+        if (index !in all.indices) return
+        PhotoArchive.image(scene.game.context, all[index].fileName)
+        for (i in listOf(index - 1, index + 1)) {
+            if (i in all.indices) PhotoArchive.prefetch(scene.game.context, all[i].fileName)
+        }
+    }
+
+    init { prefetchNeighbours() }
+
     private fun prev() {
         if (index > 0) {
             index--
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
+            prefetchNeighbours()
         }
     }
 
@@ -38,6 +53,7 @@ class PhotoAlbumViewerOverlay(
         if (index < records().lastIndex) {
             index++
             scene.game.sfx(Audio.Sfx.TAP, 0.45f)
+            prefetchNeighbours()
         }
     }
 
@@ -48,10 +64,11 @@ class PhotoAlbumViewerOverlay(
         }
         val tap = input.consumeTapScreen()
         if (tap != null) {
+            val y = tap.y - drawnShift
             when {
-                closeR.contains(tap.x, tap.y) -> finished = true
-                prevR.contains(tap.x, tap.y) -> prev()
-                nextR.contains(tap.x, tap.y) -> next()
+                closeR.contains(tap.x, y) -> finished = true
+                prevR.contains(tap.x, y) -> prev()
+                nextR.contains(tap.x, y) -> next()
             }
         }
         val dx = input.dirX
@@ -79,7 +96,8 @@ class PhotoAlbumViewerOverlay(
         panel = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
 
         c.save()
-        c.translate(0f, enterShift())
+        drawnShift = enterShift()
+        c.translate(0f, drawnShift)
         UiKit.panel(c, g, panel, 14f)
 
         val pad = dp(14f)
@@ -105,7 +123,7 @@ class PhotoAlbumViewerOverlay(
         fill.color = 0xFF232329.toInt()
         c.drawRoundRect(photoBox, dp(7f), dp(7f), fill)
 
-        val bmp = PhotoArchive.load(g.context, record.fileName)
+        val bmp = PhotoArchive.image(g.context, record.fileName)
         if (bmp != null) {
             // 배경 지형을 자르지 않도록 크게 보기에서는 aspect-fit을 사용한다.
             val k = min(photoBox.width() / bmp.width.toFloat(), photoBox.height() / bmp.height.toFloat())

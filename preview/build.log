@@ -1,5 +1,5 @@
-# preview build 2026-09-27 08:35:10Z
-# commit: b3722bbbe6a3123b070d4a7c2e8f77f49eaf2be2
+# preview build 2026-09-27 13:15:05Z
+# commit: 42a14954239bd33ca2ea696e081e6dadb60d9afe
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 >> 프리뷰 렌더링...
@@ -21,32 +21,33 @@
 > Task :app:generateReleaseResValues
 > Task :app:mapReleaseSourceSetPaths
 > Task :app:generateReleaseResources
+> Task :app:packageReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
 > Task :app:extractDeepLinksRelease
 > Task :app:processReleaseMainManifest
 > Task :app:processReleaseManifest
-> Task :app:processReleaseManifestForPackage
 > Task :app:javaPreCompileRelease
 > Task :app:desugarReleaseFileDependencies
 > Task :app:mergeReleaseStartupProfile
-> Task :app:mergeReleaseResources
-> Task :app:packageReleaseResources
-> Task :app:mergeExtDexRelease
+> Task :app:processReleaseManifestForPackage
+> Task :app:parseReleaseLocalResources
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:parseReleaseLocalResources
+> Task :app:mergeReleaseResources
 > Task :app:mergeReleaseAssets
-> Task :app:processReleaseResources
-> Task :app:compressReleaseAssets
 > Task :app:extractReleaseVersionControlInfo
-> Task :app:optimizeReleaseResources
 > Task :app:collectReleaseDependencies
 > Task :app:sdkReleaseDependencyData
+> Task :app:processReleaseResources
+> Task :app:mergeExtDexRelease
 > Task :app:validateSigningRelease
 > Task :app:writeReleaseAppMetadata
 > Task :app:writeReleaseSigningConfigVersions
+> Task :app:optimizeReleaseResources
+> Task :app:compressReleaseAssets
+
 > Task :app:compileReleaseKotlin
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
@@ -54,16 +55,16 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:compileReleaseJavaWithJavac NO-SOURCE
 > Task :app:dexBuilderRelease
 > Task :app:mergeReleaseGlobalSynthetics
-> Task :app:mergeDexRelease
 > Task :app:processReleaseJavaRes
-> Task :app:compileReleaseArtProfile
 > Task :app:mergeReleaseJavaResource
+> Task :app:mergeDexRelease
+> Task :app:compileReleaseArtProfile
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790498066246.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790514873912.json
 
-BUILD SUCCESSFUL in 45s
+BUILD SUCCESSFUL in 32s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
@@ -89,6 +90,11 @@ BUILD SUCCESSFUL in 45s
   + 17_menu_tab4.png
   + 17_menu_tab5.png
   + 17_menu_tab6.png
+  + 17_menu_tab7.png
+  + 17_menu_tab8.png
+  + 33_achievement_stats.png
+  + 34_achievement_detail.png
+  + 35_achievement_unlock_toast.png
   + 21_bake_topping.png
   + 22_bake_gauge.png
   + 23_bake_result.png
@@ -96,6 +102,9 @@ BUILD SUCCESSFUL in 45s
   + 25_map_overlay.png
   + 26_decor_shop.png
   + 27_decor_pick.png
+  + 30_backup_code.png
+  + 31_backup_restore_idle.png
+  + 32_backup_restore_confirm.png
   + 28_ultrawide_title_20x9.png
   + 29_ultrawide_world_20x9.png
 preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out

@@ -27,6 +27,24 @@ object UiKit {
      * 이 표는 저장 데이터에 남아 있는 옛 토큰도 자연스럽게 받아들인다.
      */
     private val iconAliases = mapOf(
+        // SVG 에셋 이름 그대로도 쓸 수 있다 (이모지 별칭 없는 키의 자기 매핑)
+        "arrow_down" to "arrow_down",
+        "arrow_left" to "arrow_left",
+        "arrow_right" to "arrow_right",
+        "arrow_up" to "arrow_up",
+        "chair" to "chair",
+        "cheese" to "cheese",
+        "cloud" to "cloud",
+        "fire" to "fire",
+        "minus" to "minus",
+        "mushroom" to "mushroom",
+        "photo" to "photo",
+        "plant" to "plant",
+        "plus" to "plus",
+        "star" to "star",
+        "star_empty" to "star_empty",
+        "sun" to "sun",
+
         "☀" to "sun", "☀️" to "sun", "sunny" to "sun",
         "☁" to "cloud", "cloudy" to "cloud",
         "☂" to "rain", "☔" to "rain", "rain" to "rain",
@@ -58,11 +76,44 @@ object UiKit {
         "📦" to "box", "box" to "box",
         "✨" to "sparkle", "sparkle" to "sparkle",
         "🌿" to "leaf", "🌱" to "leaf", "🌸" to "sparkle", "🍁" to "leaf", "leaf" to "leaf", "🪴" to "plant", "🧴" to "plant", "🌅" to "sun", "🏔" to "leaf", "🌊" to "rain", "🏖" to "sun", "🌾" to "leaf", "🏙" to "house", "🌲" to "leaf",
-        "💬" to "note", "🪧" to "map", "☕" to "coffee", "coffee" to "coffee", "🐈" to "bird", "🚪" to "house", "🛏" to "house", "🎨" to "sparkle", "👊" to "check",
+        "💬" to "note", "🪧" to "map", "☕" to "coffee", "coffee" to "coffee", "🐈" to "bird", "🚪" to "house", "🛏" to "house", "🎨" to "sparkle", "👊" to "fist", "fist" to "fist",
         "+" to "plus", "＋" to "plus", "-" to "minus", "−" to "minus",
         "◀" to "arrow_left", "‹" to "arrow_left", "←" to "arrow_left",
         "▶" to "arrow_right", "›" to "arrow_right", "→" to "arrow_right",
         "▲" to "arrow_up", "↑" to "arrow_up", "▼" to "arrow_down", "↓" to "arrow_down"
+    ) + mapOf(
+        // 다른 데이터/UI 화면에 남아 있던 유니코드 아이콘도 모두 로컬 SVG로 통일
+        "🖼" to "photo", "🌠" to "sparkle", "🪶" to "bird", "🌈" to "sparkle",
+        "👟" to "walk", "🚴" to "bike", "🧭" to "map", "🦉" to "bird", "🌧" to "rain",
+        "🪙" to "coin", "🏅" to "trophy", "📍" to "pin", "✈" to "travel", "🚶" to "walk",
+        "❔" to "question", "🔒" to "lock", "👥" to "people", "🔲" to "camera", "➕" to "plus",
+        "📜" to "book", "🔎" to "search", "✍" to "note", "🗄" to "box", "📋" to "note",
+        "📥" to "arrow_down", "📤" to "arrow_up", "😿" to "paw", "🎉" to "sparkle",
+        "✅" to "check", "🙈" to "paw", "⚠️" to "warning", "🍗" to "meat", "🥔" to "vegetable",
+        "🦑" to "fish", "🫘" to "vegetable", "🥬" to "leaf", "🐟" to "fish", "🐖" to "meat",
+        "🪵" to "plant", "🏯" to "landmark", "🛋" to "chair", "🚵" to "bike", "🌴" to "plant",
+        "🤸" to "walk", "🔋" to "sparkle", "🎩" to "sparkle", "🔦" to "sun", "🔔" to "note",
+        "🦵" to "walk", "🤫" to "bird", "🍙" to "bread", "🍀" to "leaf", "👁️" to "search",
+        "🏙" to "house", "🏞" to "landscape", "🌊" to "water", "⛰" to "mountain", "🚄" to "travel",
+        "🍎" to "fruit", "🐳" to "water", "🌉" to "landmark", "🏝" to "landscape", "🥄" to "note",
+        "🕊" to "bird", "🦆" to "bird", "🌳" to "plant", "🏢" to "house", "🦢" to "bird",
+        "🌾" to "plant", "🐚" to "water", "🪿" to "bird", "🦪" to "water", "🪷" to "flower",
+        "🌋" to "mountain", "🗼" to "landmark", "🏛" to "landmark", "🔬" to "search",
+        "🛶" to "boat", "🌫" to "cloud", "🎋" to "plant", "😆" to "sparkle", "🎣" to "fish",
+        "💎" to "sparkle", "🔵" to "sparkle", "🦅" to "bird", "👣" to "walk", "💧" to "water",
+        "🫧" to "water", "🦀" to "fish", "⚡" to "sparkle", "🍃" to "leaf", "🍂" to "leaf",
+        "🐥" to "bird", "🍒" to "fruit", "🍊" to "fruit", "⚓" to "boat", "⛵" to "boat",
+        "🪨" to "mountain", "⛅" to "cloud", "👑" to "trophy", "🛡" to "check", "🛳" to "boat",
+        "🌺" to "flower", "🌬" to "wind", "🍵" to "coffee", "🫖" to "coffee", "🦋" to "flower",
+        "🪰" to "bird", "🌕" to "moon", "🐈‍⬛" to "paw", "🦐" to "fish", "🏬" to "house",
+        "🧴" to "plant", "🧶" to "plant", "🏔" to "mountain", "🌆" to "house", "🌼" to "flower",
+        "🌹" to "flower", "🍓" to "fruit", "🌰" to "fruit", "🤍" to "sparkle", "🫓" to "bread",
+        "🍞" to "bread", "👊" to "fist", "☘️" to "leaf", "☀️" to "sun", "🏖️" to "landscape",
+        "❄️" to "snow", "📷" to "camera", "📸" to "photo", "🎒" to "backpack", "🏠" to "house",
+        "🐦" to "bird", "🚲" to "bike", "📚" to "book", "📖" to "book", "🗺️" to "map",
+        "💬" to "note", "☕" to "coffee", "🛏" to "house", "🚪" to "house", "🌙" to "moon",
+        "★" to "star", "☆" to "star_empty", "✕" to "close", "✓" to "check", "✔" to "check",
+        "♪" to "music", "🎀" to "flower", "🌇" to "sun", "💤" to "moon"
     )
 
     /** SVG 파일 이름으로 변환한다. 아이콘이 아닌 문자열이면 null을 반환한다. */
@@ -89,6 +140,61 @@ object UiKit {
     /** 중심 좌표 기준 아이콘. SVG는 텍스트보다 baseline 차이가 없어 작은 UI에도 안정적이다. */
     fun iconCenter(c: Canvas, game: Game, token: String, cx: Float, cy: Float, size: Float): Boolean {
         return icon(c, game, token, RectF(cx - size / 2f, cy - size / 2f, cx + size / 2f, cy + size / 2f))
+    }
+
+    private val unicodeIconTokens by lazy {
+        iconAliases.keys.filter { it.any { ch -> ch.code > 0x7f } }.sortedByDescending { it.length }
+    }
+
+    /** 유니코드 아이콘이 섞인 문장을 SVG 아이콘과 일반 글자로 렌더링한다. */
+    fun iconTextWidth(text: String, paint: Paint): Float {
+        var width = 0f
+        var i = 0
+        var runStart = 0
+        while (i < text.length) {
+            val token = unicodeIconTokens.firstOrNull { text.startsWith(it, i) }
+            if (token == null) {
+                i += Character.charCount(Character.codePointAt(text, i))
+                continue
+            }
+            if (runStart < i) width += paint.measureText(text, runStart, i)
+            width += paint.textSize * 1.04f
+            i += token.length
+            runStart = i
+        }
+        if (runStart < text.length) width += paint.measureText(text, runStart, text.length)
+        return width
+    }
+
+    /** 왼쪽 시작점과 baseline을 기준으로 문장 안의 유니코드 아이콘을 SVG로 바꿔 그린다. */
+    fun drawIconText(c: Canvas, game: Game, text: String, x: Float, baseline: Float, paint: Paint) {
+        var cursor = x
+        var i = 0
+        var runStart = 0
+        val iconSize = paint.textSize * 0.94f
+        while (i < text.length) {
+            val token = unicodeIconTokens.firstOrNull { text.startsWith(it, i) }
+            if (token == null) {
+                i += Character.charCount(Character.codePointAt(text, i))
+                continue
+            }
+            if (runStart < i) {
+                val run = text.substring(runStart, i)
+                c.drawText(run, cursor, baseline, paint)
+                cursor += paint.measureText(run)
+            }
+            val top = baseline - paint.textSize * 0.86f
+            val bounds = RectF(cursor, top, cursor + iconSize, top + iconSize)
+            if (paint.alpha < 255) {
+                val save = c.saveLayerAlpha(bounds, paint.alpha)
+                icon(c, game, token, bounds)
+                c.restoreToCount(save)
+            } else icon(c, game, token, bounds)
+            cursor += paint.textSize * 1.04f
+            i += token.length
+            runStart = i
+        }
+        if (runStart < text.length) c.drawText(text, runStart, text.length, cursor, baseline, paint)
     }
 
     // ------------------------------------------------------------------
@@ -121,6 +227,66 @@ object UiKit {
     // assigning a shader does not clear the translucent shadow color's alpha.
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
+    // ------------------------------------------------------------------
+    // 그라데이션 · 점선 캐시
+    //
+    //  창/카드/버튼을 그릴 때마다 LinearGradient 와 DashPathEffect 를 새로 만들면
+    //  네이티브 객체가 프레임마다 수십 개씩 새로 생긴다(가방 화면만으로도 30~50개).
+    //  기기 좌표는 프레임마다 똑같으므로 만들어 둔 것을 그대로 다시 쓴다.
+    //  (값이 달라지면 자동으로 새 항목을 만들고, 오래 안 쓰는 것은 버린다)
+    // ------------------------------------------------------------------
+    private class GradKey(
+        val x0: Float, val y0: Float, val x1: Float, val y1: Float,
+        val c0: Int, val c1: Int
+    ) {
+        override fun hashCode(): Int {
+            var h = x0.toBits()
+            h = h * 31 + y0.toBits()
+            h = h * 31 + x1.toBits()
+            h = h * 31 + y1.toBits()
+            h = h * 31 + c0
+            return h * 31 + c1
+        }
+
+        override fun equals(other: Any?): Boolean {
+            val o = other as? GradKey ?: return false
+            return x0 == o.x0 && y0 == o.y0 && x1 == o.x1 && y1 == o.y1 && c0 == o.c0 && c1 == o.c1
+        }
+    }
+
+    private val gradCache = object : LinkedHashMap<GradKey, LinearGradient>(96, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<GradKey, LinearGradient>) = size > 128
+    }
+
+    /** 세로 그라데이션 (창·카드·버튼·게이지 공통) */
+    private fun vgrad(x0: Float, y0: Float, x1: Float, y1: Float, c0: Int, c1: Int): LinearGradient {
+        val k = GradKey(x0, y0, x1, y1, c0, c1)
+        gradCache[k]?.let { return it }
+        val sh = LinearGradient(x0, y0, x1, y1, c0, c1, Shader.TileMode.CLAMP)
+        gradCache[k] = sh
+        return sh
+    }
+
+    private val dashCache = HashMap<Long, DashPathEffect>()
+
+    /** 점선 간격(on, off) — 값이 같으면 같은 객체를 쓴다 */
+    private fun dash(on: Float, off: Float): DashPathEffect {
+        val k = (on.toBits().toLong() shl 32) or (off.toBits().toLong() and 0xFFFFFFFFL)
+        dashCache[k]?.let { return it }
+        val fx = DashPathEffect(floatArrayOf(on, off), 0f)
+        if (dashCache.size > 16) dashCache.clear()
+        dashCache[k] = fx
+        return fx
+    }
+
+    // 그리기 중에 쓰는 임시 사각형 (매 프레임 새 RectF 를 만들지 않기 위해)
+    private val tmp = RectF()
+
+    private fun tmpRect(l: Float, t: Float, r: Float, b: Float): RectF {
+        tmp.set(l, t, r, b)
+        return tmp
+    }
 
     // ------------------------------------------------------------------
     // 등장 애니메이션 (0..1, easeOutCubic)
@@ -178,26 +344,23 @@ object UiKit {
         // 부드러운 드롭 섀도우 (2단 레이어로 번짐 표현)
         fill.color = Color.argb(36, 30, 20, 12)
         c.drawRoundRect(
-            RectF(r.left - 1f * d, r.top + 3f * d, r.right + 1f * d, r.bottom + 8f * d),
+            tmpRect(r.left - 1f * d, r.top + 3f * d, r.right + 1f * d, r.bottom + 8f * d),
             radius, radius, fill
         )
         fill.color = Color.argb(54, 30, 20, 12)
         c.drawRoundRect(
-            RectF(r.left, r.top + 2f * d, r.right, r.bottom + 4f * d),
+            tmpRect(r.left, r.top + 2f * d, r.right, r.bottom + 4f * d),
             radius, radius, fill
         )
         // 본문 그라데이션
         fill.alpha = 255
-        fill.shader = LinearGradient(
-            r.left, r.top, r.left, r.bottom,
-            CREAM_HI, CREAM_DEEP, Shader.TileMode.CLAMP
-        )
+        fill.shader = vgrad(r.left, r.top, r.left, r.bottom, CREAM_HI, CREAM_DEEP)
         c.drawRoundRect(r, radius, radius, fill)
         fill.shader = null
         // 상단 하이라이트 라인
         fill.color = Color.argb(120, 255, 255, 255)
         c.drawRoundRect(
-            RectF(r.left + 10f * d, r.top + 2.5f * d, r.right - 10f * d, r.top + 5f * d),
+            tmpRect(r.left + 10f * d, r.top + 2.5f * d, r.right - 10f * d, r.top + 5f * d),
             2f * d, 2f * d, fill
         )
         // 외곽선 + 이너 헤어라인
@@ -208,7 +371,7 @@ object UiKit {
         stroke.strokeWidth = 1f * d
         val inset = 3.2f * d
         c.drawRoundRect(
-            RectF(r.left + inset, r.top + inset, r.right - inset, r.bottom - inset),
+            tmpRect(r.left + inset, r.top + inset, r.right - inset, r.bottom - inset),
             (radiusDp - 3.2f).coerceAtLeast(4f) * d, (radiusDp - 3.2f).coerceAtLeast(4f) * d, stroke
         )
     }
@@ -235,20 +398,20 @@ object UiKit {
         // 섀도우
         fill.color = Color.argb(if (selected) 55 else 34, 60, 42, 22)
         c.drawRoundRect(
-            RectF(r.left, r.top + 1.5f * d, r.right, r.bottom + 2.5f * d),
+            tmpRect(r.left, r.top + 1.5f * d, r.right, r.bottom + 2.5f * d),
             radius, radius, fill
         )
         // 본문
         val top = if (selected) CARD_SEL_HI else CARD_HI
         val bottom = if (selected) CARD_SEL_LO else CARD_LO
         fill.alpha = 255
-        fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, top, bottom, Shader.TileMode.CLAMP)
+        fill.shader = vgrad(r.left, r.top, r.left, r.bottom, top, bottom)
         c.drawRoundRect(r, radius, radius, fill)
         fill.shader = null
         // 상단 광택
         fill.color = Color.argb(90, 255, 255, 255)
         c.drawRoundRect(
-            RectF(r.left + 6f * d, r.top + 1.5f * d, r.right - 6f * d, r.top + 3.5f * d),
+            tmpRect(r.left + 6f * d, r.top + 1.5f * d, r.right - 6f * d, r.top + 3.5f * d),
             1.5f * d, 1.5f * d, fill
         )
         // 테두리
@@ -291,20 +454,17 @@ object UiKit {
         }
         // 섀도우
         fill.color = Color.argb(66, 50, 30, 12)
-        c.drawRoundRect(RectF(r.left, r.top + 2f * d, r.right, r.bottom + 2.5f * d), radius, radius, fill)
+        c.drawRoundRect(tmpRect(r.left, r.top + 2f * d, r.right, r.bottom + 2.5f * d), radius, radius, fill)
         // 그라데이션 본문
         fill.alpha = 255
-        fill.shader = LinearGradient(
-            r.left, r.top, r.left, r.bottom,
-            lighten(base, 34), darken(base, 16), Shader.TileMode.CLAMP
-        )
+        fill.shader = vgrad(r.left, r.top, r.left, r.bottom, lighten(base, 34), darken(base, 16))
         c.drawRoundRect(r, radius, radius, fill)
         fill.shader = null
         // 글로스 (위 45%)
         if (r.height() > 14f * d) {
             fill.color = Color.argb(66, 255, 255, 255)
             c.drawRoundRect(
-                RectF(r.left + 2.5f * d, r.top + 1.8f * d, r.right - 2.5f * d, r.top + r.height() * 0.44f),
+                tmpRect(r.left + 2.5f * d, r.top + 1.8f * d, r.right - 2.5f * d, r.top + r.height() * 0.44f),
                 6f * d, 6f * d, fill
             )
         }
@@ -317,7 +477,7 @@ object UiKit {
         val inset = 2.4f * d
         if (r.height() > inset * 2f + 4f * d) {
             c.drawRoundRect(
-                RectF(r.left + inset, r.top + inset, r.right - inset, r.bottom - inset),
+                tmpRect(r.left + inset, r.top + inset, r.right - inset, r.bottom - inset),
                 7f * d, 7f * d, stroke
             )
         }
@@ -349,7 +509,7 @@ object UiKit {
         fill.color = Color.argb(60, 40, 26, 12)
         c.drawCircle(cx, cy + 2f * d, radius, fill)
         fill.alpha = 255
-        fill.shader = LinearGradient(cx, cy - radius, cx, cy + radius, lighten(base, 26), darken(base, 14), Shader.TileMode.CLAMP)
+        fill.shader = vgrad(cx, cy - radius, cx, cy + radius, lighten(base, 26), darken(base, 14))
         c.drawCircle(cx, cy, radius, fill)
         fill.shader = null
         stroke.color = darken(base, 74)
@@ -387,7 +547,7 @@ object UiKit {
         c.drawRoundRect(r, h / 2f, h / 2f, fill)
         // 트랙 이너 섀도우 (위쪽 어둡게)
         fill.color = Color.argb(70, 90, 66, 40)
-        c.drawRoundRect(RectF(x + 1.5f * d, y + 1.2f * d, x + w - 1.5f * d, y + h * 0.42f), h / 2.4f, h / 2.4f, fill)
+        c.drawRoundRect(tmpRect(x + 1.5f * d, y + 1.2f * d, x + w - 1.5f * d, y + h * 0.42f), h / 2.4f, h / 2.4f, fill)
         // 필
         val p = frac.coerceIn(0f, 1f)
         val inset = 1.6f * d
@@ -395,14 +555,14 @@ object UiKit {
         if (p > 0.005f && fillW > 2f * d) {
             val fr = RectF(x + inset, y + inset, x + inset + fillW, y + h - inset)
             fill.alpha = 255
-            fill.shader = LinearGradient(fr.left, fr.top, fr.right, fr.top, c0, c1, Shader.TileMode.CLAMP)
+            fill.shader = vgrad(fr.left, fr.top, fr.right, fr.top, c0, c1)
             c.drawRoundRect(fr, (h - inset * 2f) / 2f, (h - inset * 2f) / 2f, fill)
             fill.shader = null
             // 광택선
             if (fillW > 8f * d) {
                 fill.color = Color.argb(95, 255, 255, 255)
                 c.drawRoundRect(
-                    RectF(fr.left + 2.5f * d, fr.top + 1.2f * d, fr.right - 2.5f * d, fr.top + (fr.height()) * 0.44f),
+                    tmpRect(fr.left + 2.5f * d, fr.top + 1.2f * d, fr.right - 2.5f * d, fr.top + (fr.height()) * 0.44f),
                     3f * d, 3f * d, fill
                 )
             }
@@ -419,9 +579,9 @@ object UiKit {
         val d = game.density
         fill.shader = null
         fill.color = Color.argb(50, 50, 34, 16)
-        c.drawRoundRect(RectF(r.left, r.top + 1f * d, r.right, r.bottom + 1f * d), r.height() / 2f, r.height() / 2f, fill)
+        c.drawRoundRect(tmpRect(r.left, r.top + 1f * d, r.right, r.bottom + 1f * d), r.height() / 2f, r.height() / 2f, fill)
         fill.alpha = 255
-        fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, lighten(bg, 22), darken(bg, 12), Shader.TileMode.CLAMP)
+        fill.shader = vgrad(r.left, r.top, r.left, r.bottom, lighten(bg, 22), darken(bg, 12))
         c.drawRoundRect(r, r.height() / 2f, r.height() / 2f, fill)
         fill.shader = null
         stroke.color = darken(bg, 60)
@@ -442,7 +602,7 @@ object UiKit {
         fill.color = Color.argb(55, 60, 40, 16)
         c.drawCircle(cx, cy + 1.5f * d, radius, fill)
         fill.alpha = 255
-        fill.shader = LinearGradient(cx, cy - radius, cx, cy + radius, lighten(base, 40), darken(base, 8), Shader.TileMode.CLAMP)
+        fill.shader = vgrad(cx, cy - radius, cx, cy + radius, lighten(base, 40), darken(base, 8))
         c.drawCircle(cx, cy, radius, fill)
         fill.shader = null
         stroke.color = darken(base, 70)
@@ -474,20 +634,33 @@ object UiKit {
     fun darkChip(c: Canvas, game: Game, cx: Float, cy: Float, txt: String, textSizeDp: Float = 12f) {
         val d = game.density
         val tp = Type.paintAt(textSizeDp, true, 0.02f, CREAM)
-        val tw = tp.measureText(txt)
+        var msg = txt
+        var tw = iconTextWidth(msg, tp)
         val pad = 9f * d
-        val r = RectF(cx - tw / 2f - pad, cy - 12f * d, cx + tw / 2f + pad, cy + 12f * d)
+        // 칩이 화면 밖으로 삐져나오지 않게 — 폭이 모자라면 말줄임, 그래도 좌우 끝에 붙인다.
+        val margin = 6f * d
+        val maxW = (game.screenW - margin * 2f).coerceAtLeast(60f * d)
+        if (tw + pad * 2f > maxW) {
+            var t = txt
+            while (t.length > 1 && iconTextWidth("$t…", tp) + pad * 2f > maxW) t = t.dropLast(1)
+            msg = "$t…"
+            tw = iconTextWidth(msg, tp)
+        }
+        var left = cx - (tw + pad * 2f) / 2f
+        val maxLeft = (game.screenW - margin - tw - pad * 2f).coerceAtLeast(margin)
+        left = left.coerceIn(margin, maxLeft)
+        val r = RectF(left, cy - 12f * d, left + tw + pad * 2f, cy + 12f * d)
         fill.shader = null
         fill.color = Color.argb(70, 20, 14, 26)
-        c.drawRoundRect(RectF(r.left, r.top + 2f * d, r.right, r.bottom + 2f * d), 12f * d, 12f * d, fill)
+        c.drawRoundRect(tmpRect(r.left, r.top + 2f * d, r.right, r.bottom + 2f * d), 12f * d, 12f * d, fill)
         fill.alpha = 255
-        fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, 0xFF4A4258.toInt(), 0xFF322C40.toInt(), Shader.TileMode.CLAMP)
+        fill.shader = vgrad(r.left, r.top, r.left, r.bottom, 0xFF4A4258.toInt(), 0xFF322C40.toInt())
         c.drawRoundRect(r, 12f * d, 12f * d, fill)
         fill.shader = null
         stroke.color = Color.argb(170, 233, 196, 106)
         stroke.strokeWidth = 1.4f * d
         c.drawRoundRect(r, 12f * d, 12f * d, stroke)
-        c.drawText(txt, cx - tw / 2f, Type.midBaseline(tp, cy), tp)
+        drawIconText(c, game, msg, left + pad, Type.midBaseline(tp, cy), tp)
     }
 
     // ------------------------------------------------------------------
@@ -516,17 +689,18 @@ object UiKit {
     ) {
         val d = game.density
         val tp = Type.paintAt(textSizeDp, true, 0.03f, color)
-        val tw = tp.measureText(label)
+        val tw = iconTextWidth(label, tp)
         val ty = r.centerY() - (tp.descent() + tp.ascent()) / 2f
         if (shadow) {
-            c.drawText(label, r.centerX() - tw / 2f, ty + 1f * d, Type.paintAt(textSizeDp, true, 0.03f, Color.argb(80, 40, 26, 12)))
+            drawIconText(c, game, label, r.centerX() - tw / 2f, ty + 1f * d,
+                Type.paintAt(textSizeDp, true, 0.03f, Color.argb(80, 40, 26, 12)))
         }
-        c.drawText(label, r.centerX() - tw / 2f, ty, tp)
+        drawIconText(c, game, label, r.centerX() - tw / 2f, ty, tp)
     }
 
-    /** 왼쪽 정렬 텍스트 (그림자 포함) */
+    /** 왼쪽 정렬 텍스트 (문장에 섞인 아이콘은 SVG로 렌더링) */
     fun drawText(c: Canvas, game: Game, label: String, x: Float, y: Float, textSizeDp: Float, color: Int) {
-        c.drawText(label, x, y, Type.paintAt(textSizeDp, true, 0.02f, color))
+        drawIconText(c, game, label, x, y, Type.paintAt(textSizeDp, true, 0.02f, color))
     }
 
     // ==================================================================
@@ -603,7 +777,7 @@ object UiKit {
     /** 픽셀 모서리 사각형 채우기 (세로 그라데이션) */
     fun pixelFillGradient(c: Canvas, r: RectF, unit: Float, top: Int, bottom: Int) {
         fill.alpha = 255
-        fill.shader = LinearGradient(r.left, r.top, r.left, r.bottom, top, bottom, Shader.TileMode.CLAMP)
+        fill.shader = vgrad(r.left, r.top, r.left, r.bottom, top, bottom)
         c.drawPath(pixelRect(r, unit), fill)
         fill.shader = null
     }
@@ -621,7 +795,7 @@ object UiKit {
         val d = game.density
         stitchPaint.color = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
         stitchPaint.strokeWidth = 1.2f * d
-        stitchPaint.pathEffect = DashPathEffect(floatArrayOf(3.2f * d, 2.6f * d), 0f)
+        stitchPaint.pathEffect = dash(3.2f * d, 2.6f * d)
         c.drawPath(pixelRect(r, unit), stitchPaint)
     }
 
@@ -630,7 +804,7 @@ object UiKit {
         val d = game.density
         stitchPaint.color = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
         stitchPaint.strokeWidth = 1.4f * d
-        stitchPaint.pathEffect = DashPathEffect(floatArrayOf(4f * d, 3f * d), 0f)
+        stitchPaint.pathEffect = dash(4f * d, 3f * d)
         c.drawLine(x0, y, x1, y, stitchPaint)
     }
 
@@ -669,7 +843,7 @@ object UiKit {
         if (Color.alpha(base) < 200) {
             val a = Color.alpha(base)
             pixelFill(c, r, u, Color.argb(a, Color.red(base), Color.green(base), Color.blue(base)))
-            stroke.pathEffect = DashPathEffect(floatArrayOf(2.6f * d, 2.2f * d), 0f)
+            stroke.pathEffect = dash(2.6f * d, 2.2f * d)
             stroke.color = Color.argb(120, 140, 125, 105)
             stroke.strokeWidth = 1.2f * d
             c.drawPath(pixelRect(r, u), stroke)
@@ -686,7 +860,7 @@ object UiKit {
         // 그림자 (땅에 닿는 느낌)
         fill.shader = null
         fill.color = Color.argb(if (pressed) 26 else 46, 50, 30, 12)
-        c.drawPath(pixelRect(RectF(r.left + 0.5f * d, r.top + depth + 1.5f * d, r.right + 0.5f * d, r.bottom + depth + 1.5f * d), u), fill)
+        c.drawPath(pixelRect(tmpRect(r.left + 0.5f * d, r.top + depth + 1.5f * d, r.right + 0.5f * d, r.bottom + depth + 1.5f * d), u), fill)
         // 외곽 (버튼 + 굽 전체)
         val whole = RectF(r.left, r.top + sink, r.right, r.bottom + depth)
         pixelFill(c, whole, u, outline)
@@ -767,7 +941,7 @@ object UiKit {
         // 그림자
         fill.shader = null
         fill.color = Color.argb(if (selected) 60 else 36, 60, 42, 22)
-        c.drawPath(pixelRect(RectF(r.left, r.top + 2f * d, r.right, r.bottom + 2.5f * d), u), fill)
+        c.drawPath(pixelRect(tmpRect(r.left, r.top + 2f * d, r.right, r.bottom + 2.5f * d), u), fill)
         // 본문 — tint 를 위는 밝게, 아래는 그대로
         val top = if (selected) lighten(tint, 18) else lighten(tint, 10)
         val bottom = if (selected) tint else darken(tint, 6)
@@ -811,7 +985,7 @@ object UiKit {
         // 태그 몸통
         fill.shader = null
         fill.color = Color.argb(50, 50, 30, 12)
-        c.drawPath(pixelRect(RectF(r.left, r.top + 2f * d, r.right, r.bottom + 2f * d), u), fill)
+        c.drawPath(pixelRect(tmpRect(r.left, r.top + 2f * d, r.right, r.bottom + 2f * d), u), fill)
         pixelFillGradient(c, r, u, lighten(base, 6), darken(base, 10))
         pixelStroke(c, r, u, OUTLINE, 1.6f * d)
         // 구멍 (금속 아일렛)
@@ -851,7 +1025,7 @@ object UiKit {
         val u = 1.5f * d
         fill.shader = null
         fill.color = Color.argb(40, 50, 30, 12)
-        c.drawPath(pixelRect(RectF(r.left, r.top + 1.5f * d, r.right, r.bottom + 1.5f * d), u), fill)
+        c.drawPath(pixelRect(tmpRect(r.left, r.top + 1.5f * d, r.right, r.bottom + 1.5f * d), u), fill)
         pixelFillGradient(c, r, u, if (on) lighten(GREEN, 24) else lighten(TRACK, 10), if (on) GREEN else TRACK)
         pixelStroke(c, r, u, OUTLINE, 1.5f * d)
         // 상태 글자 (ON/OFF 대신 점)

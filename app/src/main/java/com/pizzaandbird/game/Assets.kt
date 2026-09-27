@@ -13,6 +13,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.util.LruCache
 import java.util.Random
+import java.util.concurrent.LinkedBlockingQueue
 import kotlin.math.roundToInt
 
 // 살아있는 풀 리그 상수 (파일 최상위 — 클래스 본문 안에서는 const val 을 쓸 수 없다)
@@ -26,6 +27,30 @@ private const val GRASS_CURL_UNIT = 1.25f
 
 /** 자전거 페달 애니메이션 프레임 수 */
 const val BIKE_FRAMES = 8
+
+/**
+ * 플레이어 캐릭터 스프라이트를 그리는 해상도(px, 한 변).
+ *
+ * 32(= [CharacterArt.SIZE])의 정수배여야 픽셀 격자가 어긋나지 않는다.
+ * 96 = 3배 — 월드 슈퍼샘플 배율([Game.worldScale])이 2~3일 때 원래 크기(32 도트)로
+ * 줄여 그리므로 픽셀 굵기는 예전 그대로면서, 옷 주름·머리 윤기·눈 반짝임·AA 윤곽이
+ * 살아남는다. 프레임 한 장이 4KB → 36KB 로 늘어나므로 캐시 개수를 LRU 로 묶어 둔다.
+ */
+const val CHARACTER_PX = CharacterArt.SIZE * 3
+
+/** 자전거(라이더 포함) 스프라이트 해상도 — [CHARACTER_PX] 와 같은 규칙 */
+const val BIKE_PX = CHARACTER_PX
+
+/**
+ * 레벨업 축하 동작(만세!) 해상도.
+ *
+ * 이 화면은 캐릭터를 화면 가득(약 300px) 띄우므로 3배로는 부족하다 —
+ * 정면 8프레임만 크게 그려 두면 "확대한 도트"가 아니라 진짜 그림이 된다.
+ */
+const val CHEER_PX = CharacterArt.SIZE * 8
+
+/** 캐릭터 선택 카드용 미리보기 해상도 (카드는 화면에서 3배쯤 크게 그려진다) */
+const val AVATAR_PX = CharacterArt.SIZE * 4
 
 /** NPC 대기 애니메이션 프레임 수 / 프레임 길이(초) */
 const val NPC_FRAMES = 12
@@ -87,11 +112,37 @@ class Assets(private val context: Context) {
     // 앉은 자세 스프라이트는 종별로 *처음 필요할 때* 만들어 캐시한다.
     // (예전엔 시작 시 598종을 전부 만들어 앱이 켜질 때까지 한참 걸렸다)
     private val birdCache = LinkedHashMap<String, Bitmap>()
+    private val birdCacheWithPhoto = HashSet<String>()
     private data class BirdPoseKey(val id: String, val facing: BirdFacing, val pose: BirdPose)
     private val birdPoseCache = LinkedHashMap<BirdPoseKey, Bitmap>()
+    private val birdPoseCacheWithPhoto = HashSet<BirdPoseKey>()
     private val birdFlights = LinkedHashMap<String, Array<Bitmap>>() // 필요할 때 생성
     private val birdFlightsFlipped = LinkedHashMap<String, Array<Bitmap>>()
-    private val birdReferencePalettes = HashMap<String, BirdRenderPalette>()
+    // 새 사진 기준색 캐시 — 미리 읽기 스레드와 게임 스레드가 함께 본다.
+    private val birdReferencePalettes = java.util.concurrent.ConcurrentHashMap<String, BirdRenderPalette>()
+
+    /**
+     * 새 사진 기준색을 미리 계산해 두는 전용 스레드.
+     *
+     * 사진(jpg)을 읽고 기준색을 구하는 일은 여기서만 한다. 게임 스레드는 그동안
+     * BirdArt 기본색으로 그렸다가 기준색이 준비되면 캐시를 교체한다.
+     * 도감 페이지/필드 스폰 첫 프레임에 JPEG 디코드가 끼지 않도록 한다.
+     */
+    private val birdPaletteQueue = LinkedBlockingQueue<String>()
+    private val birdPalettePending = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private val birdPaletteThread = Thread({
+        while (true) {
+            val id = birdPaletteQueue.take()
+            try {
+                Birds.byId[id]?.let { computeBirdReferencePalette(it) }
+            } catch (_: Exception) {
+            } finally {
+                birdPalettePending.remove(id)
+            }
+        }
+    }, "PizzaAndBirdPalette").apply { isDaemon = true; start() }
+
 
     // 타일 (32x32) ------------------------------------------------------------
     lateinit var tiles: Array<Array<Bitmap>>    // [T.ordinal][variant 또는 프레임]
@@ -134,9 +185,9 @@ class Assets(private val context: Context) {
     // 카메라 장비 아트 캐시 (init 보다 먼저 만들어져야 한다)
     private val camIconCache = HashMap<CamLook, Bitmap>()
     private val camProfileCache = HashMap<CamLook, Bitmap>()
-    private val camHeldCache = HashMap<HeldKey, Bitmap>()
+    private val camHeldCache = SpriteLru<HeldKey, Bitmap>(24)
 
-    private data class HeldKey(val look: CamLook, val dir: Int, val raised: Boolean)
+    private data class HeldKey(val look: CamLook, val dir: Int, val raised: Boolean, val px: Int)
 
     private val camOutline = c(0xFF191920)
     private val camGlass = c(0xFF3E6B8C)
@@ -370,7 +421,8 @@ class Assets(private val context: Context) {
 
     /** 플레이어 동작 세트 (한 성별 x 한 등급) */
     class PlayerSet(
-        val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip
+        val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip,
+        val punch: Clip
     ) {
         fun clip(anim: Anim): Clip = when (anim) {
             Anim.IDLE -> idle
@@ -387,48 +439,145 @@ class Assets(private val context: Context) {
         val sideL: Array<Bitmap> get() = idle.sideL
     }
 
-    private val playerCache = HashMap<Int, PlayerSet>()
+    /**
+     * 생성 비용이 큰 스프라이트 세트를 담아 두는 LRU 캐시.
+     *
+     * HD 캐릭터 한 세트는 프레임 176장(약 6MB)이라 무한정 쌓아 두면 안 된다.
+     * 가장 오래 안 쓴 것부터 버린다 — 동시에 필요한 세트는 언제나 1~2개뿐이다
+     * (플레이 중 1개, 캐릭터 선택 화면에서 남녀 2개).
+     */
+    private class SpriteLru<K, V>(private val max: Int) : LinkedHashMap<K, V>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean = size > max
+    }
 
-    private fun buildClip(look: CharacterArt.Look, frames: Int, pose: (Float) -> CharacterArt.Pose): Clip {
-        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look) }
-        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look) }
-        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look) }
+    private val playerCache = SpriteLru<Int, PlayerSet>(4)
+
+    // -----------------------------------------------------------------------
+    // 백그라운드 스프라이트 준비(warm-up)
+    //
+    // HD 프레임 한 장은 도트보다 5~10배 비싸다(캐릭터 한 벌 ≈ 0.2초, 만세 8장 ≈ 25ms).
+    // 그 벌을 **처음 필요해진 순간** 만들면 화면이 그대로 멈춘다 — 특히 레벨업은
+    // 장비 등급이 바뀌는 순간이라 정확히 그 화면에서 새 세트를 만들게 된다.
+    // 그래서 "곧 필요해질" 세트(다음 등급·현재 자전거)를 미리 전용 스레드에서 만들어 둔다.
+    //
+    // 캐시는 [synchronized] 로만 만지고, 무거운 생성은 **잠금 밖에서** 한다 —
+    // 준비 스레드가 0.2초 동안 그리는 동안 게임 스레드는 이미 있는 세트를 계속 쓴다.
+    // -----------------------------------------------------------------------
+
+    private val warmQueue = LinkedBlockingQueue<() -> Unit>()
+
+    private val warmThread = Thread({
+        while (true) {
+            val job = try {
+                warmQueue.take()
+            } catch (_: InterruptedException) {
+                continue
+            }
+            try {
+                job()
+            } catch (_: Exception) {
+                // 준비 실패는 치명적이지 않다 — 필요해지면 그때 만든다
+            }
+        }
+    }, "PizzaAndBirdSpriteWarm").apply { isDaemon = true; start() }
+
+    /** 곧 쓸 스프라이트를 백그라운드에서 미리 만들어 둔다(이미 밀려 있으면 무시) */
+    fun warmSprites(job: () -> Unit) {
+        if (warmQueue.size >= 4) return
+        warmQueue.offer(job)
+    }
+
+    /** 지금 준비 큐가 비어 있는가 (프리뷰/테스트에서 "다 됐는지" 확인용) */
+    fun warmIdle(): Boolean = warmQueue.isEmpty()
+
+    private fun buildClip(
+        look: CharacterArt.Look, frames: Int, px: Int, pose: (Float) -> CharacterArt.Pose
+    ): Clip {
+        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look, px) }
+        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look, px) }
+        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look, px) }
         val sideL = Array(frames) { flipH(side[it]) }
         return Clip(down, up, side, sideL)
     }
 
-    /** 성별 + 레벨 등급으로 동작 세트 얻기 (첫 사용 시 생성) */
-    fun playerSet(gender: String, tier: Int): PlayerSet {
+    /**
+     * 성별 + 레벨 등급으로 동작 세트 얻기 (첫 사용 시 생성).
+     *
+     * @param hd true = HD([CHARACTER_PX]) — 월드 슈퍼샘플 2배 이상 · UI 확대용.
+     *   false = 원본 32px 도트 — 화질 1×(저사양·저해상 기기)에서 예전 느낌 그대로.
+     */
+    fun playerSet(gender: String, tier: Int, hd: Boolean = true): PlayerSet {
         val t = tier.coerceIn(0, gearTiers.size - 1)
-        val key = (if (gender == "female") 1 else 0) * 64 + t
-        playerCache[key]?.let { return it }
+        val key = (if (gender == "female") 1 else 0) * 64 + t + (if (hd) 0 else 32)
+        synchronized(playerCache) { playerCache[key]?.let { return it } }
         val lk = look(gender, t)
+        val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
         val set = PlayerSet(
-            idle = buildClip(lk, Anim.IDLE.frames) { CharacterArt.idlePose(it) },
-            walk = buildClip(lk, Anim.WALK.frames) { CharacterArt.walkPose(it, CharacterArt.WALK) },
-            run = buildClip(lk, Anim.RUN.frames) { CharacterArt.walkPose(it, CharacterArt.RUN) },
-            sneak = buildClip(lk, Anim.SNEAK.frames) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
-            aim = buildClip(lk, Anim.AIM.frames) { CharacterArt.aimPose(it) }
+            idle = buildClip(lk, Anim.IDLE.frames, px) { CharacterArt.idlePose(it) },
+            walk = buildClip(lk, Anim.WALK.frames, px) { CharacterArt.walkPose(it, CharacterArt.WALK) },
+            run = buildClip(lk, Anim.RUN.frames, px) { CharacterArt.walkPose(it, CharacterArt.RUN) },
+            sneak = buildClip(lk, Anim.SNEAK.frames, px) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
+            aim = buildClip(lk, Anim.AIM.frames, px) { CharacterArt.aimPose(it) },
+            punch = buildClip(lk, 4, px) { CharacterArt.punchPose(it) }
         )
-        playerCache[key] = set
+        synchronized(playerCache) {
+            playerCache[key]?.let { return it }      // 그 사이 다른 스레드가 만들었으면 그걸 쓴다
+            playerCache[key] = set
+        }
         return set
     }
 
     /** 레벨 등급으로 (남자) */
     fun playerSet(tier: Int): PlayerSet = playerSet("male", tier)
 
-    private val cheerCache = HashMap<Int, Array<Bitmap>>()
+    private val cheerCache = SpriteLru<Int, Array<Bitmap>>(2)
 
-    /** 레벨업 축하 동작 (정면 8프레임) */
+    /**
+     * 레벨업 축하 동작 (정면 8프레임 · [CHEER_PX] = 256px).
+     *
+     * 이 화면은 캐릭터를 화면 가득 띄우므로 여기만 아주 크게 그린다.
+     * 프레임 8장뿐이라 메모리 부담도 작다(장당 256KB).
+     */
     fun cheerFrames(gender: String, tier: Int): Array<Bitmap> {
         val t = tier.coerceIn(0, gearTiers.size - 1)
         val key = (if (gender == "female") 1 else 0) * 64 + t
-        cheerCache[key]?.let { return it }
+        synchronized(cheerCache) { cheerCache[key]?.let { return it } }
         val lk = look(gender, t)
         val frames = Array(8) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.cheerPose(it / 8f), lk)
+            CharacterArt.render(CharacterArt.FRONT, CharacterArt.cheerPose(it / 8f), lk, CHEER_PX)
         }
-        cheerCache[key] = frames
+        synchronized(cheerCache) {
+            cheerCache[key]?.let { return it }
+            cheerCache[key] = frames
+        }
+        return frames
+    }
+
+    private val avatarCache = SpriteLru<Int, Array<Bitmap>>(4)
+
+    /**
+     * 캐릭터 선택 카드용 — 정면 서 있는 동작 12프레임만 [AVATAR_PX] 로 그려 둔다.
+     *
+     * (세트 전체는 프레임 176장이라 카드 두 장 때문에 만들기엔 너무 무겁다.
+     *  정면 12프레임이면 한 벌 1.5MB 로 끝나고 카드도 그대로 움직인다)
+     */
+    fun playerAvatarFrames(gender: String, tier: Int): Array<Bitmap> {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = (if (gender == "female") 1 else 0) * 64 + t
+        synchronized(avatarCache) { avatarCache[key]?.let { return it } }
+        val lk = look(gender, t)
+        val frames = Array(Anim.IDLE.frames) {
+            try {
+                CharacterArt.render(CharacterArt.FRONT, CharacterArt.idlePose(it / Anim.IDLE.frames.toFloat()), lk, AVATAR_PX)
+            } catch (_: Exception) {
+                // 못 만들면 서 있는 세트의 같은 프레임으로 대체한다(화면이 비지 않게)
+                playerSet(gender, t).idle.down[it % playerSet(gender, t).idle.down.size]
+            }
+        }
+        synchronized(avatarCache) {
+            avatarCache[key]?.let { return it }
+            avatarCache[key] = frames
+        }
         return frames
     }
 
@@ -436,6 +585,54 @@ class Assets(private val context: Context) {
     fun playerBitmap(gender: String, tier: Int, anim: Anim, dir: Dir, animT: Float): Bitmap {
         val clip = playerSet(gender, tier).clip(anim)
         return clip.frame(dir, (animT / anim.frameTime).toInt())
+    }
+
+    /**
+     * 캐릭터·자전거처럼 **32 도트 격자** 위에 그려진 스프라이트를 월드에 그린다.
+     *
+     * 스프라이트가 원본 도트(32px)든 HD([CHARACTER_PX])든 화면에서 차지하는 크기는
+     * 언제나 똑같이 32 도트 — 즉 HD 그림은 살짝 줄여서 붙기 때문에 픽셀 크기는 그대로고
+     * 옷 주름·머리 윤기·눈 반짝임 같은 결만 새로 보인다.
+     * (레벨업 축하 화면처럼 크게 띄우는 곳에서 "확대한 도트"가 아니라 "진짜 그림"이 된다)
+     *
+     * @param dotScale 월드 비트맵에서 **도트 하나가 차지하는 기기 픽셀 수** (= [Game.worldScale]).
+     */
+    fun drawPlayer(
+        c: Canvas, bmp: Bitmap, x: Float, y: Float,
+        dotScale: Float, alpha: Int = 255
+    ) {
+        val k = dotScale * CharacterArt.SIZE / bmp.width
+        // 정수배 확대만 픽셀 느낌(최근접)으로, 그 외(축소·어중간한 배율)는 보간으로 그린다.
+        // HD 스프라이트는 축소되므로 필터가 켜져야 디테일이 살아남는다.
+        val p = if (isIntegerScale(k)) pxPaint else sprPaint
+        if (alpha != 255) {
+            val keep = p.alpha
+            p.alpha = alpha
+            drawScaled(c, bmp, x, y, k, p)
+            p.alpha = keep
+        } else {
+            drawScaled(c, bmp, x, y, k, p)
+        }
+    }
+
+    private fun isIntegerScale(k: Float): Boolean =
+        k > 0.999f && kotlin.math.abs(k - k.toInt()) < 0.02f
+
+    /** 확대(또는 축소)해서 그린다 — 크기가 1:1이면 비트맵을 그대로 붙인다 */
+    private fun drawScaled(c: Canvas, bmp: Bitmap, x: Float, y: Float, k: Float, p: Paint) {
+        if (k == 1f) {
+            c.drawBitmap(bmp, x, y, p)
+        } else {
+            c.drawBitmap(
+                bmp, null,
+                RectF(x, y, x + bmp.width * k, y + bmp.height * k), p
+            )
+        }
+    }
+
+    /** UI(가방 · 레벨업 · 캐릭터 선택)에서 캐릭터를 지정한 사각형에 꽉 차게 그린다 */
+    fun drawPlayerIn(c: Canvas, bmp: Bitmap, dst: RectF) {
+        c.drawBitmap(bmp, null, dst, sprPaint)
     }
 
     // -----------------------------------------------------------------------
@@ -459,88 +656,117 @@ class Assets(private val context: Context) {
         }
     }
 
-    private val bikeCache = LinkedHashMap<String, BikeSet>()
+    /**
+     * 자전거 세트 캐시 — 프레임 한 장이 HD(96px)라 40세트면 46MB까지 불어난다.
+     * 자전거 상점은 한 페이지에 5대를 보여 주고 월드는 한 대만 쓰므로 12세트면 충분하다.
+     */
+    private val bikeCache = SpriteLru<String, BikeSet>(12)
 
-    /** 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시) */
-    fun bikeSet(gender: String, tier: Int, style: BikeStyle): BikeSet {
+    /**
+     * 자전거 세트 (성별·레벨 등급·자전거 스타일(모델/도색/부속품)별 프레임 생성·캐시)
+     * @param hd [playerSet] 과 같은 규칙 — 라이더가 캐릭터와 같은 화질로 그려진다.
+     */
+    fun bikeSet(gender: String, tier: Int, style: BikeStyle, hd: Boolean = true): BikeSet {
         val t = tier.coerceIn(0, gearTiers.size - 1)
-        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
-        bikeCache[key]?.let { return it }
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}|$hd"
+        synchronized(bikeCache) { bikeCache[key]?.let { return it } }
         val lk = look(gender, t)
         val n = BIKE_FRAMES
-        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style) }
+        val px = if (hd) BIKE_PX else CharacterArt.SIZE
+        val side = Array(n) { CharacterArt.renderBike(CharacterArt.SIDE, it / n.toFloat(), lk, style, px) }
         val set = BikeSet(
-            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style) },
-            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style) },
+            down = Array(n) { CharacterArt.renderBike(CharacterArt.FRONT, it / n.toFloat(), lk, style, px) },
+            up = Array(n) { CharacterArt.renderBike(CharacterArt.BACK, it / n.toFloat(), lk, style, px) },
             side = side,
             sideL = Array(n) { flipH(side[it]) }
         )
-        bikeCache[key] = set
-        while (bikeCache.size > 40) {
-            val eldest = bikeCache.keys.first()
-            bikeCache.remove(eldest)
+        synchronized(bikeCache) {
+            bikeCache[key]?.let { return it }
+            bikeCache[key] = set
         }
         return set
     }
 
+    private val bikePreviewCache = SpriteLru<String, Bitmap>(16)
+
+    /**
+     * 자전거 상점 썸네일 — **옆모습 첫 프레임 한 장만** HD로 그린다.
+     *
+     * 세트를 통째로 만들면 32프레임이라 상점 한 쪽(5대)을 열 때 0.2초가 걸린다.
+     * 썸네일은 어차피 [Dir] 한 방향만 보여 주므로 한 장이면 충분하다.
+     */
+    fun bikePreviewFrame(gender: String, tier: Int, style: BikeStyle): Bitmap {
+        val t = tier.coerceIn(0, gearTiers.size - 1)
+        val key = "${if (gender == "female") 1 else 0}|$t|${style.cacheKey}"
+        synchronized(bikePreviewCache) { bikePreviewCache[key]?.let { return it } }
+        val bmp = CharacterArt.renderBike(CharacterArt.SIDE, 0f, look(gender, t), style, BIKE_PX)
+        synchronized(bikePreviewCache) { bikePreviewCache[key] = bmp }
+        return bmp
+    }
+
     /** 자전거 스프라이트 (pedalPhase: 페달 위상) */
-    fun bikeBitmap(gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle): Bitmap {
-        val set = bikeSet(gender, tier, style)
+    fun bikeBitmap(
+        gender: String, tier: Int, dir: Dir, pedalPhase: Float, style: BikeStyle, hd: Boolean = true
+    ): Bitmap {
+        val set = bikeSet(gender, tier, style, hd)
         val f = (pedalPhase * set.count).toInt()
         return set.frame(dir, f)
     }
 
     // 기존 코드 호환 접근자
     val playerTiers: Array<PlayerSet> get() = Array(gearTiers.size) { playerSet("male", it) }
-    val playerDown: Array<Bitmap> get() = playerSet("male", 0).down
-    val playerUp: Array<Bitmap> get() = playerSet("male", 0).up
-    val playerSide: Array<Bitmap> get() = playerSet("male", 0).side
-    val playerSideL: Array<Bitmap> get() = playerSet("male", 0).sideL
-    val femaleDown: Array<Bitmap> get() = playerSet("female", 0).down
-    val femaleUp: Array<Bitmap> get() = playerSet("female", 0).up
-    val femaleSide: Array<Bitmap> get() = playerSet("female", 0).side
-    val femaleSideL: Array<Bitmap> get() = playerSet("female", 0).sideL
+    val playerDown: Array<Bitmap> get() = playerSet("male", 0, false).down
+    val playerUp: Array<Bitmap> get() = playerSet("male", 0, false).up
+    // 호환 접근자는 원본 32px 도트를 돌려준다(HD는 playerSet(gender, tier, hd=true) 로).
+    val playerSide: Array<Bitmap> get() = playerSet("male", 0, false).side
+    val playerSideL: Array<Bitmap> get() = playerSet("male", 0, false).sideL
+    val femaleDown: Array<Bitmap> get() = playerSet("female", 0, false).down
+    val femaleUp: Array<Bitmap> get() = playerSet("female", 0, false).up
+    val femaleSide: Array<Bitmap> get() = playerSet("female", 0, false).side
+    val femaleSideL: Array<Bitmap> get() = playerSet("female", 0, false).sideL
     /** 기본 자전거 외형 (구 코드 호환 접근자용) */
     private val defaultBikeStyle = BikeStyle(
         "basic", BikeColors.frame(0), BikeColors.tire(0), BikeColors.saddle(0),
         basket = false, rack = false, light = false, streamers = false, bell = false
     )
 
-    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).down[0]
-    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).up[0]
-    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).side[0]
-    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle).sideL[0]
+    val bikeDown: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).down[0]
+    val bikeUp: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).up[0]
+    val bikeSide: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).side[0]
+    val bikeSideL: Bitmap get() = bikeSet("male", 0, defaultBikeStyle, false).sideL[0]
 
     // -----------------------------------------------------------------------
-    // NPC — 성격이 드러나는 대기 동작 (12프레임)
+    // NPC — 사람마다 다른 옷차림 + 성격이 드러나는 대기 동작 (12프레임)
+    //   누구인지(이름·옷·사는 지역)는 NpcRoster.kt, 자리는 MapBuilder.placeCast 가 정한다.
     // -----------------------------------------------------------------------
 
-    private fun npcPal(
-        hair: Long, top: Long, top2: Long, pants: Long, pack: Long
-    ): CharacterArt.Pal = CharacterArt.Pal(
-        hair = c(hair), hair2 = shade(c(hair), 0.75f),
-        skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
-        top = c(top), top2 = c(top2), pants = c(pants), pants2 = shade(c(pants), 0.75f),
-        shoe = c(0xFF3A3A44), line = c(0xFF33241C), pack = c(pack), pack2 = shade(c(pack), 0.75f),
-        eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
-    )
-
-    private fun npcLook(kind: NpcKind): CharacterArt.Look = when (kind) {
-        NpcKind.PROFESSOR -> CharacterArt.Look(
-            npcPal(0xFFCFD2D8, 0xFFF5F2EA, 0xFFD8D2C4, 0xFF5D6470, 0xFF9AA3AD), glasses = true
+    /** 사람 옷차림([NpcLook]) -> 렌더용 Look. 바디가 요구하는 체형은 자동으로 따라붙는다. */
+    private fun npcLook(kind: NpcKind, look: NpcLook): CharacterArt.Look {
+        val pal = CharacterArt.Pal(
+            hair = c(look.hair.toLong()), hair2 = shade(c(look.hair.toLong()), 0.75f),
+            skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
+            top = c(look.top.toLong()), top2 = c(look.top2.toLong()),
+            pants = c(look.pants.toLong()), pants2 = shade(c(look.pants.toLong()), 0.75f),
+            shoe = c(0xFF3A3A44), line = c(0xFF33241C),
+            pack = c(look.pack.toLong()), pack2 = shade(c(look.pack.toLong()), 0.75f),
+            eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        NpcKind.SHOP -> CharacterArt.Look(
-            npcPal(0xFF4A2F1D, 0xFF6FAE57, 0xFF4F7D3F, 0xFF8A6A4F, 0xFFC89B6A), apron = true
+        // 모자·조끼·목도리 — 탐조가와 같은 파츠를 써서 사람마다 실루엣이 달라진다
+        val gear = if (look.cap == null && look.vest == null && look.scarf == null) null
+        else CharacterArt.Gear(
+            cap = look.cap, capDark = shade(look.cap ?: 0, 0.72f),
+            vest = look.vest, vestDark = shade(look.vest ?: 0, 0.75f),
+            scarf = look.scarf,
+            brim = look.cap != null
         )
-        NpcKind.VILLAGER -> CharacterArt.Look(
-            npcPal(0xFF2E2620, 0xFFC3A3E8, 0xFF9F7FC8, 0xFF4A6FA5, 0xFF8A5A33)
-        )
-        NpcKind.KID -> CharacterArt.Look(
-            npcPal(0xFF5B3A29, 0xFFE2574C, 0xFFB23F44, 0xFF3F6FB0, 0xFFF2B63C), small = true
-        )
-        NpcKind.ELDER -> CharacterArt.Look(
-            npcPal(0xFFE8E4DC, 0xFF8A7360, 0xFF6B5A48, 0xFF5D6470, 0xFF4F463F),
-            cane = true, longHair = true
+        return CharacterArt.Look(
+            pal,
+            gear = gear,
+            glasses = look.glasses,
+            apron = look.apron,
+            cane = look.cane || kind == NpcKind.ELDER,
+            small = look.small || kind == NpcKind.KID,
+            longHair = look.longHair
         )
     }
 
@@ -552,29 +778,59 @@ class Assets(private val context: Context) {
         NpcKind.ELDER -> CharacterArt.NPC_ELDER
     }
 
-    private val npcCache = HashMap<NpcKind, Array<Bitmap>>()
+    /**
+     * 사람별 대기 애니메이션 캐시.
+     *
+     * 지역마다 다른 사람이 서 있으므로 키는 "바디"가 아니라 **사람 id** 다.
+     * 12프레임 × 32×32 ≈ 49KB 라서, 오래 안 본 사람은 밀어내는 LRU(24명)로 묶어 둔다.
+     */
+    private val npcCache = LruCache<String, Array<Bitmap>>(24)
 
-    /** NPC 대기 애니메이션 프레임 (12장, 약 2.4초 루프) */
-    fun npcFrames(kind: NpcKind): Array<Bitmap> {
-        npcCache[kind]?.let { return it }
-        val lk = npcLook(kind)
-        val art = npcArtKind(kind)
-        val frames = Array(NPC_FRAMES) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk)
+    /**
+     * HD NPC 캐시 — 한 사람이 12프레임 × 36KB ≈ 432KB라 24명을 다 들고 있으면 10MB다.
+     * 지금 서 있는 지역의 사람(보통 2~4명)만 들고 있으면 충분하므로 8명으로 묶는다.
+     */
+    private val npcHdCache = SpriteLru<String, Array<Bitmap>>(8)
+
+    /**
+     * 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프).
+     * @param hd 플레이어와 같은 화질([CHARACTER_PX])로 그릴지 — 월드가 2배 이상 슈퍼샘플일 때 true.
+     */
+    fun npcFrames(person: NpcPerson, hd: Boolean = false): Array<Bitmap> {
+        synchronized(npcHdCache) {
+            if (hd) npcHdCache[person.id]?.let { return it } else npcCache.get(person.id)?.let { return it }
         }
-        npcCache[kind] = frames
+        val lk = npcLook(person.kind, person.look)
+        val art = npcArtKind(person.kind)
+        val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
+        val frames = Array(NPC_FRAMES) {
+            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk, px)
+        }
+        if (hd) synchronized(npcHdCache) { npcHdCache[person.id] = frames }
+        else npcCache.put(person.id, frames)
         return frames
     }
 
-    /** 시간 -> NPC 스프라이트 (offset 으로 NPC마다 위상을 다르게) */
-    fun npcBitmap(kind: NpcKind, time: Float, offset: Float = 0f): Bitmap {
-        val frames = npcFrames(kind)
+    /** 바디만 알고 있을 때(미리보기 도구·구 코드) — 그 바디의 대표 인물로 그린다 */
+    fun npcFrames(kind: NpcKind, hd: Boolean = false): Array<Bitmap> =
+        npcFrames(NpcRoster.representative(kind), hd)
+
+    /** 시간 -> NPC 스프라이트 (offset 으로 사람마다 위상을 다르게) */
+    fun npcBitmap(person: NpcPerson, time: Float, offset: Float = 0f, hd: Boolean = false): Bitmap {
+        val frames = npcFrames(person, hd)
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
 
-    val npcProfessor: Bitmap get() = npcFrames(NpcKind.PROFESSOR)[0]
-    val npcShop: Bitmap get() = npcFrames(NpcKind.SHOP)[0]
+    /** 바디만 알고 있을 때(미리보기 도구·구 코드) */
+    fun npcBitmap(kind: NpcKind, time: Float, offset: Float = 0f, hd: Boolean = false): Bitmap {
+        val frames = npcFrames(kind, hd)
+        val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
+        return frames[i]
+    }
+
+    val npcProfessor: Bitmap get() = npcFrames(NpcRoster.professor)[0]
+    val npcShop: Bitmap get() = npcFrames(NpcRoster.shopkeeper)[0]
     val npcVillager: Bitmap get() = npcFrames(NpcKind.VILLAGER)[0]
     val npcKid: Bitmap get() = npcFrames(NpcKind.KID)[0]
     val npcElder: Bitmap get() = npcFrames(NpcKind.ELDER)[0]
@@ -888,12 +1144,19 @@ class Assets(private val context: Context) {
     private fun buildBirdPose(d: BirdDef, facing: BirdFacing, pose: BirdPose): Bitmap =
         DetailedBirdRenderer.render(d, facing, pose, birdReferencePalette(d))
 
-    /**
-     * assets/birds/{번호}.jpg의 중앙 피사체 색 군집을 작은 비트맵으로 읽는다.
-     * 배경색 오염을 줄이기 위해 BirdArt 기준색과 가까운 상위 군집을 고르고 34%만 혼합한다.
-     * 따라서 사진의 실제 깃색을 반영하면서 숲/하늘 배경이 몸 전체를 물들이지는 않는다.
-     */
+    /** 그리기 경로: 사진이 아직 준비되지 않았으면 기본색을 쓰고 백그라운드에 요청한다. */
     private fun birdReferencePalette(d: BirdDef): BirdRenderPalette {
+        birdReferencePalettes[d.id]?.let { return it }
+        prefetchBirdPalette(d.id)
+        return BirdRenderPalette(d.art.body, d.art.belly, d.art.wing, d.art.head,
+            d.art.accent, d.art.beak, d.art.leg)
+    }
+
+    /**
+     * 로더(또는 부팅 스레드) 전용: assets/birds/{번호}.jpg의 중앙 피사체 색 군집을 읽는다.
+     * 배경색 오염을 줄이기 위해 BirdArt 기준색과 가까운 상위 군집을 고르고 34%만 혼합한다.
+     */
+    private fun computeBirdReferencePalette(d: BirdDef): BirdRenderPalette {
         birdReferencePalettes[d.id]?.let { return it }
         val bases = intArrayOf(d.art.body, d.art.belly, d.art.wing, d.art.head, d.art.accent)
         val counts = HashMap<Int, Int>()
@@ -1691,7 +1954,7 @@ class Assets(private val context: Context) {
                 px(cv, p, x.toFloat(), (32 - h).toFloat(), 2f, h.toFloat(), c(0xFF577D42))
                 px(cv, p, x + 0.7f, (32 - h + 2).toFloat(), 0.8f, h - 3f, c(0xFFA4BF64))
                 px(cv, p, x - 0.5f, (32 - h - 4).toFloat(), 3f, 5f, c(0xFF81502F))
-                px(cv, p, x.toFloat(), (32 - h - 3).toFloat(), 1.4f, 3f, c(0xFFB27945))
+                px(cv, p, x.toFloat(), (32 - h - 3).toFloat(), 1.4f, 3f, c(0xFFB27945))   // main 컴파일 오류 수정(Int→Float)
             }
         } else {
             for ((x, y, s) in listOf(Triple(5, 22, 8), Triple(17, 25, 10), Triple(25, 19, 7))) {
@@ -2361,6 +2624,87 @@ begin(T.HOUSE_DOOR)
             noise(c, p, r, 6f, 29f, 26f, 32f, c(0xFF8A2F35), 5, 1f, 1.3f)
         })
 
+        // 랜드마크 지붕 — 청기와(에메랄드) + 금빛 용마루로 격조 있게
+        begin(T.LM_ROOF)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFF2E6E63))
+            for (row in 0 until 4) {
+                val y = row * 8f
+                val off = if (row % 2 == 0) 0f else -6f
+                var x = off
+                while (x < 32f) {
+                    val tt = lerpColor(c(0xFF3E9184), c(0xFF2A6157), r.nextFloat())
+                    px(c, p, x + 0.4f, y + 0.6f, 11.2f, 7f, tt)
+                    px(c, p, x + 0.4f, y + 0.6f, 11.2f, 1.2f, shade(tt, 1.25f))
+                    px(c, p, x + 0.4f, y + 6.4f, 11.2f, 1.2f, shade(tt, 0.72f))
+                    px(c, p, x + 8.4f, y + 2f, 1.2f, 5.6f, shade(tt, 0.85f))
+                    x += 11.6f
+                }
+            }
+            // 금빛 용마루 + 하이라이트
+            px(c, p, 0f, 0f, 32f, 2.4f, c(0xFFE9C56B))
+            px(c, p, 0f, 0f, 32f, 1f, c(0xFFFBEBB0))
+            noise(c, p, r, 0f, 4f, 32f, 32f, c(0xFF6FB4A6), 4, 1f, 1.6f)
+        })
+
+        // 랜드마크 외벽 — 밝은 석재 + 굵은 코너 트림
+        begin(T.LM_WALL)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFEDE3CF))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE1D4B9), 16, 1f, 2f)
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFFAF3E1), 10, 1f, 1.6f)
+            // 석재 줄눈 (가로)
+            for (y in 6 until 32 step 8) px(c, p, 0f, y.toFloat(), 32f, 1f, c(0xFFCDBE9C))
+            // 상단 처마 트림 + 기초
+            px(c, p, 0f, 0f, 32f, 2.6f, c(0xFFB79A6E))
+            px(c, p, 0f, 2.6f, 32f, 1f, c(0xFFE8D9B6))
+            px(c, p, 0f, 28f, 32f, 4f, c(0xFFB79A6E))
+            px(c, p, 0f, 28f, 32f, 1.2f, c(0xFF8A6A4A))
+        })
+
+        // 랜드마크 창 — 아치형 큰 창(전망)
+        begin(T.LM_WIN)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFEDE3CF))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE1D4B9), 12, 1f, 1.9f)
+            px(c, p, 0f, 0f, 32f, 2.6f, c(0xFFB79A6E))
+            // 아치 창틀
+            px(c, p, 4f, 4f, 24f, 24f, c(0xFF9A7B4F))
+            px(c, p, 5.4f, 5.4f, 21.2f, 22f, c(0xFFC7A876))
+            // 유리 (하늘빛 그라데이션)
+            vgrad(c, p, 6.8f, 7f, 25.2f, 26f, c(0xFFCBE8F5), c(0xFF7FB6D9), 5)
+            // 아치 상단 둥근 느낌 + 창살
+            px(c, p, 6.8f, 6.6f, 18.4f, 2f, c(0xFF9A7B4F))
+            px(c, p, 15.2f, 6.6f, 1.6f, 19.4f, c(0xFF9A7B4F))
+            px(c, p, 6.8f, 15.4f, 18.4f, 1.6f, c(0xFF9A7B4F))
+            px(c, p, 7.6f, 8f, 5f, 4f, c(0xFFE6F4FB))
+        })
+
+        // 랜드마크 정문 — 격조 있는 아치 입구 + 현판
+        begin(T.LANDMARK_DOOR)
+        add(tilePainter { c, p, r ->
+            fill(c, p, c(0xFFEDE3CF))
+            noise(c, p, r, 0f, 0f, 32f, 32f, c(0xFFE1D4B9), 10, 1f, 1.9f)
+            px(c, p, 0f, 0f, 32f, 2.6f, c(0xFFB79A6E))
+            // 현판 (금빛)
+            px(c, p, 6f, 3f, 20f, 3.4f, c(0xFF6B4A1F))
+            px(c, p, 6.8f, 3.6f, 18.4f, 2.2f, c(0xFFE9C56B))
+            // 아치 문틀
+            px(c, p, 4.4f, 6.4f, 23.2f, 25.6f, c(0xFF7A5330))
+            px(c, p, 5.8f, 7.6f, 20.4f, 24.4f, c(0xFF9A6A3E))
+            // 문짝 (양쪽으로 열리는 큰 문)
+            px(c, p, 7f, 9f, 18f, 23f, c(0xFFB98A5C))
+            px(c, p, 15.4f, 9f, 1.2f, 23f, c(0xFF6B431F))
+            px(c, p, 8.2f, 10.4f, 6.6f, 12f, c(0xFFC89B6A))
+            px(c, p, 17.2f, 10.4f, 6.6f, 12f, c(0xFFC89B6A))
+            // 손잡이
+            px(c, p, 13.6f, 19f, 1.6f, 3.2f, c(0xFFF2D06B))
+            px(c, p, 17.8f, 19f, 1.6f, 3.2f, c(0xFFF2D06B))
+            // 붉은 융단
+            px(c, p, 10f, 28f, 12f, 4f, c(0xFFB23F44))
+            noise(c, p, r, 10f, 28f, 22f, 32f, c(0xFF8A2F35), 4, 1f, 1.3f)
+        })
+
 begin(T.TUNNEL)
         add(tilePainter { c, p, r ->
             fill(c, p, c(0xFF77848F))
@@ -2861,56 +3205,63 @@ begin(T.LAMP)
         pizzaIconBig = Bitmap.createScaledBitmap(
             pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
         )
+        // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
+        //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
+        //  C 치즈(baseColor) / L·S 치즈 밝기·그늘(파생) / R·r·G 토핑1 면·테·윤 / A·b 토핑2 면·테
         val pizza = listOf(
-            "......................",
-            ".....cccccccccc.....",
-            "...ccCCCCCCCCCCcc...",
-            "..cCCCRCCRCCRCCRCc..",
-            "..cCCCCCCCCCCCCCd...",
-            ".cCCRCCCCRCCCCCCCd..",
-            ".cCCCCRCCCRCCRCCd...",
-            ".cCCCCCCCCCCCCCCd...",
-            ".cCCRCCCCRCCCCRAd...",
-            ".cCCCCCCCCCCCCCd....",
-            ".cCCRCCCCRCCCCCd....",
-            ".dCCCCCCCCCCCAAd....",
-            "..ddddddddddd......",
-            "...dddddddddd......",
+            "..........hh..........",
+            ".....chhhhhhhhhhc.....",
+            "....hhTTCCCCCCRThh....",
+            "..ckkCRLLLACCGRRCkkc..",
+            "..hcCGRRLLLLCCrCCCch..",
+            ".ccTCCrLLLRCCCACGCTcc.",
+            ".ccSCGCCCGGRCCCRRRSkc.",
+            ".ccTRRRCCCrCGGCCrCTcc.",
+            "..ccSrCCbCCCRRrCCScc..",
+            "..dcccSCCCCCCCCScccd..",
+            "...dcccCcSSSSCCcccd...",
+            ".....dcLcccccCCcd.....",
+            ".......dddddddd.......",
             "......................"
         )
-        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
-        //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
+        // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다 (음영은 각 색에서 파생).
+        //  일반 피자: 통통한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 러스틱 크러스트 + 큼직한 토핑
         val pizzaOven = listOf(
             "......................",
-            ".....cckccccckc.....",
-            "...ckCCCCCCCCCCkc...",
-            "..cCCRRCCCCCRRCCCc..",
-            "..kCCRRCCACCRRCCd...",
-            ".cCCCCCCCCCCCCCCCd..",
-            ".cCRRCCCACCCRRCCk...",
-            ".kCRRCCCCCCCRRCCd...",
-            ".cCCCCCRRCCACCCCd...",
-            ".cCCACCRRCCCCCCd....",
-            ".cCCCCCCCCCRRCCk....",
-            ".dCCCCCCCCCRRCCd....",
-            "..dkddddddkdd......",
-            "...ddddkddddd......",
+            "........cckccc........",
+            "......cCCCCCCCkc......",
+            "....cCCLLLCCACCCkc....",
+            "...hCCLLLLCCCRRRrkc...",
+            "..cCCCCCACCCCRRRrCkc..",
+            "..cCCRRCCCCACCRRRrkc..",
+            "..ckCRRrCCACCCrCCCCc..",
+            "...cCCCCCRRrCCCCCSd...",
+            "...dCCCCCrrCCCCSSSd...",
+            "....dCCCCCCSSSSSCd....",
+            ".....dCCddkddddkd.....",
+            ".......ddddkddd.......",
             "......................"
         )
         pizzaArts = Array(Pizzas.ALL.size) { i ->
             val def = Pizzas.ALL[i]
+            val base = mapOf(
+                'T' to c(0xFFD8453A),
+                'C' to def.baseColor, 'L' to tone(def.baseColor, 1.18f), 'S' to tone(def.baseColor, 0.82f),
+                'R' to def.topColorA, 'r' to tone(def.topColorA, 0.72f), 'G' to tone(def.topColorA, 1.3f),
+                'A' to def.topColorB, 'b' to tone(def.topColorB, 0.72f)
+            )
             if (def.kind == PizzaKind.OVEN) {
                 sprite(
-                    pizzaOven, mapOf(
-                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45), 'k' to c(0xFF5A3A2A),
-                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                    pizzaOven, base + mapOf(
+                        'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45),
+                        'h' to c(0xFFEDC293), 'k' to c(0xFF5A3A2A)
                     )
                 )
             } else {
                 sprite(
-                    pizza, mapOf(
+                    pizza, base + mapOf(
                         'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
-                        'C' to def.baseColor, 'R' to def.topColorA, 'A' to def.topColorB
+                        'h' to c(0xFFF2C078), 'k' to c(0xFFBF7640)
                     )
                 )
             }
@@ -2953,12 +3304,13 @@ begin(T.LAMP)
 
     fun camProfile(look: CamLook): Bitmap = camProfileCache.getOrPut(look) { buildCamProfile(look) }
 
-    /** dir: 0 정면 / 1 뒤 / 2 오른쪽 / 3 왼쪽 */
-    fun camHeld(look: CamLook, dir: Int, raised: Boolean): Bitmap {
+    /** dir: 0 정면 / 1 뒤 / 2 오른쪽 / 3 왼쪽 — hd 면 캐릭터와 같은 해상도로 그린다 */
+    fun camHeld(look: CamLook, dir: Int, raised: Boolean, hd: Boolean = true): Bitmap {
+        val px = if (hd) CHARACTER_PX else 32
         if (dir == 3) {
-            return camHeldCache.getOrPut(HeldKey(look, 3, raised)) { flipH(camHeld(look, 2, raised)) }
+            return camHeldCache.getOrPut(HeldKey(look, 3, raised, px)) { flipH(camHeld(look, 2, raised, hd)) }
         }
-        return camHeldCache.getOrPut(HeldKey(look, dir, raised)) { buildCamHeld(look, dir, raised) }
+        return camHeldCache.getOrPut(HeldKey(look, dir, raised, px)) { buildCamHeld(look, dir, raised, px) }
     }
 
     private fun buildCamIcon(lk: CamLook): Bitmap {
@@ -3086,10 +3438,17 @@ begin(T.LAMP)
         return bmp
     }
 
-    private fun buildCamHeld(lk: CamLook, dir: Int, raised: Boolean): Bitmap {
-        val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+    private fun buildCamHeld(lk: CamLook, dir: Int, raised: Boolean, px: Int): Bitmap {
+        val k = px.toFloat() / 32f
+        val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
-        val p = Paint()
+        if (k != 1f) {
+            // HD: 32 도트 좌표계를 그대로 쓰되 캔버스를 늘려 그린다.
+            // 안티앨리어싱을 켜면 반 픽셀 단위 좌표가 부드럽게 래스터화되어
+            // 캐릭터(HD)와 같은 결로 보인다.
+            cv.scale(k, k)
+        }
+        val p = Paint().apply { isAntiAlias = k != 1f }
         fun r(l: Float, t: Float, rr: Float, b: Float, col: Int) {
             p.color = col; cv.drawRect(l, t, rr, b, p)
         }
@@ -3306,28 +3665,44 @@ begin(T.LAMP)
 
     /** 새 비트맵 (안전 접근) — 기본 왼쪽 옆모습. */
     fun bird(id: String): Bitmap {
-        birdCache[id]?.let { return it }
         val def = Birds.byId[id] ?: Birds.ALL.first()
+        val ready = birdReferencePalettes.containsKey(def.id)
+        // 처음엔 기본색으로 바로 그리고, 사진 기준색이 로딩되면 다음 접근에서 교체한다.
+        birdCache[def.id]?.let { if (!ready || def.id in birdCacheWithPhoto) return it }
         val bmp = buildBird(def)
         birdCache[def.id] = bmp
-        birdPoseCache[BirdPoseKey(def.id, BirdFacing.LEFT, BirdPose.PERCHED)] = bmp
+        val key = BirdPoseKey(def.id, BirdFacing.LEFT, BirdPose.PERCHED)
+        birdPoseCache[key] = bmp
+        if (ready) {
+            birdCacheWithPhoto.add(def.id)
+            birdPoseCacheWithPhoto.add(key)
+        }
         return bmp
     }
 
     /** 방향과 행동이 모두 반영된 필드/촬영용 새. 598종 × 자세는 실제로 필요할 때만 생성한다. */
     fun birdPose(id: String, facing: BirdFacing, pose: BirdPose = BirdPose.PERCHED): Bitmap {
         val def = Birds.byId[id] ?: Birds.ALL.first()
-        val key = BirdPoseKey(def.id, facing, pose)
-        birdPoseCache[key]?.let { return it }
         if (facing == BirdFacing.LEFT && pose == BirdPose.PERCHED) return bird(def.id)
-        return buildBirdPose(def, facing, pose).also { birdPoseCache[key] = it }
+        val key = BirdPoseKey(def.id, facing, pose)
+        val ready = birdReferencePalettes.containsKey(def.id)
+        birdPoseCache[key]?.let { if (!ready || key in birdPoseCacheWithPhoto) return it }
+        return buildBirdPose(def, facing, pose).also {
+            birdPoseCache[key] = it
+            if (ready) birdPoseCacheWithPhoto.add(key)
+        }
+    }
+
+    /** 부팅 스레드에서만: 첫 화면에 보이는 새는 정확한 사진 기준색으로 바로 준비한다. */
+    fun preloadBird(id: String): Bitmap {
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        computeBirdReferencePalette(def)
+        return bird(def.id)
     }
 
     /** 이 목록의 종을 미리 만들어 둔다 (장면 전환 뒤 스폰 렉을 막고 싶을 때) */
     fun prewarmBirds(defs: Collection<BirdDef>) {
-        for (d in defs) {
-            if (d.id !in birdCache) birdCache[d.id] = buildBird(d)
-        }
+        for (d in defs) bird(d.id)
     }
 
     /** 오른쪽을 바라보는 새 — 단순 반전이 아니라 방향 캐시의 실제 자세를 사용한다. */
@@ -3352,38 +3727,116 @@ begin(T.LAMP)
     fun birdH(id: String): Float = bird(id).height.toFloat()
 
     // -----------------------------------------------------------------------
-    // 조류 대도감 실제 사진 및 썸네일 (LruCache)
+    // 조류 대도감 실제 사진 및 썸네일 — 백그라운드 로더 + LruCache
+    //
+    //  JPEG를 게임 스레드에서 푸는 순간 그 프레임이 10~30ms 흔들린다.
+    //  도감 '다음' 을 누르면 한 프레임에 12장, 새 상세의 '다음' 을 누르면
+    //  고화질 사진 한 장이 같이 디코드돼서 버튼이 눌린 직후 카드가 났다.
+    //  로더 스레드가 미리 풀어두고, 그리는 쪽은 "있으면 그린다"만 한다
+    //  (없는 동안은 도감 화면이 이미 그려 놓은 도트 스프라이트가 대신 나온다).
     // -----------------------------------------------------------------------
-    private val photoCache = LruCache<Int, Bitmap>(24)
-    private val thumbCache = LruCache<Int, Bitmap>(128)
-
-    /** 조류 고화질 실제 사진 (assets/birds/{num}.jpg) */
-    fun birdPhoto(num: Int): Bitmap? {
-        if (num <= 0) return null
-        photoCache.get(num)?.let { return it }
-        return try {
-            context.assets.open("birds/$num.jpg").use { stream ->
-                BitmapFactory.decodeStream(stream)?.also {
-                    photoCache.put(num, it)
-                }
-            }
-        } catch (_: Exception) {
-            null
-        }
+    private val photoLoader = AssetImageLoader("PizzaAndBirdPhoto", 24) { num ->
+        context.assets.open("birds/$num.jpg").use { BitmapFactory.decodeStream(it) }
+    }
+    private val thumbLoader = AssetImageLoader("PizzaAndBirdThumb", 160) { num ->
+        context.assets.open("birds_thumb/$num.jpg").use { BitmapFactory.decodeStream(it) }
+            ?: context.assets.open("birds/$num.jpg").use { BitmapFactory.decodeStream(it) }
     }
 
-    /** 도감 그리드용 최적화 썸네일 (assets/birds_thumb/{num}.jpg) */
+    /** 조류 고화질 실제 사진 (assets/birds/{num}.jpg) — 없으면 로더에 부탁하고 null */
+    fun birdPhoto(num: Int): Bitmap? {
+        if (num <= 0) return null
+        photoLoader.cached(num)?.let { return it }
+        photoLoader.request(num)
+        return null
+    }
+
+    /** 미리 받아두라고 알림만 한다 (버튼을 누르는 순간 미리 풀어두게) */
+    fun prefetchBirdPhoto(num: Int) {
+        if (num > 0 && photoLoader.cached(num) == null) photoLoader.request(num)
+    }
+
+    fun prefetchBirdThumb(num: Int) {
+        if (num > 0 && thumbLoader.cached(num) == null) thumbLoader.request(num)
+    }
+
+    /** 새 사진 기준색을 미리 계산한다 (디코드는 전용 스레드). */
+    fun prefetchBirdPalette(birdId: String) {
+        if (birdId.isBlank() || birdReferencePalettes.containsKey(birdId)) return
+        if (!birdPalettePending.add(birdId)) return
+        birdPaletteQueue.put(birdId)
+    }
+
+    /** 도감 그리드용 최적화 썸네일 (assets/birds_thumb/{num}.jpg) — 없으면 로더에 부탁하고 null */
     fun birdThumb(num: Int): Bitmap? {
         if (num <= 0) return null
-        thumbCache.get(num)?.let { return it }
-        return try {
-            context.assets.open("birds_thumb/$num.jpg").use { stream ->
-                BitmapFactory.decodeStream(stream)?.also {
-                    thumbCache.put(num, it)
-                }
+        thumbLoader.cached(num)?.let { return it }
+        thumbLoader.request(num)
+        return null
+    }
+
+    /**
+     * 로더가 요청한 이미지를 다 풀 때까지 잠시 기다린다.
+     * 프리뷰 스크린샷·회귀 테스트 전용 — 실제 게임 루프에서는 부르지 않는다.
+     */
+    fun awaitImages(timeoutMs: Long = 5000L): Boolean {
+        val until = System.nanoTime() + timeoutMs * 1_000_000L
+        while (System.nanoTime() < until) {
+            if (!photoLoader.busy() && !thumbLoader.busy()) return true
+            Thread.sleep(4L)
+        }
+        return false
+    }
+
+    /**
+     * assets 의 이미지 하나를 낮은 우선순위 스레드에서 미리 푸는 로더.
+     * 같은 번호는 한 번만 요청하고, 다 풀리면 LruCache 에 들어간다.
+     */
+    private class AssetImageLoader(
+        threadName: String,
+        cacheSize: Int,
+        private val decode: (Int) -> Bitmap?
+    ) {
+        private val cache = LruCache<Int, Bitmap>(cacheSize)
+        private val queued = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+        private val jobs = LinkedBlockingQueue<Int>()
+        @Volatile private var running = false
+
+        init {
+            Thread({ loop() }, threadName).apply {
+                isDaemon = true
+                priority = Thread.MIN_PRIORITY
+                start()
             }
-        } catch (_: Exception) {
-            birdPhoto(num)
+        }
+
+        fun cached(num: Int): Bitmap? = cache.get(num)
+
+        fun request(num: Int) {
+            if (num <= 0) return
+            if (cache.get(num) != null) return
+            if (queued.add(num)) jobs.put(num)
+        }
+
+        fun busy(): Boolean = running || jobs.isNotEmpty() || queued.isNotEmpty()
+
+        private fun loop() {
+            while (true) {
+                val num = try {
+                    jobs.take()
+                } catch (_: InterruptedException) {
+                    return
+                }
+                running = true
+                val bmp = try {
+                    decode(num)
+                } catch (_: Exception) {
+                    null
+                }
+                if (bmp != null) cache.put(num, bmp)
+                queued.remove(num)
+                running = false
+            }
         }
     }
 

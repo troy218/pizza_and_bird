@@ -70,6 +70,10 @@ class Hud(private val game: Game) {
     /** 메인 버튼에 표시할 맥락 아이콘(근처 상호작용 대상). null이면 기본 주먹 아이콘. 씬이 매 프레임 설정 */
     var contextIcon: String? = null
 
+    /** 월드에서만 펀치 버튼을 그린다. punchHot 이면 사거리 안에 고양이가 있다. */
+    var showPunch = false
+    var punchHot = false
+
     // ----- 조이스틱 상태 (듀랑고식 플로팅) -----
     var stickHeld = false
         private set
@@ -89,6 +93,7 @@ class Hud(private val game: Game) {
     var bikeCx = 0f; var bikeCy = 0f; var bikeR = 0f          // 자전거 (아크)
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
     var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
+    var punchCx = 0f; var punchCy = 0f; var punchR = 0f       // 펀치 (고양이 날리기)
     var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
 
@@ -231,6 +236,11 @@ class Hud(private val game: Game) {
         camBR = arcR; val (cx2, cy2) = arc(120f); camBCx = cx2; camBCy = cy2
         eatR = arcR; val (ex, ey) = arc(168f); eatCx = ex; eatCy = ey
 
+        // 펀치 — 피자 버튼 왼쪽. 고양이 사거리 안이면 붉게 뛴다.
+        punchR = dp(18f)
+        punchCx = (eatCx - dp(54f)).coerceIn(punchR + dp(8f), wf - punchR - dp(8f))
+        punchCy = (eatCy + dp(2f)).coerceIn(punchR + dp(8f), hf - punchR - dp(8f))
+
         // --- 메뉴 클러스터 (왼쪽 아래 구석) ---
         menuR = dp(17f)
         menuCx = dp(18f) + menuR
@@ -266,12 +276,15 @@ class Hud(private val game: Game) {
             if (hitMinimap(x, y)) return Ctrl.MAP
             return Ctrl.NONE
         }
+        // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 내용을 다시 읽는다
+        if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST
         // 버튼 최우선 (메뉴 클러스터가 조이스틱 구역과 겹치므로 먼저 판정)
         if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
         if (inCircle(x, y, camBCx, camBCy, camBR * 1.3f)) return Ctrl.CAM
         if (inCircle(x, y, eatCx, eatCy, eatR * 1.3f)) return Ctrl.EAT
+        if (showPunch && inCircle(x, y, punchCx, punchCy, punchR * 1.22f)) return Ctrl.PUNCH
         if (hitMinimap(x, y)) return Ctrl.MAP
         // 듀랑고식: 왼쪽 아래 구역은 어디를 짚어도 그 자리가 조이스틱
         // ('움직이는 스틱'을 면 고정 자리 근처에서만 잡힌다)
@@ -450,6 +463,8 @@ class Hud(private val game: Game) {
 
     fun draw(c: Canvas) {
         if (showStats) drawStats(c)
+        // 계절 나침반 + 시계는 우상단(지도 나침반 왼쪽)에 따로 둔다 — 상태창이 화면을 덜 가리게
+        if (showStats || showMinimap) drawSeasonClock(c)
         if (showMinimap) {
             drawMinimap(c, mmCx, mmCy, mmR, false)
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
@@ -462,27 +477,66 @@ class Hud(private val game: Game) {
         drawMessages(c)
     }
 
+    /** 좌상단 상태창(레벨·체력·행운 바)의 높이(dp) */
+    private val statsPanelH = 80f
+
     private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(170f) + dp(22f)
+    private fun questChipY(): Float = dp(12f) + dp(statsPanelH) + dp(22f)
+
+    /** 진행 중 의뢰 칩의 화면 사각형 (탭 판정용) */
+    private fun questChipRect(): RectF? {
+        val label = questLabel ?: return null
+        val txt = "의뢰 · $label"
+        val tp = Type.paintAt(12f, true, 0.02f, Type.INK)
+        val tw = tp.measureText(txt)
+        val pad = dp(9f)
+        val cx = questChipX()
+        val cy = questChipY()
+        return RectF(cx - tw / 2f - pad, cy - dp(12f), cx + tw / 2f + pad, cy + dp(12f))
+    }
+
+    private fun hitQuestChip(x: Float, y: Float): Boolean {
+        val r = questChipRect() ?: return false
+        r.inset(-dp(6f), -dp(6f))
+        return r.contains(x, y)
+    }
+
+    /**
+     * 좌상단 상태창 — 화면을 적게 가리도록 핵심 게이지만 남긴다.
+     * 위에서부터: 레벨(경험치) 바 → 체력(배고픔) 바 → 행운 바.
+     * 돈·계절·시계·장비 정보는 이 창에서 빼고 각각 가방/우상단으로 옮겼다.
+     */
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         val top = dp(12f)
         val w = dp(162f)
-        val h = dp(170f)
+        val h = dp(statsPanelH)
 
         // 프리미엄 패널
         val r = RectF(left, top, left + w, top + h)
         UiKit.panel(c, game, r, 12f)
 
         val a = game.assets
-
-        // 배고픔 — 아이콘 메달 + 그라데이션 바 (위험하면 맥동해 알린다)
-        val iy1 = top + dp(12f)
         val iconSz = dp(16f)
+
+        // 레벨 + 경험치 바 — 가장 위
+        Type.text(c, "Lv.${s.level}", left + dp(12f), top + dp(21f), Role.LABEL, Type.INK)
+        Type.text(c, s.title(), left + dp(46f), top + dp(20f), Role.CAPTION, Type.SOFT)
+        val bx = left + dp(12f)
+        val bw = w - dp(24f)
+        val expY = top + dp(26f)
+        if (s.level >= Progression.MAX_LEVEL) {
+            UiKit.bar(c, game, bx, expY, bw, dp(6f), 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
+        } else {
+            UiKit.bar(c, game, bx, expY, bw, dp(6f), s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+        }
+
+        // 체력(배고픔) — 레벨 바 아래 (위험하면 맥동해 알린다)
+        val hy = top + dp(40f)
         fill.color = if (s.hunger < 25f) Color.argb(60, 226, 87, 76) else Color.argb(60, 242, 178, 60)
-        c.drawCircle(left + dp(20f), iy1 + dp(8f), dp(11f), fill)
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy1, left + dp(12f) + iconSz, iy1 + iconSz), a.sprPaint)
+        c.drawCircle(left + dp(20f), hy + dp(8f), dp(11f), fill)
+        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), hy, left + dp(12f) + iconSz, hy + iconSz), a.sprPaint)
         val hungerColor = when {
             s.hunger >= 25f -> 0xFFF2913C.toInt()
             s.hunger >= 15f -> 0xFFE2574C.toInt()
@@ -491,73 +545,135 @@ class Hud(private val game: Game) {
                 (0.5f + 0.5f * sin(game.time * 6f)) * 0.5f
             )
         }
-        drawBar(c, left + dp(36f), iy1 + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
+        drawBar(c, left + dp(36f), hy + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
 
-        // 행운
-        val iy2 = iy1 + dp(22f)
+        // 행운 — 체력 바 아래
+        val ly = hy + dp(22f)
         fill.color = Color.argb(60, 111, 186, 107)
-        c.drawCircle(left + dp(20f), iy2 + dp(8f), dp(11f), fill)
-        c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), iy2, left + dp(12f) + iconSz, iy2 + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), iy2 + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
+        c.drawCircle(left + dp(20f), ly + dp(8f), dp(11f), fill)
+        c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), ly, left + dp(12f) + iconSz, ly + iconSz), a.sprPaint)
+        drawBar(c, left + dp(36f), ly + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
+    }
 
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(53f))
+    /**
+     * 우상단 클러스터 — 왼쪽부터 [시계] [계절 나침반] [지도 나침반] 순.
+     * 계절 나침반은 지도 나침반 바로 왼쪽, 시계는 계절 나침반 왼쪽에 둔다.
+     */
+    private fun drawSeasonClock(c: Canvas) {
+        val s = game.state
+        val gap = dp(9f)
 
-        // 돈 — 골드 도트 + 금액(숫자는 픽셀 폰트)
-        fill.color = 0xFFF2B63C.toInt()
-        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), fill)
-        stroke.color = 0xFFB5651D.toInt()
-        stroke.strokeWidth = dp(1.2f)
-        c.drawCircle(left + dp(18f), iy2 + dp(31f), dp(5f), stroke)
-        Type.text(c, won(s.money), left + dp(28f), iy2 + dp(36f), Role.HEADING, Type.INK)
-
-        // 피자 / 카메라
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), iy2 + dp(42f), left + dp(12f) + dp(14f), iy2 + dp(42f) + dp(14f)), a.sprPaint)
-        Type.text(c, "×${s.pizzaCount}", left + dp(30f), iy2 + dp(53f), Role.LABEL, Type.INK)
-        val rig = s.rig()
-        c.drawBitmap(
-            a.camIcon(rig.look), null,
-            RectF(left + dp(52f), iy2 + dp(41f), left + dp(52f) + dp(19f), iy2 + dp(41f) + dp(15.5f)),
-            a.sprPaint
-        )
-        Type.text(c, "${rig.teleMm}mm", left + dp(75f), iy2 + dp(53f), Role.LABEL, Type.INK)
-
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(94f))
-
-        // 시각 + 사진
-        val night = s.isNight()
-        val clockIcon = if (night) a.moonIcon else a.sunIcon
-        c.drawBitmap(clockIcon, null, RectF(left + dp(11f), iy2 + dp(62f), left + dp(11f) + dp(14f), iy2 + dp(62f) + dp(14f)), a.sprPaint)
-        Type.text(c, s.timeLabel(), left + dp(30f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-        UiKit.icon(c, game, "camera", RectF(left + dp(79f), iy2 + dp(59f), left + dp(93f), iy2 + dp(73f)))
-        Type.text(c, s.photos.toString(), left + dp(98f), iy2 + dp(73f), Role.LABEL, Type.MUTED)
-
-        UiKit.divider(c, game, left + dp(10f), left + w - dp(10f), top + dp(114f))
-
-        // 계절/날씨 아이콘도 글꼴이 아닌 SVG로 고정한다.
+        // 계절 나침반 — 지도 나침반 왼쪽
+        val dialSize = dp(42f)
+        val dialCx = mmCx - mmR - gap - dialSize / 2f
+        val dialCy = mmCy
+        drawSeasonDial(c, s, dialCx - dialSize / 2f, dialCy - dialSize / 2f, dialSize)
         val weather = s.weather()
-        val season = s.season()
-        UiKit.icon(c, game, season.icon, RectF(left + dp(11f), iy2 + dp(82f), left + dp(25f), iy2 + dp(96f)))
-        Type.text(c, season.label, left + dp(29f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
-        UiKit.icon(c, game, weather.icon, RectF(left + dp(61f), iy2 + dp(82f), left + dp(75f), iy2 + dp(96f)))
-        Type.text(c, weather.label, left + dp(79f), iy2 + dp(94f), Role.LABEL, 0xFF587083.toInt())
+        Type.textCentered(
+            c, "${s.season().icon}${s.season().label} ${Season.dayInSeason(s.day)}일 ${weather.icon}",
+            dialCx, dialCy + dialSize / 2f + dp(9f), Role.CAPTION, Type.INK, 0.5f
+        )
 
-        // 레벨 + 경험치 바
-        // 날씨 줄과 겹치지 않도록 그 아래에 배치
-        val ly = iy2 + dp(100f)
-        Type.text(c, "Lv.${s.level}", left + dp(12f), ly + dp(12f), Role.LABEL, Type.INK)
-        Type.text(c, s.title(), left + dp(46f), ly + dp(11f), Role.CAPTION, Type.SOFT)
+        // 시계 — 계절 나침반 왼쪽
+        val clockSize = dp(38f)
+        val clockCx = dialCx - dialSize / 2f - gap - clockSize / 2f
+        drawClock(c, s, clockCx, mmCy, clockSize)
+    }
 
-        // 바 (프리미엄 그라데이션)
-        val bx = left + dp(12f)
-        val bw = w - dp(24f)
-        val by = ly + dp(16f)
-        val bh = dp(6f)
-        if (s.level >= Progression.MAX_LEVEL) {
-            UiKit.bar(c, game, bx, by, bw, bh, 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
-        } else {
-            UiKit.bar(c, game, bx, by, bw, bh, s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
-        }
+    /** 회중시계 풍 원형 시계 — 해/달 아이콘 + 아래에 시각 */
+    private fun drawClock(c: Canvas, s: GameState, cx: Float, cy: Float, size: Float) {
+        val a = game.assets
+        val R = size / 2f
+        val night = s.isNight()
 
+        softShadow.color = Color.argb(46, 36, 24, 12)
+        c.drawCircle(cx + dp(0.7f), cy + dp(1.4f), R * 0.97f, softShadow)
+
+        fill.shader = null
+        fill.color = if (night) 0xFF33415C.toInt() else 0xFFFBF1D8.toInt()
+        c.drawCircle(cx, cy, R, fill)
+        // 유리 광택
+        fill.color = Color.argb(60, 255, 255, 255)
+        c.drawCircle(cx - R * 0.28f, cy - R * 0.30f, R * 0.5f, fill)
+        stroke.color = 0xFF6B4F35.toInt()
+        stroke.strokeWidth = dp(2f)
+        c.drawCircle(cx, cy, R, stroke)
+
+        val icon = if (night) a.moonIcon else a.sunIcon
+        val isz = size * 0.5f
+        c.drawBitmap(icon, null, RectF(cx - isz / 2f, cy - isz / 2f, cx + isz / 2f, cy + isz / 2f), a.sprPaint)
+        Type.textCentered(c, s.timeLabel(), cx, cy + R + dp(9f), Role.CAPTION, Type.INK, 0.5f)
+    }
+
+    /**
+     * 사계절 다이얼 — assets/season_dial.svg 원판(봄 12시에서 시계 방향 여름/가을/겨울) 위에
+     * 계절 진행을 가리키는 바늘을 코드로 그린다. 바늘은 1년(4계절)에 한 바퀴를 천천히 돌며,
+     * 계절이 바뀌는 순간에도 360°=0°라 끊김 없이 이어진다.
+     */
+    private fun drawSeasonDial(c: Canvas, s: GameState, x: Float, y: Float, size: Float) {
+        val cx = x + size / 2f
+        val cy = y + size / 2f
+        val R = size / 2f
+
+        // 부드러운 그림자 + 원판 (SVG는 래스터 캐시됨)
+        softShadow.color = Color.argb(46, 36, 24, 12)
+        c.drawCircle(cx + dp(0.7f), cy + dp(1.4f), R * 0.97f, softShadow)
+        tmpRect.set(x, y, x + size, y + size)
+        game.illustrations.draw(c, "season_dial.svg", tmpRect)
+
+        // 바늘 각도: 하루+시간 진행만큼 현재 계절 안에서 서서히 움직인다
+        val ord = s.season().ordinal
+        val frac = ((Season.dayInSeason(s.day) - 1) + s.worldTime / 24f) / Season.DAYS_PER_SEASON
+        val deg = (ord + frac.coerceIn(0f, 1f)) * 90f
+
+        // 현재 계절 부채꼴을 금색 호로 강조 (원판의 날짜 점 링 안쪽)
+        arcPaint.color = Color.argb(88, 242, 182, 60)
+        arcPaint.strokeWidth = size * 0.045f
+        tmpRect.set(cx - R * 0.75f, cy - R * 0.75f, cx + R * 0.75f, cy + R * 0.75f)
+        c.drawArc(tmpRect, ord * 90f - 86f, 82f, false, arcPaint)
+
+        // 바늘 — 크림 투톤 연 모양 (돌려서 그린다)
+        val tipR = R * 0.74f
+        val shoulder = R * 0.055f
+        val tailR = R * 0.22f
+        c.save()
+        c.rotate(deg, cx, cy)
+        tmpPath.reset()
+        tmpPath.moveTo(cx, cy - tipR)
+        tmpPath.lineTo(cx - shoulder, cy - R * 0.16f)
+        tmpPath.lineTo(cx, cy + tailR)
+        tmpPath.close()
+        fill.color = 0xFFE9CF9E.toInt()
+        c.drawPath(tmpPath, fill)
+        tmpPath.reset()
+        tmpPath.moveTo(cx, cy - tipR)
+        tmpPath.lineTo(cx + shoulder, cy - R * 0.16f)
+        tmpPath.lineTo(cx, cy + tailR)
+        tmpPath.close()
+        fill.color = 0xFFFDF1D3.toInt()
+        c.drawPath(tmpPath, fill)
+        tmpPath.reset()
+        tmpPath.moveTo(cx, cy - tipR)
+        tmpPath.lineTo(cx - shoulder, cy - R * 0.16f)
+        tmpPath.lineTo(cx, cy + tailR)
+        tmpPath.lineTo(cx + shoulder, cy - R * 0.16f)
+        tmpPath.close()
+        stroke.color = 0xFF5F4526.toInt()
+        stroke.strokeWidth = dp(1.1f)
+        c.drawPath(tmpPath, stroke)
+        // 바늘 끝 금빛 구슬 (현재 위치 표시)
+        fill.color = Color.argb(210, 242, 182, 60)
+        c.drawCircle(cx, cy - tipR, R * 0.055f, fill)
+        c.restore()
+
+        // 중앙 캡 (황동 핀)
+        fill.color = 0xFFD9A83E.toInt()
+        c.drawCircle(cx, cy, R * 0.115f, fill)
+        stroke.color = 0xFF6B4F35.toInt()
+        stroke.strokeWidth = dp(1f)
+        c.drawCircle(cx, cy, R * 0.115f, stroke)
+        fill.color = Color.argb(230, 255, 233, 184)
+        c.drawCircle(cx - R * 0.035f, cy - R * 0.045f, R * 0.035f, fill)
     }
 
     private fun drawBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, v: Float, color: Int) {
@@ -591,11 +707,11 @@ class Hud(private val game: Game) {
             val maxW = game.screenW - dp(70f)
             var msg = m.text
             var tp = Type.paintAt(12.5f, true, 0.02f, tcol)
-            if (tp.measureText(msg) > maxW) tp = Type.paintAt(11f, true, 0.02f, tcol)
+            if (UiKit.iconTextWidth(msg, tp) > maxW) tp = Type.paintAt(11f, true, 0.02f, tcol)
             val full = msg
-            while (msg.length > 4 && tp.measureText("$msg…") > maxW) msg = msg.dropLast(1)
+            while (msg.length > 4 && UiKit.iconTextWidth("$msg…", tp) > maxW) msg = msg.dropLast(1)
             if (msg != full) msg = "$msg…"
-            val tw = tp.measureText(msg)
+            val tw = UiKit.iconTextWidth(msg, tp)
             val cx = game.screenW / 2f
             val pad = dp(10f)
             val r = RectF(cx - tw / 2 - pad, yy - dp(12f), cx + tw / 2 + pad, yy + dp(13f))
@@ -607,10 +723,7 @@ class Hud(private val game: Game) {
             stroke.color = Color.argb((alpha * 0.85f).toInt(), 233, 196, 106)
             stroke.strokeWidth = dp(1.5f)
             c.drawRoundRect(r, dp(13f), dp(13f), stroke)
-            // 왼쪽 골드 도트
-            fill.color = Color.argb(alpha, 242, 182, 60)
-            c.drawCircle(r.left + dp(10f), yy + dp(0.5f), dp(3f), fill)
-            c.drawText(msg, cx - tw / 2, Type.midBaseline(tp, yy), tp)
+            UiKit.drawIconText(c, game, msg, cx - tw / 2f, Type.midBaseline(tp, yy), tp)
             y += step
         }
     }
@@ -632,10 +745,10 @@ class Hud(private val game: Game) {
         // 좌우 HUD를 피해 폭이 넘치면 폰트를 줄여 한 줄에 맞춘다
         val bwMax = (if (showStats) w - dp(360f) else w - dp(40f))
             .coerceIn(dp(200f), (w - dp(40f)).coerceAtLeast(dp(200f)))
-        while (tp.measureText(bt) + dp(44f) > bwMax && tp.textSize > dp(16f)) {
+        while (UiKit.iconTextWidth(bt, tp) + dp(44f) > bwMax && tp.textSize > dp(16f)) {
             tp.textSize -= dp(1f)
         }
-        val tw = tp.measureText(bt)
+        val tw = UiKit.iconTextWidth(bt, tp)
         val cx = w / 2f
         // 토스트는 고정 자리를 지키므로, 겹치지 않게 배너 쪽이 토스트 아래로 내려간다
         val cy = maxOf(h * 0.24f, toastTopY + dp(76f))
@@ -661,7 +774,7 @@ class Hud(private val game: Game) {
             RectF(r.left + dp(4f), r.top + dp(4f), r.right - dp(4f), r.bottom - dp(4f)),
             dp(13f), dp(13f), stroke
         )
-        c.drawText(bt, cx - tw / 2, Type.midBaseline(tp, cy), tp)
+        UiKit.drawIconText(c, game, bt, cx - tw / 2f, Type.midBaseline(tp, cy), tp)
         c.restore()
     }
 
@@ -767,6 +880,28 @@ class Hud(private val game: Game) {
             val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
             val nt = "$pizzaN"
             c.drawText(nt, bx - np.measureText(nt) / 2, Type.midBaseline(np, by), np)
+        }
+
+        // 펀치 (👊) — 근처 고양이를 날려 보낸다. 사거리 안이면 붉은 펄스.
+        if (showPunch) {
+            val punchPressed = Ctrl.PUNCH in active
+            val hot = punchHot
+            if (hot) {
+                val pulse = 0.5f + 0.5f * sin(game.time * 7.2f)
+                stroke.color = Color.argb((90 + (110 * pulse).toInt()).coerceIn(0, 255), 226, 72, 58)
+                stroke.strokeWidth = dp(3.2f)
+                c.drawCircle(punchCx, punchCy, punchR + dp(3.5f) + dp(3f) * pulse, stroke)
+            }
+            drawArcButton(
+                c, punchCx, punchCy, punchR,
+                when {
+                    punchPressed -> 0xFFD99B26.toInt()
+                    hot -> 0xFFE2574C.toInt()
+                    else -> Color.argb(220, 74, 74, 88)
+                },
+                punchPressed
+            )
+            UiKit.iconCenter(c, game, "fist", punchCx, punchCy, dp(22f))
         }
 
         // ------------------------------------------------------------
@@ -1193,9 +1328,9 @@ class Hud(private val game: Game) {
         c: Canvas, ox: Float, oy: Float, scale: Float, glass: Float, showNames: Boolean, s: GameState
     ) {
         val dot = maxOf(dp(2.35f), glass * 0.040f)
-        var homeX = 0f
-        var homeY = 0f
-        var hasHome = false
+        // 매입한 집은 여러 지역에 있을 수 있다. 정착지 하나만 표시하면 이전 집을
+        // 찾아 다시 들어갈 수 없으므로, 미니맵에도 모든 집 현관을 그린다.
+        val ownedHomeMarks = ArrayList<Pair<Float, Float>>()
         var curX = 0f
         var curY = 0f
         var hasCur = false
@@ -1205,8 +1340,8 @@ class Hud(private val game: Game) {
             val y = oy + reg.mmY * scale
             val visited = reg.id in s.visited
             val isCurrent = reg.id == s.region
-            val isHome = reg.id == s.homeRegion
-            if (isHome) { homeX = x; homeY = y; hasHome = true }
+            val hasOwnedHome = s.ownsHome(reg.id)
+            if (hasOwnedHome) ownedHomeMarks.add(x to y)
             if (isCurrent) { curX = x; curY = y; hasCur = true }
 
             if (visited && !isCurrent) {
@@ -1229,7 +1364,7 @@ class Hud(private val game: Game) {
                 c.drawCircle(x, y, dot * 0.68f, ink)
             }
 
-            if (showNames && (isCurrent || isHome)) {
+            if (showNames && (isCurrent || hasOwnedHome)) {
                 val nm = reg.name
                 val ip = Type.paintAt(8f, true, 0.01f, if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt())
                 val tw = ip.measureText(nm)
@@ -1263,7 +1398,7 @@ class Hud(private val game: Game) {
             c.drawCircle(curX - dp(0.45f), curY - dp(0.5f), dp(1.05f), fx)
         }
 
-        if (hasHome) {
+        for ((homeX, homeY) in ownedHomeMarks) {
             val hw = dp(7.2f)
             val above = if (hasCur && kotlin.math.abs(homeX - curX) < dp(4f) && kotlin.math.abs(homeY - curY) < dp(4f)) {
                 dot * 1.3f + dp(8f)

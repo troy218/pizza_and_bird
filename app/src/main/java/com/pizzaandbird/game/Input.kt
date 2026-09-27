@@ -7,7 +7,7 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -51,6 +51,8 @@ class Input(private val game: Game) {
     var justBack = false
     var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
+    var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
+    var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     // ----- 로우 터치 (확대/이동 가능한 지도 같은 전체화면 오버레이용) -----
@@ -208,6 +210,7 @@ class Input(private val game: Game) {
                             KeyEvent.KEYCODE_C -> justCam = true
                             KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
                             KeyEvent.KEYCODE_E -> justEat = true
+                            KeyEvent.KEYCODE_F -> justPunch = true
                             KeyEvent.KEYCODE_BACK -> justBack = true
                         }
                     } else if (ev.act == KeyEvent.ACTION_UP) {
@@ -245,6 +248,8 @@ class Input(private val game: Game) {
         // 달리기 홀드 (터치 HUD에서는 버튼을 덜어내고, 키보드 Shift만 유지)
         isRun = keys[KeyEvent.KEYCODE_SHIFT_LEFT] == true ||
                 keys[KeyEvent.KEYCODE_SHIFT_RIGHT] == true
+        // 그리기(버튼 눌림 표시)가 볼 스냅샷 — 이 프레임의 마지막에 한 번만 만든다
+        refreshPressSnapshot()
     }
 
     private fun press(ctrl: Ctrl) {
@@ -255,8 +260,59 @@ class Input(private val game: Game) {
             Ctrl.MENU -> { justMenu = true; game.haptic() }
             Ctrl.EAT -> { justEat = true; game.haptic() }
             Ctrl.MAP -> { justMap = true; game.haptic() }
+            Ctrl.PUNCH -> { justPunch = true; game.haptic() }
+            Ctrl.QUEST -> { justQuest = true; game.haptic() }
             else -> {}
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // 그리기용 눌림 스냅샷
+    //
+    //  버튼·카드마다 isPressedIn() 을 부르면 그릴 때마다 잠금을 잡고 UI 스레드의
+    //  터치 큐잉을 막는다(가방 화면은 프레임당 200회 이상). process() 맨 끝에
+    //  눌린 손가락 좌표를 한 번만 모아 두고, 그리는 쪽은 그것만 본다.
+    // ---------------------------------------------------------------------
+    private class PressSnapshot(val xs: FloatArray, val ys: FloatArray, val n: Int) {
+        fun inRect(r: RectF): Boolean {
+            for (i in 0 until n) if (r.contains(xs[i], ys[i])) return true
+            return false
+        }
+
+        fun inCircle(cx: Float, cy: Float, radius: Float): Boolean {
+            val r2 = radius * radius
+            for (i in 0 until n) {
+                val dx = xs[i] - cx
+                val dy = ys[i] - cy
+                if (dx * dx + dy * dy <= r2) return true
+            }
+            return false
+        }
+    }
+
+    @Volatile
+    private var pressSnap = PressSnapshot(FloatArray(0), FloatArray(0), 0)
+
+    @Volatile
+    private var ctrlSnap: Set<Ctrl> = emptySet()
+
+    /** process() 끝에서 눌린 포인터를 한 번만 모아 둔다 (그리기 전용 스냅샷) */
+    private fun refreshPressSnapshot() {
+        var n = 0
+        for ((id, p) in pointerPos) {
+            if (pointerCtrl[id] == Ctrl.NONE) n++
+        }
+        val xs = FloatArray(n)
+        val ys = FloatArray(n)
+        var i = 0
+        for ((id, p) in pointerPos) {
+            if (pointerCtrl[id] != Ctrl.NONE) continue
+            xs[i] = p.x
+            ys[i] = p.y
+            i++
+        }
+        pressSnap = PressSnapshot(xs, ys, n)
+        ctrlSnap = HashSet(pointerCtrl.values)
     }
 
     /** 화면 좌표 탭 (오버레이가 소비) */
@@ -288,6 +344,8 @@ class Input(private val game: Game) {
         justBack = false
         justEat = false
         justMap = false
+        justPunch = false
+        justQuest = false
         tapScreen = null
         rawEvents.clear()
     }
@@ -295,34 +353,16 @@ class Input(private val game: Game) {
     /**
      * 화면 좌표 영역이 지금 눌려 있는지 (시각 피드백용).
      * 오버레이 버튼이 손끝에서 눌리는 순간 어두워지도록 공통으로 쓴다.
+     * (잠그지 않고 process() 가 만들어 둔 스냅샷만 본다)
      */
-    fun isPressedIn(r: RectF): Boolean {
-        synchronized(lock) {
-            for ((id, p) in pointerPos) {
-                if (pointerCtrl[id] != Ctrl.NONE) continue
-                if (r.contains(p.x, p.y)) return true
-            }
-        }
-        return false
-    }
+    fun isPressedIn(r: RectF): Boolean = pressSnap.inRect(r)
 
     /** 현재 눌린 위치가 원 안인지 (원형 버튼 시각 피드백용) */
-    fun isPressedInCircle(cx: Float, cy: Float, radius: Float): Boolean {
-        synchronized(lock) {
-            for ((id, p) in pointerPos) {
-                if (pointerCtrl[id] != Ctrl.NONE) continue
-                val dx = p.x - cx
-                val dy = p.y - cy
-                if (dx * dx + dy * dy <= radius * radius) return true
-            }
-        }
-        return false
-    }
+    fun isPressedInCircle(cx: Float, cy: Float, radius: Float): Boolean =
+        pressSnap.inCircle(cx, cy, radius)
 
     /** 현재 눌린 컨트롤 목록 (시각 피드백용) */
-    fun activeControls(): Set<Ctrl> {
-        synchronized(lock) { return pointerCtrl.values.toSet() }
-    }
+    fun activeControls(): Set<Ctrl> = ctrlSnap
 
     /** 조이스틱을 잡은 포인터 위치 (없으면 베이스 위치) */
     fun stickTouchPoint(): PointF {

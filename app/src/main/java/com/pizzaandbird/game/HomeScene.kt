@@ -14,10 +14,15 @@ import kotlin.math.sin
 
 /**
  * 우리 집 내부: 화덕(화덕피자 굽기), 가정용 오븐(일반 피자 굽기), 침대(수면), 이사 박스, 장식 칸.
+ *
+ * 매입한 집은 지역마다 다시 들어갈 수 있다. [enteredFromRegionId]는 이 실내에서
+ * 나갈 때 되돌아갈 지역이며, 저장 복원처럼 생략된 경우에는 마지막 월드 지역을 쓴다.
  */
-class HomeScene(game: Game) : Scene(game) {
+class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
 
     private val state = game.state
+    private var exitRegionId: String = (enteredFromRegionId ?: state.region)
+        .takeIf { state.ownsHome(it) } ?: state.homeRegion
     val map: GameMap = MapBuilder.buildHome()
     private val player = Player()
 
@@ -115,6 +120,9 @@ class HomeScene(game: Game) : Scene(game) {
     ) + decorSpots.map { (idx, dx0, dy0) -> Spot("decor", idx, dx0, dy0, 22f, 18f) }
 
     init {
+        // 실내에 머무르는 동안에도 저장에는 실제로 들어온 지역을 남긴다.
+        // 앱을 종료·복원하거나 현관으로 나갈 때 다른 정착지로 튀지 않는다.
+        state.region = exitRegionId
         state.inHome = true
         rig.snap(
             map.w * 8f, map.h * 8f, 1f,
@@ -127,6 +135,8 @@ class HomeScene(game: Game) : Scene(game) {
         state.py = player.y
 
         game.hud.showControls = true
+        game.hud.showPunch = false
+        game.hud.punchHot = false
         game.hud.showStats = true
         game.hud.showMinimap = false
         game.hud.regionLabel = "우리 집"
@@ -135,13 +145,14 @@ class HomeScene(game: Game) : Scene(game) {
         game.banner("우리 집")
 
         game.audio.playBgm(R.raw.bgm_home)   // 🎵 집의 잔잔함
-        game.audio.stopAmb()
+        applyIndoorAmbience()                // 비 오는 날엔 지붕 빗소리
     }
 
     override fun camera(): ViewRig = rig
 
     override fun update(dt: Float) {
         game.hud.update(dt)
+        applyIndoorAmbience()   // 비가 오고 그치는 것을 창밖 소리로 (자다 일어나도 바로 반영)
         if (overlay != null) {
             game.audio.stopSteps()
             updateRig(dt, 0f, 0f, Gait.IDLE)   // 화덕 미니게임 뒤에서도 여운은 이어진다
@@ -234,10 +245,12 @@ class HomeScene(game: Game) : Scene(game) {
     }
 
     private fun exitHome() {
+        // 서울에 정착해 있어도 부산에 매입한 집에서 나왔다면 부산 현관 앞으로.
+        state.region = exitRegionId
         SaveManager.save(game.context, state)
         game.audio.stopSteps()
         game.fadeTo {
-            game.scene = WorldScene(game, state.homeRegion, SpawnKind.HOME)
+            game.scene = WorldScene(game, exitRegionId, SpawnKind.HOME)
         }
     }
 
@@ -271,10 +284,10 @@ class HomeScene(game: Game) : Scene(game) {
                 DialogOverlay(
                     this, "화덕",
                     "장작불이 활활 타오르는 화덕이에요. 얇은 도우의 화덕피자를 굽는 곳!\n" +
-                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (도우는 무한! 힐링게임이니까요)",
+                            "뜨거워서 금방 타지만, 잘 구우면 효과가 커요. (먼저 도우를 골라요 — 기본 도우는 무료!)",
                     listOf(
                         DialogOverlay.Choice("화덕피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.OVEN))
+                            it.scene.openOverlay(DoughOverlay(it.scene, PizzaKind.OVEN))   // [P07] ① 도우 선택 → ② BakeOverlay
                         },
                         DialogOverlay.Choice("나중에")
                     )
@@ -287,7 +300,7 @@ class HomeScene(game: Game) : Scene(game) {
                             "천천히 익어서 굽기 쉬워요. 치즈·페퍼로니·불고기·고구마…",
                     listOf(
                         DialogOverlay.Choice("일반 피자 굽기!") {
-                            it.scene.openOverlay(BakeOverlay(it.scene, PizzaKind.REGULAR))
+                            it.scene.openOverlay(DoughOverlay(it.scene, PizzaKind.REGULAR))   // [P07] ① 도우 선택 → ② BakeOverlay
                         },
                         DialogOverlay.Choice("나중에")
                     )
@@ -295,17 +308,12 @@ class HomeScene(game: Game) : Scene(game) {
             )
             "bed" -> openOverlay(
                 DialogOverlay(
-                    this, "침대",
-                    "포근한 침대예요. 잠들면 아침이 되고\n행운이 오르며 진행 상황이 저장돼요.",
+                    this, "침대 🛏",
+                    buildBedMessage(),
                     listOf(
-                        DialogOverlay.Choice("쿨쿨…") {
-                            game.state.luck = (game.state.luck + 5f).coerceAtMost(100f)
-                            game.state.sleepUntilMorning()
-                            SaveManager.save(game.context, game.state)
-                            game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 (행운 +5)")
-                            game.sfx(Audio.Sfx.SPARKLE, 0.7f)
-                            game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.4f)   // 아침 새소리
-                        },
+                        DialogOverlay.Choice("허브차 한 잔 마시기 🍵") { brewTea() },
+                        DialogOverlay.Choice("📖 오늘의 기록") { openDiary() },
+                        DialogOverlay.Choice("쿨쿨…") { sleepNow() },
                         DialogOverlay.Choice("아직 안 졸려요")
                     )
                 )
@@ -358,6 +366,93 @@ class HomeScene(game: Game) : Scene(game) {
         }
     }
 
+    // -------------------------------------------------------------------
+    // 🌸 힐링 — 침대 메뉴에서 허브차·탐조일기·잠자기
+    // -------------------------------------------------------------------
+
+    private fun buildBedMessage(): String {
+        val herbs = Healing.herbs(state).entries.sumOf { it.value }
+        val treats = Healing.catTreats(state)
+        val love = Healing.catLove(state)
+        val moments = Healing.momentCount(state)
+        return "포근한 침대예요. 잠들면 아침이 되고\n" +
+            "행운이 오르며 진행 상황이 저장돼요.\n\n" +
+            "주머니 속: 🌿 허브 ${herbs}개" +
+            (if (treats > 0) " · 🐟 고양이 간식 ${treats}개" else "") + "\n" +
+            "골목 고양이와의 친밀도: ☘️ $love · 작은 기념 ${moments}개"
+    }
+
+    private fun brewTea() {
+        val herb = Healing.brewTea(state)
+        if (herb == null) {
+            game.toast("마실 허브가 없어요 🌿 들판에 나가 주워보세요")
+            game.sfx(Audio.Sfx.FAIL, 0.4f)
+            return
+        }
+        game.sfx(Audio.Sfx.SPARKLE, 0.6f, 1.1f)
+        // 향기 파티클
+        repeat(6) {
+            motes.add(Mote(player.x + 8f, player.y - 10f,
+                (kotlin.random.Random.nextFloat()-0.5f)*8f, -6f - kotlin.random.Random.nextFloat()*6f,
+                1.6f, 1.6f, herb.color, 2.5f, 0.2f))
+        }
+        SaveManager.save(game.context, state)
+        openOverlay(
+            DialogOverlay(
+                this, "허브차 🍵",
+                "${herb.emoji} ${herb.name} 차를 따뜻하게 우려 마셨다.\n\n" +
+                    "${herb.note}\n\n" +
+                    "배고픔 +${herb.hungerBonus} · 행운 +${herb.luckBonus}\n" +
+                    "목부터 어깨까지 은은하게 향이 퍼진다.",
+                listOf(DialogOverlay.Choice("한 모금 더~"))
+            )
+        )
+    }
+
+    private fun openDiary() {
+        val entries = Healing.diary(state)
+        if (entries.isEmpty()) {
+            openOverlay(DialogOverlay(this, "📖 탐조 일기",
+                "아직 쓴 일기가 없어요. 오늘 하루가 지나면 자동으로 적혀요.\n" +
+                    "잠들기 전 오늘의 새·피자·고양이·허브가 한 줄씩 적힌답니다.",
+                listOf(DialogOverlay.Choice("기대된다!"))))
+            return
+        }
+        val recent = entries.takeLast(5).reversed()
+        val text = recent.joinToString("\n\n") { e ->
+            val star = "★".repeat(e.stars) + "☆".repeat(3 - e.stars)
+            "Day ${e.day} (${e.seasonName} · ${e.weather}) $star\n${e.text}"
+        }
+        openOverlay(DialogOverlay(this, "📖 탐조 일기 — 최근 5일",
+            text, listOf(DialogOverlay.Choice("덮기"))))
+    }
+
+    private fun sleepNow() {
+        // 잠들기 전 오늘의 일기 작성
+        val wName = state.weather().label
+        val entry = Healing.writeToday(state, wName)
+        // 길고양이 간식은 집 현관에 놔둔 생선을 하루에 하나씩 (돈 주고 사지 않고 피자 부스러기로 얻는 개념)
+        if (Math.random() < 0.55) Healing.addCatTreat(state, 1)
+        state.luck = (state.luck + 5f).coerceAtMost(100f)
+        state.sleepUntilMorning()
+        Healing.onNewDay(state)
+        SaveManager.save(game.context, state)
+        if (entry != null) {
+            val star = "★".repeat(entry.stars) + "☆".repeat(3 - entry.stars)
+            openOverlay(DialogOverlay(this, "📖 오늘의 기록",
+                "${entry.seasonName} Day ${entry.day} $star\n\n${entry.text}\n\n내일도 무사히.",
+                listOf(DialogOverlay.Choice("좋은 꿈 꿔야지 ☀️") {
+                    game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 (행운 +5)")
+                    game.sfx(Audio.Sfx.SPARKLE, 0.7f)
+                    game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.4f)
+                })))
+        } else {
+            game.toast("좋은 꿈을 꿨어요! 아침이 밝았다 ☀️ (행운 +5)")
+            game.sfx(Audio.Sfx.SPARKLE, 0.7f)
+            game.sfx(Audio.Sfx.BIRD_CHIRP1, 0.4f)
+        }
+    }
+
     private fun moveHome(picked: RegionDef) {
         val s = game.state
         if (picked.id == s.homeRegion) {
@@ -376,6 +471,9 @@ class HomeScene(game: Game) : Scene(game) {
         s.ownedHomes.add(picked.id)
         s.homeRegion = picked.id
         s.region = picked.id
+        // 이사 직후에는 새로 고른 집의 실내에 있는 상태다. 현관을 나가면
+        // 이전에 들어온 지역이 아니라 새 정착지로 나가야 한다.
+        exitRegionId = picked.id
         if (picked.id !in s.visited) s.visited.add(picked.id)
         SaveManager.save(game.context, s)
         if (houseCost > 0) {
@@ -480,9 +578,10 @@ class HomeScene(game: Game) : Scene(game) {
         val sx = (player.x - camX) * WORLD_SCALE
         val sy = (player.y - camY) * WORLD_SCALE
         c.drawBitmap(a.softShadow, null, RectF(sx + 1f, sy + 21f, sx + 31f, sy + 34f), a.sprPaint)
-        val ps = a.playerSet(state.gender, state.gearTier())
+        val hd = game.hdSprites
+        val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
-        c.drawBitmap(bmp, sx, sy, a.sprPaint)
+        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
         // 집 안에서도 카메라는 목에 걸고 다닌다
         val camDir = when (player.facing) {
             Dir.E -> 2
@@ -490,7 +589,7 @@ class HomeScene(game: Game) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        c.drawBitmap(a.camHeld(state.rig().look, camDir, false), sx, sy, a.sprPaint)
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, game.worldScale.toFloat())
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)

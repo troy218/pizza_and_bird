@@ -91,22 +91,122 @@ java -cp "tools/preview/out/classes-ui:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.UiOpacitySmoke
 ```
 
+### 업적 거리/저장 및 UI 스모크 테스트
+
+실제 `Ach.onMove`·`Ach.tick`으로 거리 업적 해금, `GameState` 무변경,
+`feat_stats_v1` 저장/재로딩을 확인하고, 메뉴 탭·통계 페이지·상세 팝업·목록 페이지 이동을 터치로 검증합니다.
+
+```bash
+PREVIEW_STUBS=$(find tools/preview/src -maxdepth 1 -name '*.kt' ! -name 'android_stubs_missing_*.kt')
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc $PREVIEW_STUBS tools/preview/achievement_smoke.kt \
+  tools/preview/achievement_ui_smoke.kt $SRCS \
+  -d tools/preview/out/classes-ach -jvm-target 17
+java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.AchievementSmoke
+java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.AchievementUiSmoke
+```
+
+### 성능 프로브 (버튼 입력 병목)
+
+`perf_smoke.kt` 는 실제 게임 코드를 그대로 돌리면서 **버튼을 눌렀을 때의 프레임 비용**을
+재고, 한 프레임에 새로 만들어 나는 네이티브 객체(`android.graphics` 스텁의 `GfxStats`)와
+드로우 콜을 센다. 보려는 지점은 "누르면 멈칫한다"는 지점 — 가방(메뉴) 8탭, 가방 ✕ 버튼,
+도감 페이지 넘김(사진 디코드), 상세 도감 넘김, HUD 버튼 연타 등.
+
+주의: 이 파이프라인은 Java2D 스텁이라 절대 시간은 기기와 다르다. **프레임당 몇 ms**보다
+**프레임당 몇 번의 네이티브 객체 생성과 드로우 콜**이 기기 성능에 그대로 옮겨가는 지표다.
+디코드는 `GfxStats.decodes` 중 게임 스레드에서 일어난 것(`decodesMain`)만 따로 세므로,
+사진(에셋 스트림과 사진집 파일 모두)을 게임 스레드에서 디코드하는지 바로 볼 수 있다.
+`latency_smoke` 는 `GfxStats.compressionsMain` 으로 촬영 시 파일 압축도 검사한다.
+
+```bash
+SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
+  ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+kotlinc tools/preview/src/*.kt tools/preview/perf_smoke.kt \
+  tools/preview/world_resume_smoke.kt tools/preview/latency_smoke.kt $SRCS \
+  -d tools/preview/out/classes-perf -jvm-target 17
+java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.LatencySmoke
+java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.WorldResumeSmoke
+java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.PerfSmoke
+```
+
+`latency_smoke` 는 오버레이 등장 **첫 프레임의 탭**과 이동하는 버튼의 터치 좌표·
+전체 화면 임시 비트맵 할당·첫 메뉴 아이콘 사전 생성·처음 본 새의 사진 기준색 로딩·
+촬영 사진의 비동기 JPEG 저장/일시정지 전 완료·사진집/상세 보기의 비동기 로딩을 확인한다.
+`world_resume_smoke` 는 가리는 오버레이(가방·지도·상점…)가 떠 있는 **모든 프레임**에서
+월드 비트맵을 재사용하고, 닫은 **첫 프레임**에 최신 월드를 다시 그리며, 그 뒤에도
+매 프레임 갱신하는지 확인한다. 판정은 `GfxStats.drawBitmap` 횟수(월드 약 2000회,
+건너뛰면 HUD 정도만)로 한다.
+
+`mobile_perf_smoke.kt` 는 자동 화질(지속 부하만 감지·수동 설정 존중·HUD 실해상도 유지),
+지면 청크 캐시의 호출 감소, 물 애니메이션과 화면 밖 풀 culling/재진입을 확인한다.
+위 컴파일 명령에 `tools/preview/mobile_perf_smoke.kt`를 추가하고
+`com.pizzaandbird.preview.MobilePerfSmoke`를 실행하면 된다.
+
+### 스크린샷 결정성
+
+프리뷰의 `android.os.SystemClock` 는 벽시계가 아니라 **게임 시간(dt)만 흐르는 시계**다
+(`PreviewMain.simulate()` 가 `SystemClock.advance(dt)` 로 전진시킨다). 오버레이 등장 연출
+(`Overlay.bornAt`, `UiKit.enter`)이 실제 실행 속도에 따라 달라져 같은 소스를 돌려도
+스크린샷이 매번 조금씩 달라지는 것을 막기 위해서다.
 ### 출력물
 
 | 파일 | 내용 |
 |---|---|
 | `01_tiles.png` | 전체 타일 아틀라스 (변형 포함) |
 | `02_sprites.png` | 플레이어/자전거/NPC/고양이/장식/아이콘 |
+| `02b_character_hd.png` | **캐릭터 화질 비교 시트** — 32px 도트×8 / HD(96px) 축소 / HD 1:1 / 레벨업용 256px 만세 / HD 걷기·자전거 |
 | `03_birds.png` | 새 전체 컬렉션 |
 | `04_title.png` | 타이틀 화면 |
 | `05_region_select.png` | 정착 지역 선택 |
 | `06~12_world_*.png` | 지역별 월드 (낮/노을/밤 포함) |
 | `13_photo_mode.png` | 카메라(탐조) 모드 |
 | `14~15_home_*.png` | 집 내부 (낮/밤) |
-| `16~27_*.png` | 대화/메뉴 4탭/피자 굽기 3단계/사진 결과/지도/장식 상점 |
+| `16_dialog.png` | 대화 |
+| `17_menu_tab1~8.png` | 메뉴 탭 (업적 포함) |
+| `21~27_*.png` | 피자 굽기 3단계/사진 결과/지도/장식 상점 |
+| `30~32_*.png` | 백업 코드 만들기/복원 |
+| `33_achievement_stats.png` | 업적 통계 상세 |
+| `34_achievement_detail.png` | 업적 상세 및 해금 날짜 |
+| `35_achievement_unlock_toast.png` | 실제 업적 해금 토스트 |
+| `36_levelup.png` | 레벨업 축하(만세) — 캐릭터를 가장 크게 띄우는 화면 |
+| `37_levelup_gear.png` | 새 탐조 장비를 갖추는 레벨업 (장비 등급 3) |
+| `38_character_select.png` | 캐릭터 선택 카드 |
 
 > 게임 동작의 기준은 어디까지나 Kotlin 쪽 코드다. 이 파이프라인은 실제 코드를
 > 실행하므로 화면은 실기기와 동일한 알고리즘으로 그려진다.
+
+### 대화상자 배치 감사 (dialog audit)
+
+"글자 양에 비해 상자가 무식하게 큰 놈"을 눈이 아니라 **수치**로 찾는 도구.
+`android_stubs_graphics.kt` 의 Canvas 스텁에 기본 꺼진(non-null일 때만 동작)
+기록 훅을 달아 두고, 대화상자·장비 선택·가방·인테리어 창 등을 실제 상태
+(장비 0~5개, 글자 배율 1.3×, 800×400 화면 …)로 띄워 모든 상자/글자 draw를
+TSV로 남긴다. 분석 스크립트가 프레임별로 **패널 크기(dp) · 세로 밴드 사용률 ·
+내부 최대 빈 띠(dp) · 글자 면적 비율**을 계산해 낮은 순으로 랭킹한다.
+
+```bash
+# 1) 컴파일 + 감사 렌더 (PNG + events.tsv → tools/preview/out/audit)
+kotlinc tools/preview/src/*.kt $SRCS -d tools/preview/out/classes-audit -jvm-target 17
+java -cp "tools/preview/out/classes-audit:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.DialogAuditMain tools/preview/out/audit
+
+# 2) 수치 랭킹
+python3 tools/preview/dialog_audit_analyze.py tools/preview/out/audit/events.tsv
+
+# 3) (선택) 개선 전/후 디렉터리를 넣어 한 장 비교 시트 만들기
+python3 tools/preview/dialog_audit_compare.py \
+  tools/preview/out/audit_before tools/preview/out/audit docs/img/ui-fit-before-after.png
+```
+
+기준치: 세로 사용률 60% 미만이거나 내부 빈 띠 40dp 이상이면 "상자가 글자보다
+크다"는 신호. `preview/16_dialog.png` 같은 스크린샷과 함께 보면 배치 확인이 빠르다.
 
 ---
 

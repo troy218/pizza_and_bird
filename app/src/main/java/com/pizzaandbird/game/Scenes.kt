@@ -34,6 +34,19 @@ abstract class Scene(val game: Game) {
     fun closeOverlay() {
         overlay = null
     }
+
+    /** 천단위 콤마 금액(₩ 기호 없음) — "＋₩${won(n)}"처럼 기호는 부르는 쪽에서 붙인다 */
+    fun won(n: Int): String = java.text.NumberFormat.getIntegerInstance().format(n)
+}
+
+/**
+ * 실내(집·랜드마크) 환경음 — 비 오는 날엔 지붕에 떨어지는 빗소리가 은은하게 들린다.
+ * 창밖 풍경은 보이지 않아도 "비가 오고 있다"는 것이 소리로 전해진다. 비가 그치면 조용해진다.
+ * (매 프레임 불러도 같은 트랙이면 다시 시작하지 않는다 — Audio.playAmb 의 페이드 규칙)
+ */
+fun Scene.applyIndoorAmbience() {
+    if (game.state.weather() == Weather.RAIN) game.audio.playAmb(R.raw.amb_rain_roof, 0.20f)
+    else game.audio.stopAmb()
 }
 
 /**
@@ -417,7 +430,7 @@ class TitleScene(game: Game) : Scene(game) {
 }
 
 /** 스폰 위치 종류 */
-enum class SpawnKind { SAVED, TUNNEL, HOME, FAST }
+enum class SpawnKind { SAVED, TUNNEL, HOME, FAST, LANDMARK }
 
 /**
  * 메인 퀘스트 자동 진행 — 지정 지역으로 빨리 이동한다.
@@ -426,10 +439,11 @@ enum class SpawnKind { SAVED, TUNNEL, HOME, FAST }
  * 플레이어의 짐을 덜어 주기 위해 자전거를 타고(페이드 + 바람 SFX) 해당 지역
  * 중앙 광장 — 보리 박사 바로 옆 — 에 도착한다.
  */
-fun fastTravel(game: Game, regionId: String) {
+fun fastTravel(game: Game, regionId: String, force: Boolean = false) {
     val target = Regions.byId[regionId] ?: return
     val s = game.state
-    if (s.region == target.id && !s.inHome) return
+    // 이미 그 지역 안이라도 `force`면 다시 내려 놓는다 — 보리 박사 옆(인사 자리)으로 데려다 줄 때 쓴다.
+    if (!force && s.region == target.id && !s.inHome) return
     s.inHome = false
     s.onBike = false      // 도착 후 바로 촬영할 수 있게(자전거는 새를 놀라게 하므로)
     s.px = 0f
@@ -473,15 +487,19 @@ class CharacterSelectScene(game: Game) : Scene(game) {
             p.color = 0xFF6B4F35.toInt()
             c.drawRoundRect(r, 18f, 18f, p)
             p.style = Paint.Style.FILL
+            // 카드 미리보기는 고해상도(128px)를 64px 칸에 줄여 그린다 — 보간을 켜야 결이 산다
+            p.isFilterBitmap = true
             c.drawBitmap(bmp, null, RectF(r.centerX()-32f, r.top+18f, r.centerX()+32f, r.top+82f), p)
+            p.isFilterBitmap = false
             val lp = Type.paintPx(22f, true, 0.04f, Type.INK)
             c.drawText(label, r.centerX()-lp.measureText(label)/2f, r.bottom-25f, lp)
         }
         val t = game.time
-        val maleIdle = game.assets.playerSet("male", 0).idle
-        val femaleIdle = game.assets.playerSet("female", 0).idle
-        card(male, "남자", game.state.gender == "male", maleIdle.frame(Dir.S, (t / Anim.IDLE.frameTime).toInt()))
-        card(female, "여자", game.state.gender == "female", femaleIdle.frame(Dir.S, ((t + 0.8f) / Anim.IDLE.frameTime).toInt()))
+        // 카드용 미리보기(정면 12프레임 · 128px) — 카드가 화면에서 3배로 그려져도 뭉개지지 않는다
+        val maleIdle = game.assets.playerAvatarFrames("male", 0)
+        val femaleIdle = game.assets.playerAvatarFrames("female", 0)
+        card(male, "남자", game.state.gender == "male", maleIdle[((t / Anim.IDLE.frameTime).toInt() % maleIdle.size + maleIdle.size) % maleIdle.size])
+        card(female, "여자", game.state.gender == "female", femaleIdle[(((t + 0.8f) / Anim.IDLE.frameTime).toInt() % femaleIdle.size + femaleIdle.size) % femaleIdle.size])
     }
 
     override fun drawHud(c: Canvas) {

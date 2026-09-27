@@ -85,15 +85,21 @@ object RegionCards {
             c.drawText(reg.english, x + nameW + dp * 6f, y, enPaint)
 
             y += dp * 13f
-            c.drawText(reg.habitatLabels, x, y, metaLeaf)
+            UiKit.drawIconText(c, game, reg.habitatLabels, x, y, metaLeaf)
 
             y += dp * 12f
             val sig = "대표 새: " + Regions.signatureBirds(reg).joinToString(", ") { it.name }
             c.drawText(sig, x, y, metaBird)
 
             y += dp * 12f
+            // 사람은 한 장소에만 산다 — 정착지를 고를 때 "누가 있는 동네인지" 보이도록 표시
+            val landmark = when (reg.id) {
+                NpcRoster.PROFESSOR_REGION -> " · 보리 박사"
+                NpcRoster.SHOP_REGION -> " · 사진용품점"
+                else -> ""
+            }
             UiKit.icon(c, game, "calendar", RectF(x, y - dp * 10f, x + dp * 13f, y + dp * 3f))
-            c.drawText(reg.season, x + dp * 17f, y, metaSeason)
+            c.drawText("${reg.season}$landmark", x + dp * 17f, y, metaSeason)
 
             y += dp * 12f
             val descLines = game.hud.wrapText(reg.desc, descPaint, r.width() - dp * 20f).take(1)
@@ -240,6 +246,9 @@ class RegionSelectOverlay(
     scene: Scene,
     private val onPick: (RegionDef) -> Unit
 ) : Overlay(scene) {
+    /** 전체 화면 패널 — 뒤 월드는 가려지니 재사용한다 */
+    override val coversWorld: Boolean get() = true
+
 
     private var selected: RegionDef? = null
     private var cardRects: List<RectF> = emptyList()

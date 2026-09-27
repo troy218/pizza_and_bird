@@ -19,25 +19,38 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.StubText
 import android.view.KeyEvent
+import com.pizzaandbird.game.Ach
+import com.pizzaandbird.game.AchievementDetailOverlay
 import com.pizzaandbird.game.Assets
+import com.pizzaandbird.game.Backup
+import com.pizzaandbird.game.BackupOverlay
 import com.pizzaandbird.game.BakeOverlay
 import com.pizzaandbird.game.CameraGear
 import com.pizzaandbird.game.Birds
 import com.pizzaandbird.game.DecorPickOverlay
 import com.pizzaandbird.game.DecorShopOverlay
+import com.pizzaandbird.game.BikeColors
+import com.pizzaandbird.game.BikeStyle
+import com.pizzaandbird.game.CharacterArt
+import com.pizzaandbird.game.CharacterSelectScene
 import com.pizzaandbird.game.DialogOverlay
 import com.pizzaandbird.game.FieldBird
 import com.pizzaandbird.game.Game
 import com.pizzaandbird.game.HomeScene
+import com.pizzaandbird.game.LevelUpOverlay
 import com.pizzaandbird.game.MapOverlay
 import com.pizzaandbird.game.MenuOverlay
+import com.pizzaandbird.game.NpcKind
+import com.pizzaandbird.game.NpcRoster
 import com.pizzaandbird.game.PhotoResultOverlay
 import com.pizzaandbird.game.PizzaKind
 import com.pizzaandbird.game.Pizzas
 import com.pizzaandbird.game.Player
 import com.pizzaandbird.game.RegionSelectScene
+import com.pizzaandbird.game.SaveManager
 import com.pizzaandbird.game.Scene
 import com.pizzaandbird.game.SpawnKind
+import com.pizzaandbird.game.StatsOverlay
 import com.pizzaandbird.game.T
 import com.pizzaandbird.game.TitleScene
 import com.pizzaandbird.game.WorldScene
@@ -88,15 +101,11 @@ private class FakeResources(d: Float) : Resources() {
 }
 
 private class FakeContext(density: Float) : Context() {
-    private val prefs = object : SharedPreferences {
-        override fun edit() = throw IllegalStateException("not used")
-        override fun getString(key: String, def: String?): String? = def
-        override fun contains(key: String): Boolean = false
-    }
-
     override val resources: Resources = FakeResources(density)
 
-    override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = prefs
+    // [P05] 세이브·백업 코드가 실제로 읽히고 쓰여야 하므로 in-memory prefs 를 그대로 쓴다.
+    override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+        android.content.InMemorySharedPreferences(name)
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +151,7 @@ object PreviewMain {
         val assets = game.assets
         drawTilesSheet(assets)
         drawSpritesSheet(assets)
+        drawCharacterHdSheet(assets)
         drawBirdsSheet(assets)
 
         // ---------------- 타이틀 ----------------
@@ -175,8 +185,16 @@ object PreviewMain {
         game.state.worldTime = 22.5f
         renderScreen(game, "15_home_night")
 
+        // ---------------- 캐릭터 선택 ----------------
+        game.scene = CharacterSelectScene(game)
+        simulate(game, 1.2f)
+        renderScreen(game, "38_character_select")
+
         // ---------------- 오버레이 ----------------
         overlayShots(game)
+
+        // ---------------- 레벨업 축하 (캐릭터를 가장 크게 띄우는 순간) ----------------
+        levelUpShots(game)
 
         // ---------------- 화면비 적응 검증 ----------------
         ultrawideShots(game)
@@ -226,13 +244,24 @@ object PreviewMain {
         var t = 0f
         while (t < seconds) {
             game.update(dt)
+            // 등장 연출(Overlay.bornAt · UiKit.enter)도 게임 시간으로 — 같은 소스를 돌리면
+            // 화면이 매번 똑같이 나오도록(프리뷰 SystemClock 는 시뮬레이션 시간만 흐른다)
+            android.os.SystemClock.advance(dt)
             t += dt
         }
     }
 
-    private fun renderScreen(game: Game, name: String) {
+    /**
+     * @param settlePhotos 사진(도감)이 있는 화면이면 true. 백그라운드 로더 스레드가
+     *   채운 사진을 기다렸다가 다시 그려야 실제 화면(사진이 다 올라온 상태)이 찍힌다.
+     */
+    private fun renderScreen(game: Game, name: String, settlePhotos: Boolean = false) {
         val bmp = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
+        if (settlePhotos) {
+            game.render(c)                 // 첫 그림이 로더에 요청을 넣어준다
+            game.assets.awaitImages()      // 로더 스레드가 다 채우기를 기다린다
+        }
         game.render(c)
         ImageIO.write(bmp.image, "png", File(outDir, "$name.png"))
         println("  + $name.png")
@@ -371,8 +400,24 @@ object PreviewMain {
         val tabs = tabCls.enumConstants
         for ((i, tab) in tabs.withIndex()) {
             setField(menu, "tab", tab)
-            renderScreen(game, "17_menu_tab${i + 1}")
+            renderScreen(game, "17_menu_tab${i + 1}", settlePhotos = true)
         }
+
+        // [P06] 업적의 상세 통계·해금 팝업·실제 tick 경유 토스트 캡처.
+        scene.closeOverlay()
+        scene.openOverlay(StatsOverlay(scene) {})
+        simulate(game, 0.25f)
+        renderScreen(game, "33_achievement_stats")
+        scene.closeOverlay()
+        scene.openOverlay(AchievementDetailOverlay(scene, Ach.ALL.first()) {})
+        renderScreen(game, "34_achievement_detail")
+        scene.closeOverlay()
+        getField<MutableList<*>>(game.hud, "messages").clear()
+        s.photos = 100
+        Thread.sleep(1_050L) // Ach.tick 의 1초 스로틀 다음에 shot_100 을 해금한다.
+        Ach.tick(game.scene as WorldScene, s)
+        game.hud.update(0.3f) // 토스트 등장 페이드
+        renderScreen(game, "35_achievement_unlock_toast")
 
         // 피자 굽기 (v0.4: 피자 12종 — 화덕/일반 계열)
         scene.closeOverlay()
@@ -396,7 +441,7 @@ object PreviewMain {
         val photo = PhotoResultOverlay(scene, Birds.byId["crane"]!!, 3, true, 2, "의뢰 완료! +₩7,800 (3성 보너스)")
         scene.openOverlay(photo)
         simulate(game, 0.9f)
-        renderScreen(game, "24_photo_result")
+        renderScreen(game, "24_photo_result", settlePhotos = true)
 
         // 큰 지도
         scene.closeOverlay()
@@ -412,6 +457,45 @@ object PreviewMain {
         scene.openOverlay(DecorPickOverlay(scene, 0) {})
         renderScreen(game, "27_decor_pick")
         scene.closeOverlay()
+
+        // [P05] 클라우드 없는 백업 — 코드 만들기 / 코드에서 불러오기
+        backupShots(game, scene)
+    }
+
+    /** 설정 › 백업 코드 만들기 · 코드에서 불러오기 화면 (실제 Backup 로직을 그대로 돌린다) */
+    private fun backupShots(game: Game, scene: Scene) {
+        // 진행 상황을 prefs 에 저장해 두고(설정 › 💾 저장하기와 같은 경로) 코드를 만든다.
+        game.state.started = true
+        SaveManager.save(game.context, game.state)
+        val prefs = game.context.getSharedPreferences(SaveManager.prefsName(), Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("feat_album_v1", "{\"photos\":[{\"id\":1,\"stars\":5}]}")
+            .putInt("feat_ach_count_v1", 13)
+            .commit()
+
+        val export = BackupOverlay(scene, BackupOverlay.Mode.CREATE)
+        scene.openOverlay(export)
+        simulate(game, 0.7f)      // 백그라운드 스레드가 코드를 만드는 동안 프레임 진행
+        renderScreen(game, "30_backup_code")
+
+        // 방금 만든 코드를 클립보드에 넣은 상황 → 불러오기 확인 카드
+        val code = getField<String>(export, "code")
+        android.content.PreviewClipboard.text = code
+        scene.closeOverlay()
+        val restore = BackupOverlay(scene, BackupOverlay.Mode.RESTORE)
+        scene.openOverlay(restore)
+        simulate(game, 0.3f)
+        renderScreen(game, "31_backup_restore_idle")
+
+        setField(restore, "pendingCode", code)
+        setField(restore, "info", Backup.inspect(code).getOrNull())
+        setField(restore, "step", Class.forName("com.pizzaandbird.game.BackupOverlay\$Step")
+            .enumConstants.first { it.toString() == "CONFIRM" })
+        simulate(game, 0.35f)
+        renderScreen(game, "32_backup_restore_confirm")
+
+        scene.closeOverlay()
+        game.input.rawMode = false
     }
 
     /** 화면비 적응 검증: 20:9 · 16:10 울트라와이드 샷 */
@@ -501,9 +585,19 @@ object PreviewMain {
             c.drawBitmap(a.bikeSide, px + 72f, py + 14f, a.sprPaint)
             c.drawBitmap(a.bikeSideL, px + 108f, py + 14f, a.sprPaint)
         }
+        // 「한 사람은 한 장소에만」 — 같은 5명이 아니라, 자리가 서로 다른 실제 캐스팅을 뽑아 그린다
         row("npcs") { px, py ->
-            val list = listOf(a.npcProfessor, a.npcShop, a.npcVillager, a.npcKid, a.npcElder)
-            for ((i, b) in list.withIndex()) c.drawBitmap(b, px + i * 36f, py + 14f, a.sprPaint)
+            val cast = listOf(
+                NpcRoster.professor,                        // 광릉숲 숲속 쉼터 · 보리 박사
+                NpcRoster.shopkeeper,                       // 서울 골목 · 사진용품점 남기택
+                NpcRoster.forRegion("chuncheon").first(),   // 의암호 전망 데크 · 노을
+                NpcRoster.forRegion("incheon").first(),     // 소래포구 갯벌 둑길 · 해순
+                NpcRoster.representative(NpcKind.KID),      // 송도/안산 이웃 꼬마
+                NpcRoster.forRegion("hallasan").last()      // 한라산 그루브 · 순옥
+            )
+            for ((i, p) in cast.withIndex()) {
+                c.drawBitmap(a.npcBitmap(p, 0f, i * 0.7f), px + i * 36f, py + 14f, a.sprPaint)
+            }
         }
         row("cat") { px, py ->
             for (i in 0..2) {
@@ -529,6 +623,91 @@ object PreviewMain {
         c.drawBitmap(a.pizzaIconBig, x, y + 18f, a.sprPaint)
 
         saveSheet(bmp, "02_sprites")
+    }
+
+    /**
+     * 캐릭터 화질 비교 시트 — **같은 크기로 나란히** 놓고 본다.
+     *
+     * 왼쪽: 32px 도트를 8배로 키운 것(예전 방식) · 가운데: HD(96px)를 같은 크기로 줄인 것
+     * 오른쪽: HD 원본(96px, 1:1) · 아래줄: 레벨업 축하용 256px 만세 프레임
+     * (도트로 그린 옛 그림과 같은 포즈·같은 배색이라 무엇이 좋아졌는지 바로 보인다)
+     */
+    private fun drawCharacterHdSheet(a: Assets) {
+        val bmp = Bitmap.createBitmap(1160, 520, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.drawRect(0f, 0f, 1160f, 520f, sheetBgPaint)
+
+        val dot = a.playerSet("male", 0, false).idle.down[2]      // 32px 도트
+        val hd = a.playerSet("male", 0, true).idle.down[2]        // 96px HD
+        val size = 256f
+        val smooth = Paint(Paint.ANTI_ALIAS_FLAG)
+        val crisp = Paint().apply { isFilterBitmap = false }
+
+        label(c, "32px 도트 ×8 (예전)", 16f, 30f)
+        c.drawBitmap(dot, null, RectF(16f, 40f, 16f + size, 40f + size), crisp)
+
+        label(c, "HD 96px → 같은 크기 (지금)", 300f, 30f)
+        c.drawBitmap(hd, null, RectF(300f, 40f, 300f + size, 40f + size), smooth)
+
+        label(c, "HD 원본 1:1 (96px)", 584f, 30f)
+        c.drawBitmap(hd, 584f, 40f, smooth)
+
+        // NPC도 같은 파이프라인 — 왼쪽이 예전 도트, 오른쪽이 HD(같은 화면 크기)
+        label(c, "NPC 도트 ×5 (예전)", 700f, 30f)
+        val npcDot = a.npcFrames(NpcKind.PROFESSOR, false)[0]
+        c.drawBitmap(npcDot, null, RectF(700f, 40f, 700f + 160f, 40f + 160f), crisp)
+        val npcHd = a.npcFrames(NpcKind.PROFESSOR, true)[0]
+        c.drawBitmap(npcHd, null, RectF(890f, 40f, 890f + 160f, 40f + 160f), smooth)
+
+        label(c, "레벨업 만세 — 256px (크게 띄우는 순간 전용)", 16f, 330f)
+        val cheer = a.cheerFrames("male", 3)
+        for (i in 0 until 4) {
+            c.drawBitmap(cheer[i], null, RectF(16f + i * 152f, 344f, 16f + i * 152f + 144f, 344f + 144f), smooth)
+        }
+        label(c, "걷기 (HD 96px, 1:1)", 640f, 330f)
+        val walk = a.playerSet("female", 2, true).walk
+        for (i in 0 until 4) {
+            c.drawBitmap(walk.down[i * 2], 640f + i * 100f, 344f, smooth)
+        }
+        label(c, "자전거 (HD 96px, 1:1)", 640f, 460f)
+        val style = BikeStyle(
+            "basic", BikeColors.frame(0), BikeColors.tire(0), BikeColors.saddle(0),
+            basket = true, rack = true, light = true, streamers = true, bell = true
+        )
+        val bike = a.bikeSet("male", 3, style, true)
+        for (i in 0 until 4) {
+            c.drawBitmap(bike.side[i * 2], null, RectF(640f + i * 100f, 430f, 640f + i * 100f + 96f, 430f + 96f), smooth)
+        }
+        saveSheet(bmp, "02b_character_hd")
+    }
+
+    /**
+     * 레벨업 축하 화면 — "레벨업할 때 캐릭터 화질"이 가장 크게 드러나는 순간.
+     * 장비 등급이 바뀌는 레벨(6 → 새 장비)도 함께 찍는다.
+     */
+    private fun levelUpShots(game: Game) {
+        val s = game.state
+        s.worldTime = 12.0f
+        game.scene = WorldScene(game, "seoul", SpawnKind.SAVED)
+        simulate(game, 0.6f)
+        val scene = game.scene as Scene
+
+        s.level = 6
+        s.skillPoints = 3
+        s.exp = 8
+        scene.openOverlay(LevelUpOverlay(scene, 5, 6))
+        simulate(game, 0.42f)          // 만세 동작 중간 프레임
+        renderScreen(game, "36_levelup")
+
+        scene.closeOverlay()
+        s.level = 12
+        s.skillPoints = 6
+        s.exp = 40
+        scene.openOverlay(LevelUpOverlay(scene, 11, 12))
+        simulate(game, 0.9f)
+        renderScreen(game, "37_levelup_gear")
+        scene.closeOverlay()
+        game.input.rawMode = false
     }
 
     private fun drawBirdsSheet(a: Assets) {

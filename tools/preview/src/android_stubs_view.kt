@@ -40,6 +40,7 @@ class KeyEvent {
         const val KEYCODE_C = 31
         const val KEYCODE_D = 32
         const val KEYCODE_E = 33
+        const val KEYCODE_F = 34
         const val KEYCODE_M = 41
         const val KEYCODE_S = 47
         const val KEYCODE_W = 51
@@ -50,4 +51,17 @@ class KeyEvent {
         const val KEYCODE_SHIFT_LEFT = 59
         const val KEYCODE_SHIFT_RIGHT = 60
     }
+}
+
+/** tools/preview — android.view.View stub for BootView; not rendered in the headless preview. */
+open class View(val context: android.content.Context) {
+    open var width: Int = 0
+    open var height: Int = 0
+    open val isAttachedToWindow: Boolean = false
+    open fun onDraw(c: android.graphics.Canvas) {}
+    open fun postInvalidateDelayed(delayMillis: Long) {}
+    open fun postInvalidate() {}
+    open fun invalidate() {}
+    open fun requestLayout() {}
+    open fun setBackgroundColor(color: Int) {}
 }

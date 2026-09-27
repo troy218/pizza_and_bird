@@ -28,6 +28,22 @@ object CharacterArt {
 
     const val SIZE = 32
 
+    /**
+     * HD 디테일(옷 주름·머리카락 윤기·눈 반짝임)을 넣기 시작하는 배율.
+     *
+     * 32px 도트에서는 이런 요소가 1px도 되지 않아 뭉개지므로 [HD_DETAIL_SCALE] 배 이상의
+     * 고해상도 렌더에서만 그린다.
+     */
+    const val HD_DETAIL_SCALE = 4
+
+    // HD 전용 색 — 아주 옅은 겹칠이라 도트로 줄이면 사라진다
+    private val HD_FOLD = Color.argb(32, 58, 42, 34)        // 옷 주름
+    private val HD_SHADE = Color.argb(26, 40, 30, 38)       // 아랫단·밑창 음영
+    private val HD_HILITE = Color.argb(40, 255, 250, 232)   // 머리카락·모자 윤기
+    private val HD_CHIN = Color.argb(28, 94, 60, 38)        // 턱·목 그림자
+    private val HD_SPARK = Color.argb(238, 255, 255, 255)   // 눈 반짝임
+    private val HD_METAL = Color.argb(64, 255, 252, 240)    // 타이어·림 광택
+
     // 방향
     const val FRONT = 0
     const val BACK = 1
@@ -112,10 +128,25 @@ object CharacterArt {
     // 그리기 헬퍼
     // -----------------------------------------------------------------------
 
-    private class G(val cv: Canvas) {
-        val p = Paint()
+    /**
+     * 그리기 헬퍼.
+     *
+     * @param k 출력 배율 — 1이면 32px 도트 원본, 3이면 96px HD.
+     *   그리는 좌표계(0~32)는 모든 배율에서 똑같고, 캔버스에 이 배율을 걸어 두면
+     *   도형이 그만큼 촘촘하게 래스터화된다.
+     *   1보다 크면 안티앨리어싱을 켠다 — 도트 시절의 계단 대신 부드러운 윤곽이 남는다.
+     */
+    private class G(val cv: Canvas, val k: Float = 1f) {
+        init {
+            if (k != 1f) cv.scale(k, k)
+        }
+
+        val p = Paint().apply { isAntiAlias = k > 1.0001f }
         val path = Path()
         val rf = RectF()
+
+        /** 한 도트보다 가는 디테일(실밥·단추·눈 반짝임) — 3배에서 약 1.3px */
+        val fine: Float get() = 0.42f
 
         fun rect(l: Float, t: Float, r: Float, b: Float, col: Int) {
             p.color = col; cv.drawRect(l, t, r, b, p)
@@ -317,6 +348,48 @@ object CharacterArt {
         )
     }
 
+    /**
+     * 펀치 — 팔을 뒤로 뺐다가 바라보는 쪽으로 쭉 뻗는다.
+     * phase 0 와인드업, 0.5 근처가 타점, 이후 따라가기.
+     */
+    fun punchPose(phase: Float): Pose {
+        val p = ((phase % 1f) + 1f) % 1f
+        val windup = when {
+            p < 0.20f -> 1f - p / 0.20f * 0.15f
+            p < 0.36f -> 0.85f * (1f - (p - 0.20f) / 0.16f)
+            else -> 0f
+        }.coerceIn(0f, 1f)
+        val extend = when {
+            p < 0.12f -> 0f
+            p < 0.40f -> (p - 0.12f) / 0.28f
+            p < 0.62f -> 1f
+            else -> 1f - (p - 0.62f) / 0.38f
+        }.coerceIn(0f, 1f)
+        return Pose(
+            bodyX = 1.7f * extend - 0.9f * windup,
+            bodyY = 0.4f * extend + 0.2f * windup,
+            lean = 16f * extend - 8f * windup,
+            hipR = 12f * extend,
+            hipL = -5f * extend - 4f * windup,
+            kneeR = 8f + 14f * extend,
+            kneeL = 6f + 18f * windup,
+            armR = -40f * windup + 98f * extend,
+            elbowR = 10f + 74f * (1f - extend) + 8f * windup,
+            armL = -14f - 30f * windup,
+            elbowL = 18f + 24f * windup,
+            shoulderR = -1.2f * extend,
+            shoulderL = 0.35f * windup,
+            headX = 0.55f * extend - 0.35f * windup,
+            tilt = -3.2f * extend + 1.6f * windup,
+            mouth = 0.9f * extend.coerceAtLeast(windup * 0.4f),
+            brow = 1f,
+            breath = 0.2f + 0.55f * extend,
+            hairSway = -2f * extend + 0.7f * windup,
+            clothSway = -1.4f * extend,
+            packBob = 0.45f * extend
+        )
+    }
+
     /** 만세! — 레벨업 축하 (폴짝폴짝 뛰며 두 팔을 든다) */
     fun cheerPose(phase: Float): Pose {
         val p = ((phase % 1f) + 1f) % 1f
@@ -406,11 +479,27 @@ object CharacterArt {
     // 사람 렌더링
     // -----------------------------------------------------------------------
 
-    fun render(direction: Int, pose: Pose, look: Look): Bitmap {
-        val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-        val g = G(Canvas(bmp))
+    fun render(direction: Int, pose: Pose, look: Look): Bitmap = render(direction, pose, look, SIZE)
+
+    /**
+     * 캐릭터를 그린다.
+     *
+     * @param size 출력 비트맵 한 변(px). [SIZE]면 원래의 32px 도트,
+     *   [SIZE]의 정수배(= 슈퍼샘플 · HD)면 비율은 그대로이면서
+     *   코드로 그리는 벡터 도형이 그만큼 촘촘하게 래스터화되어 훨씬 부드럽다.
+     *   [HD_DETAIL_SCALE] 배 이상일 때만 옷 주름·윤기·눈 반짝임 같은 HD 디테일을 더한다.
+     *
+     * `tools/preview/people.py` 미리보기는 32px(=기본값)라 도트 결과가 같고,
+     * 프리뷰 스크린샷 파이프라인은 4배(128px)로 HD 결과를 확인한다.
+     */
+    fun render(direction: Int, pose: Pose, look: Look, size: Int): Bitmap {
+        val k = size.toFloat() / SIZE
+        val hd = k >= HD_DETAIL_SCALE - 0.001f
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val g = G(Canvas(bmp), k)
         val pal = look.pal
         val sc = if (look.small) 0.86f else 1f
+
 
         val ground = 31.4f
         val footH = 1.7f * sc
@@ -475,6 +564,11 @@ object CharacterArt {
                 val fh = 1.55f * sc - 0.3f * min(1f, lift * 0.35f)
                 g.rrect(ax - fw - 0.35f, ay - 0.45f, ax + fw + 0.35f, ay + fh + 0.4f, 0.9f, pal.line)
                 g.rrect(ax - fw, ay - 0.2f, ax + fw, ay + fh, 0.8f, shoe)
+                if (hd) {
+                    // 밑창 라인 + 발끝 광 — 신발이 한 덩어리로 뭉개지지 않게
+                    g.rect(ax - fw + 0.3f, ay + fh - 0.5f, ax + fw - 0.3f, ay + fh, HD_SHADE)
+                    g.rect(ax - fw + 0.4f, ay - 0.1f, ax + fw - 0.4f, ay + 0.2f, HD_HILITE)
+                }
             }
         }
 
@@ -498,6 +592,14 @@ object CharacterArt {
             g.seg(ex, ey, hx, hy, 1f * sc, 0.85f * sc, skin)
             g.circ(hx, hy, 1.25f * sc, pal.line)
             g.circ(hx, hy, 0.95f * sc, skin)
+            if (hd) {
+                // 소매 끝 동그랗게 마감 + 손등 광 — 팔이 막대기처럼 보이지 않게
+                val m = 0.85f
+                val ux = (ex - x0) / max(hypot(ex - x0, ey - y0), 0.001f)
+                val uy = (ey - y0) / max(hypot(ex - x0, ey - y0), 0.001f)
+                g.seg(ex - ux * m, ey - uy * m, ex, ey, 1.45f * sc, 1.3f * sc, shade(sleeve, 0.88f))
+                g.circ(hx - 0.35f, hy - 0.4f, g.fine, HD_HILITE)
+            }
         }
 
         // ---- 몸통 ------------------------------------------------------------
@@ -518,6 +620,15 @@ object CharacterArt {
                 g.rect(tL + 3f, top + 2.4f, tR - 3f, top + 3.7f, 0xFFE8DFC8.toInt())
                 g.rect(tL + 4f, top + 7.6f, tR - 4f, top + 8.9f, 0xFFE8DFC8.toInt())
             }
+            if (hd) {
+                // 옷 주름 2~3줄 + 어깨 하이라이트 — 4배(128px)에서 비로소 보이는 결
+                val foldX = tL + (tR - tL) * 0.42f
+                g.rect(foldX, top + 1.6f, foldX + 0.42f, bot - 1.2f, HD_FOLD)
+                val foldX2 = tL + (tR - tL) * 0.62f
+                g.rect(foldX2, top + 3.2f, foldX2 + 0.34f, bot - 2.2f, HD_FOLD)
+                g.rect(tL + 0.2f, top + 0.4f, tR - 0.2f, top + 0.9f, HD_HILITE)
+                g.rect(tL - 0.5f, bot - 0.9f, tR + 0.5f, bot - 0.4f, HD_SHADE)
+            }
         }
 
         fun drawPack() {
@@ -528,6 +639,14 @@ object CharacterArt {
             g.rrect(hipX - 4.2f, shoulderY + 2f + by, hipX + 4.2f, hipY + 0.1f + by, 2.2f, pal.pack)
             g.rect(hipX - 2.4f, shoulderY + 3.2f + by, hipX + 2.4f, hipY - 1f + by, pal.pack2)
             g.rect(hipX - 3.2f, shoulderY + 2.3f + by, hipX + 3.2f, shoulderY + 3f + by, pal.pack2)
+            if (hd) {
+                // 버클 + 가죽 끈 + 주머니 테두리 — 배낭이 밋밋한 사각형이 되지 않게
+                val bw = 0.9f
+                g.rrect(hipX - bw, shoulderY + 3.6f + by, hipX + bw, shoulderY + 5.6f + by, 0.3f, 0xFFD9A03C.toInt())
+                g.rect(hipX - 0.6f, shoulderY + 4f + by, hipX + 0.6f, shoulderY + 4.7f + by, 0xFF7A5A24.toInt())
+                g.rect(hipX - 4.1f, shoulderY + 8.1f + by, hipX + 4.1f, shoulderY + 8.4f + by, HD_SHADE)
+                g.rect(hipX - 4.1f, shoulderY + 2.1f + by, hipX - 3.7f, hipY + by, HD_HILITE)
+            }
         }
 
         // ---- 머리 ------------------------------------------------------------
@@ -539,6 +658,10 @@ object CharacterArt {
             g.circ(cx, cy, headR + 0.85f, pal.line)
             if (direction == BACK) {
                 g.circ(cx, cy, headR, pal.hair)
+                if (hd) {
+                    // 뒤통수 윤기 — 뒷모습도 머리카락으로 보이게
+                    g.oval(cx - headR * 0.68f, cy - headR * 0.72f, cx + headR * 0.68f, cy - headR * 0.05f, HD_HILITE)
+                }
                 g.rect(cx - headR * 0.85f, cy + 1.9f, cx + headR * 0.85f, cy + 3.7f, pal.hair2)
                 g.rect(
                     cx - headR * 0.6f + pose.hairSway, cy - headR - 0.4f,
@@ -551,6 +674,10 @@ object CharacterArt {
             g.circ(cx, cy, headR, pal.skin)
             val sway = pose.hairSway
             val capBot = cy - 0.5f
+            if (hd) {
+                // 턱·목 그림자 — 머리가 얼굴 판때기처럼 붙지 않게 살짝 얹는다
+                g.oval(cx - headR * 0.72f, cy + headR * 0.45f, cx + headR * 0.72f, cy + headR + 1.1f, HD_CHIN)
+            }
             g.oval(
                 cx - headR - 0.15f + sway * 0.18f, cy - headR - 0.35f,
                 cx + headR + 0.15f + sway * 0.18f, capBot, pal.hair
@@ -583,7 +710,19 @@ object CharacterArt {
                 if (look.longHair) {
                     g.rrect(cx - headR - 0.7f, cy - 1.2f, cx - headR + 1.5f, cy + 7.4f + sway * 0.3f, 1.1f, pal.hair2)
                     g.rrect(cx + headR - 1.5f, cy - 1.2f, cx + headR + 0.7f, cy + 7.4f - sway * 0.3f, 1.1f, pal.hair2)
+                    if (hd) {
+                        // 긴 머리카락 결 — 숱이 갈라지는 느낌
+                        g.rect(cx - headR - 0.2f, cy + 0.4f, cx - headR + 0.1f, cy + 6.6f + sway * 0.3f, HD_HILITE)
+                        g.rect(cx + headR - 0.1f, cy + 0.4f, cx + headR + 0.2f, cy + 6.6f - sway * 0.3f, HD_HILITE)
+                    }
                 }
+            }
+            if (hd) {
+                // 앞머리 윤기 한 줄 — 앞모습·옆모습 모두
+                g.oval(
+                    cx - headR * 0.62f + sway * 0.18f, cy - headR * 0.55f,
+                    cx + headR * 0.62f + sway * 0.18f, cy - headR * 0.05f, HD_HILITE
+                )
             }
 
             val ex = cx + turn * 1.7f + tilt * 0.1f
@@ -605,6 +744,13 @@ object CharacterArt {
                 if (pose.blink < 0.4f) {
                     g.rect(lx + 0.9f, ey - 0.7f, lx + 1.4f, ey, Color.WHITE)
                     g.rect(rx + 0.9f, ey - 0.7f, rx + 1.4f, ey, Color.WHITE)
+                    if (hd) {
+                        // 눈동자 한가운데 반짝임 — 표정이 살아난다
+                        g.circ(lx + 0.95f, ey - 0.05f, g.fine, HD_SPARK)
+                        g.circ(rx + 0.95f, ey - 0.05f, g.fine, HD_SPARK)
+                        g.rect(lx - 0.1f, ey - 1.35f, lx + 1.6f, ey - 1.1f, pal.hair2)
+                        g.rect(rx - 0.1f, ey - 1.35f, rx + 1.6f, ey - 1.1f, pal.hair2)
+                    }
                 }
                 if (pose.brow > 0.05f) {
                     g.rect(lx - 0.2f, ey - 2.3f - pose.brow * 0.7f, lx + 1.7f, ey - 1.7f - pose.brow * 0.7f, pal.hair2)
@@ -642,9 +788,14 @@ object CharacterArt {
             if (direction == SIDE) {
                 g.rrect(shoulderX - 3.4f, ny - 0.9f, shoulderX + 3.6f, ny + 1.5f, 1.1f, scarf)
                 g.seg(shoulderX - 2.2f, ny + 0.8f, shoulderX - 3f + pose.clothSway * 1.6f, ny + 4.6f, 1.1f, 0.8f, scarf)
+                if (hd) g.seg(shoulderX - 2f, ny + 0.6f, shoulderX - 2.7f + pose.clothSway * 1.6f, ny + 4.1f, 0.4f, 0.3f, shade(scarf, 1.35f))
             } else {
                 g.rrect(shoulderX - 4.6f, ny - 0.9f, shoulderX + 4.6f, ny + 1.6f, 1.2f, scarf)
                 g.seg(shoulderX + 2.4f, ny + 1f, shoulderX + 3f + pose.clothSway * 1.6f, ny + 5f, 1.1f, 0.8f, scarf)
+                if (hd) {
+                    g.seg(shoulderX + 2.1f, ny + 1.1f, shoulderX + 2.6f + pose.clothSway * 1.6f, ny + 4.4f, 0.4f, 0.3f, shade(scarf, 1.35f))
+                    g.rect(shoulderX - 4.4f, ny - 0.7f, shoulderX + 4.4f, ny - 0.2f, HD_HILITE)
+                }
             }
         }
 
@@ -657,12 +808,25 @@ object CharacterArt {
             if (direction == SIDE) {
                 g.rrect(tL + 1.2f, top + 0.6f, tR - 0.6f, bot, 1.8f, vest)
                 g.rect(tL + 1.2f, top + 0.6f, tL + 2f, bot, gear.vestDark)
+                if (hd) {
+                    g.rect(tR - 1.4f, top + 0.8f, tR - 0.9f, bot - 0.3f, HD_HILITE)
+                    g.rect(tL + 1f, bot - 0.8f, tR - 0.5f, bot - 0.35f, HD_SHADE)
+                }
             } else {
                 g.rrect(tL - 0.2f, top + 0.6f, tL + 3.4f, bot, 1.4f, vest)
                 g.rrect(tR - 3.4f, top + 0.6f, tR + 0.2f, bot, 1.4f, vest)
                 g.rect(tL + 3f, top + 0.2f, tR - 3f, top + 2f, vest)
                 g.rect(tL - 0.2f, top + 0.6f, tL + 0.7f, bot, gear.vestDark)
                 g.rect(tR - 0.7f, top + 0.6f, tR + 0.2f, bot, gear.vestDark)
+                if (hd) {
+                    // 조끼 주머니 2개 + 단추 — 탐조 조끼의 상징
+                    val py0 = top + 4.6f
+                    g.rrect(tL + 0.2f, py0, tL + 2.6f, py0 + 3.2f, 0.4f, shade(vest, 0.88f))
+                    g.rrect(tR - 2.6f, py0, tR - 0.2f, py0 + 3.2f, 0.4f, shade(vest, 0.88f))
+                    g.rect(tL + 2.8f, top + 2.3f, tR - 2.8f, top + 2.65f, HD_SHADE)
+                    g.circ(tR - 3.6f, top + 3.4f, 0.42f, 0xFFF2D06B.toInt())
+                    g.circ(tL + 3.6f, top + 3.4f, 0.42f, 0xFFF2D06B.toInt())
+                }
             }
         }
 
@@ -701,6 +865,14 @@ object CharacterArt {
                 g.seg(fx, top + 1.2f, fx + sway - 0.8f, top - 3f, 0.75f, 0.45f, ft)
                 g.circ(fx + sway - 0.9f, top - 3f, 0.7f, ft)
             }
+            if (hd) {
+                // 모자 윤기 + 정면 금색 배지 — 4배에서 장비 등급 차이가 한눈에 보인다
+                g.rect(cx - cw + 0.9f, top + 0.6f, cx + cw - 0.9f, top + 1.1f, HD_HILITE)
+                if (direction == FRONT) {
+                    g.circ(cx + 0.1f, bot - 2.1f, 0.85f, 0xFFF2D06B.toInt())
+                    g.circ(cx + 0.1f, bot - 2.1f, 0.42f, 0xFFB8862A.toInt())
+                }
+            }
         }
 
         fun drawCamera() {
@@ -715,6 +887,12 @@ object CharacterArt {
             g.circ(lensX, cy - 0.1f, 1.25f, 0xFF2B3038.toInt())
             g.circ(lensX + 0.3f, cy - 0.5f, 0.5f, 0xFFBFE6FF.toInt())
             if (pose.holdT > 0.7f) g.rect(cx - 1.4f, cy - 2.7f, cx - 0.4f, cy - 1.9f, 0xFFF2D06B.toInt())
+            if (hd) {
+                // 다이얼 눈금 + 렌즈 광 — 카메라가 검은 네모로 보이지 않는다
+                g.rect(cx - 2.1f, cy - 1.15f, cx - 0.9f, cy - 0.9f, HD_HILITE)
+                g.circ(lensX + 0.35f, cy - 0.45f, g.fine, Color.argb(210, 255, 255, 255))
+                g.rect(cx + 1.2f, cy - 1.3f, cx + 2f, cy + 1.1f, Color.argb(46, 255, 250, 236))
+            }
         }
 
         fun drawCane() {
@@ -756,7 +934,7 @@ object CharacterArt {
 
         if (pose.hold == HOLD_CAMERA) drawCamera()
         if (look.cane) drawCane()
-        return bmp
+        return refine(bmp, size, hd)
     }
 
     // -----------------------------------------------------------------------
@@ -767,7 +945,19 @@ object CharacterArt {
     private val METAL = 0xFF9AA0AD.toInt()
 
     /** direction: SIDE(오른쪽)/FRONT/BACK, phase: 0~1 페달 한 바퀴, style: 모델·도색·부속품 */
-    fun renderBike(direction: Int, phase: Float, look: Look, style: BikeStyle): Bitmap {
+    fun renderBike(direction: Int, phase: Float, look: Look, style: BikeStyle): Bitmap =
+        renderBike(direction, phase, look, style, SIZE)
+
+    /**
+     * 자전거 + 라이더를 그린다.
+     *
+     * @param size 출력 비트맵 한 변(px) — [render] 와 같은 규칙.
+     *   [SIZE]의 정수배면 바퀴 살·프레임 도색 선이 그만큼 촘촘하게 래스터화되고,
+     *   [HD_DETAIL_SCALE] 배 이상에서 타이어 광·스포크·로고 같은 디테일이 더해진다.
+     */
+    fun renderBike(direction: Int, phase: Float, look: Look, style: BikeStyle, size: Int): Bitmap {
+        val k = size.toFloat() / SIZE
+        val hd = k >= HD_DETAIL_SCALE - 0.001f
         // 도색: 프레임 / 바퀴 / 안장·그립
         val BIKE_COL = style.frame.argb
         val BIKE_DARK = shade(BIKE_COL, 0.68f)
@@ -775,8 +965,8 @@ object CharacterArt {
         val TIRE_IN = shade(TIRE, 1.55f)
         val LEATHER = style.saddle.argb
         val kind = style.modelId
-        val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-        val g = G(Canvas(bmp))
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val g = G(Canvas(bmp), k)
         val pal = look.pal
         val ang = TAU * (((phase % 1f) + 1f) % 1f)
         val bob = 0.35f * cos(2f * ang)
@@ -806,6 +996,17 @@ object CharacterArt {
             }
             g.circ(cx, cy, 1.3f, RIM)
             g.circ(cx, cy, 0.7f, METAL)
+            if (hd) {
+                // 안쪽 림 광 + 스포크 4가닥 — 바퀴가 검은 도넛으로 뭉개지지 않게
+                ring(cx, cy, r - ti * 0.55f, 0.3f, HD_METAL, 16)
+                for (i in 0 until 4) {
+                    val a = spin + i * (PI.toFloat() / 4f)
+                    g.seg(
+                        cx - cos(a) * (r - 2.2f), cy - sin(a) * (r - 2.2f),
+                        cx + cos(a) * (r - 2.2f), cy + sin(a) * (r - 2.2f), 0.18f, 0.18f, METAL
+                    )
+                }
+            }
         }
 
         /**
@@ -903,6 +1104,13 @@ object CharacterArt {
                     g.rrect(13.6f, 21.2f, 19.2f, 24.2f, 1f, RIM)                   // 배터리
                     g.rrect(14f, 21.5f, 18.8f, 23.9f, 0.9f, 0xFF4A4A56.toInt())
                     g.rect(14.8f, 22.1f, 17.8f, 22.9f, 0xFF6FB6C9.toInt())
+                }
+                if (hd) {
+                    // 프레임 윤기 + 크랭크 하우스 — 도색이 살아 있는 금속처럼 보이게
+                    g.seg(rear + 1.2f, wy - 0.4f, sadX - 0.6f, sadY + 1.2f, 0.24f, 0.22f, HD_HILITE)
+                    g.seg(sadX + 1.2f, sadY + 1.4f, barX - 1f, barY + 1.4f, 0.22f, 0.2f, HD_HILITE)
+                    g.circ(crankX, crankY, 1.25f, RIM)
+                    g.circ(crankX, crankY, 0.6f, METAL)
                 }
             }
             val sadW = when (kind) {
@@ -1004,6 +1212,19 @@ object CharacterArt {
             if (style.streamers) {
                 g.seg(barX - 1.2f, barY + 0.6f, barX - 4.2f, barY + 1.8f, 0.7f, 0.4f, 0xFFDB6B9A.toInt())
                 g.seg(barX - 1.4f, barY + 1.5f, barX - 4.6f, barY + 3.2f, 0.6f, 0.35f, 0xFFF2D06B.toInt())
+            }
+            if (hd) {
+                // 안장 가죽 광 + 바구니 엮음 + 등받이 끈 — 부속품이 도드라진다
+                g.rect(sadX - sadW + 0.4f, sadY - 0.1f, sadX + 1.6f, sadY + 0.2f, HD_HILITE)
+                if (style.basket) {
+                    g.rect(barX + 1.6f, barY + 2.15f, barX + 6.2f, barY + 2.5f, 0xFFB08840.toInt())
+                    g.rect(barX + 1.6f, barY + 5.35f, barX + 6.2f, barY + 5.7f, 0xFFB08840.toInt())
+                    for (i in 0 until 4) {
+                        val bx = barX + 2.2f + i * 1.2f
+                        g.rect(bx, barY + 1.6f, bx + 0.22f, barY + 5.6f, HD_SHADE)
+                    }
+                }
+                g.rect(barX - 2.4f, barY - 0.3f, barX + 1.4f, barY - 0.05f, HD_HILITE)
             }
             return bmp
         }
@@ -1132,7 +1353,89 @@ object CharacterArt {
             if (look.longHair) g.rrect(hx - 3f, hy + 1.6f, hx + 3f, hy + 6.2f, 1.8f, pal.hair2)
         }
         drawRiderCap(hx, hy, 4.7f, direction)
-        return bmp
+        if (hd) {
+            // 정면/뒷면 디테일 — 앞바구니 엮음 · 핸들 그립 광 · 벨 · 헬멧끈 · 프레임 윤기
+            if (style.basket && direction == FRONT) {
+                g.rect(12.5f, 20.2f, 19.5f, 20.55f, 0xFFB08840.toInt())
+                for (i in 0 until 6) {
+                    val bx = 12.2f + i * 1.4f
+                    g.rect(bx, 20.1f, bx + 0.2f, 23.2f, HD_SHADE)
+                }
+            }
+            g.rect(16f - hw - 1.1f, 17.9f + bob - tilt, 16f - hw + 1.1f, 18.2f + bob - tilt, HD_HILITE)
+            g.rect(16f + hw - 1.1f, 17.9f + bob + tilt, 16f + hw + 1.1f, 18.2f + bob + tilt, HD_HILITE)
+            if (style.bell) g.circ(16f + hw - 1.9f, 16.9f + bob + tilt, g.fine, HD_SPARK)
+            if (direction == FRONT) {
+                // 헬멧 대신 쓴 탐조 모자 끈 + 볼 광
+                g.rect(hx - 4.6f, hy + 3.6f, hx - 3.4f, hy + 5.2f, shade(pal.hair2, 0.9f))
+                g.rect(hx + 3.4f, hy + 3.6f, hx + 4.6f, hy + 5.2f, shade(pal.hair2, 0.9f))
+                g.circ(hx - 1.1f, hy + 1.5f, g.fine, HD_SPARK)
+                g.circ(hx + 1.1f, hy + 1.5f, g.fine, HD_SPARK)
+                g.rect(hx - 4.3f, hy - 1.6f, hx + 4.3f, hy - 1.15f, HD_HILITE)
+            } else {
+                g.oval(hx - 3.4f, hy - 4.4f, hx + 3.4f, hy - 1.4f, HD_HILITE)
+                g.rect(cx - 4.4f, top + 1.6f, cx + 4.4f, top + 2f, shade(pal.pack2, 0.85f))
+                g.rect(cx - 1f, top + 3.2f, cx + 1f, top + 4.6f, 0xFFD9A03C.toInt())
+            }
+            g.rect(cx - 4.9f, top + 1.4f, cx + 4.9f, top + 1.75f, HD_HILITE)
+            g.rect(cx - 5.1f, hipYb + 0.35f, cx + 5.1f, hipYb + 0.75f, HD_SHADE)
+        }
+        return refine(bmp, size, hd)
+    }
+
+    /**
+     * 원본 픽셀에 또렷한 대비를 한 번 더 준다 (HD 렌더 전용 후처리).
+     *
+     * 벡터 도형을 4배로 래스터화하면 경계가 **부드러운 회색**으로 번지는데,
+     * 그대로 화면에 크게 띄우면 "흐릿하게 확대한 도트"처럼 보인다. 그래서
+     *  1) 밝은 쪽은 더 밝게, 어두운 쪽은 더 어둡게(부드러운 S자 곡선),
+     *  2) 세로 1px·가로 1px만 섞는 아주 약한 샤픈
+     * 을 걸어 윤곽을 세운다. 32px 도트(size = SIZE)는 손대지 않으므로
+     * 예전과 픽셀 단위로 같은 결과가 유지된다.
+     */
+    private fun refine(src: Bitmap, size: Int, hd: Boolean): Bitmap {
+        if (!hd || size <= SIZE) return src
+        return try {
+            val w = src.width
+            val h = src.height
+            val n = w * h
+            val px = IntArray(n)
+            src.getPixels(px, 0, w, 0, 0, w, h)
+            val out = IntArray(n)
+            // 256단계 대비 곡선 — 미리 계산해 두고 화소마다 조회만 한다
+            val curve = IntArray(256)
+            for (i in 0 until 256) {
+                val t = i / 255f
+                val s = (t + 0.30f * sin(TAU * (t - 0.5f))).coerceIn(0f, 1f)
+                curve[i] = (s * 255f + 0.5f).toInt()
+            }
+            fun at(x: Int, y: Int): Int = px[y.coerceIn(0, h - 1) * w + x.coerceIn(0, w - 1)]
+
+            /** 채널 하나: 언샤프 마스크(경계 강조) → 대비 곡선 */
+            fun chan(raw: Int, neighSum: Int): Int {
+                val delta = (raw * 4 - neighSum) * 22 / 400      // (자기값 - 이웃평균) × 0.22
+                return curve[(raw + delta).coerceIn(0, 255)]
+            }
+
+            for (y in 0 until h) {
+                for (x in 0 until w) {
+                    val c = px[y * w + x]
+                    val a = (c ushr 24) and 0xFF
+                    if (a == 0) continue                            // 투명 픽셀은 그대로
+                    val cN = at(x, y - 1); val cS = at(x, y + 1)
+                    val cW = at(x - 1, y); val cE = at(x + 1, y)
+                    val r = chan((c ushr 16) and 0xFF, ((cN ushr 16) and 0xFF) + ((cS ushr 16) and 0xFF) + ((cW ushr 16) and 0xFF) + ((cE ushr 16) and 0xFF))
+                    val g = chan((c ushr 8) and 0xFF, ((cN ushr 8) and 0xFF) + ((cS ushr 8) and 0xFF) + ((cW ushr 8) and 0xFF) + ((cE ushr 8) and 0xFF))
+                    val b = chan(c and 0xFF, (cN and 0xFF) + (cS and 0xFF) + (cW and 0xFF) + (cE and 0xFF))
+                    out[y * w + x] = (a shl 24) or (r shl 16) or (g shl 8) or b
+                }
+            }
+            val dst = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            dst.setPixels(out, 0, w, 0, 0, w, h)
+            dst
+        } catch (_: Exception) {
+            src     // 후처리 실패는 치명적이지 않다 — 원본을 그대로 쓴다
+        }
     }
 
     // -----------------------------------------------------------------------
