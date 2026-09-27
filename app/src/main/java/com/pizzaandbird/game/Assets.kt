@@ -182,6 +182,122 @@ class Assets(private val context: Context) {
     // -----------------------------------------------------------------------
     // SVG 마스터 아트 로더 (art/svg/*.svg -> res/drawable/art_*.xml)
     // tools/build_art.py 가 변환한 VectorDrawable을 래스터화한다.
+    // -----------------------------------------------------------------------
+
+    private val artIds: Map<String, Triple<Int, Int, Int>> = mapOf(
+        "bike_down" to Triple(R.drawable.art_bike_down, 64, 64),
+        "bike_side" to Triple(R.drawable.art_bike_side, 64, 64),
+        "bike_up" to Triple(R.drawable.art_bike_up, 64, 64),
+        "bird_owl" to Triple(R.drawable.art_bird_owl, 38, 42),
+        "bird_raptor" to Triple(R.drawable.art_bird_raptor, 56, 46),
+        "bird_songbird" to Triple(R.drawable.art_bird_songbird, 48, 36),
+        "bird_wader" to Triple(R.drawable.art_bird_wader, 44, 48),
+        "bird_waterfowl" to Triple(R.drawable.art_bird_waterfowl, 52, 34),
+        "camera" to Triple(R.drawable.art_camera, 40, 32),
+        "cat_sit" to Triple(R.drawable.art_cat_sit, 64, 52),
+        "cat_walk_1" to Triple(R.drawable.art_cat_walk_1, 64, 52),
+        "cat_walk_2" to Triple(R.drawable.art_cat_walk_2, 64, 52),
+        "clover" to Triple(R.drawable.art_clover, 28, 28),
+        "decor_bookshelf" to Triple(R.drawable.art_decor_bookshelf, 64, 64),
+        "decor_cactus" to Triple(R.drawable.art_decor_cactus, 64, 64),
+        "decor_lamp" to Triple(R.drawable.art_decor_lamp, 64, 64),
+        "decor_radio" to Triple(R.drawable.art_decor_radio, 64, 64),
+        "decor_rug" to Triple(R.drawable.art_decor_rug, 64, 64),
+        "decor_trophy" to Triple(R.drawable.art_decor_trophy, 64, 64),
+        "house" to Triple(R.drawable.art_house, 28, 28),
+        "moon" to Triple(R.drawable.art_moon, 28, 28),
+        "npc_elder" to Triple(R.drawable.art_npc_elder, 64, 64),
+        "npc_kid" to Triple(R.drawable.art_npc_kid, 64, 64),
+        "npc_professor" to Triple(R.drawable.art_npc_professor, 64, 64),
+        "npc_shop" to Triple(R.drawable.art_npc_shop, 64, 64),
+        "npc_villager" to Triple(R.drawable.art_npc_villager, 64, 64),
+        "pizza" to Triple(R.drawable.art_pizza, 44, 28),
+        "player_down_0" to Triple(R.drawable.art_player_down_0, 64, 64),
+        "player_down_1" to Triple(R.drawable.art_player_down_1, 64, 64),
+        "player_down_2" to Triple(R.drawable.art_player_down_2, 64, 64),
+        "player_side_0" to Triple(R.drawable.art_player_side_0, 64, 64),
+        "player_side_1" to Triple(R.drawable.art_player_side_1, 64, 64),
+        "player_side_2" to Triple(R.drawable.art_player_side_2, 64, 64),
+        "player_up_0" to Triple(R.drawable.art_player_up_0, 64, 64),
+        "player_up_1" to Triple(R.drawable.art_player_up_1, 64, 64),
+        "player_up_2" to Triple(R.drawable.art_player_up_2, 64, 64),
+        "sun" to Triple(R.drawable.art_sun, 32, 32),
+        "tile_bed" to Triple(R.drawable.art_tile_bed, 64, 64),
+        "tile_bench" to Triple(R.drawable.art_tile_bench, 64, 64),
+        "tile_bldg_roof" to Triple(R.drawable.art_tile_bldg_roof, 64, 64),
+        "tile_bldg_wall" to Triple(R.drawable.art_tile_bldg_wall, 64, 64),
+        "tile_bldg_win_0" to Triple(R.drawable.art_tile_bldg_win_0, 64, 64),
+        "tile_bldg_win_1" to Triple(R.drawable.art_tile_bldg_win_1, 64, 64),
+        "tile_box" to Triple(R.drawable.art_tile_box, 64, 64),
+        "tile_decor" to Triple(R.drawable.art_tile_decor, 64, 64),
+        "tile_floor_0" to Triple(R.drawable.art_tile_floor_0, 64, 64),
+        "tile_floor_1" to Triple(R.drawable.art_tile_floor_1, 64, 64),
+        "tile_flower_0" to Triple(R.drawable.art_tile_flower_0, 64, 64),
+        "tile_flower_1" to Triple(R.drawable.art_tile_flower_1, 64, 64),
+        "tile_flower_2" to Triple(R.drawable.art_tile_flower_2, 64, 64),
+        "tile_grass_0" to Triple(R.drawable.art_tile_grass_0, 64, 64),
+        "tile_grass_1" to Triple(R.drawable.art_tile_grass_1, 64, 64),
+        "tile_grass_2" to Triple(R.drawable.art_tile_grass_2, 64, 64),
+        "tile_grass_3" to Triple(R.drawable.art_tile_grass_3, 64, 64),
+        "tile_house_door" to Triple(R.drawable.art_tile_house_door, 64, 64),
+        "tile_house_roof" to Triple(R.drawable.art_tile_house_roof, 64, 64),
+        "tile_house_wall" to Triple(R.drawable.art_tile_house_wall, 64, 64),
+        "tile_house_win" to Triple(R.drawable.art_tile_house_win, 64, 64),
+        "tile_lamp" to Triple(R.drawable.art_tile_lamp, 64, 64),
+        "tile_mountain_0" to Triple(R.drawable.art_tile_mountain_0, 64, 64),
+        "tile_mountain_1" to Triple(R.drawable.art_tile_mountain_1, 64, 64),
+        "tile_oven_0" to Triple(R.drawable.art_tile_oven_0, 64, 64),
+        "tile_oven_1" to Triple(R.drawable.art_tile_oven_1, 64, 64),
+        "tile_path_0" to Triple(R.drawable.art_tile_path_0, 64, 64),
+        "tile_path_1" to Triple(R.drawable.art_tile_path_1, 64, 64),
+        "tile_path_2" to Triple(R.drawable.art_tile_path_2, 64, 64),
+        "tile_plaza_0" to Triple(R.drawable.art_tile_plaza_0, 64, 64),
+        "tile_plaza_1" to Triple(R.drawable.art_tile_plaza_1, 64, 64),
+        "tile_reed_0" to Triple(R.drawable.art_tile_reed_0, 64, 64),
+        "tile_reed_1" to Triple(R.drawable.art_tile_reed_1, 64, 64),
+        "tile_rock_0" to Triple(R.drawable.art_tile_rock_0, 64, 64),
+        "tile_rock_1" to Triple(R.drawable.art_tile_rock_1, 64, 64),
+        "tile_sand_0" to Triple(R.drawable.art_tile_sand_0, 64, 64),
+        "tile_sand_1" to Triple(R.drawable.art_tile_sand_1, 64, 64),
+        "tile_sand_2" to Triple(R.drawable.art_tile_sand_2, 64, 64),
+        "tile_sign" to Triple(R.drawable.art_tile_sign, 64, 64),
+        "tile_tallgrass_0" to Triple(R.drawable.art_tile_tallgrass_0, 64, 64),
+        "tile_tallgrass_1" to Triple(R.drawable.art_tile_tallgrass_1, 64, 64),
+        "tile_tree_0" to Triple(R.drawable.art_tile_tree_0, 64, 64),
+        "tile_tree_1" to Triple(R.drawable.art_tile_tree_1, 64, 64),
+        "tile_tunnel" to Triple(R.drawable.art_tile_tunnel, 64, 64),
+        "tile_wall_in" to Triple(R.drawable.art_tile_wall_in, 64, 64),
+        "tile_wall_win" to Triple(R.drawable.art_tile_wall_win, 64, 64),
+        "tile_water_0" to Triple(R.drawable.art_tile_water_0, 64, 64),
+        "tile_water_1" to Triple(R.drawable.art_tile_water_1, 64, 64),
+        "tile_water_2" to Triple(R.drawable.art_tile_water_2, 64, 64),
+        "tile_water_3" to Triple(R.drawable.art_tile_water_3, 64, 64),
+    )
+
+    /**
+     * 픽셀 아트 표준 경로: 벡터를 네이티브의 2배 크기로 래스터화 한 뒤
+     * 최근접 다운스케일 → 안티앨리어싱이 1px 계단처럼 닫히며 선명한 픽셀 모양.
+     */
+    private fun renderPixel(name: String, w: Int, h: Int): Bitmap {
+        val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
+        val big = Bitmap.createBitmap(vw * 2, vh * 2, Bitmap.Config.ARGB_8888)
+        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
+        d.setBounds(0, 0, vw * 2, vh * 2)
+        d.draw(Canvas(big))
+        return Bitmap.createScaledBitmap(big, w, h, false)
+    }
+
+    /** 소형 HUD 아이콘: 목표 크기로 직접 래스터화 (부드러운 엣지) */
+    private fun renderIcon(name: String, w: Int, h: Int): Bitmap {
+        val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
+        d.setBounds(0, 0, w, h)
+        d.draw(Canvas(bmp))
+        return bmp
+    }
+
+    // -----------------------------------------------------------------------
     // 사람 — 골격 애니메이션 (CharacterArt.kt)
     // 프레임은 필요할 때 만들어 캐시한다 (성별 x 레벨 등급 조합이 많기 때문).
     // -----------------------------------------------------------------------
@@ -1301,7 +1417,7 @@ class Assets(private val context: Context) {
             val t = T.ALL[i]
             val v = map[t] ?: error("타일 아트 누락: $t")
             if (v.isEmpty()) error("타일 아트 비어 있음: $t")
-            v.toTypedArray()
+            v
         }
     }
 
@@ -1341,10 +1457,6 @@ class Assets(private val context: Context) {
             "...dddddddddd......",
             "......................"
         )
-        val pizzaBmp = sprite(pizza, pal + ('A' to c(0xFF7D9C4F)))
-        pizzaIcon = pizzaBmp
-        pizzaIconBig = Bitmap.createScaledBitmap(pizzaBmp, pizzaBmp.width * 4, pizzaBmp.height * 4, false)
-
         // 피자 종류별 아이콘 — 같은 실루엣에 색만 바꾼다.
         //  일반 피자: 도톰한 황금 크러스트(위 템플릿) / 화덕피자: 얇고 군데군데 그을린(k) 크러스트 + 큼직한 토핑
         val pizzaOven = listOf(
