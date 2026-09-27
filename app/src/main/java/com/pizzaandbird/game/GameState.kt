@@ -7,9 +7,10 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
- * 세이브 형식 v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
+ * 세이브 형식 v4: 메인 스토리 진행도와 완료 상태를 추가했다.
+ * v3: 인테리어 스타일·지역별 집 소유권과 탐조가 레벨/경험치/숙련 포인트/스킬을 추가했다.
  * v2 (v0.2.0): 피자 토핑/장식/낮밤 시각/최고 별점 추가.
- * v1·v2 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
+ * v1~v3 세이브는 자동으로 마이그레이션된다. (없는 필드는 기본값)
  */
 class GameState {
 
@@ -41,12 +42,18 @@ class GameState {
     var py = 0f
     var onBike = false
 
-    var questBird: String? = null  // 박사 의뢰: 촬영할 새
+    var questBird: String? = null  // 박사 사진 의뢰(서브퀘스트): 촬영할 새
     var questReward = 0
+
+    // 메인 스토리. 사진 의뢰와 독립적이므로 어느 쪽이든 언제든 진행할 수 있다.
+    var mainQuestStarted = false
+    var mainQuestStage = 0
+    var mainQuestFinished = false
 
     var playSeconds = 0f
     var photos = 0                 // 누적 촬영 장수
     var worldTime = 8.5f           // 게임 내 시각 (0.0~24.0, 8.5=오전 8시반)
+    var day = 1                    // 게임 내 날짜 (자정을 넘기거나 잠들면 +1 — 날씨가 바뀐다)
     var weatherId = Weather.SUNNY.id // 게임 전체 날씨
     var weatherSeconds = 55f         // 다음 날씨 변화까지 남은 시간
 
@@ -55,6 +62,9 @@ class GameState {
     var exp = 0                    // 현재 레벨에서 쌓은 경험치
     var skillPoints = 0            // 사용 가능한 숙련 포인트(SP)
     val skills = LinkedHashMap<String, Int>()   // 스킬id -> 랭크
+
+    var musicOn = true             // 설정: 배경 음악
+    var sfxOn = true               // 설정: 효과음/환경음
 
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
@@ -182,6 +192,30 @@ class GameState {
     /** 장비가 주는 행운 보너스 */
     fun gearLuck(): Int = rig().luck
 
+    /**
+     * 지금 얼마나 어두운가 (0 = 한낮, 1 = 한밤중).
+     * 저조도 노이즈·셔터 속도 판정과 뷰파인더 EXIF 표시에 함께 쓰인다.
+     */
+    fun darkness(): Float {
+        val h = worldTime
+        var d = when {
+            h >= 7f && h < 16.5f -> 0f
+            h >= 6f && h < 7f -> 0.35f
+            h >= 16.5f && h < 18f -> 0.35f
+            h >= 18f && h < 19.5f -> 0.65f
+            h >= 4.5f && h < 6f -> 0.6f
+            else -> 1f
+        }
+        d += when (weather()) {
+            Weather.RAIN -> 0.32f
+            Weather.SNOW -> 0.26f
+            Weather.CLOUDY -> 0.18f
+            Weather.WIND -> 0.08f
+            else -> 0f
+        }
+        return d.coerceIn(0f, 1f)
+    }
+
     // ------------------ 탐조가 성장 ------------------
 
     /** 현재 레벨에서 다음 레벨까지 필요한 경험치 */
@@ -263,6 +297,21 @@ class GameState {
 
     // ------------------ 낮/밤 ------------------
 
+    /** 게임 시계를 dt초만큼 진행 (자정을 넘기면 날짜 +1) */
+    fun advanceClock(dt: Float) {
+        worldTime += dt * 24f / DAY_SECONDS
+        while (worldTime >= 24f) {
+            worldTime -= 24f
+            day += 1
+        }
+    }
+
+    /** 침대에서 자고 아침 7:12에 일어남 (자정 전에 잤다면 다음 날) */
+    fun sleepUntilMorning() {
+        if (worldTime > 7.2f) day += 1
+        worldTime = 7.2f
+    }
+
     /** 밤(올빼미 등 밤새 출현) 여부 */
     fun isNight(): Boolean = worldTime >= 19.5f || worldTime < 4.5f
 
@@ -334,9 +383,13 @@ class GameState {
         onBike = false
         questBird = null
         questReward = 0
+        mainQuestStarted = false
+        mainQuestStage = 0
+        mainQuestFinished = false
         playSeconds = 0f
         photos = 0
         worldTime = 8.5f
+        day = 1
         weatherId = Weather.SUNNY.id
         weatherSeconds = 55f
         for (i in decorSlots.indices) decorSlots[i] = -1
@@ -375,9 +428,15 @@ class GameState {
         put("onBike", onBike)
         put("questBird", questBird ?: "")
         put("questReward", questReward)
+        put("mainQuestStarted", mainQuestStarted)
+        put("mainQuestStage", mainQuestStage)
+        put("mainQuestFinished", mainQuestFinished)
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("day", day)
+        put("musicOn", musicOn)
+        put("sfxOn", sfxOn)
         put("weatherId", weatherId)
         put("weatherSeconds", weatherSeconds.toDouble())
         put("level", level)
@@ -465,9 +524,15 @@ class GameState {
             s.onBike = j.optBoolean("onBike", false)
             s.questBird = j.optString("questBird", "").ifEmpty { null }
             s.questReward = j.optInt("questReward", 0)
+            s.mainQuestStarted = j.optBoolean("mainQuestStarted", false)
+            s.mainQuestStage = j.optInt("mainQuestStage", 0).coerceIn(0, MainStory.CHAPTERS.size)
+            s.mainQuestFinished = j.optBoolean("mainQuestFinished", false) || s.mainQuestStage >= MainStory.CHAPTERS.size
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.day = j.optInt("day", 1).coerceAtLeast(1)
+            s.musicOn = j.optBoolean("musicOn", true)
+            s.sfxOn = j.optBoolean("sfxOn", true)
             s.weatherId = j.optString("weatherId", Weather.SUNNY.id)
             s.weatherSeconds = j.optDouble("weatherSeconds", 55.0).toFloat().coerceIn(0f, 120f)
 

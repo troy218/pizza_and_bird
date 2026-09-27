@@ -43,6 +43,8 @@ class TitleScene(game: Game) : Scene(game) {
         game.hud.questLabel = null
         game.hud.photoModeHint = false
         game.hud.regionLabel = ""
+        game.audio.stopAmb()
+        game.audio.playBgm(R.raw.bgm_title)   // 🎵 신비로운 세계
     }
 
     override fun update(dt: Float) {
@@ -134,6 +136,9 @@ class TitleScene(game: Game) : Scene(game) {
         val bob = sin(t * 2.2f) * 5f
         val pz = a.pizzaIconBig
         c.drawBitmap(pz, 384f, 336f + bob, a.sprPaint)
+        p.color = Color.argb((34f + 12f * (0.5f + 0.5f * sin(t * 3f))).toInt(), 255, 139, 66)
+        c.drawCircle(658f, 380f, 43f, p)
+        game.illustrations.draw(c, "wood_fired_oven.svg", RectF(620f, 334f, 696f, 424f))
         val bird = a.bird("sparrow")
         c.drawBitmap(bird, 296f, 348f + sin(t * 2.4f) * 4f, a.sprPaint)
         val fb = sin(t * 2.6f + 1f) * 7f
@@ -217,7 +222,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 하단 정보
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
-        val info = "v0.3.0 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
+        val info = "v0.3.2 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
         c.drawText(info, cx - tp.measureText(info) / 2, h - dp(12f), tp)
     }
 
@@ -267,8 +272,23 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, p)
         p.textSize=16f; p.isFakeBoldText=false; c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
         fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); p.textSize=22f; p.isFakeBoldText=true; c.drawText(label,r.centerX()-p.measureText(label)/2,r.bottom-25,p) }
-        card(male,"남자",game.state.gender=="male",game.assets.playerDown[0]); card(female,"여자",game.state.gender=="female",game.assets.playerDown[0])
+        val t=game.time; val mf=game.assets.playerSet("male",0).idle; val ff=game.assets.playerSet("female",0).idle
+        card(male,"남자",game.state.gender=="male",mf.frame(Dir.S,(t/Anim.IDLE.frameTime).toInt())); card(female,"여자",game.state.gender=="female",ff.frame(Dir.S,((t+0.8f)/Anim.IDLE.frameTime).toInt()))
         p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
     }
-    override fun handleInput(input:Input) { val t=input.consumeTapScreen(); if(t!=null){ if(male.contains(t.x,t.y)) game.state.gender="male"; if(female.contains(t.x,t.y)) game.state.gender="female"; if(male.contains(t.x,t.y)||female.contains(t.x,t.y)) game.haptic() }; if(input.justA && (game.state.gender=="male"||game.state.gender=="female")) game.fadeTo { game.scene=RegionSelectScene(game) } }
+    override fun handleInput(input:Input) {
+        if (input.justBack || input.justB) {
+            game.fadeTo { game.scene = TitleScene(game) }
+            return
+        }
+        val t = input.consumeTapScreen()
+        if (t != null) {
+            if (male.contains(t.x, t.y)) game.state.gender = "male"
+            if (female.contains(t.x, t.y)) game.state.gender = "female"
+            if (male.contains(t.x, t.y) || female.contains(t.x, t.y)) game.haptic()
+        }
+        if (input.justA && (game.state.gender == "male" || game.state.gender == "female")) {
+            game.fadeTo { game.scene = RegionSelectScene(game) }
+        }
+    }
 }
