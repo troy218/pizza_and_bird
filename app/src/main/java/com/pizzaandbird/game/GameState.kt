@@ -40,6 +40,9 @@ class GameState {
     var photos = 0                 // 누적 촬영 장수
     var worldTime = 8.5f           // 게임 내 시각 (0.0~24.0, 8.5=오전 8시반)
 
+    var musicOn = true             // 설정: 배경 음악
+    var sfxOn = true               // 설정: 효과음/환경음
+
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
@@ -189,6 +192,8 @@ class GameState {
         put("playSeconds", playSeconds.toDouble())
         put("photos", photos)
         put("worldTime", worldTime.toDouble())
+        put("musicOn", musicOn)
+        put("sfxOn", sfxOn)
         put("pizzas", JSONArray().apply { pizzas.forEach { put(it) } })
         put("birdCounts", JSONObject(birdCounts as Map<*, *>))
         put("bestStars", JSONObject(bestStars as Map<*, *>))
@@ -237,6 +242,8 @@ class GameState {
             s.playSeconds = j.optDouble("playSeconds", 0.0).toFloat()
             s.photos = j.optInt("photos", 0)
             s.worldTime = j.optDouble("worldTime", 8.5).toFloat().coerceIn(0f, 24f)
+            s.musicOn = j.optBoolean("musicOn", true)
+            s.sfxOn = j.optBoolean("sfxOn", true)
 
             val pz = j.optJSONArray("pizzas")
             if (pz != null) {

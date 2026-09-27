@@ -91,6 +91,7 @@ class DialogOverlay(
 
     private fun pick(i: Int) {
         if (i in choices.indices) {
+            scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             choices[i].action(this)
             // 액션이 오버레이를 교체하지 않았다면 자동으로 닫기 (예: 피자 굽기로 교체되는 경우 유지)
             if (scene.overlay === this) finished = true
@@ -467,6 +468,16 @@ class MenuOverlay(scene: Scene) : Overlay(scene) {
             ty += dp(scene, 42f)
         }
 
+        button(if (g.state.musicOn) "🎵 음악: 켜짐" else "🎵 음악: 꺼짐") {
+            g.state.musicOn = !g.state.musicOn
+            g.audio.setMusic(g.state.musicOn)
+            SaveManager.save(g.context, g.state)
+        }
+        button(if (g.state.sfxOn) "🔊 효과음: 켜짐" else "🔊 효과음: 꺼짐") {
+            g.state.sfxOn = !g.state.sfxOn
+            g.audio.setSfx(g.state.sfxOn)
+            SaveManager.save(g.context, g.state)
+        }
         button("저장하기") {
             SaveManager.save(g.context, g.state)
             g.toast("저장 완료!")
@@ -532,12 +543,14 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         }
         if (s.money < d.cost) {
             g.toast("돈이 부족해요… (${won(d.cost)})")
+            g.sfx(Audio.Sfx.FAIL, 0.5f)
             return
         }
         s.money -= d.cost
         s.decorOwned.add(id)
         SaveManager.save(g.context, s)
         g.toast("${d.emoji} ${d.name} 구매! 집의 장식 칸에 놓아보세요")
+        g.sfx(Audio.Sfx.BUY)
     }
 
     override fun draw(c: Canvas) {
@@ -703,12 +716,14 @@ class HouseStyleOverlay(
             if (id !in g.state.ownedHouseStyles) {
                 if (g.state.money < style.price) {
                     g.toast("돈이 부족해요… 인테리어 비용 ${won(style.price)}")
+                    g.sfx(Audio.Sfx.FAIL, 0.5f)
                     return
                 }
                 g.state.money -= style.price
                 g.state.ownedHouseStyles.add(id)
                 SaveManager.save(g.context, g.state)
                 g.toast("${style.emoji} ${style.name} 구매 완료!")
+                g.sfx(Audio.Sfx.BUY)
             }
             onApply(id)
             finished = true
@@ -807,6 +822,8 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
                         topping = id
                         step = 1
                         t = 0.6f
+                        scene.game.sfx(Audio.Sfx.TAP, 0.6f)
+                        scene.game.audio.playAmb(R.raw.amb_fire, 0.5f)   // 🔥 화덕 불 소리
                         return
                     }
                 }
@@ -834,6 +851,12 @@ class BakeOverlay(scene: Scene) : Overlay(scene) {
         }
         lostPizza = !scene.game.state.addPizza(topping, resultQ)
         SaveManager.save(scene.game.context, scene.game.state)
+        scene.game.audio.stopAmb()   // 화덕 불 소리 끄기
+        when (resultQ) {
+            2 -> scene.game.sfx(Audio.Sfx.SPARKLE)          // 걸작!
+            1 -> scene.game.sfx(Audio.Sfx.SUCCESS, 0.8f)    // 맛있는
+            else -> scene.game.sfx(Audio.Sfx.FAIL, 0.6f)    // 살짝 탐
+        }
     }
 
     override fun draw(c: Canvas) {
@@ -980,9 +1003,26 @@ class PhotoResultOverlay(
 ) : Overlay(scene) {
 
     private var t = 0f
+    private var cuedStars = false
+    private var cuedNew = false
+    private var cuedQuest = false
 
     override fun update(dt: Float) {
         t += dt
+        val g = scene.game
+        // 연출에 맞춰 순차 재생: 별점 → 도감 신규 → 의뢰 보수
+        if (!cuedStars && t >= 0.3f) {
+            cuedStars = true
+            g.sfx(Audio.Sfx.SUCCESS, 0.55f + stars * 0.15f)
+        }
+        if (isNew && !cuedNew && t >= 0.75f) {
+            cuedNew = true
+            g.sfx(Audio.Sfx.SPARKLE, 0.9f)
+        }
+        if (questLine != null && !cuedQuest && t >= 1.15f) {
+            cuedQuest = true
+            g.sfx(Audio.Sfx.REWARD, 0.9f)   // 의뢰 보수 ₩
+        }
     }
 
     override fun handleInput(input: Input) {

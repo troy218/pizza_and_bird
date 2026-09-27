@@ -42,6 +42,8 @@ class WorldScene(
     private var saveT = 20f
     private var dustT = 0f
     private var ambientT = 0f
+    private var chirpT = 4f + rnd.nextFloat() * 6f    // 새 지저귐 효과음 타이머
+    private var owlT = 6f + rnd.nextFloat() * 10f     // 밤 부엉이 효과음 타이머
 
     // 파티클
     private class Pt(
@@ -111,6 +113,18 @@ class WorldScene(
         game.hud.regionLabel = region.name
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
+
+        game.audio.playBgm(R.raw.bgm_world)   // 🎵 새가 날아가는 길
+        updateAmbience()
+    }
+
+    /** 낮 → 새소리(숲 지역은 벌새 허밍), 밤 → 바람 환경음 루프 */
+    private fun updateAmbience() {
+        when {
+            state.isNight() -> game.audio.playAmb(R.raw.amb_wind, 0.2f)
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
+            else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
+        }
     }
 
     // -------------------------------------------------------------------
@@ -119,7 +133,10 @@ class WorldScene(
 
     override fun update(dt: Float) {
         game.hud.update(dt)
-        if (overlay != null) return   // 대화상자/메뉴 중에는 세계 정지
+        if (overlay != null) {
+            game.audio.stopSteps()
+            return   // 대화상자/메뉴 중에는 세계 정지
+        }
         state.playSeconds += dt
         state.worldTime = (state.worldTime + dt * 24f / DAY_SECONDS) % 24f
 
@@ -127,12 +144,39 @@ class WorldScene(
         updateStats(dt)
         checkTileTriggers()
 
+        // 발소리 (걸을 때만 — 자전거는 소리 없이 쌩~)
+        val stepping = player.moving && !player.bike
+        game.audio.steps(
+            if (stepping) Audio.Steps.GRAVEL else Audio.Steps.NONE,
+            run = stepping && game.input.isRun
+        )
+
+        // 환경음 + 랜덤 지저귐/부엉이
+        updateAmbience()
+        if (state.isNight()) {
+            owlT -= dt
+            if (owlT <= 0f) {
+                owlT = 14f + rnd.nextFloat() * 18f
+                game.sfx(Audio.Sfx.OWL, 0.5f)
+            }
+        } else if (birds.isNotEmpty()) {
+            chirpT -= dt
+            if (chirpT <= 0f) {
+                chirpT = 7f + rnd.nextFloat() * 9f
+                game.sfx(if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2, 0.45f)
+            }
+        }
+
         // 새
         val birdDt = if (photoMode) dt * 0.35f else dt
         val it = birds.iterator()
         while (it.hasNext()) {
             val b = it.next()
             b.update(birdDt, player.cx, player.cy, player.bike, photoMode, map)
+            if (b.state == 2 && !b.fleeCued) {
+                b.fleeCued = true
+                game.sfx(Audio.Sfx.BIRD_FLEE, 0.65f)   // 푸드덕! 도망
+            }
             if (b.gone) it.remove()
         }
 
@@ -283,6 +327,8 @@ class WorldScene(
         state.py = player.y
         SaveManager.save(game.context, state)
         if (viaSea) game.toast("해저 터널을 지나~ 🚲💨")
+        game.sfx(Audio.Sfx.WHOOSH, 0.8f)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = WorldScene(game, targetId, SpawnKind.TUNNEL, Regions.opposite(edge))
         }
@@ -292,6 +338,7 @@ class WorldScene(
         state.px = player.x
         state.py = player.y
         SaveManager.save(game.context, state)
+        game.audio.stopSteps()
         game.fadeTo {
             game.scene = HomeScene(game)
         }
@@ -337,13 +384,20 @@ class WorldScene(
             }
             if (tooClose) continue
             birds.add(FieldBird(def, bx, by))
-            if (def.tier.star >= 3) game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
-            if (state.questBird == def.id) game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+            if (def.tier.star >= 3) {
+                game.toast("✨ 조심하세요… ${def.name}가 나타났어요!")
+                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
+            }
+            if (state.questBird == def.id) {
+                game.toast("📋 의뢰의 새 ${def.name} 등장! 📷")
+                game.sfx(Audio.Sfx.NOTIFY, 0.7f)
+            }
             return
         }
     }
 
     private fun snap(b: FieldBird) {
+        game.sfx(Audio.Sfx.SHUTTER)   // 찰칵!
         val a = game.assets
         val bmp = a.bird(b.def.id)
         val distPx = hypot(b.cx - player.cx, b.cy - player.cy)
@@ -550,6 +604,7 @@ class WorldScene(
     private fun restAtBench() {
         state.luck = (state.luck + 2f).coerceAtMost(100f)
         game.toast("벤치에 앉아 쉬었다~ 구름 구경 ☘️+2")
+        game.sfx(Audio.Sfx.SPARKLE, 0.55f)
     }
 
     // -------------------------------------------------------------------
@@ -625,6 +680,7 @@ class WorldScene(
                             state.questReward = def.reward
                             SaveManager.save(game.context, state)
                             game.toast("의뢰 접수: ${def.name} 사진 📷")
+                            game.sfx(Audio.Sfx.NOTIFY, 0.8f)
                         },
                         DialogOverlay.Choice("다음에요…")
                     )
@@ -670,8 +726,10 @@ class WorldScene(
                                     game.state.cameraLevel = lvl + 1
                                     SaveManager.save(game.context, game.state)
                                     game.toast("카메라가 ${next.name}(으)로 업그레이드됐어요! 📷✨")
+                                    game.sfx(Audio.Sfx.BUY)
                                 } else {
                                     game.toast("돈이 부족해요… 박사 의뢰를 해볼까요?")
+                                    game.sfx(Audio.Sfx.FAIL, 0.5f)
                                 }
                             }
                         )
@@ -707,6 +765,7 @@ class WorldScene(
         if (input.justCam) {
             photoMode = !photoMode
             game.hud.photoModeHint = photoMode
+            game.sfx(Audio.Sfx.TAP, 0.6f, if (photoMode) 1.3f else 0.9f)
             if (photoMode) game.toast("카메라 모드! 새를 탭해서 찍어요 📷")
             return
         }
@@ -721,6 +780,7 @@ class WorldScene(
         if (input.justB) {
             player.bike = !player.bike
             state.onBike = player.bike
+            game.sfx(if (player.bike) Audio.Sfx.BIKE_BELL else Audio.Sfx.BIKE_BRAKE, 0.8f)
             game.toast(if (player.bike) "자전거 탔다! 쌩~ 🚲" else "자전거에서 내렸어요")
             return
         }
@@ -743,6 +803,7 @@ class WorldScene(
             }
             nearestCat()?.let { cat ->
                 state.luck = (state.luck + 1f).coerceAtMost(100f)
+                game.sfx(Audio.Sfx.SPARKLE, 0.5f, 1.15f)
                 for (i in 0 until 3) {
                     addParticle(
                         cat.cx, cat.cy - 6f,
@@ -799,9 +860,11 @@ class WorldScene(
         val tId = state.eatBest()
         if (tId == null) {
             game.toast("피자가 없어요! 집의 화덕에서 구워요 🍕")
+            game.sfx(Audio.Sfx.FAIL, 0.45f)
         } else {
             val t = Toppings.of(tId)
             game.toast("냠냠! ${t.emoji} ${t.name} 피자")
+            game.sfx(Audio.Sfx.EAT, 0.9f)
         }
     }
 

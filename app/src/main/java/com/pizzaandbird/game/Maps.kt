@@ -468,6 +468,7 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var hopT = 0f
     var fleeVx = 0f; var fleeVy = 0f
     var fleeT = 0f
+    var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
     var faceLeft = true
     var sprW = 16                    // 스프라이트 크기 (생성 시 Assets에서 설정)
     var sprH = 15
