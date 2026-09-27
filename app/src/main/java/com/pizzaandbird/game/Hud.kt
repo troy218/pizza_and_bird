@@ -12,7 +12,6 @@ import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
-import android.graphics.Typeface
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -82,8 +81,6 @@ class Hud(private val game: Game) {
     private val clipPath = Path()
     private val tmpPath = Path()
     private var paperBmp: Bitmap? = null
-    private val serif = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
-    private val serifBold = Typeface.create(Typeface.SERIF, Typeface.BOLD)
     private var routeDashFx: DashPathEffect? = null
 
     private val GLASS_RATIO = 0.745f
@@ -204,6 +201,8 @@ class Hud(private val game: Game) {
     // ------------------------------------------------------------------
 
     fun draw(c: Canvas) {
+        // HUD의 모든 숫자/라벨/토스트/배너는 동글동글한 주아 글꼴로
+        text.typeface = Fonts.round
         if (showStats) drawStats(c)
         if (showMinimap) {
             drawMinimap(c, mmCx, mmCy, mmR, false)
@@ -741,7 +740,8 @@ class Hud(private val game: Game) {
             }
 
             if (showNames && (isCurrent || isHome)) {
-                inkText.typeface = Typeface.DEFAULT_BOLD
+                inkText.typeface = Fonts.round
+                inkText.isFakeBoldText = true
                 inkText.textSize = dp(8f)
                 inkText.color = if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt()
                 val tw = inkText.measureText(reg.name)
@@ -865,7 +865,9 @@ class Hud(private val game: Game) {
         fx.color = 0xFFBA2E24.toInt()
         c.drawPath(tmpPath, fx)
 
-        inkText.typeface = serifBold
+        // 나침반 방위 글자는 낡은 지도 감성의 세리프(고운 바탕)로
+        inkText.typeface = Fonts.serif
+        inkText.isFakeBoldText = true
         inkText.textSize = dp(8.2f)
         val letterR = glass + dp(6.0f)
         val letters = arrayOf("N" to 0, "E" to 90, "S" to 180, "W" to 270)
@@ -1007,10 +1009,11 @@ class Hud(private val game: Game) {
     private fun fieldTagRect(): RectF? {
         if (!showMinimap || regionLabel.isEmpty() || mmR <= 0f || game.screenW <= 0) return null
         val reg = Regions.byId[game.state.region]
-        measurePaint.typeface = Typeface.DEFAULT_BOLD
+        measurePaint.typeface = Fonts.handBold
+        measurePaint.isFakeBoldText = false
         measurePaint.textSize = dp(12.2f)
         val nameW = measurePaint.measureText(regionLabel)
-        measurePaint.typeface = serif
+        measurePaint.typeface = Fonts.serif
         measurePaint.textSize = dp(7.3f)
         val subW = measurePaint.measureText(coordLine(reg))
         val wax = dp(16f)
@@ -1096,13 +1099,17 @@ class Hud(private val game: Game) {
         fx.color = Color.argb(160, 255, 206, 186)
         c.drawCircle(wx - dp(1.1f), wy - dp(1.2f), dp(1.35f), fx)
 
-        inkText.typeface = Typeface.DEFAULT_BOLD
+        // 탐조 메모지의 지역 이름은 손글씨(가경)로 또박또박
+        inkText.typeface = Fonts.handBold
+        inkText.isFakeBoldText = false
         inkText.textSize = dp(12.2f)
         inkText.color = 0xFF36261A.toInt()
         val nameX = rect.left + dp(20f)
         drawHandInk(c, regionLabel, nameX, rect.top + dp(15.6f), inkText)
 
-        inkText.typeface = serif
+        // 좌표는 지도 감성의 세리프(고운 바탕)로
+        inkText.typeface = Fonts.serif
+        inkText.isFakeBoldText = true
         inkText.textSize = dp(7.3f)
         inkText.color = 0xFF766044.toInt()
         c.drawText(coord, nameX, rect.bottom - dp(8.2f), inkText)

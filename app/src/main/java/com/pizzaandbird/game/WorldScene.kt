@@ -64,6 +64,7 @@ class WorldScene(
     private val particles = ArrayList<Pt>()
 
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Fonts.round
         isFakeBoldText = true
         color = 0xFF4A3728.toInt()
         textSize = 13f
@@ -78,6 +79,7 @@ class WorldScene(
     private val uiFill = Paint()
     private val uiStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val uiText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Fonts.round
         isFakeBoldText = true
         color = 0xFF4A3728.toInt()
         textSize = 12f

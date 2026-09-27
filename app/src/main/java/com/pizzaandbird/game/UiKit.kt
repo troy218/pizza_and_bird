@@ -248,6 +248,7 @@ object UiKit {
         stroke.color = Color.argb(90, 255, 255, 255)
         stroke.strokeWidth = 1f * d
         c.drawCircle(cx, cy, radius - 2.4f * d, stroke)
+        text.typeface = Fonts.round
         text.textSize = glyphSizeDp * d
         text.color = glyphCol
         val tw = text.measureText(glyph)
@@ -331,6 +332,7 @@ object UiKit {
         // 광택 점
         fill.color = Color.argb(90, 255, 255, 255)
         c.drawCircle(cx - radius * 0.3f, cy - radius * 0.34f, radius * 0.22f, fill)
+        text.typeface = Fonts.round
         text.textSize = emojiSizeDp * d
         text.color = BROWN
         val tw = text.measureText(emoji)
@@ -355,6 +357,7 @@ object UiKit {
     // ------------------------------------------------------------------
     fun darkChip(c: Canvas, game: Game, cx: Float, cy: Float, txt: String, textSizeDp: Float = 12f) {
         val d = game.density
+        text.typeface = Fonts.round
         text.textSize = textSizeDp * d
         val tw = text.measureText(txt)
         val pad = 9f * d
@@ -397,6 +400,7 @@ object UiKit {
         textSizeDp: Float, color: Int, shadow: Boolean = true
     ) {
         val d = game.density
+        text.typeface = Fonts.round
         text.textSize = textSizeDp * d
         val tw = text.measureText(label)
         val ty = r.centerY() - (text.descent() + text.ascent()) / 2f
@@ -410,6 +414,7 @@ object UiKit {
 
     /** 왼쪽 정렬 텍스트 (그림자 포함) */
     fun drawText(c: Canvas, game: Game, label: String, x: Float, y: Float, textSizeDp: Float, color: Int) {
+        text.typeface = Fonts.round
         text.textSize = textSizeDp * game.density
         text.color = color
         c.drawText(label, x, y, text)

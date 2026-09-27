@@ -162,6 +162,7 @@ class TitleScene(game: Game) : Scene(game) {
         val h = game.screenH.toFloat()
 
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Fonts.round   // 동글동글 주아 — 타이틀 로고 글꼴
             isFakeBoldText = true
             textSize = dp(38f)
             color = 0xFF4A3728.toInt()
@@ -177,11 +178,14 @@ class TitleScene(game: Game) : Scene(game) {
         c.drawText(t1, cx - titlePaint.measureText(t1) / 2, ty, titlePaint)
 
         titlePaint.textSize = dp(22f)
+        shadow.textSize = dp(22f)
         titlePaint.color = 0xFF6B4F35.toInt()
         ty += dp(34f)
         c.drawText(t2, cx - titlePaint.measureText(t2) / 2 + dp(1.5f), ty + dp(1.5f), shadow)
         c.drawText(t2, cx - titlePaint.measureText(t2) / 2, ty, titlePaint)
 
+        titlePaint.typeface = Fonts.body
+        titlePaint.isFakeBoldText = false
         titlePaint.textSize = dp(12.5f)
         titlePaint.color = 0xFF6FAE6F.toInt()
         val sub = "피자를 굽고, 자전거를 타고, 새를 찍는 힐링 여행"
@@ -202,6 +206,7 @@ class TitleScene(game: Game) : Scene(game) {
             color = 0xFF6B4F35.toInt()
         }
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Fonts.round
             isFakeBoldText = true
             textSize = dp(16f)
             color = 0xFF4A3728.toInt()
@@ -220,6 +225,8 @@ class TitleScene(game: Game) : Scene(game) {
         button(contRect, "이어하기", game.state.started)
 
         // 하단 정보
+        tp.typeface = Fonts.body
+        tp.isFakeBoldText = false
         tp.textSize = dp(10f)
         tp.color = Color.argb(180, 74, 55, 40)
         val info = "v0.3.2 beta · 오프라인 · 한국 12곳 · 공식 새 598종 · 탐조가 성장 · made with 🍕"
@@ -268,13 +275,13 @@ class CharacterSelectScene(game: Game) : Scene(game) {
     init { game.hud.showControls = false; game.hud.showStats = false; game.hud.showMinimap = false }
     override fun drawWorld(c: Canvas) {
         c.drawColor(0xFFA4E4EE.toInt()); val p=Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color=0xFF6B4F35.toInt(); p.textSize=30f; p.isFakeBoldText=true
+        p.typeface=Fonts.round; p.color=0xFF6B4F35.toInt(); p.textSize=30f; p.isFakeBoldText=true
         c.drawText("여행할 캐릭터를 골라 주세요", 250f, 115f, p)
-        p.textSize=16f; p.isFakeBoldText=false; c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
-        fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); p.textSize=22f; p.isFakeBoldText=true; c.drawText(label,r.centerX()-p.measureText(label)/2,r.bottom-25,p) }
+        p.typeface=Fonts.body; p.textSize=16f; p.isFakeBoldText=false; c.drawText("선택한 캐릭터는 게임 내내 함께 여행해요", 315f, 145f, p)
+        fun card(r:RectF, label:String, selected:Boolean, bmp:android.graphics.Bitmap) { p.color=if(selected) 0xFFFFE0A3.toInt() else 0xFFF8EFDC.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.STROKE; p.strokeWidth=if(selected)5f else 2f; p.color=0xFF6B4F35.toInt(); c.drawRoundRect(r,18f,18f,p); p.style=Paint.Style.FILL; c.drawBitmap(bmp,null,RectF(r.centerX()-32,r.top+18,r.centerX()+32,r.top+82),p); p.typeface=Fonts.round; p.textSize=22f; p.isFakeBoldText=true; c.drawText(label,r.centerX()-p.measureText(label)/2,r.bottom-25,p) }
         val t=game.time; val mf=game.assets.playerSet("male",0).idle; val ff=game.assets.playerSet("female",0).idle
         card(male,"남자",game.state.gender=="male",mf.frame(Dir.S,(t/Anim.IDLE.frameTime).toInt())); card(female,"여자",game.state.gender=="female",ff.frame(Dir.S,((t+0.8f)/Anim.IDLE.frameTime).toInt()))
-        p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
+        p.typeface=Fonts.body; p.textSize=15f; p.isFakeBoldText=false; c.drawText("탭해서 선택 · A 버튼으로 계속",350f,455f,p)
     }
     override fun handleInput(input:Input) {
         if (input.justBack || input.justB) {

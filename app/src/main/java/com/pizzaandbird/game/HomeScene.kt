@@ -24,6 +24,7 @@ class HomeScene(game: Game) : Scene(game) {
     private var camY = 0f
 
     private val tinyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Fonts.round
         isFakeBoldText = true
         color = 0xFF4A3728.toInt()
         textSize = 14f
@@ -716,7 +717,7 @@ class HomeScene(game: Game) : Scene(game) {
     override fun drawHud(c: Canvas) {
         game.hud.draw(c)
         // 조작 힌트
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.body }
         tp.textSize = 11f * game.density
         tp.color = 0x99F8EFDC.toInt()
         val hint = "A: 상호작용 · 🍕: 간식 · 메뉴(≡): 피자/도감/설정"

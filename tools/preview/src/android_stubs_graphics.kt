@@ -50,6 +50,23 @@ object Color {
 
     @JvmStatic
     fun blue(color: Int): Int = color and 0xFF
+
+    /** #RGB / #RRGGBB / #AARRGGBB 문자열을 색상 정수로 */
+    @JvmStatic
+    fun parseColor(colorString: String): Int {
+        val s = colorString.trim()
+        if (!s.startsWith("#")) throw IllegalArgumentException("unknown color format: $colorString")
+        val hex = s.substring(1)
+        return when (hex.length) {
+            3 -> {
+                val r = hex[0].digitToInt(16); val g = hex[1].digitToInt(16); val b = hex[2].digitToInt(16)
+                argb(255, r * 17, g * 17, b * 17)
+            }
+            6 -> java.lang.Long.parseLong(hex, 16).toInt() or 0xFF000000.toInt()
+            8 -> java.lang.Long.parseLong(hex, 16).toInt()
+            else -> throw IllegalArgumentException("unknown color format: $colorString")
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +256,23 @@ class RadialGradient(
 
 open class PathEffect
 
+open class MaskFilter
+
+class BlurMaskFilter(radius: Float, style: Blur) : MaskFilter() {
+    enum class Blur { NORMAL, SOLID, OUTER, INNER }
+}
+
+open class Xfermode
+
+object PorterDuff {
+    enum class Mode {
+        CLEAR, SRC, DST, SRC_OVER, DST_OVER, SRC_IN, DST_IN, SRC_OUT, DST_OUT,
+        SRC_ATOP, DST_ATOP, XOR, DARKEN, LIGHTEN, MULTIPLY, SCREEN
+    }
+}
+
+class PorterDuffXfermode(mode: PorterDuff.Mode) : Xfermode()
+
 class DashPathEffect(intervals: FloatArray, phase: Float) : PathEffect() {
     internal val intervals: FloatArray = intervals.copyOf()
     internal val phase: Float = phase
@@ -248,12 +282,41 @@ class DashPathEffect(intervals: FloatArray, phase: Float) : PathEffect() {
 // 텍스트(폰트) 지원
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Typeface — 게임 번들 글꼴(assets/fonts/*.ttf)을 실제로 로드해 프리뷰에 반영한다
+// ---------------------------------------------------------------------------
+
+open class Typeface(val stubName: String) {
+    companion object {
+        const val NORMAL = 0
+        const val BOLD = 1
+        const val ITALIC = 2
+        const val BOLD_ITALIC = 3
+
+        @JvmField val DEFAULT = Typeface("sans-serif")
+        @JvmField val DEFAULT_BOLD = Typeface("sans-serif-bold")
+        @JvmField val SANS_SERIF = Typeface("sans-serif")
+        @JvmField val SERIF = Typeface("serif")
+        @JvmField val MONOSPACE = Typeface("monospace")
+
+        fun create(familyName: String?, style: Int): Typeface = Typeface(familyName ?: "sans-serif")
+        fun create(family: Typeface?, style: Int): Typeface = family ?: DEFAULT
+
+        /** 프리뷰 구현: 리포지터리 앱 에셋에서 TTF를 실제로 읽어 등록한다. */
+        fun createFromAsset(assets: android.content.res.AssetManager, path: String): Typeface {
+            StubText.registerAssetFont(path)
+            return Typeface("asset:$path")
+        }
+    }
+}
+
 object StubText {
     @Volatile var regular: Font? = null
     @Volatile var bold: Font? = null
 
     private val fontCache = ConcurrentHashMap<String, Font>()
     private val metricsCache = ConcurrentHashMap<Font, FontMetrics>()
+    private val assetFonts = ConcurrentHashMap<String, Font>()
     private val scratch: BufferedImage = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
 
     fun loadFromDir(dir: File) {
@@ -269,7 +332,43 @@ object StubText {
         }
     }
 
-    fun fontFor(size: Float, bold: Boolean): Font {
+    /** 게임 에셋 글꼴 등록 (경로: app/src/main/assets 기준) */
+    fun registerAssetFont(path: String) {
+        assetFonts.getOrPut(path) {
+            try {
+                val f = File("app/src/main/assets/$path")
+                if (f.exists()) Font.createFont(Font.TRUETYPE_FONT, f).deriveFont(12f)
+                else Font(Font.SANS_SERIF, Font.PLAIN, 12)
+            } catch (_: Exception) {
+                Font(Font.SANS_SERIF, Font.PLAIN, 12)
+            }
+        }
+    }
+
+    fun fontFor(size: Float, bold: Boolean): Font = fontFor(size, bold, null)
+
+    fun fontFor(size: Float, bold: Boolean, tf: Typeface?): Font {
+        if (tf != null) {
+            val key = tf.stubName + ":" + size
+            return fontCache.getOrPut(key) {
+                when {
+                    tf.stubName == "monospace" -> Font(Font.MONOSPACED, Font.PLAIN, size.toInt().coerceAtLeast(1))
+                    tf.stubName == "serif" -> Font(Font.SERIF, Font.PLAIN, size.toInt().coerceAtLeast(1))
+                    tf.stubName.startsWith("asset:") -> {
+                        val base = assetFonts[tf.stubName.removePrefix("asset:")]
+                        base?.deriveFont(size) ?: fallbackFont(size, bold)
+                    }
+                    tf.stubName == "sans-serif-bold" -> {
+                        (this.bold ?: regular)?.deriveFont(size) ?: Font(Font.SANS_SERIF, Font.BOLD, size.toInt().coerceAtLeast(1))
+                    }
+                    else -> fallbackFont(size, bold)
+                }
+            }
+        }
+        return fallbackFont(size, bold)
+    }
+
+    private fun fallbackFont(size: Float, bold: Boolean): Font {
         val base = (if (bold) this.bold else null) ?: regular ?: Font(Font.SANS_SERIF, Font.PLAIN, 12)
         val key = (if (bold && this.bold == null) "B:" else "R:") + size
         return fontCache.getOrPut(key) {
@@ -308,6 +407,9 @@ class Paint {
     var strokeJoin: Join = Join.MITER
     var pathEffect: PathEffect? = null
     var shader: Shader? = null
+    var typeface: Typeface? = null
+    var maskFilter: MaskFilter? = null
+    var xfermode: Xfermode? = null
 
     constructor()
 
@@ -327,6 +429,9 @@ class Paint {
         strokeJoin = paint.strokeJoin
         pathEffect = paint.pathEffect
         shader = paint.shader
+        typeface = paint.typeface
+        maskFilter = paint.maskFilter
+        xfermode = paint.xfermode
     }
 
     /** 안드로이드처럼 alpha는 색상의 알파 채널과 동일하게 취급 */
@@ -337,21 +442,21 @@ class Paint {
         }
 
     fun measureText(text: String): Float {
-        val f = StubText.fontFor(textSize, isFakeBoldText)
+        val f = StubText.fontFor(textSize, isFakeBoldText, typeface)
         return StubText.metrics(f).stringWidth(text).toFloat()
     }
 
     fun ascent(): Float {
-        val f = StubText.fontFor(textSize, isFakeBoldText)
+        val f = StubText.fontFor(textSize, isFakeBoldText, typeface)
         return -StubText.metrics(f).ascent.toFloat()
     }
 
     fun descent(): Float {
-        val f = StubText.fontFor(textSize, isFakeBoldText)
+        val f = StubText.fontFor(textSize, isFakeBoldText, typeface)
         return StubText.metrics(f).descent.toFloat()
     }
 
-    fun getFontMetrics(): FontMetrics = StubText.metrics(StubText.fontFor(textSize, isFakeBoldText))
+    fun getFontMetrics(): FontMetrics = StubText.metrics(StubText.fontFor(textSize, isFakeBoldText, typeface))
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +468,9 @@ class Bitmap private constructor(val image: BufferedImage) {
 
     val width: Int get() = image.width
     val height: Int get() = image.height
+
+    /** 프리뷰에서는 비트맵을 해제하지 않으므로 항상 false */
+    val isRecycled: Boolean get() = false
 
     fun setPixel(x: Int, y: Int, c: Int) {
         if (x in 0 until width && y in 0 until height) image.setRGB(x, y, c)
@@ -592,7 +700,7 @@ class Canvas {
 
     fun drawText(text: String, x: Float, y: Float, paint: Paint) {
         colorize(paint)
-        g.font = StubText.fontFor(paint.textSize, paint.isFakeBoldText)
+        g.font = StubText.fontFor(paint.textSize, paint.isFakeBoldText, paint.typeface)
         g.drawString(text, x, y)
     }
 
@@ -641,7 +749,18 @@ class Canvas {
 
     fun scale(sx: Float, sy: Float) = g.scale(sx.toDouble(), sy.toDouble())
 
+    fun scale(sx: Float, sy: Float, px: Float, py: Float) {
+        g.translate(px.toDouble(), py.toDouble())
+        g.scale(sx.toDouble(), sy.toDouble())
+        g.translate(-px.toDouble(), -py.toDouble())
+    }
+
     fun rotate(degrees: Float) = g.rotate(Math.toRadians(degrees.toDouble()))
+
+    fun rotate(degrees: Float, px: Float, py: Float) =
+        g.rotate(Math.toRadians(degrees.toDouble()), px.toDouble(), py.toDouble())
+
+    fun skew(sx: Float, sy: Float) = g.shear(sx.toDouble(), sy.toDouble())
 
     fun clipRect(l: Float, t: Float, r: Float, b: Float) {
         g.clip(Rectangle2D.Float(l, t, r - l, b - t))

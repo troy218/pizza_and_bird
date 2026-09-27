@@ -76,4 +76,8 @@ open class Context {
     open fun getSystemService(name: String): Any? = null
 
     open val resources: Resources = Resources()
+
+    open val applicationContext: Context get() = this
+
+    open val assets: android.content.res.AssetManager = android.content.res.AssetManager()
 }

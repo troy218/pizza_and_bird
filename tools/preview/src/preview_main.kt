@@ -25,6 +25,7 @@ import com.pizzaandbird.game.DecorPickOverlay
 import com.pizzaandbird.game.DecorShopOverlay
 import com.pizzaandbird.game.DialogOverlay
 import com.pizzaandbird.game.FieldBird
+import com.pizzaandbird.game.Fonts
 import com.pizzaandbird.game.Game
 import com.pizzaandbird.game.HomeScene
 import com.pizzaandbird.game.MapOverlay
@@ -129,7 +130,10 @@ object PreviewMain {
             StubText.loadFromDir(fontDir)
         }
 
-        val game = Game(FakeContext(density))
+        // MainActivity 대신 번들 글꼴(주아/고운 돋움/고운 바탕/가경)을 직접 준비한다
+        val ctx = FakeContext(density)
+        Fonts.init(ctx)
+        val game = Game(ctx)
         game.onSurfaceChanged(SW, SH)
         enrichState(game)
 

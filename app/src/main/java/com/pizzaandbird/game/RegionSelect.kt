@@ -45,7 +45,7 @@ object RegionCards {
         val dp = game.density
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.body }
 
         for ((i, reg) in regions.withIndex()) {
             if (i >= rects.size) break
@@ -66,6 +66,7 @@ object RegionCards {
                 stroke.color = 0xFFFFF8E8.toInt()
                 stroke.strokeWidth = dp * 2f
                 c.drawCircle(ccx, ccy, dp * 11f, stroke)
+                tp.typeface = Fonts.round
                 tp.textSize = dp * 12f
                 tp.color = 0xFFFFF8E8.toInt()
                 c.drawText("✓", ccx - tp.measureText("✓") / 2f, ccy - (tp.descent() + tp.ascent()) / 2f, tp)
@@ -73,11 +74,13 @@ object RegionCards {
 
             val x = r.left + dp * 10
             var y = r.top + dp * 16
+            tp.typeface = Fonts.round
             tp.textSize = dp * 14f
             tp.color = 0xFF4A3728.toInt()
             val nameLine = "${reg.emoji} ${reg.name}"
             c.drawText(nameLine, x, y, tp)
             val nameW = tp.measureText(nameLine)
+            tp.typeface = Fonts.body
             tp.textSize = dp * 8.5f
             tp.color = 0xFF8A7360.toInt()
             c.drawText(reg.english, x + nameW + dp * 6f, y, tp)
@@ -187,11 +190,13 @@ class RegionSelectScene(game: Game) : Scene(game) {
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
 
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.round }
         tp.textSize = dp * 20f
         tp.color = 0xFF4A3728.toInt()
         val t1 = "서울에서 시작해볼까요?"
         c.drawText(t1, w / 2f - tp.measureText(t1) / 2, dp * 30f, tp)
+        tp.typeface = Fonts.body
+        tp.isFakeBoldText = false
         tp.textSize = dp * 11.5f
         tp.color = 0xFF5A6B5A.toInt()
         val t2 = "시작 지역은 서울로 고정되어 있어요 · 다른 지역의 집은 여행 후 매입할 수 있어요"
@@ -299,11 +304,13 @@ class RegionSelectOverlay(
         panelR = RectF(dp * 14f, dp * 14f, w - dp * 14f, h - dp * 14f)
         UiKit.panel(c, game, panelR)
 
-        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true }
+        val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFakeBoldText = true; typeface = Fonts.round }
         tp.textSize = dp * 16f
         tp.color = 0xFF4A3728.toInt()
         val t1 = "📦 이사갈 곳을 골라요"
         c.drawText(t1, panelR.left + dp * 16f, panelR.top + dp * 26f, tp)
+        tp.typeface = Fonts.body
+        tp.isFakeBoldText = false
         tp.textSize = dp * 11f
         tp.color = 0xFF8A7360.toInt()
         val t2 = "이사 ${won(MOVE_COST)} · 방문한 지역의 집을 매입해 내 집으로 만들 수 있어요"
