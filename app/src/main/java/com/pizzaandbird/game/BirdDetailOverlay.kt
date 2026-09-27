@@ -30,6 +30,7 @@ class BirdDetailOverlay(
     private var navArmed = true
 
     private var panelR = RectF()
+    private var drawnShift = 0f
     private var closeRect = RectF()
     private var prevRect = RectF()
     private var nextRect = RectF()
@@ -78,21 +79,22 @@ class BirdDetailOverlay(
     override fun handleInput(input: Input) {
         val tap = input.consumeTapScreen()
         if (tap != null) {
-            if (closeRect.contains(tap.x, tap.y)) {
+            val y = tap.y - drawnShift
+            if (closeRect.contains(tap.x, y)) {
                 scene.game.sfx(Audio.Sfx.TAP, 0.5f)
                 finished = true
                 return
             }
-            if (prevRect.contains(tap.x, tap.y)) {
+            if (prevRect.contains(tap.x, y)) {
                 goPrev()
                 return
             }
-            if (nextRect.contains(tap.x, tap.y)) {
+            if (nextRect.contains(tap.x, y)) {
                 goNext()
                 return
             }
             // 패널 바깥 탭 시 닫기
-            if (!panelR.contains(tap.x, tap.y)) {
+            if (!panelR.contains(tap.x, y)) {
                 scene.game.sfx(Audio.Sfx.TAP, 0.4f)
                 finished = true
                 return
@@ -129,7 +131,8 @@ class BirdDetailOverlay(
         panelR = RectF((w - pw) / 2f, (h - ph) / 2f, (w + pw) / 2f, (h + ph) / 2f)
 
         c.save()
-        c.translate(0f, enterShift())
+        drawnShift = enterShift()
+        c.translate(0f, drawnShift)
         UiKit.panel(c, g, panelR, 14f)
 
         val def = currentBird()

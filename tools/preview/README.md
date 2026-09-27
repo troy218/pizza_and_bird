@@ -113,31 +113,36 @@ java -cp "tools/preview/out/classes-ach:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 
 `perf_smoke.kt` 는 실제 게임 코드를 그대로 돌리면서 **버튼을 눌렀을 때의 프레임 비용**을
 재고, 한 프레임에 새로 만들어 나는 네이티브 객체(`android.graphics` 스텁의 `GfxStats`)와
-드로우 콜을 센다. 보려는 지점은 "누르면 멈칫한다"는 지점 — 가방(메뉴) 6탭, 가방 ✕ 버튼,
+드로우 콜을 센다. 보려는 지점은 "누르면 멈칫한다"는 지점 — 가방(메뉴) 8탭, 가방 ✕ 버튼,
 도감 페이지 넘김(사진 디코드), 상세 도감 넘김, HUD 버튼 연타 등.
 
 주의: 이 파이프라인은 Java2D 스텁이라 절대 시간은 기기와 다르다. **프레임당 몇 ms**보다
 **프레임당 몇 번의 네이티브 객체 생성과 드로우 콜**이 기기 성능에 그대로 옮겨가는 지표다.
 디코드는 `GfxStats.decodes` 중 게임 스레드에서 일어난 것(`decodesMain`)만 따로 세므로,
-사진을 게임 스레드에서 디코드하고 있는지 바로 볼 수 있다.
+사진(에셋 스트림과 사진집 파일 모두)을 게임 스레드에서 디코드하는지 바로 볼 수 있다.
+`latency_smoke` 는 `GfxStats.compressionsMain` 으로 촬영 시 파일 압축도 검사한다.
 
 ```bash
 SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
   ! -name 'MainActivity.kt' ! -name 'GameView.kt')
 kotlinc tools/preview/src/*.kt tools/preview/perf_smoke.kt \
-  tools/preview/world_resume_smoke.kt $SRCS \
+  tools/preview/world_resume_smoke.kt tools/preview/latency_smoke.kt $SRCS \
   -d tools/preview/out/classes-perf -jvm-target 17
+java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
+  com.pizzaandbird.preview.LatencySmoke
 java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.WorldResumeSmoke
 java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
   com.pizzaandbird.preview.PerfSmoke
 ```
 
-`world_resume_smoke` 는 `Game.render()` 의 "가리는 오버레이(가방·지도·상점…)가 떠 있는 동안
-월드를 20Hz 로만 갱신한다" 최적화가 세 가지를 지키는지 검사한다 — 가방이 떠 있는 동안 월드가
-매 프레임 그려지지 않는지, 닫은 **다음 프레임**에 월드가 다시 그려지는지(오래된 화면을 붙여
-보여주지 않는지), 그 뒤에도 계속 갱신되는지. 판정은 `GfxStats.drawBitmap` 횟수(월드를 그리면
-약 2000회, 건너뛰면 HUD 정도만)로 한다.
+`latency_smoke` 는 오버레이 등장 **첫 프레임의 탭**과 이동하는 버튼의 터치 좌표·
+전체 화면 임시 비트맵 할당·첫 메뉴 아이콘 사전 생성·처음 본 새의 사진 기준색 로딩·
+촬영 사진의 비동기 JPEG 저장/일시정지 전 완료·사진집/상세 보기의 비동기 로딩을 확인한다.
+`world_resume_smoke` 는 가리는 오버레이(가방·지도·상점…)가 떠 있는 **모든 프레임**에서
+월드 비트맵을 재사용하고, 닫은 **첫 프레임**에 최신 월드를 다시 그리며, 그 뒤에도
+매 프레임 갱신하는지 확인한다. 판정은 `GfxStats.drawBitmap` 횟수(월드 약 2000회,
+건너뛰면 HUD 정도만)로 한다.
 
 ### 스크린샷 결정성
 

@@ -41,6 +41,8 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
         stopThread()
         game.input.releaseHeld()
         game.audio.onPause()
+        // 셔터 직후 앱이 백그라운드로 가도 사진 JPEG가 기록보다 늦게 사라지지 않게 한다.
+        PhotoArchive.awaitPendingWrites()
         SaveManager.save(context, game.state)
     }
 
