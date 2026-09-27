@@ -68,6 +68,12 @@ class GameState {
     var musicOn = true             // 설정: 배경 음악
     var sfxOn = true               // 설정: 효과음/환경음
 
+    // 화질 설정 (2K 렌더링) ------------------------------------------------
+    /** 월드 렌더 배율: "auto"(화면 높이에 맞춤, 최대 3×) / "1" / "2" / "3" */
+    var renderScale = "auto"
+    /** 화면 출력 보간 — false: 픽셀 느낌(선명, 기본) · true: 부드러운 보간 */
+    var smoothScreen = false
+
     val decorSlots = IntArray(3) { -1 }   // 집 장식 칸 (장식id, -1=빈칸)
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
@@ -530,6 +536,8 @@ class GameState {
         put("day", day)
         put("musicOn", musicOn)
         put("sfxOn", sfxOn)
+        put("renderScale", renderScale)
+        put("smoothScreen", smoothScreen)
         put("weatherId", weatherId)
         put("weatherSeconds", weatherSeconds.toDouble())
         put("level", level)
@@ -640,6 +648,11 @@ class GameState {
             s.day = j.optInt("day", 1).coerceAtLeast(1)
             s.musicOn = j.optBoolean("musicOn", true)
             s.sfxOn = j.optBoolean("sfxOn", true)
+            s.renderScale = when (j.optString("renderScale", "auto")) {
+                "1", "2", "3" -> j.optString("renderScale")
+                else -> "auto"
+            }
+            s.smoothScreen = j.optBoolean("smoothScreen", false)
             s.weatherId = j.optString("weatherId", Weather.SUNNY.id)
             s.weatherSeconds = j.optDouble("weatherSeconds", 55.0).toFloat().coerceIn(0f, 120f)
 
