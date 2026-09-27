@@ -124,7 +124,10 @@ python3 tools/preview/check.py
 # 2) 캐릭터 애니메이션 시트 + GIF (docs/img/ 갱신)
 python3 tools/preview/render_people.py docs/img
 
-# 3) 맵 한 장 렌더링
+# 3) 자전거 스펙 시트 (models_side/paints/accessories — docs/img/ 갱신)
+python3 tools/preview/render_bikes.py docs/img
+
+# 4) 맵 한 장 렌더링
 python3 - <<'PY'
 import sys; sys.path.insert(0, 'tools/preview')
 import render, mapgen
@@ -141,6 +144,7 @@ PY
 | `render.py` | 지면 → 포장 → 데칼 → 구조물 → 그림자 순서로 합성 |
 | `people.py` | `CharacterArt.kt` 프로토타입 — 사람/자전거/고양이 **관절 애니메이션** (포즈 수식이 게임과 동일) |
 | `render_people.py` | 동작 스프라이트 시트 · GIF 출력 |
+| `render_bikes.py` | 자전거 스펙 시트 출력 — 11종 모델 · 프레임/타이어/안장 색상표 · 액세서리 (cards의 스펙 표와 1:1) |
 | `tiles_legacy.py` | `Assets.kt` 의 기존 타일 아트를 옮겨 온 **자동 생성** 파일 |
 | `_gen_tiles_legacy.py` | 위 파일을 `Assets.kt` 에서 다시 만들어 내는 스크립트 |
 
