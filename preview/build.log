@@ -1,5 +1,5 @@
-# preview build 2026-09-27 14:36:18Z
-# commit: 13f31ea914b0eca345cdbab252e5ae7646fd87f7
+# preview build 2026-09-27 14:51:12Z
+# commit: 4cf01a4e3fe083b66faa61f23c704bf73bb46e3d
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 >> 프리뷰 렌더링...
@@ -24,17 +24,17 @@
 > Task :app:packageReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
 > Task :app:extractDeepLinksRelease
+> Task :app:parseReleaseLocalResources
 > Task :app:processReleaseMainManifest
 > Task :app:processReleaseManifest
-> Task :app:processReleaseManifestForPackage
 > Task :app:javaPreCompileRelease
 > Task :app:desugarReleaseFileDependencies
 > Task :app:mergeReleaseStartupProfile
-> Task :app:parseReleaseLocalResources
 > Task :app:mergeReleaseResources
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
 > Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:processReleaseManifestForPackage
 > Task :app:generateReleaseAssets UP-TO-DATE
 > Task :app:processReleaseResources
 > Task :app:mergeReleaseAssets
@@ -43,9 +43,9 @@
 > Task :app:collectReleaseDependencies
 > Task :app:sdkReleaseDependencyData
 > Task :app:validateSigningRelease
+> Task :app:optimizeReleaseResources
 > Task :app:writeReleaseAppMetadata
 > Task :app:writeReleaseSigningConfigVersions
-> Task :app:optimizeReleaseResources
 > Task :app:compressReleaseAssets
 
 > Task :app:compileReleaseKotlin
@@ -62,9 +62,9 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790519750188.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790520638821.json
 
-BUILD SUCCESSFUL in 29s
+BUILD SUCCESSFUL in 34s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
