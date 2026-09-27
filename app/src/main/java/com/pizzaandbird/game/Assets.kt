@@ -2892,14 +2892,107 @@ begin(T.LAMP)
     // -----------------------------------------------------------------------
 
     private fun buildDecorArt() {
+        // id 순서를 저장 데이터와 맞춘다. 기본 6개는 SVG, 새 카탈로그는 같은 32px
+        // 팔레트로 코드 생성해 해상도와 설치 용량을 늘리지 않는다.
         decorArt = arrayOf(
-            renderPixel("decor_cactus", 32, 32),
-            renderPixel("decor_bookshelf", 32, 32),
-            renderPixel("decor_rug", 32, 32),
-            renderPixel("decor_lamp", 32, 32),
-            renderPixel("decor_trophy", 32, 32),
-            renderPixel("decor_radio", 32, 32)
+            renderPixel("decor_cactus", 32, 32),       // 0
+            renderPixel("decor_bookshelf", 32, 32),    // 1
+            renderPixel("decor_rug", 32, 32),          // 2
+            renderPixel("decor_lamp", 32, 32),         // 3
+            renderPixel("decor_trophy", 32, 32),       // 4
+            renderPixel("decor_radio", 32, 32),        // 5
+            decorMonstera(),                            // 6
+            decorBirdFrame(),                           // 7
+            decorCampChair(),                           // 8
+            decorPostcards(),                           // 9
+            decorRecordPlayer(),                        // 10
+            decorFieldNotebook()                        // 11
         )
+    }
+
+    /** 새 장식은 화면의 논리 32px에 맞춰 또렷하게 찍는다. */
+    private fun blankDecor(draw: (Canvas, Paint) -> Unit): Bitmap {
+        val b = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+        draw(Canvas(b), Paint().apply { isAntiAlias = false })
+        return b
+    }
+
+    private fun block(c: Canvas, p: Paint, color: Int, l: Float, t: Float, r: Float, b: Float) {
+        p.color = color
+        c.drawRect(l, t, r, b, p)
+    }
+
+    private fun decorMonstera(): Bitmap = blankDecor { c, p ->
+        block(c, p, 0x30000000, 6f, 27f, 27f, 30f)
+        block(c, p, 0xFFB85F32.toInt(), 11f, 22f, 22f, 28f)
+        block(c, p, 0xFFE18A4B.toInt(), 12f, 22f, 21f, 24f)
+        block(c, p, 0xFF477B45.toInt(), 15f, 12f, 17f, 23f)
+        block(c, p, 0xFF5CA45A.toInt(), 8f, 10f, 16f, 17f)
+        block(c, p, 0xFF3C7B43.toInt(), 9f, 12f, 14f, 17f)
+        block(c, p, 0xFF66AE60.toInt(), 16f, 6f, 25f, 15f)
+        block(c, p, 0xFF417D45.toInt(), 17f, 7f, 21f, 14f)
+        block(c, p, 0xFF5CA45A.toInt(), 14f, 14f, 23f, 21f)
+        block(c, p, 0xFF3C7B43.toInt(), 15f, 15f, 20f, 20f)
+    }
+
+    private fun decorBirdFrame(): Bitmap = blankDecor { c, p ->
+        block(c, p, 0x30000000, 5f, 26f, 28f, 29f)
+        block(c, p, 0xFF744625.toInt(), 6f, 5f, 27f, 26f)
+        block(c, p, 0xFFD79A4E.toInt(), 8f, 7f, 25f, 24f)
+        block(c, p, 0xFF83C7DE.toInt(), 10f, 9f, 23f, 22f)
+        block(c, p, 0xFF78A967.toInt(), 10f, 18f, 23f, 22f)
+        block(c, p, 0xFF364358.toInt(), 14f, 13f, 19f, 16f)
+        block(c, p, 0xFF364358.toInt(), 12f, 12f, 15f, 14f)
+        block(c, p, 0xFFF6D265.toInt(), 19f, 13f, 21f, 14f)
+        block(c, p, 0xFF364358.toInt(), 16f, 16f, 18f, 19f)
+    }
+
+    private fun decorCampChair(): Bitmap = blankDecor { c, p ->
+        block(c, p, 0x30000000, 5f, 27f, 28f, 30f)
+        block(c, p, 0xFF5B4030.toInt(), 8f, 23f, 10f, 29f)
+        block(c, p, 0xFF5B4030.toInt(), 22f, 23f, 24f, 29f)
+        block(c, p, 0xFF5B4030.toInt(), 8f, 26f, 24f, 28f)
+        block(c, p, 0xFF4B6C72.toInt(), 9f, 10f, 23f, 23f)
+        block(c, p, 0xFF6FA7A6.toInt(), 11f, 12f, 21f, 20f)
+        block(c, p, 0xFFEFD585.toInt(), 11f, 12f, 21f, 14f)
+        block(c, p, 0xFF5B4030.toInt(), 7f, 8f, 9f, 25f)
+        block(c, p, 0xFF5B4030.toInt(), 23f, 8f, 25f, 25f)
+    }
+
+    private fun decorPostcards(): Bitmap = blankDecor { c, p ->
+        block(c, p, 0x30000000, 5f, 27f, 27f, 30f)
+        block(c, p, 0xFF8B5A38.toInt(), 7f, 6f, 25f, 26f)
+        block(c, p, 0xFFF0DAB0.toInt(), 9f, 8f, 23f, 24f)
+        block(c, p, 0xFFEAA35F.toInt(), 10f, 10f, 16f, 16f)
+        block(c, p, 0xFF86C6E5.toInt(), 16f, 10f, 22f, 16f)
+        block(c, p, 0xFF79A864.toInt(), 10f, 16f, 22f, 22f)
+        block(c, p, 0xFFB95345.toInt(), 11f, 11f, 15f, 15f)
+        block(c, p, 0xFF4A6C84.toInt(), 18f, 11f, 21f, 14f)
+        block(c, p, 0xFFF6E6BB.toInt(), 12f, 4f, 20f, 8f)
+    }
+
+    private fun decorRecordPlayer(): Bitmap = blankDecor { c, p ->
+        block(c, p, 0x30000000, 4f, 27f, 28f, 30f)
+        block(c, p, 0xFF563A2B.toInt(), 6f, 17f, 26f, 27f)
+        block(c, p, 0xFF8E6041.toInt(), 7f, 18f, 25f, 20f)
+        p.color = 0xFF2B3037.toInt(); c.drawCircle(15f, 22f, 5f, p)
+        p.color = 0xFF8DA1B5.toInt(); c.drawCircle(15f, 22f, 1.2f, p)
+        block(c, p, 0xFFD8A84C.toInt(), 21f, 19f, 22f, 24f)
+        block(c, p, 0xFFD8A84C.toInt(), 21f, 19f, 24f, 20f)
+        block(c, p, 0xFF3E2B25.toInt(), 8f, 26f, 10f, 29f)
+        block(c, p, 0xFF3E2B25.toInt(), 22f, 26f, 24f, 29f)
+    }
+
+    private fun decorFieldNotebook(): Bitmap = blankDecor { c, p ->
+        block(c, p, 0x30000000, 6f, 27f, 27f, 30f)
+        block(c, p, 0xFF415468.toInt(), 9f, 6f, 23f, 27f)
+        block(c, p, 0xFF7DA3B4.toInt(), 11f, 7f, 24f, 25f)
+        block(c, p, 0xFFF8F0D9.toInt(), 13f, 8f, 22f, 24f)
+        block(c, p, 0xFF7A6250.toInt(), 14f, 12f, 21f, 13f)
+        block(c, p, 0xFF7A6250.toInt(), 14f, 16f, 20f, 17f)
+        block(c, p, 0xFF7A6250.toInt(), 14f, 20f, 19f, 21f)
+        block(c, p, 0xFFD75B48.toInt(), 9f, 9f, 11f, 23f)
+        block(c, p, 0xFFB67A37.toInt(), 22f, 4f, 25f, 8f)
     }
 
     // -----------------------------------------------------------------------

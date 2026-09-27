@@ -28,7 +28,7 @@
 6. 👨‍🔬 **보리 박사의 의뢰** — 부탁받은 새를 찍으면 보수 ₩ 획득 (3★면 보너스!)
 7. 📚 **도감 채우기** — 한국조류학회 공식 목록 598종의 촬영 횟수·최고 별점이 기록되는 도감
 8. 🐈 **골목 고양이** — 쓰다듬으면 행운 +1. 벤치에서 쉬면 행운 +2
-9. 🧺 **집 꾸미기** — 사진용품점 장식 코너에서 소품을 사서 3개의 장식 칸에 배치 (행운 보너스)
+9. 🧺 **집 꾸미기** — 사진용품점 장식 코너에서 소품을 사고 **8칸 배치 보드**로 집을 꾸민다. 12종 소품과 컬렉션 세트 효과로 행운 보너스까지!
 10. 📷 **카메라 장비 시스템** — 일체형 컴팩트(보급~하이엔드)와 **바디 + 렌즈를 따로 사서 조립하는 렌즈교환식**. 센서·초점거리·조리개·AF·손떨림 보정이 실제 판정에 반영된다
 11. 🍕 **피자 먹기** — 🍕 버튼 한 번으로 간식 타임 (배고픔 회복 + 행운 상승). 메뉴의 피자 탭은 화덕피자/일반 피자 탭으로 나뉘어 종류별 아이콘·재고·효과를 보여준다
 12. ☘️ **행운 수치** — 높을수록 희귀한 새(팔색조, 두루미!)가 더 자주 출현
@@ -368,11 +368,12 @@ app/src/main/java/com/pizzaandbird/game/
 ├── RegionSelect.kt      서울 고정 시작 / 집 매입·이사 지역 선택 UI
 ├── WorldScene.kt        월드 탐험 (자전거·달리기·터널·탐조·의뢰·낮밤·파티클·날씨 효과)
 ├── Viewfinder.kt        카메라 뷰파인더 (프레임·비네트·AF 박스·거리 게이지·셔터 연출)
-├── HomeScene.kt         집 내부 (화덕=화덕피자·오븐=일반 피자·침대·인테리어 4종·이사·장식 3칸)
+├── HomeScene.kt         집 내부 (화덕=화덕피자·오븐=일반 피자·침대·인테리어 4종·이사·장식 8칸)
 ├── Hud.kt               스탯 바(배고픔/행운/돈/시각·날씨·레벨) + 황동 나침반 미니맵 + 아날로그 조이스틱(v0.4.1 디자인)/육각·아크 버튼
 └── Overlays.kt          대화상자 / 메뉴 6탭(피자 탭은 화덕·일반 서브탭) / 피자 굽기 3단계 / 카메라 상점·장비 가방 / 장식 상점 / 자전거 상점(모델·도색·부속품) / 폴라로이드 사진 결과 / 확대 가능한 전국 지도
 
 tools/make_icons.py      런처 아이콘 생성 (순수 Python, 의존성 0)
+tools/build_fonts.py     내장 글꼴(주아·고운돋움) 서브셋 생성 — assets/font 갱신
 tools/generate_bird_checklist.py  공식 조류목록 Kotlin 데이터 생성
 tools/MapTest.kt         맵 로직 검증 스크립트 (144개 맵 조합 + 길 연결성 자동 테스트)
 tools/preview/           미리보기 (길 디자인 · 캐릭터 애니메이션 시트/GIF — tools/preview/README.md)
@@ -417,11 +418,34 @@ tools/typecheck.sh       안드로이드 SDK 없이 Kotlin 소스만 빠르게 �
 - 효과음 이벤트 매핑은 `Audio.kt`의 `Sfx` enum 주석 참고
 - 메뉴(☰) → 설정에서 음악/효과음을 각각 켜고 끌 수 있고, 설정은 세이브에 저장됩니다
 
+### ✍️ 글꼴 (타이포그래피)
+
+힐링 게임다운 **동글동글하고 따뜻한 글씨**를 위해 둥근 한글 글꼴 두 벌을 앱에 내장했습니다
+(둘 다 SIL Open Font License 1.1 — 상업 이용 가능).
+
+![타이포그래피 비교](docs/img/typography.png)
+
+| 쓰임 | 글꼴 | 파일 | 느낌 |
+|---|---|---|---|
+| 제목·버튼·이름 (굵은 역할) | **Jua** 주아 | `assets/font/display_jua.ttf` | 손으로 꾹꾹 눌러 쓴 듯 도톰하고 둥근 글씨 |
+| 본문·설명 (보통 역할) | **Gowun Dodum** 고운돋움 | `assets/font/body_gowundodum.ttf` | 획이 부드러워 오래 읽어도 편한 글씨 |
+| 숫자·영문 라벨 | 코드로 만든 5×7 **픽셀 폰트** | `Type.kt`의 `PixelFont` | 픽셀 아트와 결을 맞춘 레트로 숫자 |
+
+- 크기·굵기·자간·줄간격은 전부 `Type.kt` 의 `Role` 이 정합니다 (화면에서 dp 를 직접 잡지 마세요).
+  `Role.bold = true` → 주아, `false` → 고운돋움으로 **자동 연결**됩니다 (가짜 볼드 없음 — 획이 뭉개지지 않아요).
+- 용량을 줄이려고 **필요한 글자만 남긴 서브셋**(둘이 합쳐 2.6MB, 한글 2,367자)을 넣었습니다.
+  게임 대사·지역명과 공식 조류 598종 이름이 모두 들어가며, 혹시 없는 글자(이모지 등)는
+  안드로이드가 시스템 글꼴로 자동 대체합니다.
+- **글꼴 교체**: `app/src/main/assets/font/` 에 ttf/otf 를 넣기만 하면 됩니다.
+  이름이 `display…` 면 제목용, `body…` 면 본문용으로 자동 배치되고, 폴더를 비우면 시스템 글꼴로 돌아갑니다.
+- **서브셋 재생성**: `pip3 install fonttools && python3 tools/build_fonts.py`
+- 라이선스 전문·출처는 `app/src/main/assets/font/OFL.txt` (게임 안 설정 탭 맨 아래에도 표기됩니다)
+
 ### 콘텐츠 추가 방법
 - **새 목록 갱신**: `한반도_조류_전체목록_2025.txt` 갱신 후 `python3 tools/generate_bird_checklist.py` 실행 → `Birds.ALL`/도감/스폰/박사 의뢰에 자동 반영 (`active = "night"`로 밤새 지정 가능)
 - **지역 추가**: `Regions.ALL` + `LINKS`에 연결 추가 → 맵은 절차 생성 (지역당 각 방향 최대 1개 터널)
 - **피자 종류**: `Pizzas.ALL`에 `PizzaDef`를 추가 (`kind`로 화덕피자/일반 피자 지정, id는 세이브 인덱스이므로 **끝에만 추가**). 아이콘은 바탕색·토핑색 2가지만 적으면 계열별 템플릿으로 자동 생성
-- **장식 소품**: `Decors.ALL`에 추가 (아트는 자동 생성은 아니고 `Assets.buildDecorArt`에 추가)
+- **장식 소품**: `Decors.ALL`에 id를 추가하고 `Assets.buildDecorArt`에 같은 순서의 32px 아트를 추가. 컬렉션 보너스는 `Decors.SETS`에서 정의
 - **카메라 장비**: `Cameras.kt`의 `CameraGear.COMPACTS / BODIES / LENSES / TELECONVS / ACCESSORIES`에 항목 추가 → 상점·장비 가방·아이콘·인게임 스프라이트에 자동 반영 (`CamLook`으로 생김새 지정)
 - **집 인테리어**: `HouseStyles.ALL`에 스타일과 원화 가격을 추가 → 집 안 인테리어 보드에서 구매/적용
 - **아트 파이프라인 (NPC/고양이/타일/아이콘/데코)**: `art/svg/*.svg` (64px 그리드, `<symbol id="art_*">`) — `python3 tools/build_art.py` 로 VectorDrawable 생성, `python3 tools/svg_preview.py --zoom 5` 로 미리보기, `python3 tools/bird_preview.py` 로 새 치환 검증
@@ -474,4 +498,6 @@ tools/typecheck.sh       안드로이드 SDK 없이 Kotlin 소스만 빠르게 �
 
 ## 📄 라이선스
 
-아직 미정 (출시 전 결정 예정)
+- 게임 코드·아트: 아직 미정 (출시 전 결정 예정)
+- 내장 글꼴: **Jua**(배달의민족 주아) · **Gowun Dodum**(고운돋움) — SIL Open Font License 1.1
+  (전문: `app/src/main/assets/font/OFL.txt`)
