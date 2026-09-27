@@ -1,258 +1,114 @@
-# preview build 2026-09-27 14:28:30Z
-# commit: 1a33d7cdd1c0cd746d015a82bf09483acf9ff5b0
-# gradle exit code: 1
->> kotlin 컴파일러 다운로드 중...
+# preview build 2026-09-27 14:36:18Z
+# commit: 13f31ea914b0eca345cdbab252e5ae7646fd87f7
+# gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
-# status: compile-failed
-WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
+>> 프리뷰 렌더링...
+# status: ok
 
 ----- gradle build log (error lines + last 120) -----
-36:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:108:9 No parameter with name 'stock' found.
-37:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:108:9 No parameter with name 'stock' found.
-38:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:109:9 No parameter with name 'sale' found.
-39:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:109:9 No parameter with name 'sale' found.
-40:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:109:16 Cannot infer type for this parameter. Please specify it explicitly.
-41:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:109:16 Cannot infer type for this parameter. Please specify it explicitly.
-42:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:129:9 No parameter with name 'stock' found.
-43:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:129:9 No parameter with name 'stock' found.
-44:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:130:9 No parameter with name 'sale' found.
-45:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:130:9 No parameter with name 'sale' found.
-46:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:149:9 No parameter with name 'stock' found.
-47:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:149:9 No parameter with name 'stock' found.
-48:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:153:9 No parameter with name 'sale' found.
-49:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:153:9 No parameter with name 'sale' found.
-50:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:172:9 No parameter with name 'stock' found.
-51:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:172:9 No parameter with name 'stock' found.
-52:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:176:9 No parameter with name 'sale' found.
-53:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:176:9 No parameter with name 'sale' found.
-54:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:195:9 No parameter with name 'stock' found.
-55:::error::e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:195:9 No parameter with name 'stock' found.
-56:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:198:9 No parameter with name 'sale' found.
-57:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:217:9 No parameter with name 'stock' found.
-58:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:220:9 No parameter with name 'sale' found.
-59:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:239:9 No parameter with name 'stock' found.
-60:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:242:9 No parameter with name 'sale' found.
-61:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:261:9 No parameter with name 'stock' found.
-62:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:264:9 No parameter with name 'sale' found.
-63:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:283:9 No parameter with name 'stock' found.
-64:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:286:9 No parameter with name 'sale' found.
-65:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:305:9 No parameter with name 'stock' found.
-66:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:306:9 No parameter with name 'sale' found.
-67:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:325:9 No parameter with name 'stock' found.
-68:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:328:9 No parameter with name 'sale' found.
-69:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:347:9 No parameter with name 'stock' found.
-70:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/CameraShops.kt:348:9 No parameter with name 'sale' found.
-71:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:581:47 Unresolved reference 'nearName으로'.
-72:e: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/Overlays.kt:5207:30 Smart cast to 'com.pizzaandbird.game.CityShop' is impossible, because 'shop' is a property that has an open or custom getter.
-77:FAILURE: Build failed with an exception.
-89:* Exception is:
-90:org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
-99:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-151:Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
-252:	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-304:Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-305:	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 ...
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
-	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
-	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:61)
-	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
-	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:61)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:44)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
-	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
-	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:76)
-	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
-	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
-	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
-	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
-	at org.gradle.internal.Factories$1.create(Factories.java:31)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	... 2 more
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:mergeReleaseJniLibFolders
+> Task :app:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:stripReleaseDebugSymbols NO-SOURCE
+> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:buildKotlinToolingMetadata
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkReleaseAarMetadata
+> Task :app:generateReleaseResValues
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:packageReleaseResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :app:processReleaseMainManifest
+> Task :app:processReleaseManifest
+> Task :app:processReleaseManifestForPackage
+> Task :app:javaPreCompileRelease
+> Task :app:desugarReleaseFileDependencies
+> Task :app:mergeReleaseStartupProfile
+> Task :app:parseReleaseLocalResources
+> Task :app:mergeReleaseResources
+> Task :app:mergeReleaseArtProfile
+> Task :app:mergeReleaseShaders
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:processReleaseResources
+> Task :app:mergeReleaseAssets
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:mergeExtDexRelease
+> Task :app:collectReleaseDependencies
+> Task :app:sdkReleaseDependencyData
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:optimizeReleaseResources
+> Task :app:compressReleaseAssets
 
+> Task :app:compileReleaseKotlin
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:181:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:184:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
-BUILD FAILED in 47s
-26 actionable tasks: 26 executed
+> Task :app:compileReleaseJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderRelease
+> Task :app:mergeReleaseGlobalSynthetics
+> Task :app:processReleaseJavaRes
+> Task :app:mergeReleaseJavaResource
+> Task :app:mergeDexRelease
+> Task :app:compileReleaseArtProfile
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :app:assembleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790519750188.json
+
+BUILD SUCCESSFUL in 29s
+40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:108:9: error: no parameter with name 'stock' found.
-        stock = null,                                  // 본점 = 전 제품
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:109:9: error: no parameter with name 'sale' found.
-        sale = emptySet(),                             // 본점은 정가 — 분점이 특화로 싸게 판다
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:109:16: error: cannot infer type for this parameter. Please specify it explicitly.
-        sale = emptySet(),                             // 본점은 정가 — 분점이 특화로 싸게 판다
-               ^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:129:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf("c_tough", "c_zoom20", "c_travel", "b_m43", "l_m43_1260", "l_m43_100400"),
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:130:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.COMPACT)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:149:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:153:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.ACCESSORY)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:172:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:176:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.BODY)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:195:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:198:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.LENS)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:217:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:220:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.BODY)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:239:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:242:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.LENS)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:261:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:264:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.BODY)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:283:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:286:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.ACCESSORY)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:305:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf("c_bridge_pro", "b_ff_hires", "b_flagship", "l_800f63", "tc_20", "acc_tripod"),
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:306:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.BODY)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:325:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf(
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:328:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.LENS)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:347:9: error: no parameter with name 'stock' found.
-        stock = BASIC + setOf("c_tough", "c_zoom20", "b_m43", "l_m43_1260", "l_m43_100400", "acc_raincover"),
-        ^^^^^
-app/src/main/java/com/pizzaandbird/game/CameraShops.kt:348:9: error: no parameter with name 'sale' found.
-        sale = setOf(GearKind.COMPACT)
-        ^^^^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:581:47: error: unresolved reference 'nearName으로'.
-                    DialogOverlay.Choice("🚲 $nearName으로 이동") {
-                                              ^^^^^^^^^^
-app/src/main/java/com/pizzaandbird/game/Overlays.kt:5207:30: error: smart cast to 'com.pizzaandbird.game.CityShop' is impossible, because 'shop' is a property that has an open or custom getter.
-        if (shop != null && !shop.carries(gear.id)) {
-                             ^^^^
+  + 01_tiles.png
+  + 02_sprites.png
+  + 02b_character_hd.png
+  + 03_birds.png
+  + 04_title.png
+  + 05_region_select.png
+  + 06_world_seoul_day.png
+  + 07_world_seoul_sunset.png
+  + 08_world_seoul_night.png
+  + 09_world_sokcho.png
+  + 10_world_chuncheon.png
+  + 11_world_busan.png
+  + 12_world_jeju.png
+  + 13_photo_mode.png
+  + 14_home_day.png
+  + 15_home_night.png
+  + 38_character_select.png
+  + 16_dialog.png
+  + 17_menu_tab1.png
+  + 17_menu_tab2.png
+  + 17_menu_tab3.png
+  + 17_menu_tab4.png
+  + 17_menu_tab5.png
+  + 17_menu_tab6.png
+  + 17_menu_tab7.png
+  + 17_menu_tab8.png
+  + 33_achievement_stats.png
+  + 34_achievement_detail.png
+  + 35_achievement_unlock_toast.png
+  + 21_bake_topping.png
+  + 22_bake_gauge.png
+  + 23_bake_result.png
+  + 24_photo_result.png
+  + 25_map_overlay.png
+  + 26_decor_shop.png
+  + 27_decor_pick.png
+  + 30_backup_code.png
+  + 31_backup_restore_idle.png
+  + 32_backup_restore_confirm.png
+  + 36_levelup.png
+  + 37_levelup_gear.png
+  + 28_ultrawide_title_20x9.png
+  + 29_ultrawide_world_20x9.png
+preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out
