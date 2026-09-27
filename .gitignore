@@ -15,6 +15,11 @@ build/
 *.keystore
 !gradle/wrapper/gradle-wrapper.jar
 
+# 그래픽 프리뷰 파이프라인 산출물 (JVM 스크린샷 파이프라인)
+/tools/preview/out/
+/tools/preview/fonts/
+/tools/preview/.kotlinc/
+
 # 에셋 미리보기용 생성 이미지 (tools/preview_grass*.py 실행 결과)
 tools/grass_preview.png
 tools/grass_rig_sheet.png
@@ -22,5 +27,7 @@ tools/grass_live_still.png
 tools/grass_live_anim.gif
 tools/grass_wave_strip.png
 tools/grass_trample_strip.png
+
+# 파이썬 미리보기 도구
 __pycache__/
 *.pyc

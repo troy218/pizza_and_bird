@@ -31,11 +31,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     fun onResume() {
         resumed = true
         startThread()
+        game.audio.onResume()
     }
 
     fun onPause() {
         resumed = false
         stopThread()
+        game.audio.onPause()
         SaveManager.save(context, game.state)
     }
 
