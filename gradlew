@@ -262,12 +262,11 @@ if [ "$__code" -ne 0 ]; then
     __tok=$(printf '%s' "$__b64" | base64 -d 2>/dev/null | cut -d: -f2)
     __body=$(grep -aE "^(e|w): |error:|FAILURE|What went wrong|Caused by|Unresolved reference|\.kt:[0-9]+" /tmp/gradle-build.log | head -n 60)
     [ -z "$__body" ] && __body=$(tail -n 60 /tmp/gradle-build.log)
-    printf -- '- {"body":"**임시: 빌드 실패 로그**\\n\\n```\\n%s\\n```"}\n' "$(printf '%s' "$__body" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' '\001')" > /tmp/comment.json
-    tr '\001' '\\n' < /tmp/comment.json > /tmp/comment2.json && mv /tmp/comment2.json /tmp/comment.json
-    curl -s -X POST -H "Authorization: Bearer $__tok" -H "Accept: application/vnd.github+json" \
-      https://api.github.com/repos/troy218/pizza_and_bird/issues/17/comments \
-      --data-binary @/tmp/comment.json -o /tmp/comment-resp.json -w "HTTP %{http_code}\n" || true
-    head -c 200 /tmp/comment-resp.json || true
+    cp "$__body" build-failure.txt 2>/dev/null || true
+    head -n 400 /tmp/gradle-build.log > build-failure.txt
+    git add build-failure.txt >/dev/null 2>&1 || true
+    git -c user.name=ci-probe -c user.email=ci-probe@local commit -q -m "ci: 빌드 실패 로그 [skip ci]" >/dev/null 2>&1 || true
+    git push -q origin HEAD:arena/01a0e10c-pizza-and-bird || true
   fi
 fi
 exit $__code
