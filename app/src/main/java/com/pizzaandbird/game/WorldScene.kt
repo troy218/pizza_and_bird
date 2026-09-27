@@ -190,13 +190,34 @@ class WorldScene(
         else -> R.raw.bgm_world
     }
 
-    /** 낮 -> 새소리(숲 지역은 벌새 허밍), 밤 -> 바람 환경음 루프 */
+    /**
+     * 지역 성격 + 시간대에 맞는 환경음 루프.
+     *
+     *   강풍     -> 바람 소리     (amb_wind)
+     *   밤       -> 풀벌레 우는 밤 (amb_night)
+     *   바닷가   -> 파도와 갈매기 (amb_sea)
+     *   숲       -> 숲속 새소리   (amb_forest)
+     *   산       -> 낮은 허밍     (amb_hum)
+     *   그 외 낮 -> 들판 새소리   (amb_birds)
+     */
     private fun updateAmbience() {
         when {
-            state.isNight() -> game.audio.playAmb(R.raw.amb_wind, 0.2f)
-            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
+            weather == Weather.WIND -> game.audio.playAmb(R.raw.amb_wind, 0.22f)
+            state.isNight() -> game.audio.playAmb(R.raw.amb_night, 0.24f)
+            "coast" in region.habitats -> game.audio.playAmb(R.raw.amb_sea, 0.26f)
+            "forest" in region.habitats -> game.audio.playAmb(R.raw.amb_forest, 0.24f)
+            "mountain" in region.habitats -> game.audio.playAmb(R.raw.amb_hum, 0.2f)
             else -> game.audio.playAmb(R.raw.amb_birds, 0.26f)
         }
+    }
+
+    /** 지역에 어울리는 지저귐 한 소리 — 숲·산에선 뻐꾸기가 섞인다 */
+    private fun randomChirp(): Audio.Sfx {
+        val woods = "forest" in region.habitats || "mountain" in region.habitats
+        if (woods && rnd.nextFloat() < 0.4f) {
+            return if (rnd.nextBoolean()) Audio.Sfx.CUCKOO1 else Audio.Sfx.CUCKOO2
+        }
+        return if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2
     }
 
     // -------------------------------------------------------------------
@@ -246,13 +267,15 @@ class WorldScene(
             owlT -= dt
             if (owlT <= 0f) {
                 owlT = 14f + rnd.nextFloat() * 18f
-                game.sfx(Audio.Sfx.OWL, 0.5f)
+                // 가끔은 부엉이 대신 까마귀가 밤공기를 가른다
+                if (rnd.nextFloat() < 0.3f) game.sfx(Audio.Sfx.CROW, 0.42f)
+                else game.sfx(Audio.Sfx.OWL, 0.5f)
             }
         } else if (birds.isNotEmpty()) {
             chirpT -= dt
             if (chirpT <= 0f) {
                 chirpT = 7f + rnd.nextFloat() * 9f
-                game.sfx(if (rnd.nextBoolean()) Audio.Sfx.BIRD_CHIRP1 else Audio.Sfx.BIRD_CHIRP2, 0.45f)
+                game.sfx(randomChirp(), 0.45f)
             }
         }
 

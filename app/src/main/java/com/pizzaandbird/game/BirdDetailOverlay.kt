@@ -23,12 +23,14 @@ class BirdDetailOverlay(
 
     private var currentNum: Int = initialBirdNum.coerceIn(1, Birds.ALL.size.coerceAtLeast(1))
 
+    /** 스틱을 한 번 밀면 한 종만 넘어가도록 하는 잠금 (가운데로 돌아오면 다시 풀린다) */
+    private var navArmed = true
+
     private var panelR = RectF()
     private var closeRect = RectF()
     private var prevRect = RectF()
     private var nextRect = RectF()
     private var descPage = 0
-    private var lastDirX = 0            // 좌우 방향 에지 판정용 (0=중립, -1=왼쪽, 1=오른쪽)
 
     private val textP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -83,17 +85,15 @@ class BirdDetailOverlay(
             }
         }
 
-        // 키보드/패드 조작 — Input 에는 방향 '눌림' 이벤트가 없어서 스틱/키 방향값(dirX)을
-        // 직접 에지 처리한다. 기울인 채로 두면 한 번만 넘어간다.
-        val dir = when {
-            input.dirX < -0.5f -> -1
-            input.dirX > 0.5f -> 1
-            else -> 0
+        // 키보드/패드 조작
+        // 스틱/방향키를 좌우로 밀면 한 종씩 넘어간다 (한 번 민 뒤 놓아야 다시 넘어감)
+        val dx = input.dirX
+        if (navArmed && kotlin.math.abs(dx) > 0.6f) {
+            navArmed = false
+            if (dx < 0f) goPrev() else goNext()
+        } else if (kotlin.math.abs(dx) < 0.3f) {
+            navArmed = true
         }
-        if (dir != 0 && dir != lastDirX) {
-            if (dir < 0) goPrev() else goNext()
-        }
-        lastDirX = dir
 
         if (input.justB || input.justBack) {
             scene.game.sfx(Audio.Sfx.TAP, 0.5f)
