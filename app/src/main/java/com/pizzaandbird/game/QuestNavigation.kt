@@ -376,7 +376,7 @@ object QuestNavigation {
     private fun bestHabitatSpot(map: GameMap, startX: Float, startY: Float, rawHabitats: String): PointF? {
         val habitats = rawHabitats.split(',').map { it.trim() }.filter { it in habitatKeys }
             .ifEmpty { map.region.habitats.toList() }
-        val startTile = map.feetTile(startX, startY)
+        val startTile = ((startX + 8f) / 16f).toInt() to ((startY + 13f) / 16f).toInt()
         val candidates = ArrayList<Triple<Float, Int, Int>>()
         for (y in 1 until map.h - 1) for (x in 1 until map.w - 1) {
             if (!standable(map, x, y)) continue
@@ -532,8 +532,8 @@ object QuestPathfinder {
     )
 
     fun findPath(map: GameMap, startX: Float, startY: Float, targetX: Float, targetY: Float): List<PointF>? {
-        val startTile = map.feetTile(startX, startY)
-        val goalTile = map.feetTile(targetX, targetY)
+        val startTile = ((startX + 8f) / 16f).toInt() to ((startY + 13f) / 16f).toInt()
+        val goalTile = ((targetX + 8f) / 16f).toInt() to ((targetY + 13f) / 16f).toInt()
         if (goalTile.first !in 0 until map.w || goalTile.second !in 0 until map.h) return null
         val size = map.w * map.h
         val start = startTile.second * map.w + startTile.first
