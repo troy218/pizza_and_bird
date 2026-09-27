@@ -1824,7 +1824,7 @@ object MapBuilder {
         fun keep(cx: Int, cy: Int, r: Int) {
             for (y in cy - r..cy + r) for (x in cx - r..cx + r) keepClear.add(y * 100 + x)
         }
-        keep(18, 14, 1)                                  // 빠른 이동(광장) 도착 자리
+        keep(18, 14, 1)                                  // 첫 지역 진입 시 중앙 광장 스폰 자리
         for (info in tunnels) keep(info.tileX, info.tileY, 2)
         if (houseDoorX >= 0) {
             keep(houseDoorX, houseDoorY + 1, 2)          // 현관 앞
@@ -1845,7 +1845,7 @@ object MapBuilder {
         }
 
         /**
-         * 플레이어가 대화하려고 설 수 있는 자리인가 (인사 자리·빠른 이동 도착 지점용).
+         * 플레이어가 대화하려고 설 수 있는 자리인가 (인사 자리·퀘스트 길안내 도착 지점용).
          *
          * 발판 박스(`GameMap.solidBox`)는 서 있는 칸 **아래 칸**까지 검사하므로
          * 아래 칸이 고체면 그 자리에 설 수 없다.
@@ -2156,7 +2156,7 @@ class Npc(val person: NpcPerson, val tileX: Int, val tileY: Int) {
     val cx: Float get() = x + 8f
     val cy: Float get() = y + 13f
 
-    /** 인사 자리 — 말을 걸 때 플레이어가 서 있어야 할 타일 (빠른 이동 도착 지점으로도 쓴다) */
+    /** 인사 자리 — 말을 걸 때 플레이어가 서 있어야 할 타일 (퀘스트 길안내 목적지로도 쓴다) */
     var greetX: Int = tileX
     var greetY: Int = tileY + 1
     val greetCx: Float get() = greetX * 16f + 8f

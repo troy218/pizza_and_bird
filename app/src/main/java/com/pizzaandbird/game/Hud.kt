@@ -63,6 +63,9 @@ class Hud(private val game: Game) {
     var showMinimap = false
     var regionLabel = ""
     var questLabel: String? = null
+    var questObjective: String? = null
+    var questProgress: String? = null
+    var questTravelLabel: String? = null
 
     /** 카메라 모드 활성 (뷰파인더가 세계를 덮고 있다) */
     var photoModeHint = false
@@ -471,6 +474,7 @@ class Hud(private val game: Game) {
         }
         if (questLabel != null) {
             drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel")
+            drawQuestDetails(c)
         }
         if (showControls) drawControls(c)
         drawBanner(c)
@@ -682,6 +686,38 @@ class Hud(private val game: Game) {
 
     private fun drawChip(c: Canvas, cx: Float, cy: Float, txt: String) {
         UiKit.darkChip(c, game, cx, cy, txt, 12f)
+    }
+
+    /** Objectives and live progress stay visible next to the quest chip while roaming. */
+    private fun drawQuestDetails(c: Canvas) {
+        val objective = questObjective ?: return
+        val left = dp(16f)
+        val top = questChipY() + dp(15f)
+        val r = RectF(left, top, left + dp(162f), top + dp(53f))
+        UiKit.panel(c, game, r, 9f)
+        val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
+        val maxW = r.width() - dp(14f)
+        fun fitLine(raw: String): String {
+            var line = raw
+            while (line.length > 2 && p.measureText(line) > maxW) line = line.dropLast(1)
+            return if (line != raw) "$line…" else line
+        }
+        val lines = Type.wrap(objective, p, maxW).take(2)
+        var y = r.top + dp(11f)
+        for (line in lines) {
+            c.drawText(line, r.left + dp(7f), y, p)
+            y += dp(10f)
+        }
+        val progress = questProgress
+        if (progress != null) {
+            p.color = 0xFF795A2B.toInt()
+            val progressY = if (questTravelLabel != null) r.bottom - dp(16f) else r.bottom - dp(5f)
+            c.drawText(fitLine("진행: $progress"), r.left + dp(7f), progressY, p)
+        }
+        questTravelLabel?.let { route ->
+            p.color = 0xFF3E7550.toInt()
+            c.drawText(fitLine(route), r.left + dp(7f), r.bottom - dp(4f), p)
+        }
     }
 
     private fun drawMessages(c: Canvas) {
