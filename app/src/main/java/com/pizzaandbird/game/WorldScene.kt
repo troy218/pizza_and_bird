@@ -173,8 +173,21 @@ class WorldScene(
         game.hud.photoModeHint = false
         game.banner("${region.emoji}  ${region.name}")
 
-        game.audio.playBgm(R.raw.bgm_world)   // 🎵 새가 날아가는 길
+        game.audio.playBgm(regionBgm())       // 🎵 지역 분위기에 맞는 곡
         updateAmbience()
+    }
+
+    /**
+     * 지역 성격에 맞는 BGM 고르기.
+     *  - 산·숲    → 🎵 강원도 산 (bgm_mountain)
+     *  - 해안·섬·갯벌 → 🎵 바다 (bgm_sea)
+     *  - 그 밖(도시·강·들판) → 🎵 새가 날아가는 길 (bgm_world)
+     */
+    private fun regionBgm(): Int = when {
+        region.kind == RegionKind.MOUNTAIN || "mountain" in region.habitats -> R.raw.bgm_mountain
+        region.kind == RegionKind.COAST || "coast" in region.habitats -> R.raw.bgm_sea
+        region.kind == RegionKind.WETLAND -> R.raw.bgm_sea
+        else -> R.raw.bgm_world
     }
 
     /**
