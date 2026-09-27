@@ -391,13 +391,53 @@ class BirdDetailOverlay(
         textP.textSize = TypeScale.px(dp(8.8f))
         textP.color = 0xFF8A7360.toInt()
         c.drawText(metaLine2, textLeft, curY, textP)
-        curY += dp(16f)
+        curY += dp(15f)
+
+        // 도감용 탐조 힌트: 실제로 이 종의 스폰 가중치가 높은 지역을 먼저 보여 준다.
+        val recommended = BirdEcology.recommendedRegions(def, 3)
+        textP.textSize = TypeScale.px(dp(9f))
+        textP.isFakeBoldText = true
+        textP.color = 0xFF55734C.toInt()
+        UiKit.icon(c, g, "pin", RectF(textLeft, curY - dp(9f), textLeft + dp(10f), curY + dp(1f)))
+        c.drawText("찾기 좋은 지역", textLeft + dp(13f), curY, textP)
+        curY += dp(13f)
+
+        textP.textSize = TypeScale.px(dp(8.8f))
+        textP.isFakeBoldText = false
+        textP.color = 0xFF4A5F4A.toInt()
+        val placeLines = ArrayList<String>()
+        var placeLine = ""
+        recommended.forEach { region ->
+            val place = region.name
+            val candidate = if (placeLine.isEmpty()) place else "$placeLine  ·  $place"
+            if (placeLine.isNotEmpty() && textP.measureText(candidate) > textMaxW) {
+                placeLines.add(placeLine)
+                placeLine = place
+            } else {
+                placeLine = candidate
+            }
+        }
+        if (placeLine.isNotEmpty()) placeLines.add(placeLine)
+        if (placeLines.isEmpty()) placeLines.add("서식 조건에 맞는 지역에서 출현")
+        for (line in placeLines) {
+            for (wrapped in Type.wrap(line, textP, textMaxW)) {
+                c.drawText(wrapped, textLeft, curY, textP)
+                curY += dp(11f)
+            }
+        }
+        textP.textSize = TypeScale.px(dp(7.4f))
+        textP.color = 0xFF9E8A75.toInt()
+        for (line in Type.wrap("게임 내 상대 가중치 순 · 실측 확률 아님", textP, textMaxW)) {
+            c.drawText(line, textLeft, curY + dp(1f), textP)
+            curY += dp(9f)
+        }
+        curY += dp(4f)
 
         // 골드 구분선
         strokeP.color = 0xFFE2CCA8.toInt()
         strokeP.strokeWidth = dp(1f)
         c.drawLine(textLeft, curY, textLeft + textMaxW, curY, strokeP)
-        curY += dp(14f)
+        curY += dp(12f)
 
         // (3) 📖 상세 한국어 설명 본문 (엑셀의 위키백과 / 생태 정보)
         val fullDesc = def.fullDesc.ifBlank { "한국의 공식 기록 조류입니다." }

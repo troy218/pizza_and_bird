@@ -200,7 +200,8 @@ object CharacterArt {
         /** 나이테 주름 (어르신) */
         val wrinkles: Boolean = false,
         /** 볼 주근깨 (꼬마) */
-        val freckles: Boolean = false
+        val freckles: Boolean = false,
+        val keepsake: String? = null
     ) {
         /** 실제 그릴 헤어스타일 — 옛 longHair 플래그를 새 번호로 매핑 */
         val hair: Int get() = if (hairStyle == HAIR_SHORT && longHair) HAIR_LONG else hairStyle
@@ -850,6 +851,12 @@ object CharacterArt {
             } else {
                 g.rrect(tR - (tR - tL) * 0.30f, top + 0.9f, tR - 0.5f, bot - 0.5f, 2.2f * sc, pal.top2)
                 g.rect(tL + (tR - tL) * 0.30f, top, tL + (tR - tL) * 0.46f, top + 2.1f, pal.top2)
+            }
+            if (direction != BACK) {
+                // Collar and bright buttons give the torso a readable structure.
+                g.rect(shoulderX - 2.2f, top + 0.2f, shoulderX + 2.2f, top + 1.1f, pal.skin2)
+                g.rect(shoulderX - 0.4f, top + 2.3f, shoulderX + 0.4f, top + 3.1f, 0xFFFFEAD0.toInt())
+                g.rect(shoulderX - 0.4f, top + 4.2f, shoulderX + 0.4f, top + 5f, 0xFFFFEAD0.toInt())
             }
             if (look.apron) {
                 g.rrect(tL + 1.6f, top + 2.4f, tR - 1.6f, bot - 0.6f, 2.4f, 0xFFFDF6E8.toInt())
@@ -1677,6 +1684,14 @@ object CharacterArt {
             drawHat()
         }
 
+        // High-contrast keepsakes remain legible even at the base sprite size.
+        look.keepsake?.let { id ->
+            Charms.of(id)?.let { item ->
+                Charms.draw(g.cv, item,
+                    shoulderX + if (direction == SIDE) 3.8f else -4.2f,
+                    shoulderY + 3.5f + pose.clothSway * 0.08f, 5.5f)
+            }
+        }
         if (pose.hold == HOLD_CAMERA) drawCamera()
         if (look.cane) drawCane()
         return refine(bmp, size, hd)
