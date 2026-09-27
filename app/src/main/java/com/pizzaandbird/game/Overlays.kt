@@ -4356,11 +4356,21 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
     }
 
     private fun drawLegend(c: Canvas) {
-        val x0 = mapR.left + dp(scene, 12f)
-        var y = mapR.top + dp(scene, 16f)
-        val lw = dp(scene, 96f)
-        val lh = dp(scene, 14f) * RegionKind.values().size + dp(scene, 10f)
-        val legendR = RectF(x0 - dp(scene, 6f), y - dp(scene, 12f), x0 + lw, y - dp(scene, 12f) + lh)
+        val kinds = RegionKind.values()
+        val rowH = dp(scene, 14f)
+        val dotR = dp(scene, 4f)
+        val gap = dp(scene, 6f)
+        textP.textSize = textDp(scene, 9.5f)
+        textP.color = 0xFF4A3728.toInt()
+        // 점 + 간격 + 가장 긴 라벨 = 한 줄 내용 폭 (점 열을 맞춘 채 블록 전체를 가운데 정렬)
+        val maxTextW = kinds.maxOf { textP.measureText(it.label) }
+        val contentW = dotR * 2f + gap + maxTextW
+        val contentH = rowH * kinds.size
+        val lw = maxOf(dp(scene, 102f), contentW + dp(scene, 16f))
+        val lh = contentH + dp(scene, 10f)
+        val left = mapR.left + dp(scene, 6f)
+        val top = mapR.top + dp(scene, 4f)
+        val legendR = RectF(left, top, left + lw, top + lh)
         fillP.color = Color.argb(55, 20, 16, 30)
         c.drawRoundRect(RectF(legendR.left, legendR.top + dp(scene, 2f), legendR.right, legendR.bottom + dp(scene, 2f)), dp(scene, 8f), dp(scene, 8f), fillP)
         fillP.color = Color.argb(225, 255, 252, 240)
@@ -4368,13 +4378,19 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
         strokeP.color = Color.argb(160, 107, 79, 53)
         strokeP.strokeWidth = dp(scene, 1.4f)
         c.drawRoundRect(legendR, dp(scene, 8f), dp(scene, 8f), strokeP)
-        for (k in RegionKind.values()) {
+
+        // 가로·세로 모두 상자 중앙에 오도록 시작점 계산
+        val startX = legendR.centerX() - contentW / 2f
+        val startY = legendR.centerY() - contentH / 2f
+        val fm = textP.fontMetrics
+        val baselineOff = -(fm.ascent + fm.descent) / 2f   // 글자 세로 중심 → 줄 중심
+        for ((i, k) in kinds.withIndex()) {
+            val cy = startY + rowH * (i + 0.5f)
             fillP.color = k.color
-            c.drawCircle(x0 + dp(scene, 2f), y - dp(scene, 3f), dp(scene, 4f), fillP)
+            c.drawCircle(startX + dotR, cy, dotR, fillP)
             textP.textSize = textDp(scene, 9.5f)
             textP.color = 0xFF4A3728.toInt()
-            c.drawText(k.label, x0 + dp(scene, 10f), y, textP)
-            y += dp(scene, 14f)
+            c.drawText(k.label, startX + dotR * 2f + gap, cy + baselineOff, textP)
         }
     }
 
