@@ -649,6 +649,12 @@ class Canvas {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF)
         }
         val sh = p.shader
+        // Android modulates shader pixels by Paint.alpha; solid colors already contain it.
+        // Reset every draw so a translucent gradient cannot fade later text/shapes.
+        g.composite = java.awt.AlphaComposite.getInstance(
+            java.awt.AlphaComposite.SRC_OVER,
+            if (sh is LinearGradient || sh is RadialGradient) p.alpha / 255f else 1f
+        )
         when (sh) {
             is LinearGradient -> g.paint = sh.gp
             is RadialGradient -> g.paint = sh.rgp
@@ -771,8 +777,27 @@ class Canvas {
         g.drawString(text, x, y)
     }
 
+    // PixelFont uses a white bitmap tinted with SRC_IN. Preserve its real text color
+    // so contrast checks in previews do not accidentally compare white text.
+    private fun filteredImage(bitmap: Bitmap, paint: Paint?): BufferedImage {
+        val filter = paint?.colorFilter as? PorterDuffColorFilter ?: return bitmap.image
+        if (filter.mode != PorterDuff.Mode.SRC_IN) return bitmap.image
+        val image = BufferedImage(bitmap.width, bitmap.height, BufferedImage.TYPE_INT_ARGB)
+        val graphics = image.createGraphics()
+        graphics.drawImage(bitmap.image, 0, 0, null)
+        graphics.composite = java.awt.AlphaComposite.SrcIn
+        graphics.color = JColor(filter.color, true)
+        graphics.fillRect(0, 0, bitmap.width, bitmap.height)
+        graphics.dispose()
+        return image
+    }
+
     fun drawBitmap(bitmap: Bitmap, matrix: Matrix, paint: Paint?) {
-        g.drawImage(bitmap.image, matrix.tx, null)
+        val image = filteredImage(bitmap, paint)
+        val oldComp = g.composite
+        g.composite = compOf(paint, (paint?.alpha ?: 255) / 255f)
+        g.drawImage(image, matrix.tx, null)
+        g.composite = oldComp
     }
 
     /** xfermode → AWT 합성 규칙 (LightMap DST_OUT 등) */
@@ -791,29 +816,12 @@ class Canvas {
         return java.awt.AlphaComposite.getInstance(rule, alpha.coerceIn(0f, 1f))
     }
 
-    /** PorterDuffColorFilter(SRC_IN) 틴트 시현 — 흰 소스 비트맵을 지정 색으로 물들인다 (픽셀 폰트 채색) */
-    private fun tinted(bitmap: Bitmap, paint: Paint?): java.awt.image.BufferedImage {
-        val cf = paint?.colorFilter as? PorterDuffColorFilter ?: return bitmap.image
-        val img = bitmap.image
-        val w = img.width; val h = img.height
-        val out = java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB)
-        val srcPx = img.getRGB(0, 0, w, h, null, 0, w)
-        val dstPx = IntArray(srcPx.size)
-        for (i in srcPx.indices) {
-            val a = (srcPx[i] ushr 24) and 0xFF
-            if (a == 0) { dstPx[i] = 0; continue }
-            dstPx[i] = (a shl 24) or (cf.color and 0x00FFFFFF)
-        }
-        out.setRGB(0, 0, w, h, dstPx, 0, w)
-        return out
-    }
-
     fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) {
+        val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         g.composite = compOf(paint, alpha)
-        val img = if (paint?.colorFilter != null) tinted(bitmap, paint) else bitmap.image
-        g.drawImage(img, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
+        g.drawImage(image, AffineTransform.getTranslateInstance(left.toDouble(), top.toDouble()), null)
         g.composite = oldComp
     }
 
@@ -822,14 +830,14 @@ class Canvas {
     }
 
     fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?) {
+        val image = filteredImage(bitmap, paint)
         val alpha = (paint?.alpha ?: 255) / 255f
         val oldComp = g.composite
         g.composite = compOf(paint, alpha)
-        val base = if (paint?.colorFilter != null) tinted(bitmap, paint) else bitmap.image
         val at = AffineTransform.getTranslateInstance(dst.left.toDouble(), dst.top.toDouble())
         at.scale((dst.width() / bitmap.width).toDouble(), (dst.height() / bitmap.height).toDouble())
         if (src != null) {
-            val sub = base.getSubimage(src.left, src.top, src.width(), src.height())
+            val sub = image.getSubimage(src.left, src.top, src.width(), src.height())
             val sx = dst.width() / sub.width
             val sy = dst.height() / sub.height
             at.setToIdentity()
@@ -837,7 +845,7 @@ class Canvas {
             at.scale(sx.toDouble(), sy.toDouble())
             g.drawImage(sub, at, null)
         } else {
-            g.drawImage(base, at, null)
+            g.drawImage(image, at, null)
         }
         g.composite = oldComp
     }

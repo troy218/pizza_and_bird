@@ -1,5 +1,5 @@
-# preview build 2026-09-27 07:05:18Z
-# commit: eaefc884f1e5f74439a537cf8894a45dfbe4bc57
+# preview build 2026-09-27 07:21:52Z
+# commit: bbc2d99dbbfc8c54f566da514f107e833e356d52
 # gradle exit code: 0
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 >> 프리뷰 렌더링...
@@ -62,9 +62,9 @@ w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790492683248.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790493672677.json
 
-BUILD SUCCESSFUL in 36s
+BUILD SUCCESSFUL in 41s
 40 actionable tasks: 40 executed
 
 ----- preview render log (last 200 lines) -----
