@@ -40,8 +40,8 @@ class GameState {
     val ownedHomes = LinkedHashSet<String>()        // 매입한 지역별 집
     val ownedHouseStyles = LinkedHashSet<String>()  // 구매한 인테리어 스타일
 
-    var homeRegion = START_REGION_ID       // 집이 있는 지역
-    var region = START_REGION_ID           // 현재 지역
+    var homeRegion = START_REGION_ID       // 현재 정착지(다른 매입 집도 다시 들어갈 수 있음)
+    var region = START_REGION_ID           // 현재 지역 / 실내에서는 나갈 지역
     var houseStyleId = "cozy"              // 현재 집 인테리어
     var px = 0f                    // 월드 좌표(px)
     var py = 0f

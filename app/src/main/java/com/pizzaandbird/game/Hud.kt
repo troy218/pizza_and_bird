@@ -1302,9 +1302,9 @@ class Hud(private val game: Game) {
         c: Canvas, ox: Float, oy: Float, scale: Float, glass: Float, showNames: Boolean, s: GameState
     ) {
         val dot = maxOf(dp(2.35f), glass * 0.040f)
-        var homeX = 0f
-        var homeY = 0f
-        var hasHome = false
+        // 매입한 집은 여러 지역에 있을 수 있다. 정착지 하나만 표시하면 이전 집을
+        // 찾아 다시 들어갈 수 없으므로, 미니맵에도 모든 집 현관을 그린다.
+        val ownedHomeMarks = ArrayList<Pair<Float, Float>>()
         var curX = 0f
         var curY = 0f
         var hasCur = false
@@ -1314,8 +1314,8 @@ class Hud(private val game: Game) {
             val y = oy + reg.mmY * scale
             val visited = reg.id in s.visited
             val isCurrent = reg.id == s.region
-            val isHome = reg.id == s.homeRegion
-            if (isHome) { homeX = x; homeY = y; hasHome = true }
+            val hasOwnedHome = s.ownsHome(reg.id)
+            if (hasOwnedHome) ownedHomeMarks.add(x to y)
             if (isCurrent) { curX = x; curY = y; hasCur = true }
 
             if (visited && !isCurrent) {
@@ -1338,7 +1338,7 @@ class Hud(private val game: Game) {
                 c.drawCircle(x, y, dot * 0.68f, ink)
             }
 
-            if (showNames && (isCurrent || isHome)) {
+            if (showNames && (isCurrent || hasOwnedHome)) {
                 val nm = reg.name
                 val ip = Type.paintAt(8f, true, 0.01f, if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt())
                 val tw = ip.measureText(nm)
@@ -1372,7 +1372,7 @@ class Hud(private val game: Game) {
             c.drawCircle(curX - dp(0.45f), curY - dp(0.5f), dp(1.05f), fx)
         }
 
-        if (hasHome) {
+        for ((homeX, homeY) in ownedHomeMarks) {
             val hw = dp(7.2f)
             val above = if (hasCur && kotlin.math.abs(homeX - curX) < dp(4f) && kotlin.math.abs(homeY - curY) < dp(4f)) {
                 dot * 1.3f + dp(8f)
