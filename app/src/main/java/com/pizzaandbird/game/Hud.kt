@@ -489,10 +489,13 @@ class Hud(private val game: Game) {
         drawMessages(c)
     }
 
-    /** 좌상단 상태창(레벨·체력·행운 바)의 높이(dp) */
-    private val statsPanelH = 80f
+    /** 좌상단 상태창(레벨·체력·행운 바)의 높이(dp) — 새 디자인(메달 + 배지 + 2줄) 기준 */
+    private val statsPanelH = 100f
 
-    private fun questChipX(): Float = dp(16f) + dp(162f) / 2f
+    /** 상태 패널 가로(dp) */
+    private val statsPanelW = 184f
+
+    private fun questChipX(): Float = dp(14f) + dp(statsPanelW) / 2f
     private fun questChipY(): Float = dp(8f) + dp(statsPanelH) + dp(22f)
 
     /** 진행 중 의뢰 칩의 화면 사각형 (탭 판정용) */
@@ -514,35 +517,86 @@ class Hud(private val game: Game) {
     }
 
     /**
-     * 좌상단 상태 게이지 — 패널 배경 없이 세계 위에 직접 띄운다.
-     * 위에서부터: 레벨(경험치) 바 → 체력(배고픔) 바 → 행운 바.
-     * 돈·계절·시계·장비 정보는 가방/우상단에 둔다.
+     * 좌상단 상태 게이지 — 탐험가 수첩에 붙은 메달·배지 느낌의 패널.
+     *  · 왼쪽: 둥근 레벨 메달(양각 숫자)
+     *  · 오른쪽 위: 칭호(작게) + 세그먼트 경험치 바 + "exp/need" 숫자
+     *  · 오른쪽 아래: 피자(배고픔) / 네잎클로버(행운) 두 줄 바
+     * MAX 레벨이면 경험치 바는 금빛 완장으로 바뀐다.
      */
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
         // 우상단 클러스터(나침반·시계·계절·가방)와 같은 윗변에 붙여 화면 위에 고정
         val top = dp(8f)
-        val w = dp(162f)
-
+        val pw = dp(statsPanelW)
+        val ph = dp(statsPanelH)
+        val panel = RectF(left, top, left + pw, top + ph)
         val a = game.assets
-        val iconSz = dp(16f)
 
-        // 레벨 + 경험치 바 — 가장 위
-        Type.text(c, "Lv.${s.level}", left + dp(12f), top + dp(21f), Role.LABEL, Type.INK)
-        Type.text(c, s.title(), left + dp(46f), top + dp(20f), Role.CAPTION, Type.SOFT)
-        val bx = left + dp(12f)
-        val bw = w - dp(24f)
-        val expY = top + dp(26f)
-        if (s.level >= Progression.MAX_LEVEL) {
-            UiKit.bar(c, game, bx, expY, bw, dp(6f), 1f, 0xFFFFE08A.toInt(), 0xFFF2D06B.toInt())
+        drawStatsPanel(c, panel)
+
+        // ----- 왼쪽: 레벨 메달 -----
+        val medalR = dp(28f)
+        val medalCx = panel.left + dp(20f) + medalR
+        val medalCy = panel.top + ph / 2f + dp(2f)
+        drawLevelMedal(c, medalCx, medalCy, medalR, s.level, s.level >= Progression.MAX_LEVEL)
+
+        // ----- 오른쪽 영역 -----
+        val rx = medalCx + medalR + dp(12f)
+        val rw = panel.right - rx - dp(12f)
+
+        // 칭호 (작게) — 메달 옆 상단
+        val title = s.title()
+        val titleP = Type.paintAt(10f, true, 0.02f, 0xFF6B4F35.toInt())
+        val titleY = panel.top + dp(18f)
+        var tLabel = title
+        val titleMaxW = rw
+        if (titleP.measureText(tLabel) > titleMaxW) {
+            while (tLabel.length > 1 && titleP.measureText("$tLabel…") > titleMaxW) tLabel = tLabel.dropLast(1)
+            if (tLabel != title) tLabel = "$tLabel…"
+        }
+        c.drawText(tLabel, rx, titleY, titleP)
+
+        // 경험치 바 — 세그먼트 나뉜 탐험가 느낌
+        val expY = panel.top + dp(34f)
+        val expH = dp(8f)
+        val maxed = s.level >= Progression.MAX_LEVEL
+        val prog = if (maxed) 1f else s.expProgress()
+        val segCount = 10
+        if (maxed) {
+            drawSegmentBar(c, rx, expY, rw, expH, 1f, segCount,
+                0xFFF6D67A.toInt(), 0xFFE3A83A.toInt(), 0xFFF9E8B0.toInt())
         } else {
-            UiKit.bar(c, game, bx, expY, bw, dp(6f), s.expProgress(), 0xFF8FD694.toInt(), 0xFF4E9A51.toInt())
+            drawSegmentBar(c, rx, expY, rw, expH, prog, segCount,
+                0xFF9ADB9E.toInt(), 0xFF55A05B.toInt(), 0xFFBDE7BE.toInt())
         }
 
-        // 체력(배고픔) — 레벨 바 아래 (위험하면 맥동해 알린다)
-        val hy = top + dp(40f)
-        c.drawBitmap(a.pizzaIcon, null, RectF(left + dp(12f), hy, left + dp(12f) + iconSz, hy + iconSz), a.sprPaint)
+        // 경험치 숫자 or MAX 장식
+        val expP = Type.paintAt(8.4f, true, 0.02f, if (maxed) 0xFFB58020.toInt() else 0xFF8A7360.toInt())
+        val expTxt = if (maxed) {
+            "★ MAX ★"
+        } else {
+            val need = s.expToNext()
+            "${s.exp} / $need"
+        }
+        val expTextW = expP.measureText(expTxt)
+        c.drawText(expTxt, rx + rw - expTextW, expY + expH + dp(10f), expP)
+
+        // 작은 별 장식 (경험치 바 왼쪽 옆)
+        if (maxed) {
+            UiKit.iconCenter(c, game, "star", rx - dp(4f), expY + expH / 2f, dp(12f))
+        }
+
+        // ----- 아래 두 줄: 피자 / 네잎클로버 -----
+        val rowY1 = panel.top + dp(62f)
+        val rowY2 = panel.top + dp(80f)
+        val iconSz = dp(14f)
+        val barX = rx + iconSz + dp(6f)
+        val barW = panel.right - barX - dp(10f)
+        val barH = dp(9f)
+
+        // 배고픔 (위험하면 붉게 맥동)
+        c.drawBitmap(a.pizzaIcon, null, RectF(rx, rowY1, rx + iconSz, rowY1 + iconSz), a.sprPaint)
         val hungerColor = when {
             s.hunger >= 25f -> 0xFFF2913C.toInt()
             s.hunger >= 15f -> 0xFFE2574C.toInt()
@@ -551,12 +605,274 @@ class Hud(private val game: Game) {
                 (0.5f + 0.5f * sin(game.time * 6f)) * 0.5f
             )
         }
-        drawBar(c, left + dp(36f), hy + dp(2f), dp(112f), dp(12f), s.hunger, hungerColor)
+        drawInlineBar(c, barX, rowY1 + dp(2f), barW, barH, s.hunger / 100f,
+            UiKit.lighten(hungerColor, 28), hungerColor, low = s.hunger < 15f)
 
-        // 행운 — 체력 바 아래
-        val ly = hy + dp(22f)
-        c.drawBitmap(a.cloverIcon, null, RectF(left + dp(12f), ly, left + dp(12f) + iconSz, ly + iconSz), a.sprPaint)
-        drawBar(c, left + dp(36f), ly + dp(2f), dp(112f), dp(12f), s.effectiveLuck(), 0xFF6FBA6B.toInt())
+        // 행운
+        c.drawBitmap(a.cloverIcon, null, RectF(rx, rowY2, rx + iconSz, rowY2 + iconSz), a.sprPaint)
+        drawInlineBar(c, barX, rowY2 + dp(2f), barW, barH, s.effectiveLuck() / 100f,
+            0xFF98D293.toInt(), 0xFF5EAF5A.toInt(), low = false)
+    }
+
+    /** 상태 패널 배경 — 양피지 카드 + 위에 마스킹 테이프 장식. */
+    private fun drawStatsPanel(c: Canvas, r: RectF) {
+        val pad = dp(2f)
+        // 부드러운 그림자
+        fill.shader = null
+        fill.color = Color.argb(58, 30, 20, 12)
+        c.drawRoundRect(RectF(r.left + pad, r.top + pad * 2f, r.right + pad, r.bottom + pad * 3f),
+            dp(12f), dp(12f), fill)
+
+        // 본체 (크림 그라디언트)
+        fill.shader = LinearGradient(
+            r.left, r.top, r.left, r.bottom,
+            0xFFFFFCF3.toInt(), 0xFFF0DFB5.toInt(),
+            Shader.TileMode.CLAMP
+        )
+        c.drawRoundRect(r, dp(12f), dp(12f), fill)
+        fill.shader = null
+
+        // 상단 하이라이트
+        fill.color = Color.argb(130, 255, 255, 255)
+        c.drawRoundRect(RectF(r.left + dp(10f), r.top + dp(2.5f), r.right - dp(10f), r.top + dp(5f)),
+            dp(2f), dp(2f), fill)
+
+        // 테두리
+        stroke.color = 0xFF8A6638.toInt()
+        stroke.strokeWidth = dp(2f)
+        c.drawRoundRect(r, dp(12f), dp(12f), stroke)
+        // 이너 헤어라인
+        stroke.color = Color.argb(100, 255, 250, 230)
+        stroke.strokeWidth = dp(1f)
+        val ins = dp(3f)
+        c.drawRoundRect(RectF(r.left + ins, r.top + ins, r.right - ins, r.bottom - ins),
+            dp(9f), dp(9f), stroke)
+
+        // 마스킹 테이프 (좌상단 살짝 붙은 장식)
+        val tapeW = dp(28f)
+        val tapeH = dp(10f)
+        val tapeX = r.left + dp(12f)
+        val tapeY = r.top - tapeH * 0.42f
+        c.save()
+        c.rotate(-6f, tapeX + tapeW / 2f, tapeY + tapeH / 2f)
+        fill.color = Color.argb(180, 246, 224, 150)
+        c.drawRect(RectF(tapeX, tapeY, tapeX + tapeW, tapeY + tapeH), fill)
+        // 테이프 결 (줄무늬)
+        stroke.color = Color.argb(50, 180, 140, 70)
+        stroke.strokeWidth = dp(0.6f)
+        for (i in 0..3) {
+            val xx = tapeX + tapeW * (0.2f + i * 0.18f)
+            c.drawLine(xx, tapeY + dp(1f), xx, tapeY + tapeH - dp(1f), stroke)
+        }
+        c.restore()
+
+        // 오른쪽 위 구석에 작은 장식 (스테이플러 심 느낌)
+        fill.color = 0xFFB7935A.toInt()
+        val stX = r.right - dp(14f)
+        val stY = r.top + dp(8f)
+        c.drawRect(RectF(stX, stY, stX + dp(8f), stY + dp(2.5f)), fill)
+        fill.color = Color.argb(120, 255, 240, 200)
+        c.drawRect(RectF(stX + dp(1f), stY + dp(0.5f), stX + dp(7f), stY + dp(1f)), fill)
+    }
+
+    /** 둥근 레벨 메달 — 양각 숫자 + 금속 링 + 리본 조각. */
+    private fun drawLevelMedal(c: Canvas, cx: Float, cy: Float, r: Float, level: Int, maxed: Boolean) {
+        val time = game.time
+        val breathe = 0.5f + 0.5f * sin(time * 2.2f)
+
+        // 바깥 색: MAX면 금색, 아니면 청동 로즈
+        val outerHi = if (maxed) 0xFFFFE8A8.toInt() else 0xFFE8C27D.toInt()
+        val outerLo = if (maxed) 0xFFC98F2A.toInt() else 0xFF8F5A2F.toInt()
+
+        // 그림자
+        fill.shader = null
+        fill.color = Color.argb(80, 40, 24, 12)
+        c.drawCircle(cx + dp(1f), cy + dp(3f), r * 1.02f, fill)
+
+        // MAX: 약한 황금 후광
+        if (maxed) {
+            val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = RadialGradient(cx, cy, r * 1.65f,
+                    intArrayOf(Color.argb(90, 250, 220, 120), Color.argb(0, 250, 220, 120)),
+                    floatArrayOf(0.5f, 1f), Shader.TileMode.CLAMP)
+            }
+            halo.alpha = (150 + 80 * breathe).toInt().coerceIn(0, 255)
+            c.drawCircle(cx, cy, r * 1.65f, halo)
+        }
+
+        // 외부 링
+        fill.shader = RadialGradient(cx - r * 0.35f, cy - r * 0.4f, r * 1.35f,
+            intArrayOf(outerHi, outerLo, UiKit.darken(outerLo, 20)),
+            floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
+        c.drawCircle(cx, cy, r, fill)
+        fill.shader = null
+
+        // 내부 원반 (에나멜)
+        val inner = r * 0.78f
+        val enamelHi = if (maxed) 0xFFFEF6D4.toInt() else 0xFFF8EFD5.toInt()
+        val enamelLo = if (maxed) 0xFFF0D583.toInt() else 0xFFD6BC85.toInt()
+        fill.shader = RadialGradient(cx - inner * 0.3f, cy - inner * 0.4f, inner * 1.25f,
+            intArrayOf(enamelHi, enamelLo),
+            floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
+        c.drawCircle(cx, cy, inner, fill)
+        fill.shader = null
+
+        // 링 테두리
+        stroke.color = UiKit.darken(outerLo, 25)
+        stroke.strokeWidth = dp(1.6f)
+        c.drawCircle(cx, cy, r, stroke)
+        stroke.color = 0xFF6B4F35.toInt()
+        stroke.strokeWidth = dp(1.1f)
+        c.drawCircle(cx, cy, inner, stroke)
+
+        // 장식 점 (메달 가장자리 별모양 엠보 — 12개)
+        fill.color = UiKit.darken(outerLo, 10)
+        val beadCount = 12
+        for (i in 0 until beadCount) {
+            val ang = (i.toFloat() / beadCount) * Math.PI.toFloat() * 2f
+            val br = (r + inner) / 2f
+            val bx = cx + kotlin.math.cos(ang) * br
+            val by = cy + kotlin.math.sin(ang) * br
+            c.drawCircle(bx, by, dp(1.2f), fill)
+        }
+
+        // 에나멜 광택
+        val gloss = Paint(Paint.ANTI_ALIAS_FLAG)
+        gloss.color = Color.argb(90, 255, 255, 255)
+        c.drawCircle(cx - inner * 0.32f, cy - inner * 0.4f, inner * 0.35f, gloss)
+
+        // 숫자 (양각 효과: 아래 어둠 + 위 크림)
+        val numText = "$level"
+        val numSize = if (level < 10) dp(20f) else dp(17f)
+        val numDark = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            textSize = TypeScale.px(numSize)
+            color = 0xFF6B4520.toInt()
+            textAlign = Paint.Align.CENTER
+        }
+        val numHi = Paint(numDark).apply { color = 0xFFFFF7DF.toInt() }
+        val numBaseline = cy + numSize * 0.34f
+        c.drawText(numText, cx + dp(0.8f), numBaseline + dp(0.9f), numDark)
+        c.drawText(numText, cx, numBaseline, numHi)
+
+        // 리본 조각 (메달 아래쪽 살짝 가리는 작은 V)
+        val ribbonY = cy + r - dp(3f)
+        val ribbonPath = Path()
+        val ribbonW = r * 0.95f
+        val ribbonH = dp(7f)
+        ribbonPath.reset()
+        ribbonPath.moveTo(cx - ribbonW / 2f, ribbonY)
+        ribbonPath.lineTo(cx, ribbonY + ribbonH)
+        ribbonPath.lineTo(cx + ribbonW / 2f, ribbonY)
+        ribbonPath.lineTo(cx + ribbonW / 2f - dp(2f), ribbonY + ribbonH + dp(4f))
+        ribbonPath.lineTo(cx, ribbonY + ribbonH - dp(1f))
+        ribbonPath.lineTo(cx - ribbonW / 2f + dp(2f), ribbonY + ribbonH + dp(4f))
+        ribbonPath.close()
+        fill.shader = null
+        fill.color = if (maxed) 0xFFD04A3A.toInt() else 0xFFC8643A.toInt()
+        c.drawPath(ribbonPath, fill)
+        stroke.color = 0xFF7A281E.toInt()
+        stroke.strokeWidth = dp(0.9f)
+        c.drawPath(ribbonPath, stroke)
+
+        // 작은 반짝임(MAX일 때)
+        if (maxed) {
+            for (i in 0..2) {
+                val a1 = time * 1.3f + i * 2.1f
+                val sr = r * (0.82f + 0.06f * i)
+                val sx = cx + kotlin.math.cos(a1) * sr
+                val sy = cy + kotlin.math.sin(a1) * sr
+                val twinkle = (0.5f + 0.5f * sin(time * 5f + i * 1.7f)).coerceIn(0f, 1f)
+                fill.color = Color.argb((220 * twinkle).toInt().coerceIn(0, 255), 255, 246, 200)
+                c.drawCircle(sx, sy, dp(1.5f) + dp(0.8f) * twinkle, fill)
+            }
+        }
+    }
+
+    /** 세그먼트 나뉜 경험치 바 — 칸이 차오르는 모습. */
+    private fun drawSegmentBar(
+        c: Canvas, x: Float, y: Float, w: Float, h: Float, frac: Float,
+        segs: Int, c0: Int, c1: Int, cHi: Int
+    ) {
+        val d = game.density
+        val r = RectF(x, y, x + w, y + h)
+        // 트랙
+        fill.shader = null
+        fill.color = 0xFFD9C6A3.toInt()
+        c.drawRoundRect(r, h / 2f, h / 2f, fill)
+        fill.color = Color.argb(80, 90, 66, 40)
+        c.drawRoundRect(RectF(x + 1.5f * d, y + 1.2f * d, x + w - 1.5f * d, y + h * 0.45f),
+            h / 2.5f, h / 2.5f, fill)
+
+        // 세그먼트 필
+        val gap = dp(2f)
+        val segW = (w - gap * (segs - 1)) / segs
+        val filled = frac * segs
+        val inset = dp(1.4f)
+        for (i in 0 until segs) {
+            val fillK = (filled - i).coerceIn(0f, 1f)
+            if (fillK <= 0.01f) break
+            val sx = x + i * (segW + gap)
+            val sr = RectF(sx + inset, y + inset, sx + segW + (segW * (fillK - 1f)).coerceAtMost(0f) - inset, y + h - inset)
+            if (sr.width() <= 0f) continue
+            val sh = (h - inset * 2f) / 2f
+            if (fillK >= 0.99f) {
+                fill.shader = LinearGradient(sr.left, sr.top, sr.left, sr.bottom, cHi, c1, Shader.TileMode.CLAMP)
+            } else {
+                // 꽉 차지 않은 칸은 살짝 어둡게
+                fill.shader = LinearGradient(sr.left, sr.top, sr.left, sr.bottom,
+                    UiKit.darken(c0, 20), UiKit.darken(c1, 10), Shader.TileMode.CLAMP)
+            }
+            c.drawRoundRect(sr, sh, sh, fill)
+        }
+        fill.shader = null
+
+        // 외곽선
+        stroke.color = 0xFF8A6638.toInt()
+        stroke.strokeWidth = dp(1.3f)
+        c.drawRoundRect(r, h / 2f, h / 2f, stroke)
+    }
+
+    /** 작은 인라인 바 (배고픔/행운) — 트랙 음영 + 그라데이션 필. */
+    private fun drawInlineBar(
+        c: Canvas, x: Float, y: Float, w: Float, h: Float, frac: Float,
+        c0: Int, c1: Int, low: Boolean
+    ) {
+        val d = game.density
+        val r = RectF(x, y, x + w, y + h)
+        val p = frac.coerceIn(0f, 1f)
+        // 트랙
+        fill.shader = null
+        fill.color = 0xFFD9C6A3.toInt()
+        c.drawRoundRect(r, h / 2f, h / 2f, fill)
+        fill.color = Color.argb(84, 90, 66, 40)
+        c.drawRoundRect(RectF(x + 1.2f * d, y + 1f * d, x + w - 1.2f * d, y + h * 0.5f),
+            h / 2.6f, h / 2.6f, fill)
+        // 필
+        val inset = 1.2f * d
+        val fw = (w - inset * 2f) * p
+        if (p > 0.01f && fw > 1.5f * d) {
+            val fr = RectF(x + inset, y + inset, x + inset + fw, y + h - inset)
+            if (low) {
+                // 위험하면 필이 맥박
+                val pulse = 0.5f + 0.5f * sin(game.time * 6f)
+                fill.shader = LinearGradient(fr.left, fr.top, fr.left, fr.bottom,
+                    blendToward(c0, 0xFFFFC9A3.toInt(), pulse * 0.4f),
+                    blendToward(c1, 0xFFE2574C.toInt(), pulse * 0.4f),
+                    Shader.TileMode.CLAMP)
+            } else {
+                fill.shader = LinearGradient(fr.left, fr.top, fr.left, fr.bottom, c0, c1, Shader.TileMode.CLAMP)
+            }
+            c.drawRoundRect(fr, (h - inset * 2f) / 2f, (h - inset * 2f) / 2f, fill)
+            fill.shader = null
+            // 광택선
+            fill.color = Color.argb(95, 255, 255, 255)
+            c.drawRoundRect(RectF(fr.left + 2f * d, fr.top + 0.9f * d, fr.right - 2f * d, fr.top + fr.height() * 0.45f),
+                2.2f * d, 2.2f * d, fill)
+        }
+        stroke.color = 0xFF8A6638.toInt()
+        stroke.strokeWidth = dp(1.1f)
+        c.drawRoundRect(r, h / 2f, h / 2f, stroke)
     }
 
     /**
@@ -787,7 +1103,7 @@ class Hud(private val game: Game) {
         val bcol = Color.argb(alpha, 248, 239, 220)
         val tp = Type.paintAt(26f, true, 0.04f, bcol)
         // 좌우 HUD를 피해 폭이 넘치면 폰트를 줄여 한 줄에 맞춘다
-        val bwMax = (if (showStats) w - dp(360f) else w - dp(40f))
+        val bwMax = (if (showStats) w - dp(400f) else w - dp(40f))
             .coerceIn(dp(200f), (w - dp(40f)).coerceAtLeast(dp(200f)))
         while (UiKit.iconTextWidth(bt, tp) + dp(44f) > bwMax && tp.textSize > dp(16f)) {
             tp.textSize -= dp(1f)
