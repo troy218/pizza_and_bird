@@ -173,8 +173,8 @@ object StorySmoke {
             val w = WorldScene(g, ep.regionId, SpawnKind.SAVED)
             g.scene = w
             val npc = w.map.npcs.first { it.kind == ep.npc }
-            check(SideStories.hasMarker(g.context, ep.regionId, ep.npc)) { "${ep.id} 💬 마커 없음" }
-            check(!SideStories.hasMarker(g.context, ep.regionId, NpcKind.PROFESSOR))
+            check(SideStories.hasMarker(g.context, ep.regionId, npc.person)) { "${ep.id} 💬 마커 없음" }
+            check(!SideStories.hasMarker(g.context, ep.regionId, NpcRoster.professor))
 
             // 도입 (막 1)
             check(SideStories.intercept(w, npc)) { "${ep.id} 도입 인터셉트 실패" }
@@ -231,7 +231,7 @@ object StorySmoke {
             totalReward += ep.reward.first
 
             // 완료 후: 마커 소멸. 단, 마지막(12번째) 편을 끝낸 직후 대화는 숨은 에필로그가 이어받는다(정상).
-            check(!SideStories.hasMarker(g.context, ep.regionId, ep.npc))
+            check(!SideStories.hasMarker(g.context, ep.regionId, npc.person))
             if (ep.regionId != SideStories.EPISODES.last().regionId) {
                 check(!SideStories.intercept(w, npc)) { "${ep.id} 완료 후 반복" }
             }
