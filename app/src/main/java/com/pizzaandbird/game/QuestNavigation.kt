@@ -211,6 +211,28 @@ object QuestNavigation {
 
     fun planFor(state: GameState): QuestTravelPlan? = state.questTravelPlan
 
+    /**
+     * HUD 의뢰 칩 탭 — 추적 중인 의뢰의 목표 위치로 자동 길안내를 시작한다.
+     * 의뢰 종류(메인/일일/게시판/새 목표)에 맞는 안내 함수를 골라 부른다.
+     */
+    fun autoGo(scene: Scene) {
+        val state = scene.game.state
+        val tracker = tracker(state)
+        val active = state.activeQuests.firstOrNull { it.id == tracker?.id && !it.completed }
+        val daily = state.dailyQuests.firstOrNull { it.id == tracker?.id && !it.completed }
+        when {
+            tracker?.id == "main" -> startMainQuest(scene.game, scene)
+            tracker?.id == "legacy_bird" -> {
+                val birdId = state.questBird
+                if (birdId != null) startLegacyBirdTrip(scene.game, scene, birdId)
+                else scene.game.toast("추적 중인 새 목표가 없어요")
+            }
+            active != null -> startQuest(scene.game, scene, active)
+            daily != null -> startDailyQuest(scene.game, scene, daily)
+            else -> scene.game.toast("진행 중인 의뢰가 없어요 — 게시판에서 새 의뢰를 골라 보세요")
+        }
+    }
+
     fun openTracker(scene: Scene) {
         val state = scene.game.state
         val tracker = tracker(state)

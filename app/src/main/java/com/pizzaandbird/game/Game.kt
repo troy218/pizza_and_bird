@@ -394,8 +394,13 @@ class Game(val context: Context) {
         if (tr != null) {
             tr.update(dt)
             if (tr.finished) transition = null
-            input.endFrame()
-            return
+            if (!tr.actionDone) {
+                // 페이드 아웃(장면이 바뀌기 전) 동안에만 입력을 비워 둔다.
+                // 페이드 인 중에는 이미 새 장면이 보이는데 예전엔 여기도 막혀
+                // 전환이 끝날 때까지 버튼이 먹통이라 보여 몇 번씩 눌러야 했다.
+                input.endFrame()
+                return
+            }
         }
         val ov = scene.overlay
         if (ov != null) {
@@ -541,7 +546,7 @@ class Transition(private val action: () -> Unit) {
     private var doneFlag = false
 
     fun update(dt: Float) {
-        t += dt / 0.3f
+        t += dt / 0.22f  // 더 빠르게 — 버튼 반응성 개선
         if (t >= 1f) {
             if (phase == 0) {
                 action()
@@ -554,6 +559,9 @@ class Transition(private val action: () -> Unit) {
     }
 
     val finished: Boolean get() = doneFlag
+
+    /** 액션이 끝나 페이드 **인** 단계인지 — 이때부터는 새 장면이 화면에 보이므로 입력을 다시 받는다. */
+    val actionDone: Boolean get() = phase == 1
 
     fun draw(c: Canvas, w: Float, h: Float) {
         val raw = (if (phase == 0) t else 1f - t).coerceIn(0f, 1f)

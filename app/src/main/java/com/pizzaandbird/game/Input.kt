@@ -8,7 +8,10 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST, STATS, DEX, ACHIEVE, SETTINGS }
+
+/** 가방(☰)과 그 옆의 바로가기 버튼이 열 수 있는 창. */
+enum class MenuTarget { BAG, DEX, ACHIEVEMENTS, SETTINGS, STATUS }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -26,8 +29,13 @@ class Input(private val game: Game) {
         const val CANCEL = 4
     }
 
-    /** 탭/드래그 구분 임계값 (실제 화면 px, 기기 밀도에 비례) */
-    private val tapDragPx = 12f * game.density
+    /**
+     * 탭/드래그 구분 임계값 (실제 화면 px, 기기 밀도에 비례).
+     *
+     * 살짝 미끄러지는 손끝도 탭으로 인정해야 "여러 번 눌러야 반응"하는 느낌이 사라진다.
+     * 드래그가 필요한 지도 창은 raw 터치를 따로 쓰므로 넓혀도 안전하다.
+     */
+    private val tapDragPx = 17f * game.density
 
     private val lock = Any()
     private val pointerPos = HashMap<Int, PointF>()
@@ -54,7 +62,9 @@ class Input(private val game: Game) {
     var justEatPick = false   // [P11] 빠른 피자 창 (🍕 버튼 길게 누르기 / Q 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
-    var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
+    var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 목표 위치로 자동 이동
+    var justStats = false     // 좌상단 레벨 패널 탭 — 내 상태 통합 창
+    var menuTarget = MenuTarget.BAG   // justMenu와 함께: 어떤 창을 열지 (가방/도감/업적/설정)
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     /** [P11] 🍕 버튼 홀드 진행도 0~1 — HUD가 버튼 주위의 링으로 보여 준다 */
@@ -178,9 +188,13 @@ class Input(private val game: Game) {
                             press(ctrl)
                         }
                     } else {
-                        // 월드 탭은 떼는 순간에 반응 (드래그와 구분)
+                        // 탭은 **누른 순간**에 반응한다. 떼는 순간 판정하면 손끝이
+                        // 조금만 미끄러져도 버튼이 먹통처럼 보여 몇 번씩 눌러야 했다.
+                        // (드래그가 필요한 화면은 rawMode — 지도/백업 — 라 이 경로를 안 쓴다)
                         pointerDown[ev.id] = PointF(ev.x, ev.y)
                         pointerDragged.remove(ev.id)
+                        tapFiredIds.add(ev.id)
+                        tapScreen = PointF(ev.x, ev.y)
                     }
                 }
                 K.MOVE -> {
@@ -223,18 +237,25 @@ class Input(private val game: Game) {
                         game.hud.releaseStick()
                         // 움직이지 않고 떼면 월드 탭으로 처리 (조이스틱 구역에서도 상호작용 유지)
                         if (ev.id in stickTentative && ev.id !in pointerDragged) {
-                            tapScreen = PointF(ev.x, ev.y)
+                            // 탭 위치는 "누른 자리" 기준 — 떼는 순간 손끝이 몇 px 밀려도
+                            // 처음 겨냥한 버튼이 눌리도록 한다.
+                            val aim = pointerDown[ev.id]
+                            tapScreen = if (aim != null) PointF(aim.x, aim.y) else PointF(ev.x, ev.y)
                         }
                         stickTentative.remove(ev.id)
                     }
                     val down = pointerDown[ev.id]
-                    if (!rawMode && ctrl == Ctrl.NONE && down != null && ev.id !in pointerDragged) {
+                    if (!rawMode && ctrl == Ctrl.NONE && down != null && ev.id !in pointerDragged &&
+                        ev.id !in tapFiredIds
+                    ) {
                         val dx = ev.x - down.x
                         val dy = ev.y - down.y
                         if (dx * dx + dy * dy <= tapDragPx * tapDragPx) {
-                            tapScreen = PointF(ev.x, ev.y)
+                            // 누운 순간 탭이 이미 처리되지 않은 예외적 경우만 뗄 때 보정한다.
+                            tapScreen = PointF(down.x, down.y)
                         }
                     }
+                    tapFiredIds.remove(ev.id)
                     pointerPos.remove(ev.id)
                     pointerCtrl.remove(ev.id)
                     pointerDown.remove(ev.id)
@@ -247,6 +268,7 @@ class Input(private val game: Game) {
                     eatHoldStart.remove(ev.id)
                     eatHoldFired.remove(ev.id)
                     stickTentative.remove(ev.id)
+                    tapFiredIds.remove(ev.id)
                     pointerPos.remove(ev.id)
                     pointerCtrl.remove(ev.id)
                     pointerDown.remove(ev.id)
@@ -262,7 +284,9 @@ class Input(private val game: Game) {
 
                             KeyEvent.KEYCODE_X -> justB = true
                             KeyEvent.KEYCODE_C -> justCam = true
-                            KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
+                            KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> {
+                                justMenu = true; menuTarget = MenuTarget.BAG
+                            }
                             KeyEvent.KEYCODE_E -> justEat = true
                             KeyEvent.KEYCODE_Q -> justEatPick = true   // [P11] 빠른 피자 창
                             KeyEvent.KEYCODE_F -> justPunch = true
@@ -340,11 +364,15 @@ class Input(private val game: Game) {
             Ctrl.A -> { justA = true; game.haptic() }
             Ctrl.B -> { justB = true; game.haptic() }
             Ctrl.CAM -> { justCam = true; game.haptic() }
-            Ctrl.MENU -> { justMenu = true; game.haptic() }
+            Ctrl.MENU -> { justMenu = true; menuTarget = MenuTarget.BAG; game.haptic() }
             // [P11] Ctrl.EAT 은 여기로 오지 않는다 — 누르기/떼기/길게 누르기를 위에서 따로 처리
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             Ctrl.QUEST -> { justQuest = true; game.haptic() }
+            Ctrl.STATS -> { justStats = true; game.haptic() }
+            Ctrl.DEX -> { justMenu = true; menuTarget = MenuTarget.DEX; game.haptic() }
+            Ctrl.ACHIEVE -> { justMenu = true; menuTarget = MenuTarget.ACHIEVEMENTS; game.haptic() }
+            Ctrl.SETTINGS -> { justMenu = true; menuTarget = MenuTarget.SETTINGS; game.haptic() }
             else -> {}
         }
     }
@@ -398,6 +426,9 @@ class Input(private val game: Game) {
         ctrlSnap = HashSet(pointerCtrl.values)
     }
 
+    /** 누운 손가락별로 "탭을 이미 뗄 때 말고 누른 순간에 처리했는지" 기록 (중복 발동 방지) */
+    private val tapFiredIds = HashSet<Int>()
+
     /** 화면 좌표 탭 (오버레이가 소비) */
     fun consumeTapScreen(): PointF? {
         val t = tapScreen
@@ -430,6 +461,8 @@ class Input(private val game: Game) {
         justMap = false
         justPunch = false
         justQuest = false
+        justStats = false
+        menuTarget = MenuTarget.BAG
         tapScreen = null
         rawEvents.clear()
     }

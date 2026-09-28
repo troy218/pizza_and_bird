@@ -435,7 +435,11 @@ class NotebookOverlay(scene: Scene) : Overlay(scene) {
 // 메뉴 (상태 / 피자 / 도감 / 설정)
 // ---------------------------------------------------------------------------
 
-class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) : Overlay(scene) {
+class MenuOverlay(
+    scene: Scene,
+    private val showAchievements: Boolean = false,
+    private val target: MenuTarget = MenuTarget.BAG
+) : Overlay(scene) {
     /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
@@ -445,6 +449,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
     /** 탭마다 파스텔 색이 다르다 — 가방 속 색색의 인덱스 탭처럼 */
     private enum class Tab(val label: String, val icon: String, val tint: Int) {
+        BAG("가방", "backpack", UiKit.PASTEL_MINT),
         STATUS("상태", "note", UiKit.PASTEL_PEACH),
         QUEST("퀘스트", "map", UiKit.PASTEL_SKY),
         GROW("성장", "leaf", UiKit.PASTEL_MINT),
@@ -468,7 +473,17 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private fun cuteBtnOff(c: Canvas, r: RectF, label: String, size: Float) =
         UiKit.cuteButton(c, scene.game, r, label, Color.argb(120, 214, 204, 186), Color.argb(150, 74, 55, 40), size)
 
-    private var tab = if (showAchievements) Tab.ACHIEVE else Tab.STATUS
+    private var tab = when {
+        showAchievements -> Tab.ACHIEVE
+        target == MenuTarget.DEX -> Tab.BOOK
+        target == MenuTarget.ACHIEVEMENTS -> Tab.ACHIEVE
+        target == MenuTarget.SETTINGS -> Tab.SETTINGS
+        target == MenuTarget.STATUS -> Tab.STATUS
+        else -> Tab.BAG
+    }
+    /** 탭을 누른 직후 0.1초 눌린 버튼 상태를 보여 준다 (타 게임 버튼처럼 톡 눌리는 느낌). */
+    private var flashTab: Tab? = null
+    private var flashUntil = 0f
     private val tabRects = ArrayList<Pair<RectF, Tab>>()
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
@@ -511,6 +526,8 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                 if ((t == Tab.BOOK || t == Tab.ALBUM) && tab != t) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
                 else g.sfx(Audio.Sfx.TAP, 0.45f)
                 tab = t
+                flashTab = t            // 눌린 느낌 — 버튼이 톡 눌렸다가 튀어나온다
+                flashUntil = g.time + 0.12f
                 resetArmed = false
                 return
             }
@@ -652,17 +669,28 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val tabW = (panelR.width() - dp(scene, 24f) - tabGap * (nTabs - 1)) / nTabs
         val tabTop = panelR.top + dp(scene, 45f)
         val tabH = dp(scene, 26f)
+        val flashing = flashTab?.takeIf { g.time < flashUntil }
         for ((i, t) in Tab.values().withIndex()) {
             val x0 = panelR.left + dp(scene, 12f) + i * (tabW + tabGap)
             val hit = RectF(x0, tabTop - dp(scene, 4f), x0 + tabW, tabTop + tabH + dp(scene, 4f))
             val label = if (tabW < dp(scene, 90f)) t.label else "${t.icon} ${t.label}"
             if (t == tab) {
-                val r = RectF(x0, tabTop - dp(scene, 3f), x0 + tabW, tabTop + tabH - dp(scene, 1f))
-                cuteBtn(c, r, label, t.tint, UiKit.INK, 12.5f)
-                UiKit.sparkle(c, r.right - dp(scene, 4f), r.top - dp(scene, 1f), dp(scene, 6f), 0xFFFFFFFF.toInt(), g.time * 4f + i)
+                val pressed = flashing == t
+                val r = if (pressed) {
+                    RectF(x0 + dp(scene, 1.5f), tabTop + dp(scene, 1f), x0 + tabW - dp(scene, 1.5f), tabTop + tabH + dp(scene, 1f))
+                } else {
+                    RectF(x0, tabTop - dp(scene, 3f), x0 + tabW, tabTop + tabH - dp(scene, 1f))
+                }
+                cuteBtn(c, r, label, if (pressed) UiKit.darken(t.tint, 12) else t.tint, UiKit.INK, 12.5f)
+                if (!pressed) UiKit.sparkle(c, r.right - dp(scene, 4f), r.top - dp(scene, 1f), dp(scene, 6f), 0xFFFFFFFF.toInt(), g.time * 4f + i)
             } else {
-                val r = RectF(x0 + dp(scene, 1.5f), tabTop + dp(scene, 2f), x0 + tabW - dp(scene, 1.5f), tabTop + tabH - dp(scene, 1f))
-                UiKit.cuteButton(c, g, r, label, UiKit.lighten(t.tint, 26), UiKit.MUTED, 11.5f, depthDp = 2f)
+                val pressed = flashing == t
+                val r = if (pressed) {
+                    RectF(x0 + dp(scene, 2f), tabTop + dp(scene, 3f), x0 + tabW - dp(scene, 2f), tabTop + tabH)
+                } else {
+                    RectF(x0 + dp(scene, 1.5f), tabTop + dp(scene, 2f), x0 + tabW - dp(scene, 1.5f), tabTop + tabH - dp(scene, 1f))
+                }
+                UiKit.cuteButton(c, g, r, label, UiKit.lighten(t.tint, 26), UiKit.MUTED, 11.5f, depthDp = if (pressed) 0.6f else 2f)
             }
             tabRects.add(hit to t)
         }
@@ -670,6 +698,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
         btnRects.clear()
         when (tab) {
+            Tab.BAG -> drawBag(c)
             Tab.STATUS -> drawStatus(c)
             Tab.QUEST -> drawQuest(c)
             Tab.GROW -> drawGrow(c)
@@ -683,6 +712,233 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
     private fun contentTop(): Float = panelR.top + dp(scene, 84f)
     private fun contentBottom(): Float = panelR.bottom - dp(scene, 14f)
+
+    // -------------------------------------------------------------------
+    // 가방 탭 — 좌: 캐릭터 + 신체 부위 장비 슬롯 / 우: 아이템 수량 격자
+    // -------------------------------------------------------------------
+
+    private var bagPage = 0
+
+    /** 가방에 보이는 아이템 한 종류 — 한 슬롯에 수량으로 쌓인다 (두라구 인벤토리식). */
+    private class BagItem(
+        val name: String, val qty: Int, val unit: String, val note: String,
+        val emoji: String, val tip: String,
+        /** UiKit SVG 토큰이 있으면 이모지 대신 이 아이콘을 그린다 (Inventory.kt Items 연동) */
+        val token: String? = null
+    )
+
+    private fun bagItems(s: GameState): List<BagItem> {
+        val out = ArrayList<BagItem>()
+        // 피자 — 종류당 한 슬롯. 수량은 조각, '한 판'은 작은 표기로.
+        for (def in Pizzas.ALL) {
+            val slices = PizzaSlices.of(s, def.id)
+            var pans = 0
+            for (q in 0 until 3) pans += s.pizzas[PizzaSlices.idx(def.id, q)]
+            if (slices <= 0 && pans <= 0) continue
+            out.add(
+                BagItem(def.fullName, slices, "조각", if (pans > 0) "한 판 ${pans}개" else "",
+                    def.emoji, def.desc)
+            )
+        }
+        // 고양이 간식
+        val treats = Healing.catTreats(s)
+        if (treats > 0) out.add(BagItem("생선 간식", treats, "개", "고양이에게 주면 친밀도가 올라가요", "🐟", "고양이 간식 — 길고양이에게 주면 답례 선물을 물어다 줘요"))
+        // 야생 허브 12종 — 수량으로 저장된다 (healing JSON)
+        val herbs = Healing.herbs(s)
+        for (h in Healing.HERBS) {
+            val n = herbs[h.id] ?: 0
+            if (n <= 0) continue
+            out.add(BagItem(h.name, n, "개", h.note, h.emoji, h.note))
+        }
+        // 일반 인벤토리 (듀랑고식 수량 저장 — Inventory.kt Items 카탈로그, GameState.inventory)
+        for (def in Items.ALL) {
+            val n = s.itemCount(def.id)
+            if (n <= 0) continue
+            out.add(BagItem(def.name, n, "개", def.desc, "", def.desc, def.icon))
+        }
+        return out
+    }
+
+    private fun drawBag(c: Canvas) {
+        val g = scene.game
+        val s = g.state
+        val left = panelR.left + dp(scene, 12f)
+        val right = panelR.right - dp(scene, 12f)
+        val top = contentTop()
+        val bottom = contentBottom()
+        val gap = dp(scene, 10f)
+        val charW = ((right - left) * 0.34f).coerceAtMost(dp(scene, 300f))
+        val charR = RectF(left, top, left + charW, bottom)
+        val itemR = RectF(left + charW + gap, top, right, bottom)
+
+        // ---- 좌: 캐릭터 + 신체 부위 장비 슬롯 (미비노기풍) ----
+        cuteCard(c, charR, UiKit.PASTEL_SAND, 0xFFC9A063.toInt(), 1.6f)
+        textP.textSize = textDp(scene, 10f)
+        textP.color = 0xFF8A6B47.toInt()
+        c.drawText("캐릭터 · 몸에 착용한 장비", charR.left + dp(scene, 10f), charR.top + dp(scene, 15f), textP)
+
+        // 캐릭터 (정면 서 있는 아바타 — 시간에 따라 살짝 호흡)
+        val frames = g.assets.playerAvatarFrames(s.gender, s.gearTier())
+        val bmp = frames[((g.time * 2.4f).toInt()).coerceIn(0, frames.size - 1) % frames.size]
+        val chH = (charR.height() * 0.40f).coerceAtMost(dp(scene, 165f))
+        val chW = chH * bmp.width / bmp.height
+        val chTop = charR.top + dp(scene, 26f)
+        val chCx = charR.centerX()
+        // 그림자
+        fillP.color = Color.argb(34, 60, 40, 20)
+        c.drawOval(RectF(chCx - chW * 0.34f, chTop + chH - dp(scene, 3f), chCx + chW * 0.34f, chTop + chH + dp(scene, 7f)), fillP)
+        c.drawBitmap(bmp, null, RectF(chCx - chW / 2f, chTop, chCx + chW / 2f, chTop + chH), g.assets.sprPaint)
+
+        // 신체 부위 슬롯 — 목(장신구) / 손(카메라) / 발(자전거).
+        // 슬롯은 몸에서 떨어진 자리에 두고, 이름표는 슬롯 카드 안쪽 아래에 넣어 안 겹친다.
+        val S = dp(scene, 42f)
+        val slotH = S + dp(scene, 13f)
+        val charmR = RectF(chCx - dp(scene, 58f) - S, chTop + chH * 0.12f, chCx - dp(scene, 58f), chTop + chH * 0.12f + slotH)
+        val camSlotR = RectF(chCx + dp(scene, 58f), chTop + chH * 0.26f, chCx + dp(scene, 58f) + S, chTop + chH * 0.26f + slotH)
+        val bikeR = RectF(chCx - S / 2f, chTop + chH + dp(scene, 12f), chCx + S / 2f, chTop + chH + dp(scene, 12f) + slotH)
+
+        // 장신구 슬롯 (목)
+        cuteCard(c, charmR, UiKit.CARD_HI, 0xFFB08D5E.toInt(), 1.5f, selected = s.charmId.isNotEmpty())
+        val charm = Charms.of(s.charmId)?.takeIf { it.id in s.ownedCharms }
+        if (charm != null) {
+            Charms.draw(c, charm, charmR.centerX(), charmR.top + S / 2f + dp(scene, 2f), S * 0.58f, g.time)
+        } else {
+            textP.textSize = textDp(scene, 8f)
+            textP.color = Color.argb(140, 120, 95, 70)
+            c.drawText("비어 있음", charmR.centerX() - textP.measureText("비어 있음") / 2f, charmR.top + S / 2f + dp(scene, 5f), textP)
+        }
+        drawSlotLabel(c, charmR, S, "목 · 장신구")
+        btnRects.add(Triple(charmR, "charm") {
+            scene.openOverlay(CharmOverlay(scene))
+        })
+
+        // 카메라 슬롯 (손)
+        cuteCard(c, camSlotR, UiKit.CARD_HI, 0xFFB08D5E.toInt(), 1.5f, selected = true)
+        val rig = s.rig()
+        val camW = S * 0.72f
+        c.drawBitmap(
+            g.assets.camProfile(rig.look), null,
+            RectF(camSlotR.centerX() - camW / 2f, camSlotR.top + S / 2f + dp(scene, 2f) - camW * 10f / 32f,
+                camSlotR.centerX() + camW / 2f, camSlotR.top + S / 2f + dp(scene, 2f) + camW * 10f / 32f),
+            g.assets.sprPaint
+        )
+        drawSlotLabel(c, camSlotR, S, "손 · 카메라")
+        btnRects.add(Triple(camSlotR, "cam") {
+            scene.openOverlay(GearBagOverlay(scene))
+        })
+
+        // 자전거 슬롯 (발)
+        cuteCard(c, bikeR, UiKit.CARD_HI, 0xFFB08D5E.toInt(), 1.5f, selected = true)
+        val bike = Bikes.of(s.bikeId)
+        textP.textSize = textDp(scene, 15f)
+        UiKit.drawIconText(c, g, bike.emoji, bikeR.centerX() - textP.measureText(bike.emoji) / 2f, bikeR.top + S / 2f + dp(scene, 5f), textP)
+        drawSlotLabel(c, bikeR, S, "발 · 자전거")
+        btnRects.add(Triple(bikeR, "bike") {
+            val choices = ArrayList<DialogOverlay.Choice>()
+            for (id in s.ownedBikes) {
+                val b = Bikes.of(id) ?: continue
+                choices.add(DialogOverlay.Choice("${if (s.bikeId == id) "✓ " else ""}${b.emoji} ${b.name}") {
+                    if (s.bikeId == id) {
+                        g.toast("이미 타고 있는 자전거예요!")
+                        return@Choice
+                    }
+                    s.bikeId = id
+                    SaveManager.save(g.context, s)
+                    g.toast("${b.emoji} ${b.name}(으)로 바꿨어요!")
+                    g.sfx(Audio.Sfx.BIKE_BELL, 0.7f)
+                })
+            }
+            choices.add(DialogOverlay.Choice("🚲 자전거 가게 구경") { scene.openOverlay(BikeShopOverlay(scene)) })
+            choices.add(DialogOverlay.Choice("닫기"))
+            scene.openOverlay(DialogOverlay(scene, "자전거", "발 밑에 둘 자전거를 골라요.", choices))
+        })
+
+        // ---- 우: 아이템 격자 (한 슬롯 = 한 종류 + 수량) ----
+        cuteCard(c, itemR, UiKit.CREAM, 0xFFC9A063.toInt(), 1.6f)
+        textP.textSize = textDp(scene, 10f)
+        textP.color = 0xFF8A6B47.toInt()
+        c.drawText("아이템 · 수량", itemR.left + dp(scene, 10f), itemR.top + dp(scene, 15f), textP)
+
+        val items = bagItems(s)
+        val gridL = itemR.left + dp(scene, 10f)
+        val gridR = itemR.right - dp(scene, 10f)
+        val gridT = itemR.top + dp(scene, 22f)
+        val gridB = itemR.bottom - dp(scene, 10f)
+        val cols = 4
+        val gap2 = dp(scene, 7f)
+        val cellW = (gridR - gridL - gap2 * (cols - 1)) / cols
+        val cellH = cellW + dp(scene, 16f)
+        val rows = ((gridB - gridT + gap2) / (cellH + gap2)).toInt().coerceAtLeast(1)
+        val perPage = cols * rows
+        val pages = if (items.isEmpty()) 1 else (items.size + perPage - 1) / perPage
+        bagPage = bagPage.coerceIn(0, pages - 1)
+        val shown = items.drop(bagPage * perPage).take(perPage)
+
+        if (items.isEmpty()) {
+            textP.textSize = textDp(scene, 11f)
+            textP.color = Color.argb(170, 120, 95, 70)
+            val msg = "아직 모은 아이템이 없어요.\n피자를 굽고, 허브를 주워 보아요!"
+            var my = (gridT + gridB) / 2f - dp(scene, 8f)
+            for (line in msg.split("\n")) {
+                c.drawText(line, (gridL + gridR) / 2f - textP.measureText(line) / 2f, my, textP)
+                my += dp(scene, 15f)
+            }
+        }
+        for (i in shown.indices) {
+            val col = i % cols
+            val row = i / cols
+            val x = gridL + col * (cellW + gap2)
+            val y = gridT + row * (cellH + gap2)
+            val r = RectF(x, y, x + cellW, y + cellH - dp(scene, 16f))
+            cuteCard(c, r, UiKit.CARD_HI, 0xFFD8BE8F.toInt(), 1.3f)
+            val it = shown[i]
+            // 아이콘 — 인벤토리 아이템은 SVG 토큰, 나머지는 이모지
+            if (it.token != null) {
+                UiKit.iconCenter(c, g, it.token, r.centerX(), r.centerY() + dp(scene, 1f), cellW * 0.52f)
+            } else {
+                textP.textSize = textDp(scene, 16f)
+                UiKit.drawIconText(c, g, it.emoji, r.centerX() - textP.measureText(it.emoji) / 2f, r.centerY() + dp(scene, 5.5f), textP)
+            }
+            // 수량 배지 — 우하단
+            val qTxt = "x${it.qty}"
+            textP.textSize = textDp(scene, 8.5f)
+            val qw = textP.measureText(qTxt)
+            val qb = RectF(r.right - qw - dp(scene, 7f), r.bottom - dp(scene, 11f), r.right - dp(scene, 2f), r.bottom - dp(scene, 1f))
+            fillP.shader = null
+            fillP.color = 0xFF4A2E12.toInt()
+            c.drawRoundRect(qb, dp(scene, 3f), dp(scene, 3f), fillP)
+            textP.color = 0xFFFFF3DC.toInt()
+            c.drawText(qTxt, qb.centerX() - qw / 2f, qb.bottom - dp(scene, 2.5f), textP)
+            // 이름 + 단위
+            textP.textSize = textDp(scene, 8.5f)
+            textP.color = 0xFF6B4F35.toInt()
+            var nm = it.name
+            while (nm.length > 1 && textP.measureText(nm) > cellW) nm = nm.dropLast(1)
+            if (nm != it.name) nm = "$nm…"
+            c.drawText(nm, x + (cellW - textP.measureText(nm)) / 2f, r.bottom + dp(scene, 10f), textP)
+            btnRects.add(Triple(RectF(x, y, x + cellW, y + cellH), "item$i") {
+                g.toast("${it.name} ×${it.qty}${it.unit}" + (if (it.note.isNotEmpty()) " · ${it.note}" else ""))
+            })
+        }
+        // 페이지 넘김
+        if (pages > 1) {
+            val pb = dp(scene, 16f)
+            val py = gridB - pb
+            val prevR = RectF(gridR - dp(scene, 38f), py, gridR - dp(scene, 22f), py + pb)
+            val nextR = RectF(gridR - dp(scene, 18f), py, gridR - dp(scene, 2f), py + pb)
+            cuteBtn(c, prevR, "◀", if (bagPage > 0) UiKit.CREAM else Color.argb(110, 214, 204, 186), UiKit.INK, 10f)
+            cuteBtn(c, nextR, "▶", if (bagPage < pages - 1) UiKit.CREAM else Color.argb(110, 214, 204, 186), UiKit.INK, 10f)
+            if (bagPage > 0) btnRects.add(Triple(prevR, "prev") { bagPage-- })
+            if (bagPage < pages - 1) btnRects.add(Triple(nextR, "next") { bagPage++ })
+        }
+    }
+
+    /** 신체 슬롯 카드 안쪽 아래 이름표 */
+    private fun drawSlotLabel(c: Canvas, slot: RectF, iconArea: Float, label: String) {
+        textP.textSize = textDp(scene, 8f)
+        textP.color = 0xFF8A6B47.toInt()
+        c.drawText(label, slot.centerX() - textP.measureText(label) / 2f, slot.top + iconArea + dp(scene, 10f), textP)
+    }
 
     private fun drawStatus(c: Canvas) {
         val g = scene.game
@@ -3936,6 +4192,7 @@ class PhotoResultOverlay(
     private var cuedNew = false
     private var cuedQuest = false
     private val photoPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val closeRect = RectF()
 
     override fun update(dt: Float) {
         t += dt
@@ -3990,14 +4247,20 @@ class PhotoResultOverlay(
         val landscape = capturedPhoto != null
         val photoAspect = capturedPhoto?.let { it.height.toFloat() / it.width } ?: 0.74f
         val maxW = if (landscape) minOf(w * 0.82f, dp(scene, 520f)) else minOf(w * 0.62f, dp(scene, 340f))
-        val maxH = h * 0.76f
+        // 카드 아래에 들어갈 뱃지·노트·닫기 버튼 높이를 먼저 확보한다.
+        // 이 높이만큼 카드를 줄여야 아래쪽 닫기 버튼이 **어떤 화면에서도** 화면 밖으로 밀려나지 않는다.
+        val belowH = (if (questLine != null) dp(scene, 30f) else 0f) +
+            (if (expGain > 0) dp(scene, 27f) else 0f) +
+            notes.take(3).size * dp(scene, 13f) + dp(scene, 44f)
+        val maxH = (h * 0.82f - belowH).coerceAtLeast(dp(scene, 150f))
         // 원근 풍경의 양옆을 잘라내지 않는 가로 인화지. 캡션/별점 공간은 그대로 확보한다.
         val footer = dp(scene, 96f)
         val cardW = if (landscape) minOf(maxW, (maxH - inset - footer) / photoAspect + inset * 2f)
             else minOf(maxW, maxH / 1.26f)
         val cardH = if (landscape) (cardW - inset * 2f) * photoAspect + inset + footer else cardW * 1.26f
         val cx = w / 2f
-        val cy = h * 0.5f - dp(scene, 6f)
+        // 카드+뱃지+닫기 덩어리 전체가 화면 안에 오도록 위에서 정확히 맞춰 내려온다
+        val cy = ((h - belowH - cardH) / 2f + cardH / 2f).coerceAtLeast(cardH / 2f + dp(scene, 6f))
 
         val pop = easeOutBack((t / 0.36f).coerceIn(0f, 1f))
         val scale = 0.9f + 0.1f * pop
@@ -4177,6 +4440,13 @@ class PhotoResultOverlay(
             }
         }
 
+        // 닫기 버튼 — 뱃지·노트 바로 아래, 화면 안쪽에 고정 (어떤 화면비에서도 잘리지 않는다)
+        val btnH = dp(scene, 30f)
+        val btnW = dp(scene, 132f)
+        val btnBottom = (cy + cardH / 2f + belowH - dp(scene, 6f)).coerceAtMost(h - dp(scene, 10f))
+        val btnTop = (btnBottom - btnH).coerceAtLeast(dp(scene, 4f))
+        closeRect.set(cx - btnW / 2f, btnTop, cx + btnW / 2f, btnTop + btnH)
+        UiKit.cuteButton(c, scene.game, closeRect, "close 닫기", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 12.5f)
     }
 
     /** 인화지 속 풍경 + 새 */

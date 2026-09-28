@@ -187,7 +187,29 @@ class WorldScene(
 
         val (sx, sy) = when (spawnKind) {
             SpawnKind.SAVED -> state.px to state.py
-            SpawnKind.HOME -> 376f to 12.2f * 16f
+            SpawnKind.HOME -> {
+                // 집을 나가면 **들어갔던 현관** 바로 앞으로 돌아온다 (우리 집뿐 아니라 마을 민가도).
+                // 현관 타일 위에 서면 다시 들어가는 트리거가 걸리므로, 문 앞 한 칸에서 시작한다.
+                val hx = state.px
+                val hy = state.py
+                if (hx > 16f && hy > 16f &&
+                    map.t(((hx + 8f) / 16f).toInt(), ((hy + 13f) / 16f).toInt()) == T.HOUSE_DOOR
+                ) {
+                    // 문 앞 후보지를 돌며 비어 있는 칸을 고른다 (나무·바위에 파묻히지 않게)
+                    var placed: Pair<Float, Float>? = null
+                    for ((ox, oy) in listOf(0f to 16f, -16f to 0f, 16f to 0f, 0f to -16f, 0f to 32f)) {
+                        val cx = hx + ox
+                        val cy = hy + oy
+                        if (!map.solidBox(cx + 8f, cy + 13f)) {
+                            placed = cx to cy
+                            break
+                        }
+                    }
+                    placed ?: (hx to hy + 16f)
+                } else {
+                    376f to 12.2f * 16f
+                }
+            }
             SpawnKind.LANDMARK ->                      // 랜드마크에서 나오면 정문 바로 앞
                 if (map.landmarkDoorX >= 0) map.landmarkDoorX * 16f to (map.landmarkDoorY + 1) * 16f
                 else 18f * 16f to 14f * 16f
@@ -541,7 +563,7 @@ class WorldScene(
             nearTile(T.SIGN) != null -> "map"
             nearTile(T.BENCH) != null -> "coffee"
             nearFlowerTile() != null && Healing.pickableHerbs(state.season(), region.habitats).isNotEmpty() -> "leaf"
-            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
+            nearTile(T.HOUSE_DOOR) != null -> "house"
             nearLandmarkDoor() -> "pin"
             nearestViewpoint() != null -> "map"
             nearestCat() != null -> "fist"
@@ -1093,7 +1115,7 @@ class WorldScene(
                 }
                 goThroughTunnel(edge)
             }
-            T.HOUSE_DOOR -> if (map.hasHouse) enterHome()
+            T.HOUSE_DOOR -> enterHome()   // 우리 집·마을 민가 — 모든 집의 현관은 열려 있다
             T.LANDMARK_DOOR -> if (map.hasLandmark) enterLandmark()
             else -> {}
         }
@@ -1122,7 +1144,7 @@ class WorldScene(
         }
     }
 
-    /** 이 지역의 매입한 집으로 들어간다. 나올 때도 같은 지역 현관 앞으로 돌아온다. */
+    /** 현관(우리 집·마을 민가)으로 들어간다. 나올 때는 들어갔던 현관 바로 앞으로 돌아온다. */
     private fun enterHome() {
         state.px = player.x
         state.py = player.y
@@ -2445,12 +2467,17 @@ class WorldScene(
             if (photoMode) {
                 setPhotoMode(false)
             } else {
-                openOverlay(MenuOverlay(this))
+                openOverlay(MenuOverlay(this, target = MenuTarget.BAG))
             }
             return
         }
         if (input.justMenu) {
-            openOverlay(MenuOverlay(this))
+            openOverlay(MenuOverlay(this, target = input.menuTarget))
+            return
+        }
+        if (input.justStats) {
+            // 좌상단 레벨 카드 — 내 상태 통합 창
+            openOverlay(MenuOverlay(this, target = MenuTarget.STATUS))
             return
         }
         if (input.justCam) {
@@ -2462,7 +2489,8 @@ class WorldScene(
             return
         }
         if (input.justQuest) {
-            showQuestLog()
+            // 의뢰 칩(1장 …) 탭 = 의뢰 목표 위치로 자동 길안내
+            QuestNavigation.autoGo(this)
             return
         }
         if (input.justEatPick) {          // [P11] 🍕 길게 누르기 → 빠른 피자 창
@@ -2549,13 +2577,10 @@ class WorldScene(
                 }
                 return
             }
-            if (map.hasHouse) {
-                val ddx = (map.houseDoorX * 16f + 16f) - player.cx
-                val ddy = (map.houseDoorY * 16f + 8f) - player.cy
-                if (hypot(ddx, ddy) < 30f) {
-                    enterHome()
-                    return
-                }
+            // 우리 집뿐 아니라 마을 민가의 현관 앞에서도 A 로 들어간다
+            nearTile(T.HOUSE_DOOR)?.let {
+                enterHome()
+                return
             }
             if (nearLandmarkDoor()) {
                 enterLandmark()

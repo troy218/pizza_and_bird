@@ -96,8 +96,19 @@ class Hud(private val game: Game) {
     var bikeCx = 0f; var bikeCy = 0f; var bikeR = 0f          // 자전거 (아크)
     var camBCx = 0f; var camBCy = 0f; var camBR = 0f          // 카메라 (아크)
     var eatCx = 0f; var eatCy = 0f; var eatR = 0f             // 간식 (아크)
-    var punchCx = 0f; var punchCy = 0f; var punchR = 0f       // 펀치 (고양이 날리기)
-    var menuCx = 0f; var menuCy = 0f; var menuR = 0f          // 메뉴 클러스터(좌하단)
+    var punchCx = 0f; var punchCy = 0f; var punchR = 0f       // 펀치 (아크 · 고양이 날리기)
+
+    // ----- 레이아웃(px) — 상단 클러스터 -----
+    // 한 줄로 정렬: [지도][계절][시계][가방][도감][업적][설정] — 같은 높이·같은 간격.
+    var iconS = 0f            // 사각 아이콘 버튼 한 변 (가방/도감/업적/설정)
+    var clockDialSize = 0f    // 시계·계절 계기 지름 (둘 다 같은 크기)
+    var clusterGap = 0f       // 클러스터 버튼 사이 간격
+    var menuCx = 0f; var menuCy = 0f          // 가방(☰)
+    var bookCx = 0f; var bookCy = 0f          // 도감
+    var achieveCx = 0f; var achieveCy = 0f    // 업적
+    var settingsCx = 0f; var settingsCy = 0f  // 설정
+    var clockCx = 0f; var clockCy = 0f        // 시계
+    var dialCx = 0f; var dialCy = 0f          // 계절 나침반
     var mmCx = 0f; var mmCy = 0f; var mmR = 0f                // 미니맵(우상단)
 
     private val messages = ArrayList<Message>()
@@ -208,24 +219,28 @@ class Hud(private val game: Game) {
         val wf = w.toFloat()
         val hf = h.toFloat()
 
+        // --- 육각 메인 버튼 (오른쪽 아래 구석) ---
+        // 아래·오른쪽 여백은 dp(26) 하나로 통일 — 주변 버튼·조이스틱이 같은 여백을 쓴다.
+        mainR = dp(31f)
+        mainCx = wf - dp(26f) - mainR
+        mainCy = hf - dp(26f) - mainR
+
         // --- 플로팅 조이스틱 (왼쪽 아래 구역) ---
         stickBaseR = dp(46f)
         stickKnobR = dp(20f)
-        stickIdleX = dp(86f)
-        stickIdleY = hf - dp(86f)
+        // 조이스틱도 하단·좌측 여백 dp(26) — 메인 버튼과 눈높이/여백이 맞아 떨어진다.
+        stickIdleX = dp(26f) + stickBaseR
+        stickIdleY = hf - dp(26f) - stickBaseR
         stickZoneRight = wf * 0.42f
         stickZoneTop = hf * 0.40f
         stickBaseX = stickIdleX
         stickBaseY = stickIdleY
 
-        // --- 육각 메인 버튼 (오른쪽 아래 구석) ---
-        mainR = dp(31f)
-        mainCx = wf - dp(26f) - mainR
-        mainCy = hf - dp(26f) - mainR
-
         // --- 아크 버튼 (메인 버튼 중심 부채꼴 — 듀랑고 스타일) ---
+        // 네 개(자전거/카메라/간식/펀치)가 한 줄의 부채꼴을 이루도록 각도·간격·반경을
+        // 전부 같은 규칙으로 만든다 (36° 간격, 같은 반경) — "제각각"이던 배치를 정리.
         val arcR = dp(19f)
-        val arcDist = mainR + dp(9f) + arcR
+        val arcDist = mainR + dp(14f) + arcR
         fun arc(angleDeg: Float): Pair<Float, Float> {
             val rad = Math.toRadians(angleDeg.toDouble())
             return Pair(
@@ -233,16 +248,10 @@ class Hud(private val game: Game) {
                 mainCy - arcDist * kotlin.math.sin(rad).toFloat()
             )
         }
-        // 주변 버튼은 세 개만 둔다: 자전거 / 카메라 / 간식.
-        // 달리기는 키보드 Shift로만 유지해, 터치 HUD가 과밀해지지 않게 한다.
-        bikeR = arcR; val (bx, by) = arc(72f); bikeCx = bx; bikeCy = by
-        camBR = arcR; val (cx2, cy2) = arc(120f); camBCx = cx2; camBCy = cy2
-        eatR = arcR; val (ex, ey) = arc(168f); eatCx = ex; eatCy = ey
-
-        // 펀치 — 피자 버튼 왼쪽. 고양이 사거리 안이면 붉게 뛴다.
-        punchR = dp(18f)
-        punchCx = (eatCx - dp(54f)).coerceIn(punchR + dp(8f), wf - punchR - dp(8f))
-        punchCy = (eatCy + dp(2f)).coerceIn(punchR + dp(8f), hf - punchR - dp(8f))
+        bikeR = arcR; val (bx, by) = arc(78f); bikeCx = bx; bikeCy = by
+        camBR = arcR; val (cx2, cy2) = arc(114f); camBCx = cx2; camBCy = cy2
+        eatR = arcR; val (ex, ey) = arc(150f); eatCx = ex; eatCy = ey
+        punchR = arcR; val (px, py) = arc(186f); punchCx = px; punchCy = py
 
         // Split-screen can leave a very narrow landscape surface. Shrink the compass
         // before it collides with the fixed-width status panel at the opposite corner.
@@ -251,17 +260,35 @@ class Hud(private val game: Game) {
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
 
-        // --- 메뉴(가방) 클러스터 — 시계 왼쪽, 화면 상단 고정 ---
-        // 시계·계절 나침반·가방은 지도 나침반과 같은 윗변(dp(8))에 붙이고,
-        // 가방은 시계와 간격을 둬 시계 왼쪽에 따로 자리한다(겹침 금지).
-        menuR = dp(16f)
-        val gap = dp(9f)
-        val dialSize = dp(42f)
-        val dialCxCalc = mmCx - mmR - gap - dialSize / 2f
-        val clockSizeCalc = dp(38f)
-        val clockCxCalc = dialCxCalc - dialSize / 2f - gap - clockSizeCalc / 2f
-        menuCx = clockCxCalc - clockSizeCalc / 2f - gap - menuR
-        menuCy = dp(8f) + menuR
+        // --- 상단 클러스터 — 오른쪽부터 [지도][계절][시계][가방][도감][업적][설정] ---
+        // 전부 같은 높이(아이콘 칸 36dp · 윗변 dp(8))에 한 줄로 놓인다.
+        // 시계·계절은 같은 크기(40dp) 원형 계기라 아이콘 높이·라벨 baseline이 완전히 일치한다.
+        iconS = dp(36f)
+        clockDialSize = dp(40f)
+        clusterGap = dp(8f)
+        // 시계·계절 라벨 아래까지 겹치지 않도록, 좌우로 들어갈 수 있는 폭에서 간격을 줄인다.
+        val topCy = dp(8f) + clockDialSize / 2f
+        clockCy = topCy
+        dialCy = topCy
+        menuCy = topCy
+        bookCy = topCy
+        achieveCy = topCy
+        settingsCy = topCy
+        // 왼쪽부터 차례로 배치 (오른쪽 기준 역산)
+        var rightX = mmCx - mmR - clusterGap
+        dialCx = rightX - clockDialSize / 2f
+        // 시계·계절은 아래 라벨이 계기보다 넓어도 안 겹치도록 사이 간격을 조금 더 둔다
+        val labelGap = dp(14f)
+        rightX = dialCx - clockDialSize / 2f - labelGap
+        clockCx = rightX - clockDialSize / 2f
+        rightX = clockCx - clockDialSize / 2f - clusterGap
+        menuCx = rightX - iconS / 2f
+        rightX = menuCx - iconS / 2f - clusterGap
+        bookCx = rightX - iconS / 2f
+        rightX = bookCx - iconS / 2f - clusterGap
+        achieveCx = rightX - iconS / 2f
+        rightX = achieveCx - iconS / 2f - clusterGap
+        settingsCx = rightX - iconS / 2f
 
         // --- 토스트 고정 자리 -------------------------------------------
         // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
@@ -287,10 +314,20 @@ class Hud(private val game: Game) {
             if (hitMinimap(x, y)) return Ctrl.MAP
             return Ctrl.NONE
         }
-        // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 내용을 다시 읽는다
+        // 좌상단 레벨 패널 = 내 상태 통합 창 열기
+        if (showStats && statsPanelRect().contains(x, y)) return Ctrl.STATS
+        // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 목표 위치로 자동 이동
         if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST
+        // 상단 클러스터 (사각 아이콘 버튼들) — 큰 히트 영역(1.2배)으로 여유 있게
+        fun icon(cx: Float, cy: Float): Boolean {
+            val half = iconS * 0.62f
+            return x >= cx - half && x <= cx + half && y >= cy - half && y <= cy + half
+        }
+        if (icon(menuCx, menuCy)) return Ctrl.MENU
+        if (icon(bookCx, bookCy)) return Ctrl.DEX
+        if (icon(achieveCx, achieveCy)) return Ctrl.ACHIEVE
+        if (icon(settingsCx, settingsCy)) return Ctrl.SETTINGS
         // 버튼 최우선 판정
-        if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
         if (inCircle(x, y, camBCx, camBCy, camBR * 1.3f)) return Ctrl.CAM
@@ -481,7 +518,8 @@ class Hud(private val game: Game) {
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
         }
         if (questLabel != null) {
-            drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel")
+            // › 표시 — 누르면 의뢰 목표 위치로 자동 길안내가 된다
+            drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel  ›")
             drawQuestDetails(c)
         }
         if (showControls) drawControls(c)
@@ -489,11 +527,14 @@ class Hud(private val game: Game) {
         drawMessages(c)
     }
 
-    /** 좌상단 상태창(레벨·체력·행운 바)의 높이(dp) — 새 디자인(메달 + 배지 + 2줄) 기준 */
-    private val statsPanelH = 100f
+    /** 좌상단 상태창(레벨·체력·행운 바)의 높이(dp) — 간결한 메달 카드 기준 */
+    private val statsPanelH = 78f
 
     /** 상태 패널 가로(dp) */
-    private val statsPanelW = 184f
+    private val statsPanelW = 158f
+
+    /** 상태 패널 화면 사각형 (탭 판정용) */
+    fun statsPanelRect(): RectF = RectF(dp(12f), dp(8f), dp(12f) + dp(statsPanelW), dp(8f) + dp(statsPanelH))
 
     private fun questChipX(): Float = dp(14f) + dp(statsPanelW) / 2f
     private fun questChipY(): Float = dp(8f) + dp(statsPanelH) + dp(22f)
@@ -513,56 +554,59 @@ class Hud(private val game: Game) {
     private fun hitQuestChip(x: Float, y: Float): Boolean {
         val r = questChipRect() ?: return false
         r.inset(-dp(6f), -dp(6f))
-        return r.contains(x, y)
+        if (r.contains(x, y)) return true
+        // 칩 아래에 붙은 의뢰 내용 상자까지 눌러도 의뢰로 이어진다
+        val panel = questPanelRect() ?: return false
+        panel.inset(-dp(4f), -dp(4f))
+        return panel.contains(x, y)
     }
 
     /**
-     * 좌상단 상태 게이지 — 탐험가 수첩에 붙은 메달·배지 느낌의 패널.
-     *  · 왼쪽: 둥근 레벨 메달(양각 숫자)
-     *  · 오른쪽 위: 칭호(작게) + 세그먼트 경험치 바 + "exp/need" 숫자
-     *  · 오른쪽 아래: 피자(배고픔) / 네잎클로버(행운) 두 줄 바
-     * MAX 레벨이면 경험치 바는 금빛 완장으로 바뀐다.
+     * 좌상단 상태 게이지 — "내 상태" 통합 창으로 이어지는 간결한 메달 카드.
+     *  · 왼쪽: 레벨 메달 (탭하면 상태 창이 열린다)
+     *  · 오른쪽: 칭호 + 세그먼트 경험치 바 + "exp/need" + 배고픔/행운 얇은 바
+     * 부피를 크게 만들지 않는 대신, 숫자 하나하나가 정확히 읽히도록 여백만 남긴다.
      */
     private fun drawStats(c: Canvas) {
         val s = game.state
-        val left = dp(12f)
-        // 우상단 클러스터(나침반·시계·계절·가방)와 같은 윗변에 붙여 화면 위에 고정
-        val top = dp(8f)
-        val pw = dp(statsPanelW)
-        val ph = dp(statsPanelH)
-        val panel = RectF(left, top, left + pw, top + ph)
+        val panel = statsPanelRect()
         val a = game.assets
 
         drawStatsPanel(c, panel)
 
-        // ----- 왼쪽: 레벨 메달 -----
-        val medalR = dp(28f)
-        val medalCx = panel.left + dp(20f) + medalR
-        val medalCy = panel.top + ph / 2f + dp(2f)
+        // ----- 왼쪽: 레벨 메달 (탭 → 내 상태 통합 창) -----
+        val medalR = dp(19f)
+        val medalCx = panel.left + dp(13f) + medalR
+        val medalCy = panel.centerY() + dp(1f)
         drawLevelMedal(c, medalCx, medalCy, medalR, s.level, s.level >= Progression.MAX_LEVEL)
+        // 탭 힌트 — 손끝이 닿으면 카드가 살짝 눌린다
+        if (Ctrl.STATS in game.input.activeControls()) {
+            fill.shader = null
+            fill.color = Color.argb(30, 60, 42, 22)
+            c.drawRoundRect(panel, dp(10f), dp(10f), fill)
+        }
 
         // ----- 오른쪽 영역 -----
-        val rx = medalCx + medalR + dp(12f)
-        val rw = panel.right - rx - dp(12f)
+        val rx = medalCx + medalR + dp(8f)
+        val rw = panel.right - rx - dp(9f)
 
         // 칭호 (작게) — 메달 옆 상단
         val title = s.title()
-        val titleP = Type.paintAt(10f, true, 0.02f, 0xFF6B4F35.toInt())
-        val titleY = panel.top + dp(18f)
+        val titleP = Type.paintAt(9.5f, true, 0.02f, 0xFF6B4F35.toInt())
+        val titleY = panel.top + dp(15f)
         var tLabel = title
-        val titleMaxW = rw
-        if (titleP.measureText(tLabel) > titleMaxW) {
-            while (tLabel.length > 1 && titleP.measureText("$tLabel…") > titleMaxW) tLabel = tLabel.dropLast(1)
+        if (titleP.measureText(tLabel) > rw) {
+            while (tLabel.length > 1 && titleP.measureText("$tLabel…") > rw) tLabel = tLabel.dropLast(1)
             if (tLabel != title) tLabel = "$tLabel…"
         }
         c.drawText(tLabel, rx, titleY, titleP)
 
         // 경험치 바 — 세그먼트 나뉜 탐험가 느낌
-        val expY = panel.top + dp(34f)
-        val expH = dp(8f)
+        val expY = panel.top + dp(21f)
+        val expH = dp(7f)
         val maxed = s.level >= Progression.MAX_LEVEL
         val prog = if (maxed) 1f else s.expProgress()
-        val segCount = 10
+        val segCount = 8
         if (maxed) {
             drawSegmentBar(c, rx, expY, rw, expH, 1f, segCount,
                 0xFFF6D67A.toInt(), 0xFFE3A83A.toInt(), 0xFFF9E8B0.toInt())
@@ -572,28 +616,17 @@ class Hud(private val game: Game) {
         }
 
         // 경험치 숫자 or MAX 장식
-        val expP = Type.paintAt(8.4f, true, 0.02f, if (maxed) 0xFFB58020.toInt() else 0xFF8A7360.toInt())
-        val expTxt = if (maxed) {
-            "★ MAX ★"
-        } else {
-            val need = s.expToNext()
-            "${s.exp} / $need"
-        }
-        val expTextW = expP.measureText(expTxt)
-        c.drawText(expTxt, rx + rw - expTextW, expY + expH + dp(10f), expP)
+        val expP = Type.paintAt(8f, true, 0.02f, if (maxed) 0xFFB58020.toInt() else 0xFF8A7360.toInt())
+        val expTxt = if (maxed) "★ MAX ★" else "${s.exp} / ${s.expToNext()}"
+        c.drawText(expTxt, rx + rw - expP.measureText(expTxt), expY + expH + dp(10f), expP)
 
-        // 작은 별 장식 (경험치 바 왼쪽 옆)
-        if (maxed) {
-            UiKit.iconCenter(c, game, "star", rx - dp(4f), expY + expH / 2f, dp(12f))
-        }
-
-        // ----- 아래 두 줄: 피자 / 네잎클로버 -----
-        val rowY1 = panel.top + dp(62f)
-        val rowY2 = panel.top + dp(80f)
-        val iconSz = dp(14f)
-        val barX = rx + iconSz + dp(6f)
-        val barW = panel.right - barX - dp(10f)
-        val barH = dp(9f)
+        // ----- 아래 두 줄: 배고픔 / 행운 (얇은 인라인 바) -----
+        val iconSz = dp(12f)
+        val barX = rx + iconSz + dp(5f)
+        val barW = panel.right - barX - dp(9f)
+        val barH = dp(7.5f)
+        val rowY1 = panel.top + dp(46f)
+        val rowY2 = panel.top + dp(61f)
 
         // 배고픔 (위험하면 붉게 맥동)
         c.drawBitmap(a.pizzaIcon, null, RectF(rx, rowY1, rx + iconSz, rowY1 + iconSz), a.sprPaint)
@@ -605,74 +638,43 @@ class Hud(private val game: Game) {
                 (0.5f + 0.5f * sin(game.time * 6f)) * 0.5f
             )
         }
-        drawInlineBar(c, barX, rowY1 + dp(2f), barW, barH, s.hunger / 100f,
+        drawInlineBar(c, barX, rowY1 + dp(1.5f), barW, barH, s.hunger / 100f,
             UiKit.lighten(hungerColor, 28), hungerColor, low = s.hunger < 15f)
 
         // 행운
         c.drawBitmap(a.cloverIcon, null, RectF(rx, rowY2, rx + iconSz, rowY2 + iconSz), a.sprPaint)
-        drawInlineBar(c, barX, rowY2 + dp(2f), barW, barH, s.effectiveLuck() / 100f,
+        drawInlineBar(c, barX, rowY2 + dp(1.5f), barW, barH, s.effectiveLuck() / 100f,
             0xFF98D293.toInt(), 0xFF5EAF5A.toInt(), low = false)
     }
 
-    /** 상태 패널 배경 — 양피지 카드 + 위에 마스킹 테이프 장식. */
+    /** 상태 패널 배경 — 부담 없는 크림 카드 (장식은 절제하고 판독성만 남긴다). */
     private fun drawStatsPanel(c: Canvas, r: RectF) {
-        val pad = dp(2f)
         // 부드러운 그림자
         fill.shader = null
-        fill.color = Color.argb(58, 30, 20, 12)
-        c.drawRoundRect(RectF(r.left + pad, r.top + pad * 2f, r.right + pad, r.bottom + pad * 3f),
-            dp(12f), dp(12f), fill)
+        fill.color = Color.argb(52, 30, 20, 12)
+        c.drawRoundRect(RectF(r.left + dp(1f), r.top + dp(2f), r.right + dp(1f), r.bottom + dp(3f)),
+            dp(10f), dp(10f), fill)
 
-        // 본체 (크림 그라디언트)
-        fill.shader = LinearGradient(
-            r.left, r.top, r.left, r.bottom,
-            0xFFFFFCF3.toInt(), 0xFFF0DFB5.toInt(),
-            Shader.TileMode.CLAMP
-        )
-        c.drawRoundRect(r, dp(12f), dp(12f), fill)
+        // 본체 (크림 그라디언트) — 캐시된 그라디언트
+        fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
+        fill.shader = UiKit.vgrad(r.left, r.top, r.left, r.bottom, 0xFFFFFCF3.toInt(), 0xFFF0DFB5.toInt())
+        c.drawRoundRect(r, dp(10f), dp(10f), fill)
         fill.shader = null
 
         // 상단 하이라이트
-        fill.color = Color.argb(130, 255, 255, 255)
-        c.drawRoundRect(RectF(r.left + dp(10f), r.top + dp(2.5f), r.right - dp(10f), r.top + dp(5f)),
+        fill.color = Color.argb(120, 255, 255, 255)
+        c.drawRoundRect(RectF(r.left + dp(9f), r.top + dp(2f), r.right - dp(9f), r.top + dp(4f)),
             dp(2f), dp(2f), fill)
 
-        // 테두리
+        // 테두리 + 이너 헤어라인
         stroke.color = 0xFF8A6638.toInt()
-        stroke.strokeWidth = dp(2f)
-        c.drawRoundRect(r, dp(12f), dp(12f), stroke)
-        // 이너 헤어라인
-        stroke.color = Color.argb(100, 255, 250, 230)
+        stroke.strokeWidth = dp(1.6f)
+        c.drawRoundRect(r, dp(10f), dp(10f), stroke)
+        stroke.color = Color.argb(95, 255, 250, 230)
         stroke.strokeWidth = dp(1f)
-        val ins = dp(3f)
+        val ins = dp(2.6f)
         c.drawRoundRect(RectF(r.left + ins, r.top + ins, r.right - ins, r.bottom - ins),
-            dp(9f), dp(9f), stroke)
-
-        // 마스킹 테이프 (좌상단 살짝 붙은 장식)
-        val tapeW = dp(28f)
-        val tapeH = dp(10f)
-        val tapeX = r.left + dp(12f)
-        val tapeY = r.top - tapeH * 0.42f
-        c.save()
-        c.rotate(-6f, tapeX + tapeW / 2f, tapeY + tapeH / 2f)
-        fill.color = Color.argb(180, 246, 224, 150)
-        c.drawRect(RectF(tapeX, tapeY, tapeX + tapeW, tapeY + tapeH), fill)
-        // 테이프 결 (줄무늬)
-        stroke.color = Color.argb(50, 180, 140, 70)
-        stroke.strokeWidth = dp(0.6f)
-        for (i in 0..3) {
-            val xx = tapeX + tapeW * (0.2f + i * 0.18f)
-            c.drawLine(xx, tapeY + dp(1f), xx, tapeY + tapeH - dp(1f), stroke)
-        }
-        c.restore()
-
-        // 오른쪽 위 구석에 작은 장식 (스테이플러 심 느낌)
-        fill.color = 0xFFB7935A.toInt()
-        val stX = r.right - dp(14f)
-        val stY = r.top + dp(8f)
-        c.drawRect(RectF(stX, stY, stX + dp(8f), stY + dp(2.5f)), fill)
-        fill.color = Color.argb(120, 255, 240, 200)
-        c.drawRect(RectF(stX + dp(1f), stY + dp(0.5f), stX + dp(7f), stY + dp(1f)), fill)
+            dp(8f), dp(8f), stroke)
     }
 
     /** 둥근 레벨 메달 — 양각 숫자 + 금속 링 + 리본 조각. */
@@ -701,6 +703,7 @@ class Hud(private val game: Game) {
         }
 
         // 외부 링
+        fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
         fill.shader = RadialGradient(cx - r * 0.35f, cy - r * 0.4f, r * 1.35f,
             intArrayOf(outerHi, outerLo, UiKit.darken(outerLo, 20)),
             floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
@@ -711,6 +714,7 @@ class Hud(private val game: Game) {
         val inner = r * 0.78f
         val enamelHi = if (maxed) 0xFFFEF6D4.toInt() else 0xFFF8EFD5.toInt()
         val enamelLo = if (maxed) 0xFFF0D583.toInt() else 0xFFD6BC85.toInt()
+        fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
         fill.shader = RadialGradient(cx - inner * 0.3f, cy - inner * 0.4f, inner * 1.25f,
             intArrayOf(enamelHi, enamelLo),
             floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
@@ -817,9 +821,11 @@ class Hud(private val game: Game) {
             if (sr.width() <= 0f) continue
             val sh = (h - inset * 2f) / 2f
             if (fillK >= 0.99f) {
+                fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
                 fill.shader = LinearGradient(sr.left, sr.top, sr.left, sr.bottom, cHi, c1, Shader.TileMode.CLAMP)
             } else {
                 // 꽉 차지 않은 칸은 살짝 어둡게
+                fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
                 fill.shader = LinearGradient(sr.left, sr.top, sr.left, sr.bottom,
                     UiKit.darken(c0, 20), UiKit.darken(c1, 10), Shader.TileMode.CLAMP)
             }
@@ -856,11 +862,13 @@ class Hud(private val game: Game) {
             if (low) {
                 // 위험하면 필이 맥박
                 val pulse = 0.5f + 0.5f * sin(game.time * 6f)
+                fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
                 fill.shader = LinearGradient(fr.left, fr.top, fr.left, fr.bottom,
                     blendToward(c0, 0xFFFFC9A3.toInt(), pulse * 0.4f),
                     blendToward(c1, 0xFFE2574C.toInt(), pulse * 0.4f),
                     Shader.TileMode.CLAMP)
             } else {
+                fill.alpha = 255   // 셰이더는 페인트 알파를 곱하므로 불투명으로 되돌린다
                 fill.shader = LinearGradient(fr.left, fr.top, fr.left, fr.bottom, c0, c1, Shader.TileMode.CLAMP)
             }
             c.drawRoundRect(fr, (h - inset * 2f) / 2f, (h - inset * 2f) / 2f, fill)
@@ -876,33 +884,48 @@ class Hud(private val game: Game) {
     }
 
     /**
-     * 우상단 클러스터 — 왼쪽부터 [가방] [시계] [계절 나침반] [지도 나침반] 순.
-     * 나침반과 같은 윗변(dp(8))에 붙여 화면 위에 고정하고, 가방은 시계와
-     * 간격을 두고 왼쪽에 두어 서로 겹치지 않게 한다.
+     * 우상단 클러스터 — 왼쪽부터 [가방·바로가기] [시계] [계절 나침반] [지도 나침반].
+     * 시계와 계절 계기는 **같은 크기·같은 중심선·같은 라벨 baseline** 으로 놓아
+     * 아이콘 높이가 미묘하게 어긋나 보이던 문제를 없앴다.
      */
     private fun drawSeasonClock(c: Canvas) {
         val s = game.state
-        val gap = dp(9f)
+        val size = clockDialSize
+        val labelBase = dialCy + size / 2f + dp(10f)
 
-        // 계절 나침반 — 지도 나침반 왼쪽, 윗변을 나침반과 맞춘다
-        val dialSize = dp(42f)
-        val dialCx = mmCx - mmR - gap - dialSize / 2f
-        val dialCy = dp(8f) + dialSize / 2f
-        drawSeasonDial(c, s, dialCx - dialSize / 2f, dialCy - dialSize / 2f, dialSize)
-        val weather = s.weather()
-        Type.textCentered(
-            c, "${s.season().icon}${s.season().label} ${Season.dayInSeason(s.day)}일 ${weather.icon}",
-            dialCx, dialCy + dialSize / 2f + dp(9f), Role.CAPTION, Type.INK, 0.5f
-        )
+        // 계절 나침반
+        drawSeasonDial(c, s, dialCx - size / 2f, dialCy - size / 2f, size)
+        // 라벨은 "봄 23일" + 날씨 아이콘(SVG) — 토큰 이름이 글자로 보이지 않게 아이콘은 직접 그린다.
+        // 지도 위에서 읽히도록 라벨 뒤에 반투명 크림 칩을 깔고, 시계 라벨도 같은 규칙으로 그린다.
+        val label = "${s.season().label} ${Season.dayInSeason(s.day)}일"
+        val tp = Type.paint(Role.MICRO, Type.INK)
+        val iconSz = dp(11f)
+        val tw = tp.measureText(label)
+        val total = tw + dp(3f) + iconSz
+        val lx = dialCx - total / 2f
+        drawLabelChip(c, lx - dp(5f), labelBase - tp.textSize - dp(3.5f), lx + total + dp(5f), labelBase + dp(3.5f))
+        c.drawText(label, lx, labelBase, tp)
+        UiKit.iconCenter(c, game, s.weather().icon, lx + tw + dp(3f) + iconSz / 2f, labelBase - tp.textSize * 0.32f, iconSz)
 
-        // 시계 — 계절 나침반 왼쪽, 윗변을 나침반과 맞춘다
-        val clockSize = dp(38f)
-        val clockCx = dialCx - dialSize / 2f - gap - clockSize / 2f
-        val clockCy = dp(8f) + clockSize / 2f
-        drawClock(c, s, clockCx, clockCy, clockSize)
+        // 시계 — 계절 나침반과 완전히 같은 자리·크기
+        drawClock(c, s, clockCx, clockCy, size)
+        val timeTxt = s.timeLabel()
+        val tw2 = tp.measureText(timeTxt)
+        drawLabelChip(c, clockCx - tw2 / 2f - dp(5f), labelBase - tp.textSize - dp(3.5f), clockCx + tw2 / 2f + dp(5f), labelBase + dp(3.5f))
+        c.drawText(timeTxt, clockCx - tw2 / 2f, labelBase, tp)
     }
 
-    /** 회중시계 풍 원형 시계 — 해/달 아이콘 + 아래에 시각 */
+    /** 시계·계절 라벨 배경 — 작은 크림 칩 (글자가 지도 위에서 읽히도록) */
+    private fun drawLabelChip(c: Canvas, l: Float, t: Float, r: Float, b: Float) {
+        fill.shader = null
+        fill.color = Color.argb(165, 252, 244, 226)
+        c.drawRoundRect(RectF(l, t, r, b), dp(5f), dp(5f), fill)
+        stroke.color = Color.argb(110, 138, 102, 56)
+        stroke.strokeWidth = dp(1f)
+        c.drawRoundRect(RectF(l, t, r, b), dp(5f), dp(5f), stroke)
+    }
+
+    /** 회중시계 풍 원형 시계 — 해/달 아이콘 (라벨은 drawSeasonClock이 같은 baseline에 그린다) */
     private fun drawClock(c: Canvas, s: GameState, cx: Float, cy: Float, size: Float) {
         val a = game.assets
         val R = size / 2f
@@ -930,7 +953,6 @@ class Hud(private val game: Game) {
         }
         val isz = size * (if (fullMoon) 0.58f else 0.5f)
         c.drawBitmap(icon, null, RectF(cx - isz / 2f, cy - isz / 2f, cx + isz / 2f, cy + isz / 2f), a.sprPaint)
-        Type.textCentered(c, s.timeLabel(), cx, cy + R + dp(9f), Role.CAPTION, Type.INK, 0.5f)
     }
 
     /**
@@ -1012,12 +1034,35 @@ class Hud(private val game: Game) {
         UiKit.darkChip(c, game, cx, cy, txt, 12f)
     }
 
+    /**
+     * 의뢰 내용 상자 — 글자 수·줄 수에 맞춰 상자가 **유동적으로** 커진다.
+     * 짧은 의리는 얇게, 긴 의뢰는 줄어든 글씨로 넘치지 않게 들어간다.
+     */
+    private fun questPanelRect(): RectF? {
+        val objective = questObjective ?: return null
+        val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
+        val maxW = dp(200f)
+        val lines = Type.wrap(objective, p, maxW).take(3)
+        var widest = 0f
+        for (line in lines) widest = maxOf(widest, p.measureText(line))
+        val progress = questProgress
+        val travel = questTravelLabel
+        if (progress != null) widest = maxOf(widest, p.measureText("진행: $progress"))
+        if (travel != null) widest = maxOf(widest, p.measureText(travel))
+        val w = (widest + dp(14f)).coerceIn(dp(140f), dp(214f))
+        var h = dp(8f) + dp(10f) * lines.size
+        if (progress != null) h += dp(10f)
+        if (travel != null) h += dp(10f)
+        h += dp(4f)
+        val left = dp(16f)
+        val top = questChipY() + dp(15f)
+        return RectF(left, top, left + w, top + h)
+    }
+
     /** Objectives and live progress stay visible next to the quest chip while roaming. */
     private fun drawQuestDetails(c: Canvas) {
         val objective = questObjective ?: return
-        val left = dp(16f)
-        val top = questChipY() + dp(15f)
-        val r = RectF(left, top, left + dp(162f), top + dp(53f))
+        val r = questPanelRect() ?: return
         UiKit.panel(c, game, r, 9f)
         val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
         val maxW = r.width() - dp(14f)
@@ -1026,21 +1071,20 @@ class Hud(private val game: Game) {
             while (line.length > 2 && p.measureText(line) > maxW) line = line.dropLast(1)
             return if (line != raw) "$line…" else line
         }
-        val lines = Type.wrap(objective, p, maxW).take(2)
-        var y = r.top + dp(11f)
+        val lines = Type.wrap(objective, p, maxW).take(3)
+        var y = r.top + dp(13f)
         for (line in lines) {
             c.drawText(line, r.left + dp(7f), y, p)
             y += dp(10f)
         }
-        val progress = questProgress
-        if (progress != null) {
+        questProgress?.let { progress ->
             p.color = 0xFF795A2B.toInt()
-            val progressY = if (questTravelLabel != null) r.bottom - dp(16f) else r.bottom - dp(5f)
-            c.drawText(fitLine("진행: $progress"), r.left + dp(7f), progressY, p)
+            c.drawText(fitLine("진행: $progress"), r.left + dp(7f), y + dp(1f), p)
+            y += dp(10f)
         }
         questTravelLabel?.let { route ->
             p.color = 0xFF3E7550.toInt()
-            c.drawText(fitLine(route), r.left + dp(7f), r.bottom - dp(4f), p)
+            c.drawText(fitLine(route), r.left + dp(7f), y + dp(1f), p)
         }
     }
 
@@ -1300,21 +1344,27 @@ class Hud(private val game: Game) {
         }
 
         // ------------------------------------------------------------
-        // 4) 메뉴(가방) 클러스터 — 상단, 시계 왼쪽 (모서리 둥근 사각형)
+        // 4) 상단 클러스터 — [설정][업적][도감][가방] 한 줄 (같은 높이·같은 간격)
+        //    설정·업적·도감은 가방(☰) 안에 숨기지 않고 바로가기 버튼으로 꺼냈다.
         // ------------------------------------------------------------
-        val menuPressed = Ctrl.MENU in active
-        val ms = menuR
-        val mr = RectF(menuCx - ms, menuCy - ms, menuCx + ms, menuCy + ms)
-        fill.color = if (menuPressed) 0xFF9F7FC8.toInt() else Color.argb(220, 58, 52, 74)
-        c.drawRoundRect(mr, dp(7f), dp(7f), fill)
-        stroke.color = Color.argb(190, 248, 239, 220)
-        stroke.strokeWidth = dp(2f)
-        c.drawRoundRect(mr, dp(7f), dp(7f), stroke)
-        linePaint.color = Color.argb(230, 248, 239, 220)
-        linePaint.strokeWidth = dp(2.2f)
-        for (i in -1..1) {
-            c.drawLine(menuCx - dp(6.5f), menuCy + i * dp(4.2f), menuCx + dp(6.5f), menuCy + i * dp(4.2f), linePaint)
+        fun iconTile(cx: Float, cy: Float, ctrl: Ctrl, icon: String, base: Int) {
+            val pressed = ctrl in active
+            val half = iconS / 2f
+            val r = RectF(cx - half, cy - half, cx + half, cy + half)
+            fill.shader = null
+            fill.color = Color.argb(if (pressed) 70 else 96, 10, 8, 18)
+            c.drawRoundRect(RectF(r.left, r.top + dp(2f), r.right, r.bottom + dp(3f)), dp(8f), dp(8f), fill)
+            fill.color = if (pressed) UiKit.lighten(base, 26) else base
+            c.drawRoundRect(r, dp(8f), dp(8f), fill)
+            stroke.color = Color.argb(195, 248, 239, 220)
+            stroke.strokeWidth = dp(1.8f)
+            c.drawRoundRect(r, dp(8f), dp(8f), stroke)
+            UiKit.iconCenter(c, game, icon, cx, cy, iconS * 0.58f)
         }
+        iconTile(settingsCx, settingsCy, Ctrl.SETTINGS, "gear", Color.argb(220, 58, 52, 74))
+        iconTile(achieveCx, achieveCy, Ctrl.ACHIEVE, "trophy", Color.argb(220, 58, 52, 74))
+        iconTile(bookCx, bookCy, Ctrl.DEX, "book", Color.argb(220, 58, 52, 74))
+        iconTile(menuCx, menuCy, Ctrl.MENU, "backpack", 0xFF5E5474.toInt())
 
         // 미니맵 살짝 강조 (탭 가능 힌트)
         if (showMinimap && Ctrl.MAP in active) {

@@ -259,8 +259,8 @@ object UiKit {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<GradKey, LinearGradient>) = size > 128
     }
 
-    /** 세로 그라데이션 (창·카드·버튼·게이지 공통) */
-    private fun vgrad(x0: Float, y0: Float, x1: Float, y1: Float, c0: Int, c1: Int): LinearGradient {
+    /** 세로 그라데이션 (창·카드·버튼·게이지 공통) — 좌표+색 키로 캐시 */
+    fun vgrad(x0: Float, y0: Float, x1: Float, y1: Float, c0: Int, c1: Int): LinearGradient {
         val k = GradKey(x0, y0, x1, y1, c0, c1)
         gradCache[k]?.let { return it }
         val sh = LinearGradient(x0, y0, x1, y1, c0, c1, Shader.TileMode.CLAMP)

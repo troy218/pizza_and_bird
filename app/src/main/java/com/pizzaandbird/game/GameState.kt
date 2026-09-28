@@ -96,6 +96,11 @@ class GameState {
     val decorSlots = IntArray(Decors.SLOT_COUNT) { -1 }
     val decorOwned = ArrayList<Int>()     // 소유한 장식 id 목록
 
+    // 듀랑고식 일반 인벤토리 (id -> 수량)
+    val inventory = LinkedHashMap<String, Int>()
+    // 마비노기식 장비 슬롯 (slotName -> itemId)
+    val equipped = LinkedHashMap<String, String>()
+
     // 🌸 힐링 컨텐츠 상태 (v0.4.2 「따뜻한 바람」) — 기본 JSONObject로 세이브/로드가 투명하다.
     var healing = JSONObject()
 
@@ -503,6 +508,35 @@ class GameState {
         return n
     }
 
+    // ----- 일반 인벤토리 (듀랑고식 수량 표시) -----
+    fun itemCount(id: String): Int = inventory[id] ?: 0
+    fun addItem(id: String, count: Int = 1) {
+        if (Items.of(id) == null) return
+        val cur = inventory[id] ?: 0
+        val max = Items.of(id)?.stackMax ?: 99
+        inventory[id] = (cur + count).coerceAtMost(max)
+    }
+    fun removeItem(id: String, count: Int = 1): Boolean {
+        val cur = inventory[id] ?: return false
+        if (cur < count) return false
+        if (cur == count) inventory.remove(id) else inventory[id] = cur - count
+        return true
+    }
+    fun equipItem(slot: EquipSlot, itemId: String): Boolean {
+        val def = Items.of(itemId) ?: return false
+        if (def.equipSlot != slot) return false
+        if (itemCount(itemId) <= 0) return false
+        equipped[slot.name] = itemId
+        return true
+    }
+    fun unequipItem(slot: EquipSlot) {
+        equipped.remove(slot.name)
+    }
+    fun equippedItem(slot: EquipSlot): ItemDef? {
+        val id = equipped[slot.name] ?: return null
+        return Items.of(id)
+    }
+
     /** 자전거 부속품이 늘려 주는 피자 소지 한도 */
     fun bikePizzaBonus(): Int {
         var n = 0
@@ -568,6 +602,12 @@ class GameState {
         weatherSeconds = 55f
         for (i in decorSlots.indices) decorSlots[i] = -1
         decorOwned.clear()
+        inventory.clear()
+        equipped.clear()
+        // 시작 아이템
+        addItem("flour", 5)
+        addItem("cheese", 3)
+        addItem("water_bottle", 2)
         ownedBikes.clear()
         ownedBikes.add("basic")
         bikeId = "basic"
@@ -644,6 +684,8 @@ class GameState {
         put("landmarksSeen", JSONArray().apply { landmarksSeen.forEach { put(it) } })
         put("decorSlots", JSONArray().apply { decorSlots.forEach { put(it) } })
         put("decorOwned", JSONArray().apply { decorOwned.forEach { put(it) } })
+        put("inventory", JSONObject(inventory as Map<*, *>))
+        put("equipped", JSONObject(equipped as Map<*, *>))
         put("ownedBikes", JSONArray().apply { ownedBikes.forEach { put(it) } })
         put("bikeId", bikeId)
         put("bikeFrameColor", bikeFrameColor)
@@ -862,6 +904,24 @@ class GameState {
                 // v4의 3칸 배치는 새 8칸 레이아웃의 앞 세 칸에 보존한다.
                 for (i in 0 until minOf(ds.length(), s.decorSlots.size)) {
                     s.decorSlots[i] = ds.optInt(i, -1)
+                }
+            }
+            val inv = j.optJSONObject("inventory")
+            if (inv != null) {
+                val itInv = inv.keys()
+                while (itInv.hasNext()) {
+                    val k = itInv.next()
+                    val cnt = inv.optInt(k, 0)
+                    if (cnt > 0 && Items.of(k) != null) s.inventory[k] = cnt
+                }
+            }
+            val eq = j.optJSONObject("equipped")
+            if (eq != null) {
+                val itEq = eq.keys()
+                while (itEq.hasNext()) {
+                    val k = itEq.next()
+                    val id = eq.optString(k, "")
+                    if (id.isNotEmpty() && Items.of(id) != null) s.equipped[k] = id
                 }
             }
             val dwn = j.optJSONArray("decorOwned")

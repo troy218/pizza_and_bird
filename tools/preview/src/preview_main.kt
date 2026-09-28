@@ -395,8 +395,15 @@ object PreviewMain {
         simulate(game, 0.8f)
         renderScreen(game, "16_dialog")
 
-        // 메뉴 탭
+        // 메뉴 탭 — 가방 스크린샷에 '아이템 수량 슬롯'이 보이도록 상태를 살짝 채운다
         scene.closeOverlay()
+        game.state.addItem("flour", 12)
+        game.state.addItem("cheese", 7)
+        game.state.addItem("film", 24)
+        game.state.addItem("energy_bar", 3)
+        game.state.addItem("feather", 2)
+        com.pizzaandbird.game.Healing.addHerb(game.state, "ssuk", 4)
+        com.pizzaandbird.game.PizzaSlices.onBaked(game.state, 0, 2)
         val menu = MenuOverlay(scene)
         scene.openOverlay(menu)
         val tabCls = Class.forName("com.pizzaandbird.game.MenuOverlay\$Tab")

@@ -1,1 +1,46 @@
-<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="#D98A32" stroke="#713B25" stroke-width="3"/><circle cx="32" cy="32" r="21" fill="#F2B63C"/><circle cx="22" cy="23" r="4" fill="#C8392B"/><circle cx="41" cy="25" r="4" fill="#C8392B"/><circle cx="32" cy="42" r="4" fill="#C8392B"/><circle cx="44" cy="40" r="3" fill="#5E9E4A"/><circle cx="22" cy="42" r="3" fill="#FFF0A0"/></svg>
+<svg viewBox="0 0 64 64">
+  <!-- 통피자 (위에서 본 모습) — parser 지원 요소(circle/ellipse/rect/polygon)만 사용 -->
+  <!-- 그림자 -->
+  <ellipse cx="32" cy="35" rx="27" ry="26" fill="#29000000"/>
+  <!-- 크러스트 -->
+  <circle cx="32" cy="32" r="26" fill="#713B25"/>
+  <circle cx="32" cy="31.5" r="24.8" fill="#D98A32"/>
+  <!-- 크러스트 굽기 반점 -->
+  <circle cx="11.5" cy="25" r="2.1" fill="#BF7640"/>
+  <circle cx="21" cy="10.5" r="2" fill="#BF7640"/>
+  <circle cx="43.5" cy="11.5" r="2.1" fill="#BF7640"/>
+  <circle cx="53.5" cy="27" r="2" fill="#BF7640"/>
+  <circle cx="46.5" cy="50" r="2.1" fill="#BF7640"/>
+  <circle cx="18.5" cy="49" r="2" fill="#BF7640"/>
+  <!-- 크러스트 윗빛 -->
+  <circle cx="16" cy="16" r="3" fill="#E8A75C"/>
+  <circle cx="23" cy="12" r="2.4" fill="#E8A75C"/>
+  <!-- 소스 링 -->
+  <circle cx="32" cy="31.5" r="19.5" fill="#C8392B"/>
+  <!-- 치즈 -->
+  <circle cx="32" cy="31.5" r="17.8" fill="#F2B63C"/>
+  <!-- 치즈 밝기 -->
+  <circle cx="26" cy="21" r="5.2" fill="#FFE08A"/>
+  <circle cx="33" cy="18.5" r="3" fill="#FFE08A"/>
+  <!-- 페퍼로니 -->
+  <circle cx="23" cy="23" r="4.3" fill="#C8392B" stroke="#A32E22" stroke-width="1.7"/>
+  <circle cx="41.5" cy="24.5" r="4.3" fill="#C8392B" stroke="#A32E22" stroke-width="1.7"/>
+  <circle cx="32" cy="41" r="4.3" fill="#C8392B" stroke="#A32E22" stroke-width="1.7"/>
+  <circle cx="19.5" cy="38.5" r="3.7" fill="#C8392B" stroke="#A32E22" stroke-width="1.6"/>
+  <circle cx="44.5" cy="39" r="3.7" fill="#C8392B" stroke="#A32E22" stroke-width="1.6"/>
+  <!-- 페퍼로니 반점 -->
+  <circle cx="21.5" cy="21.5" r="0.9" fill="#E0574A"/>
+  <circle cx="40" cy="23" r="0.9" fill="#E0574A"/>
+  <circle cx="30.5" cy="39.5" r="0.9" fill="#E0574A"/>
+  <!-- 바질 -->
+  <polygon points="27,27.5 29.5,23.5 34.5,23 36,25.5 32.5,29" fill="#5E9E4A" stroke="#3F7233" stroke-width="1.2"/>
+  <polygon points="36,36 38.5,32.4 43,32 44.4,34.4 41,37.6" fill="#5E9E4A" stroke="#3F7233" stroke-width="1.2"/>
+  <!-- 올리브 -->
+  <circle cx="22.5" cy="31" r="2.9" fill="#3F5A2E" stroke="#2A3D1F" stroke-width="1.3"/>
+  <circle cx="22.5" cy="31" r="1" fill="#2A3D1F"/>
+  <circle cx="38" cy="46" r="2.7" fill="#3F5A2E" stroke="#2A3D1F" stroke-width="1.3"/>
+  <circle cx="38" cy="46" r="0.9" fill="#2A3D1F"/>
+  <!-- 치즈 반짝임 -->
+  <circle cx="36.5" cy="19.5" r="1.3" fill="#FFF3C4"/>
+  <circle cx="26" cy="45" r="1.1" fill="#FFF3C4"/>
+</svg>
