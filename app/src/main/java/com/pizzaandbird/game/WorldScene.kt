@@ -1968,20 +1968,23 @@ class WorldScene(
     /**
      * 동네 사람 잡담 — 이 지역, 이 자리에서만 하는 말이다.
      *
-     *  - 이웃 주민(`resident`)은 [P08] 조건부 대사(지역 소개 + 장별 관찰 예절 + 계절/날씨/밤)
-     *    에 그 사람 자신의 한마디를 잇는다.
-     *  - 고유 캐릭터는 자기 자리(호숫가 데크·갈대밭·시장 골목…)에 어울리는 이야기를 한다.
+     *  - [P08] 조건부 대사는 **사람의 목소리(kind)** 로 고른다 — 꼬마는 질문으로, 어르신은 회상으로,
+     *    주민은 사건으로 말한다 (docs/STORY.md §1.2 규칙 4). 지역 소개·장별 예절(storyHint)은
+     *    동네 주민(VILLAGER) 목소리가 담당하고, 그 사람 자신의 한마디를 뒤에 잇는다.
+     *  - 보리 박사(광릉숲)와 사진용품점(서울)은 각자 `talkProfessor`/`talkShop` 전용 대화를 한다.
      *  - 보고할 메인 기록이 있는데 보리 박사가 다른 지역에 있으면 🚲 이동 택지를 붙여 준다
      *    (박사는 광릉숲에만 산다 — `NpcRoster`).
      */
     private fun talkNeighbor(npc: Npc) {
         val person = npc.person
         val own = person.lines[rnd.nextInt(person.lines.size)]
-        val text = if (person.resident) {
-            "${Dialogues.villager(SideStories.ctx(this))}\n\n\"$own\""
-        } else {
-            "\"$own\""
+        val ctx = SideStories.ctx(this)
+        val voice = when (person.kind) {
+            NpcKind.KID -> Dialogues.kid(ctx)
+            NpcKind.ELDER -> Dialogues.elder(ctx)
+            else -> Dialogues.villager(ctx)
         }
+        val text = "$voice\n\n\"$own\""
         val choices = buildList {
             add(DialogOverlay.Choice(if (person.resident) "기억할게요" else "고마워요"))
             if (professorTripNeeded()) {
@@ -2313,6 +2316,7 @@ class WorldScene(
             "\"새를 크게 찍고 싶으면 답은 하나야. 초점거리!\n다만 무거운 렌즈는 배가 금방 고파진다네.\"",
             "\"센서가 크면 어두운 새벽에도 깨끗하지.\n대신 지갑이 어두워지지만 말이야. 허허.\"",
             "\"허허, 내 첫 손님이 카메라를 들던 소년이었다네.\n피자 한 판 시키면서 숲새 얘기를 하던 게 어제 같은데.\"",
+            "\"광릉숲 박사님과는 오래된 인연이라네.\n그 양반이 수첩 이야기를 시작하면 장사도 뒷전이지, 허허.\"",
             "\"비 오는 날엔 렌즈에 물방울이 맺히기 쉽다네.\n레인 커버 하나가 오래 보는 비결이야.\"",
             "\"카메라는 어깨에 매는 거지만, 기록은 가슴에 남는 법이야.\n무거운 건 어깨에, 가벼운 건 가슴에 두고 다니게.\""
         )

@@ -664,6 +664,26 @@ class Paint {
 
     fun descent(): Float = StubText.metrics(awtFont()).descent.toFloat()
 
+    /** android.graphics.Paint.FontMetrics 흉내 — ascent 은 안드로이드처럼 음수다. */
+    class StubFontMetrics {
+        var top = 0f
+        var ascent = 0f
+        var descent = 0f
+        var bottom = 0f
+        var leading = 0f
+    }
+
+    val fontMetrics: StubFontMetrics
+        get() = StubText.metrics(awtFont()).let { m ->
+            StubFontMetrics().apply {
+                ascent = -m.ascent.toFloat()
+                descent = m.descent.toFloat()
+                top = ascent - 2f
+                bottom = descent + 2f
+                leading = 0f
+            }
+        }
+
     fun getFontMetrics(): FontMetrics = StubText.metrics(awtFont())
 }
 
@@ -989,6 +1009,10 @@ class Canvas {
     }
 
     fun drawRect(r: RectF, paint: Paint) = drawRect(r.left, r.top, r.right, r.bottom, paint)
+
+    /** android.graphics.Canvas 의 좌표 오버로드 (Charms.kt 등이 쓴다) */
+    fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float, rx: Float, ry: Float, paint: Paint) =
+        drawRoundRect(RectF(left, top, right, bottom), rx, ry, paint)
 
     fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) {
         GfxStats.drawRoundRect++

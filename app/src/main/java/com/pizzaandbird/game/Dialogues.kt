@@ -391,6 +391,41 @@ object Dialogues {
     )
 
     // -------------------------------------------------------------------
+    // 인물 관계 대사 (docs/STORY.md §1.2) — 관계선이 설명이 아니라 "부르는 방식"으로 드러나는 잔향.
+    //   꼬마=질문 · 어르신=회상 · 주민=사건 · 박사=문장. 대화창 줄 수 한도(§4-6)를 넘지 않게
+    //   기존 추가 줄 자리를 낮은 확률로 대체해 얹는다(이동 보존분 6+6줄은 무수정).
+    //   금지: ③ "박사의 물러섬"의 직접 언급(6장 전) · R4 "첫 손님의 정체"(강릉 회수 전) — §1.2 규칙 2·3.
+    // -------------------------------------------------------------------
+
+    /** R8·R9 — 꼬마가 박사·수첩·플레이어를 부르는 방식. 항상 한 줄. */
+    private val KID_RELATION = listOf(
+        "저기요, 그 수첩 할머니한테 받은 거예요? 그럼 이제 같이 쓰는 거네요! 대단해요!",
+        "박사님이랑 아는 사이예요? 부러워요! 박사님이 저한테도 새 이름을 알려주셨거든요.",
+        "수첩에 제 이름도 적어 주실래요? 나중에 제가 유명해지면요!"
+    )
+
+    /** R1·R6 — 어르신이 할머니와 박사를 기억하는 방식. 회상은 항상 따뜻하게 닫는다(§5). */
+    private val ELDER_RELATION = listOf(
+        "자네 할머니와 보리 박사가 같이 다니던 시절엔, 동네 사람들이 그 둘을 ‘쌍안경 가방’이라 불렀지.",
+        "오래 보는 일은 혼자 하는 게 아니더라고. 자네 할머니에게는 박사가 있었고, 이제 박사에게는 자네가 있네.",
+        "수첩은 책이 아니라 사람 사이의 편지라네. 적는 사람도, 물려준 사람도 함께 쓰는 거야."
+    )
+
+    /** R4 힌트·R7 — 주민이 관계를 사건으로 전하는 방식. "첫 손님의 정체"는 말하지 않는다(§1.2 규칙 3). */
+    private val VILLAGER_RELATION = listOf(
+        "광릉숲 박사님이 가끔 우리 동네까지 오세요. 수첩 이야기가 시작되면 다들 저절로 모여들어요.",
+        "서울 사진용품점 사장님과 박사님은 오래된 인연이라더라고요. 동네에 오래 산 사람들은 다 알아요.",
+        "이 동네 창밖 이름표는 수첩 주인인 자네 덕분이에요. 배움은 남에게 쓸 때 제일 빛나죠."
+    )
+
+    /** R1·R2·R3 — 박사가 관계를 문장으로 건네는 방식. 훈계하지 않고 회상만 한다(§4-8). */
+    private val PROFESSOR_RELATION = listOf(
+        "자네 할머니는 창문만 열면 참새부터 챙기셨지. 그 마음이 수첩 사이사이에 배어 있네.",
+        "수첩을 물려준 사람도, 이어 쓰는 사람도, 곁에서 지켜 본 사람도 결국 한 길을 걷는 셈이라네.",
+        "요즘 동네 꼬마들이 수첩을 구경하러 오는군. 그 눈빛을 보고 있으면 나도 모르게 허리가 펴지네."
+    )
+
+    // -------------------------------------------------------------------
     // 선택 함수
     // -------------------------------------------------------------------
 
@@ -400,17 +435,24 @@ object Dialogues {
         Regions.byId[c.regionId]?.let { sb.append(it.villager).append('\n') }
         sb.append(storyHint(c.chapter))
         // 계절 문장은 항상, 날씨/밤 문장은 확률적으로 한 줄 더 얹는다 (매번 다른 이웃)
+        // 인물 관계 잔향(§1.2)은 그 추가 줄 자리를 20% 확률로 대체해 얹는다 — 줄 수 유지.
         val extra = StringBuilder()
         pickFrom(VILLAGER_SEASON[c.season])?.let { extra.append('\n').append(it) }
-        val nightOrWeather = if (c.night) pickFrom(VILLAGER_NIGHT)
-        else pickFrom(VILLAGER_WEATHER[c.weather])
-        if (nightOrWeather != null && rnd.nextFloat() < 0.55f) extra.append('\n').append(nightOrWeather)
+        val relation = if (rnd.nextFloat() < 0.2f) pickFrom(VILLAGER_RELATION) else null
+        if (relation != null) {
+            extra.append('\n').append(relation)
+        } else {
+            val nightOrWeather = if (c.night) pickFrom(VILLAGER_NIGHT)
+            else pickFrom(VILLAGER_WEATHER[c.weather])
+            if (nightOrWeather != null && rnd.nextFloat() < 0.55f) extra.append('\n').append(nightOrWeather)
+        }
         sb.append(extra)
         return sb.append('"').toString()
     }
 
     /** 꼬마 — 기존 6줄 + 계절 + 진행 장 + (밤이면 밤줄, 아니면 날씨줄) 풀에서 한 줄. */
     fun kid(c: Ctx): String {
+        if (rnd.nextFloat() < 0.18f) return "\"${KID_RELATION.random(rnd)}\""
         val pools = ArrayList<List<String>>(5)
         pools.add(KID_BASE)
         KID_SEASON[c.season]?.let { pools.add(it) }
@@ -425,6 +467,7 @@ object Dialogues {
 
     /** 할머니 — 기존 6줄 + 계절 + 진행 장 + (밤이면 밤줄, 비/눈·맑음·흐림·바람이면 날씨줄) 풀에서 한 줄. */
     fun elder(c: Ctx): String {
+        if (rnd.nextFloat() < 0.18f) return "\"${ELDER_RELATION.random(rnd)}\""
         val pools = ArrayList<List<String>>(5)
         pools.add(ELDER_BASE)
         ELDER_SEASON[c.season]?.let { pools.add(it) }
@@ -442,6 +485,7 @@ object Dialogues {
      * 빈 문자열을 반환할 수 있으니 호출 측에서 그대로 이어 붙인다 (게임 로직 무의존).
      */
     fun professorFlavor(c: Ctx): String {
+        if (rnd.nextFloat() < 0.3f) return "\n\"${PROFESSOR_RELATION.random(rnd)}\""
         val pools = ArrayList<List<String>>(3)
         if (c.night) {
             pools.add(PROFESSOR_NIGHT)
