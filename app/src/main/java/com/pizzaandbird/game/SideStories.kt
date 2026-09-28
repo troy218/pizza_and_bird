@@ -677,7 +677,8 @@ object SideStories {
     private fun consumeDeliverable(s: GameState, g: Goal) {
         if (g !is Goal.Deliver) return
         val idx = findDeliverable(s, g)
-        if (idx >= 0) s.pizzas[idx] = s.pizzas[idx] - 1
+        // [P11] 할머니께는 **한 판째** 드린다 — 잘라 둔 조각 8개도 함께 나간다
+        if (idx >= 0) s.removePanAt(idx)
     }
 
     // -------------------------------------------------------------------

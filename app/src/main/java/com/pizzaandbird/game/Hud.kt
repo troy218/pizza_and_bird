@@ -1217,29 +1217,64 @@ class Hud(private val game: Game) {
             }
         }
 
-        // 간식 (🍕) — 피자 개수 표시
-        val pizzaN = game.state.pizzaCount
+        // 간식 (🍕) — [P11] 남은 **조각** 수 표시 (한 판 = 8조각)
+        val sliceN = game.state.sliceCount
         drawArcButton(
             c, eatCx, eatCy, eatR,
-            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (pizzaN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
+            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (sliceN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
             Ctrl.EAT in active
         )
         val pz = game.assets.pizzaIcon
         val psz = dp(20f)
         c.drawBitmap(pz, null, RectF(eatCx - psz / 2, eatCy - psz / 2, eatCx + psz / 2, eatCy + psz / 2), game.assets.sprPaint)
-        if (pizzaN > 0) {
+
+        // [P11] 빠른 피자를 등록해 두면 버튼 왼아래에 그 피자 아이콘을 작게 달아 둔다
+        game.state.quickPizza()?.let { quick ->
+            val qx = eatCx - eatR * 0.66f
+            val qy = eatCy + eatR * 0.66f
+            val qr = dp(8.5f)
+            fill.color = Color.argb(80, 20, 12, 8)
+            c.drawCircle(qx, qy + dp(1.5f), qr, fill)
+            fill.color = 0xFFF8EFDC.toInt()
+            c.drawCircle(qx, qy, qr, fill)
+            stroke.color = UiKit.GOLD
+            stroke.strokeWidth = dp(1.4f)
+            c.drawCircle(qx, qy, qr, stroke)
+            val art = game.assets.pizzaArt(quick.id)
+            val asz = qr * 1.45f
+            c.drawBitmap(art, null, RectF(qx - asz / 2, qy - asz / 2, qx + asz / 2, qy + asz / 2), game.assets.sprPaint)
+        }
+
+        if (sliceN > 0) {
             val bx = eatCx + eatR * 0.62f
             val by = eatCy - eatR * 0.62f
+            val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
+            val nt = "$sliceN"
+            // 조각 수는 두 자리(최대 8×배낭)까지 가므로 원이 아니라 알약으로 늘린다
+            val bh = dp(8.5f)
+            val bw = maxOf(bh, np.measureText(nt) / 2f + dp(5f))
+            tmpRect.set(bx - bw, by - bh + dp(1.5f), bx + bw, by + bh + dp(1.5f))
             fill.color = Color.argb(80, 20, 12, 8)
-            c.drawCircle(bx, by + dp(1.5f), dp(8.5f), fill)
+            c.drawRoundRect(tmpRect, bh, bh, fill)
+            tmpRect.set(bx - bw, by - bh, bx + bw, by + bh)
             fill.color = 0xFF6B4F35.toInt()
-            c.drawCircle(bx, by, dp(8.5f), fill)
+            c.drawRoundRect(tmpRect, bh, bh, fill)
             stroke.color = 0xFFF2D06B.toInt()
             stroke.strokeWidth = dp(1.4f)
-            c.drawCircle(bx, by, dp(8.5f), stroke)
-            val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
-            val nt = "$pizzaN"
+            c.drawRoundRect(tmpRect, bh, bh, stroke)
             c.drawText(nt, bx - np.measureText(nt) / 2, Type.midBaseline(np, by), np)
+        }
+
+        // [P11] 피자 버튼 길게 누르기 — 링이 가득 차면 '빠른 피자 창'이 열린다
+        run {
+            val ht = game.input.eatHoldT
+            if (ht > 0.02f) {
+                val rr = eatR + dp(5f)
+                tmpRect.set(eatCx - rr, eatCy - rr, eatCx + rr, eatCy + rr)
+                stroke.color = Color.argb((140 + 100 * ht).toInt().coerceIn(0, 255), 255, 236, 190)
+                stroke.strokeWidth = dp(3f)
+                c.drawArc(tmpRect, -90f, 360f * ht, false, stroke)
+            }
         }
 
         // 펀치 (👊) — 근처 고양이를 날려 보낸다. 사거리 안이면 붉은 펄스.
