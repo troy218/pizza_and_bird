@@ -147,12 +147,15 @@ object PerspectivePhoto {
         }
         private val path = Path()
         private val rect = RectF()
-        private val night = 1f - daylight(hour)
+        // 조명은 월드 씬과 **같은 DayCycle 함수**로 계산한다.
+        // (예전엔 고정된 18시/6시 창을 써서 한낮에도 저녁 하늘이 인화되는 일이 있었다)
+        // 계절별 일출·일몰과 태양 고도가 그대로 사진 하늘·그늘에 반영된다.
+        private val night = DayCycle.darkness(hour, season)
         private val overcast = when (weather) {
             Weather.RAIN -> 0.65f; Weather.CLOUDY, Weather.SNOW -> 0.4f; else -> 0f
         }
-        private val dusk = max((1f - abs(hour - 18.1f) / 1.6f).coerceIn(0f, 1f),
-            (1f - abs(hour - 6f) / 1.1f).coerceIn(0f, 1f)) * (1f - overcast)
+        private val dusk = (DayCycle.golden(hour, season) * (1f - overcast * 0.75f)).coerceIn(0f, 1f)
+        private val sunAlt = DayCycle.sunAltitude(hour, season)
         private val skyTop = mix(mix(0xFF72B5D5.toInt(), 0xFFB9B2C8.toInt(), dusk),
             0xFF111C38.toInt(), night)
         private val skyHorizon = mix(mix(mix(0xFFE1EEDD.toInt(), 0xFFF5BE91.toInt(), dusk),
@@ -208,11 +211,15 @@ object PerspectivePhoto {
             }
             if (overcast < 0.5f) {
                 val sx = w * (0.76f - camera.forwardX * 0.17f)
-                val sy = h * (0.13f + dusk * 0.16f)
-                paint.color = Color.argb(22, 255, 234, 187)
+                // 해/달의 높이는 실제 태양 고도를 따라간다 — 한낮엔 높이 뜨고,
+                // 노을 질 무렵엔 지평선 가깝게, 밤엔 달이 그 자리를 이어 받는다.
+                val isMoon = night > 0.5f
+                val alt = (if (isMoon) -sunAlt else sunAlt).coerceIn(0f, 1f)
+                val sy = (camera.horizon * (0.62f - 0.45f * alt)).coerceIn(h * 0.08f, camera.horizon * 0.95f)
+                paint.color = if (isMoon) Color.argb(16, 226, 234, 255) else Color.argb(22, 255, 234, 187)
                 c.drawCircle(sx, sy, 34f, paint)
-                paint.color = if (night > 0.5f) 0xFFF2F0D7.toInt() else 0xFFFFF1C3.toInt()
-                c.drawCircle(sx, sy, if (night > 0.5f) 9f else 13f, paint)
+                paint.color = if (isMoon) 0xFFF2F0D7.toInt() else 0xFFFFF1C3.toInt()
+                c.drawCircle(sx, sy, if (isMoon) 9f else 13f, paint)
             }
             for (i in 0 until 5) {
                 val hash = hash2(i, seed, 19)

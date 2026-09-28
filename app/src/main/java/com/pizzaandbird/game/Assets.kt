@@ -4091,9 +4091,8 @@ begin(T.LAMP)
 
     private fun buildIcons() {
         pizzaIcon = renderPixel("pizza", 22, 14)
-        pizzaIconBig = Bitmap.createScaledBitmap(
-            pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
-        )
+        // 큰 피자는 22x14 래스터의 4배 확대(뭉개짐의 원인)가 아니라 벡터에서 직접 뽑는다.
+        pizzaIconBig = renderPixel("pizza", 88, 56)
         // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
         //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
         //  C 치즈(baseColor) / L·S 치즈 밝기·그늘(파생) / R·r·G 토핑1 면·테·윤 / A·b 토핑2 면·테

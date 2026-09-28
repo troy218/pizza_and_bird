@@ -1,1 +1,36 @@
-<svg viewBox="0 0 64 64"><ellipse cx="34" cy="35" rx="20" ry="14" fill="#6F8FB2" stroke="#3B4C63" stroke-width="3"/><circle cx="18" cy="29" r="12" fill="#6F8FB2" stroke="#3B4C63" stroke-width="3"/><polygon points="7,30 18,35 8,39" fill="#D98A32" stroke="#7A4A2B" stroke-width="2"/><circle cx="16" cy="26" r="3" fill="#2E2118"/><polygon points="29,25 43,33 32,40" fill="#A8C3D5"/><polygon points="49,34 60,29 52,41" fill="#6F8FB2"/></svg>
+<svg viewBox="0 0 64 64">
+  <!-- 산새 아이콘 — parser 지원 요소(circle/ellipse/rect/polygon)만 사용.
+       통통한 몸·접힌 날개·눈 반짝임·볼터치가 있는 귀여운 실루엣 -->
+  <!-- 꼬리 -->
+  <polygon points="40,34 58,27 58,34 52,42 41,40" fill="#3B5877"/>
+  <polygon points="42,35 55,30 54.5,34 43,37" fill="#5A7FA6"/>
+  <!-- 몸통 -->
+  <ellipse cx="31" cy="38" rx="18.5" ry="14.5" fill="#6F8FB2" stroke="#2F4A66" stroke-width="2.8"/>
+  <!-- 배 -->
+  <ellipse cx="30" cy="43.5" rx="11" ry="7.8" fill="#C9DCEA"/>
+  <!-- 머리 -->
+  <circle cx="19" cy="24" r="12.5" fill="#6F8FB2" stroke="#2F4A66" stroke-width="2.8"/>
+  <!-- 머리 윗빛 -->
+  <circle cx="15" cy="18.5" r="5.5" fill="#8FB2D1"/>
+  <!-- 볼 -->
+  <circle cx="15.5" cy="29.5" r="3.2" fill="#E8A7B4"/>
+  <!-- 부리 -->
+  <polygon points="8,25 2,28.5 8,30.8" fill="#E8A23C" stroke="#B8762A" stroke-width="1.5"/>
+  <!-- 눈 -->
+  <circle cx="16.5" cy="22" r="3.7" fill="#FFFFFF"/>
+  <circle cx="15.8" cy="22.3" r="2.2" fill="#22303C"/>
+  <circle cx="14.8" cy="21.2" r="0.95" fill="#FFFFFF"/>
+  <!-- 날개 -->
+  <polygon points="25.5,31 33,28 41,30 45.5,35.5 42,40.5 33,41.5 26.5,37.5" fill="#4F7399" stroke="#2F4A66" stroke-width="2.2"/>
+  <polygon points="29,32.5 35,30.5 40.5,32.5 42.6,36 39,38.8 32,39 28,36" fill="#6F8FB2"/>
+  <!-- 깃털 줄 -->
+  <rect x="30.5" y="33.4" width="9" height="1.5" rx="0.7" fill="#2F4A66"/>
+  <rect x="30" y="36.6" width="8.2" height="1.5" rx="0.7" fill="#2F4A66"/>
+  <!-- 다리 -->
+  <rect x="23.6" y="50" width="2.4" height="6" rx="1.1" fill="#E8A23C"/>
+  <rect x="31.8" y="50.5" width="2.4" height="6" rx="1.1" fill="#E8A23C"/>
+  <rect x="21" y="55" width="7.6" height="2.2" rx="1.1" fill="#E8A23C"/>
+  <rect x="29.2" y="55.5" width="7.6" height="2.2" rx="1.1" fill="#E8A23C"/>
+  <!-- 머리 위 잔털 -->
+  <polygon points="20,12.5 23,5.5 26,11" fill="#4F7399" stroke="#2F4A66" stroke-width="1.8"/>
+</svg>

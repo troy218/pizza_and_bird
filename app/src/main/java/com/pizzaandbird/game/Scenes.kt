@@ -317,12 +317,10 @@ class TitleScene(game: Game) : Scene(game) {
         val w = game.screenW.toFloat()
         val h = game.screenH.toFloat()
         val cx = w / 2f
-        val hasSave = game.state.started
 
         // 등장 연출 — 제목 → 태그라인 → 버튼 순서로 살짝 지연되며 들어온다
         val titleK = easeOutCubic(clamp01(t / 0.55f))
         val tagK = easeOutCubic(clamp01((t - 0.15f) / 0.55f))
-        val btnK = easeOutCubic(clamp01((t - 0.35f) / 0.5f))
 
         // 제목 뒤 부드러운 광채 (화면이 바뀔 때만 셰이더 재생성)
         val gy = h * 0.355f
@@ -360,31 +358,14 @@ class TitleScene(game: Game) : Scene(game) {
         UiKit.sparkle(c, cx, h * 0.522f, dp(11f), Color.argb(190, 226, 172, 60), t * 2.4f + 2.1f)
         UiKit.sparkle(c, cx + dp(48f), h * 0.524f, dp(8f), Color.argb(150, 226, 172, 60), t * 2.4f + 4.2f)
 
-        // 시작 버튼 — 저장이 있으면 "시작하기 + 이어하기", 없으면 "시작하기" 하나만
-        val bh = dp(46f)
-        val byTop = h * 0.60f
-        c.save()
-        c.translate(cx, byTop + bh / 2)
-        val bs = 0.8f + 0.2f * btnK
-        c.scale(bs, bs)
-        c.translate(-cx, -(byTop + bh / 2))
-        val bRise = (1f - btnK) * dp(12f)
-        if (hasSave) {
-            val bw1 = dp(196f)
-            val bw2 = dp(172f)
-            val gap = dp(22f)
-            val total = bw1 + gap + bw2
-            startRect = RectF(cx - total / 2, byTop + bRise, cx - total / 2 + bw1, byTop + bh + bRise)
-            contRect = RectF(cx - total / 2 + bw1 + gap, byTop + bRise, cx + total / 2, byTop + bh + bRise)
-            UiKit.cuteButton(c, game, startRect, "시작하기", UiKit.GOLD, 0xFF3A2510.toInt(), 15.5f)
+        // 시작 버튼 — 저장이 있으면 "시작하기 + 이어하기", 없으면 "시작하기" 하나만.
+        // 눌리는 판정과 그림이 한 치도 어긋나지 않게, 애니메이션이 반영된 "보이는"
+        // 사각형 하나로 통일한다 (layoutButtons).
+        layoutButtons()
+        UiKit.cuteButton(c, game, startRect, "시작하기", UiKit.GOLD, 0xFF3A2510.toInt(), 15.5f)
+        if (contRect.width() > 0f) {
             UiKit.cuteButton(c, game, contRect, "이어하기", UiKit.CREAM, 0xFF5A422C.toInt(), 14.5f)
-        } else {
-            val bw1 = dp(210f)
-            startRect = RectF(cx - bw1 / 2, byTop + bRise, cx + bw1 / 2, byTop + bh + bRise)
-            contRect = RectF(0f, 0f, 0f, 0f)
-            UiKit.cuteButton(c, game, startRect, "시작하기", UiKit.GOLD, 0xFF3A2510.toInt(), 15.5f)
         }
-        c.restore()
 
         // 하단 정보
         val info = "v0.4.2 beta · 2K 렌더링 · 오프라인 · 한국 32곳 · 새 598종 · made with love & pizza"
@@ -392,24 +373,65 @@ class TitleScene(game: Game) : Scene(game) {
     }
 
     /** 커스텀 크기 스티커 텍스트 (Type.sticker는 Role만 받으니 임의 크기용 헬퍼). */
+    private val stickerEdgeCache = HashMap<Long, Paint>()
+
     private fun stickerAt(c: Canvas, s: String, x: Float, y: Float, sizeDp: Float, color: Int, edgeColor: Int) {
         val p = Type.paintAt(sizeDp, true, 0.04f, color)
         val left = x - p.measureText(s) / 2f
         val off = sizeDp * game.density * 0.055f
         c.drawText(s, left + off, y + off, Type.paintAt(sizeDp, true, 0.04f, Type.DROP))
-        // 테두리는 매 프레임 새로 만든다 — 캐시된 페인트의 스타일을 건드리면 다른 화면이 뒤틀린다
-        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Type.face(true)
-            textSize = TypeScale.px(sizeDp * game.density)
-            letterSpacing = 0.04f
-            this.color = edgeColor
-            style = Paint.Style.STROKE
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-            strokeWidth = minOf(sizeDp * game.density * 0.11f, 3.2f * game.density)
+        // 전용 테두리 페인트를 캐시해 쓴다 — 매 프레임 새로 만들면 GC 히치가 생긴다.
+        // (다른 화면의 캐시된 페인트 스타일은 건드리지 않으므로 안전하다)
+        val key = (sizeDp.toBits().toLong() shl 32) or (edgeColor.toLong() and 0xFFFFFFFFL)
+        val edge = stickerEdgeCache.getOrPut(key) {
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = Type.face(true)
+                textSize = TypeScale.px(sizeDp * game.density)
+                letterSpacing = 0.04f
+                this.color = edgeColor
+                style = Paint.Style.STROKE
+                strokeJoin = Paint.Join.ROUND
+                strokeCap = Paint.Cap.ROUND
+                strokeWidth = minOf(sizeDp * game.density * 0.11f, 3.2f * game.density)
+            }
         }
         c.drawText(s, left, y, edge)
         c.drawText(s, left, y, p)
+    }
+
+    /**
+     * 시작/이어하기 버튼의 "보이는" 사각형을 계산한다.
+     *
+     * 히트 판정과 그림이 같은 사각형을 쓰도록, 등장 애니메이션(살짝 들리며 커지는
+     * 연출)까지 반영한 좌표를 만들어 둔다. 그리기 전·입력 처리 전에 모두 부른다.
+     */
+    private fun layoutButtons() {
+        val w = game.screenW.toFloat()
+        val h = game.screenH.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val cx = w / 2f
+        val btnK = easeOutCubic(clamp01((t - 0.35f) / 0.5f))
+        val bh = game.density * 46f
+        val byTop = h * 0.60f
+        val bs = 0.8f + 0.2f * btnK
+        val bRise = (1f - btnK) * game.density * 12f
+        val pivotY = byTop + bh / 2f
+        fun scaled(r: RectF): RectF = RectF(
+            cx + (r.left - cx) * bs, pivotY + (r.top - pivotY) * bs,
+            cx + (r.right - cx) * bs, pivotY + (r.bottom - pivotY) * bs
+        )
+        if (game.state.started) {
+            val bw1 = game.density * 196f
+            val bw2 = game.density * 172f
+            val gap = game.density * 22f
+            val total = bw1 + gap + bw2
+            startRect = scaled(RectF(cx - total / 2, byTop + bRise, cx - total / 2 + bw1, byTop + bh + bRise))
+            contRect = scaled(RectF(cx - total / 2 + bw1 + gap, byTop + bRise, cx + total / 2, byTop + bh + bRise))
+        } else {
+            val bw1 = game.density * 210f
+            startRect = scaled(RectF(cx - bw1 / 2, byTop + bRise, cx + bw1 / 2, byTop + bh + bRise))
+            contRect = RectF(0f, 0f, 0f, 0f)
+        }
     }
 
     private fun clamp01(x: Float): Float = x.coerceIn(0f, 1f)
@@ -419,6 +441,8 @@ class TitleScene(game: Game) : Scene(game) {
     }
 
     override fun handleInput(input: Input) {
+        // 애니메이션 중에도 눌리는 자리가 보이는 버튼과 일치하도록 미리 계산한다
+        layoutButtons()
         val tap = input.consumeTapScreen()
         if (tap != null) {
             when {

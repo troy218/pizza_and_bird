@@ -425,8 +425,16 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             QuestNavigation.cancel(game, "직접 조작으로 길안내를 취소했어요")
             questPathKey = ""
         }
-        if (input.justBack || input.justMenu) {
-            openOverlay(MenuOverlay(this))
+        if (input.justBack) {
+            openOverlay(MenuOverlay(this, target = MenuTarget.BAG))
+            return
+        }
+        if (input.justMenu) {
+            openOverlay(MenuOverlay(this, target = input.menuTarget))
+            return
+        }
+        if (input.justStats) {
+            openOverlay(MenuOverlay(this, target = MenuTarget.STATUS))
             return
         }
         // 앉기 연출 중: A 는 무시, B 는 일어나기/취소
@@ -448,7 +456,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             return
         }
         if (input.justQuest) {
-            QuestNavigation.openTracker(this)
+            QuestNavigation.autoGo(this)
             return
         }
         if (input.justB) {

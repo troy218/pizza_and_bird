@@ -1354,18 +1354,27 @@ object MapBuilder {
             buildingFronts.add(if (ey + 1 <= AVE_Y) (bx + wid / 2 to ey + 1) else (bx + wid / 2 to by - 1))
         }
 
-        /** 기와 민가 한 채 — 3칸 폭 (지붕 1줄 + 창·벽 2줄). 정문 상호작용은 없다. */
+        /**
+         * 기와 민가 한 채 — 3칸 폭 (지붕 1줄 + 창문 1줄 + 현관 1줄).
+         * **모든 집은 들어갈 수 있다**: 가운데 아래에 현관(HOUSE_DOOR)을 두고,
+         * 그 칸만 통과 가능하게 한다. 예전엔 "창문만 있는" 벽 상자였던 집들이
+         * 전부 이 형태(지붕-창문-현관)로 정리된다.
+         */
         fun tryFarmhouse(bx: Int, by: Int): Boolean {
             val ex = bx + 2
             val ey = by + 2
             if (!footprintClear(bx, by, ex, ey)) return false
             for (y in by..ey) for (x in bx..ex) {
-                t[y][x] = when {
+                val tile = when {
                     y == by -> T.HOUSE_ROOF
-                    y == by + 1 && x == bx + 1 -> T.HOUSE_WIN
+                    y == by + 1 && (x == bx || x == bx + 2) -> T.HOUSE_WIN
+                    y == by + 1 -> T.HOUSE_WALL
+                    x == bx + 1 -> T.HOUSE_DOOR
                     else -> T.HOUSE_WALL
-                }.ordinal
-                structure[y][x] = true
+                }
+                t[y][x] = tile.ordinal
+                // 현관 칸은 밟고 들어갈 수 있어야 한다 (구조물 아님)
+                structure[y][x] = tile != T.HOUSE_DOOR
                 reserved[y][x] = true
             }
             return true

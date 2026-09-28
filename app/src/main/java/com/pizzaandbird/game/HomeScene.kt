@@ -565,11 +565,15 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             questPathKey = ""
         }
         if (input.justBack) {
-            openOverlay(MenuOverlay(this))
+            openOverlay(MenuOverlay(this, target = MenuTarget.BAG))
             return
         }
         if (input.justMenu) {
-            openOverlay(MenuOverlay(this))
+            openOverlay(MenuOverlay(this, target = input.menuTarget))
+            return
+        }
+        if (input.justStats) {
+            openOverlay(MenuOverlay(this, target = MenuTarget.STATUS))
             return
         }
         if (input.justCam) {
@@ -577,7 +581,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             return
         }
         if (input.justQuest) {
-            QuestNavigation.openTracker(this)
+            QuestNavigation.autoGo(this)
             return
         }
         if (input.justB) {
