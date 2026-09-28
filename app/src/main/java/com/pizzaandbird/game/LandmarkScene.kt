@@ -667,7 +667,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         // (앉아지는 연출 lift 는 앉은 상태에서만 — 걷는 중엔 제자리에 그린다)
         val sitLift = restSit?.takeIf { !it.walking }?.lift ?: 0f
         val bodyY = sy - clip.topPad + sitLift * 32f
-        a.drawPlayer(c, bmp, sx, bodyY, game.worldScale.toFloat())
+        a.drawPlayer(c, bmp, sx, bodyY, SPRITE_DOT_K)
         Charms.equipped(state)?.let { item ->
             Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
                 bodyY + if (item.id == "rain") 12f else 22f, 8f, game.time)

@@ -42,6 +42,7 @@ class KeyEvent {
         const val KEYCODE_E = 33
         const val KEYCODE_F = 34
         const val KEYCODE_M = 41
+        const val KEYCODE_Q = 45
         const val KEYCODE_S = 47
         const val KEYCODE_W = 51
         const val KEYCODE_X = 52

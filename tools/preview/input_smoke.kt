@@ -77,7 +77,7 @@ object InputSmoke {
         val world = g.scene as WorldScene
         val camera = world.cameraOffset()
         // 화면 한가운데는 카메라 줌과 무관하게 카메라 오프셋만 반영된다
-        // (월드 좌표 = 가상 / WORLD_SCALE(4), 화면 중앙 = 가상 중앙).
+        // (월드 좌표 = 가상 / WORLD_SCALE, 화면 중앙 = 가상 중앙).
         val center = PointF(g.viewOffX + g.virtW * g.viewScale / 2f, g.screenH / 2f)
         near(g.screenToWorld(center).x, camera.x + g.virtW / 8f)
         near(g.screenToWorld(center).y, camera.y + g.virtH / 8f)

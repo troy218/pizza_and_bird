@@ -628,7 +628,10 @@ class Assets(private val context: Context) {
      * 옷 주름·머리 윤기·눈 반짝임 같은 결만 새로 보인다.
      * (레벨업 축하 화면처럼 크게 띄우는 곳에서 "확대한 도트"가 아니라 "진짜 그림"이 된다)
      *
-     * @param dotScale 월드 비트맵에서 **도트 하나가 차지하는 기기 픽셀 수** (= [Game.worldScale]).
+     * @param dotScale 가상 화면에서 **도트 하나가 차지하는 px** ([SPRITE_DOT_K]).
+     *   월드 비트맵 캔버스는 이미 슈퍼샘플 배율만큼 확장돼 있으므로, 여기에 화질 설정
+     *   ([Game.worldScale])을 넘기면 배율이 이중으로 적용돼 기기마다 캐릭터 크기가
+     *   변한다 — 크기는 화질과 무관하게 항상 같아야 한다.
      */
     fun drawPlayer(
         c: Canvas, bmp: Bitmap, x: Float, y: Float,

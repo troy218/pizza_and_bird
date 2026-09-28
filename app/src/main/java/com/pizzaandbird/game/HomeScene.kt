@@ -672,7 +672,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, game.worldScale.toFloat())
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, SPRITE_DOT_K)
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)

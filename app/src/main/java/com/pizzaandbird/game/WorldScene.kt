@@ -2806,13 +2806,16 @@ class WorldScene(
         if (!state.camDof) return
         // 밝은 렌즈(작은 F값)일수록 얕은 심도 — 배경이 더 많이 날아간다
         val bokeh = ((8f - state.rig().apTele) / 6f).coerceIn(0f, 1f)
+        // 반경/클램프는 가상 화면 높이에 비례 — 540px 시대의 절대값을 쓰면
+        // 2160px 화면에서 초점 원이 화면의 극히 일부만 덮는다.
+        val viewK = VIRT_H / 540f
         val hasSubject = focusBird != null
         val cx = if (hasSubject) projX((subjX - camX) * WORLD_SCALE) else projX((player.cx - camX) * WORLD_SCALE)
         val cy = if (hasSubject) projY((subjY - camY) * WORLD_SCALE) else projY((player.cy - camY) * WORLD_SCALE)
         val r = if (hasSubject) {
-            (focusR * WORLD_SCALE * viewRig.zoom * (2.8f - 0.5f * bokeh)).coerceIn(90f, 520f)
+            (focusR * WORLD_SCALE * viewRig.zoom * (2.8f - 0.5f * bokeh)).coerceIn(90f * viewK, 520f * viewK)
         } else {
-            430f
+            430f * viewK
         }
         val a = (64f + 52f * bokeh) * (0.45f + 0.55f * focusK)
         focusMask.draw(
@@ -3035,7 +3038,7 @@ class WorldScene(
                     }
                     val lift = if (raised) -1f else 0f
                     val ride = if (player.bike) 1.5f else 0f
-                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, bodyY + bob + lift + ride, game.worldScale.toFloat())
+                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, bodyY + bob + lift + ride, SPRITE_DOT_K)
 
                     // 촬영 모드: 렌즈 앞알이 반짝인다
                     if (raised && camDir != 1) {
