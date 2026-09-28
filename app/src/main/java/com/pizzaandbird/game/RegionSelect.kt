@@ -146,9 +146,14 @@ class RegionSelectScene(game: Game) : Scene(game) {
     }
 
     override fun drawWorld(c: Canvas) {
+        // 타이틀과 같은 960×540 기준 배경을 2160p 월드 버퍼에 맞춘다.
+        // 예전에는 고정 540px까지만 그려져 배경의 나머지가 비어 있었다.
+        val sceneScale = game.virtH / 540f
+        c.save()
+        c.scale(sceneScale, sceneScale)
         val p = Paint()
         val a = game.assets
-        val W = game.virtW.toFloat()          // 화면비 적응 가상 너비
+        val W = game.virtW / sceneScale
         // 하늘
         p.color = 0xFFA4E4EE.toInt()
         c.drawRect(0f, 0f, W, 540f, p)
@@ -168,7 +173,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
         c.drawCircle(470f, 620f, 240f, p)
         // 풀 타일 바닥 (화면비에 맞춰 채운다)
         val grass = a.tiles[T.GRASS.ordinal]
-        for (row in 13..16) for (col in 0 until (game.virtW + 31) / 32) {
+        for (row in 13..16) for (col in 0 until ((W + 31f) / 32f).toInt()) {
             val variant = a.tileVariant(T.GRASS.ordinal, col, row)
             c.drawBitmap(grass[variant], col * 32f, row * 32f, a.sprPaint)
         }
@@ -183,6 +188,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
         c.drawBitmap(a.pizzaIcon, 34f, 474f + sin(t * 2f) * 3f, a.sprPaint)
         c.drawBitmap(a.birdFlipped("magpie"), 894f, 470f + sin(t * 2.4f) * 3f, a.sprPaint)
         c.drawBitmap(a.bird("crane"), 26f, 428f + sin(t * 1.6f) * 3f, a.sprPaint)
+        c.restore()
     }
 
     override fun drawHud(c: Canvas) {

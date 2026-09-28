@@ -15,7 +15,7 @@ enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
  */
 class Input(private val game: Game) {
 
-    private class QEv(val kind: Int, val x: Float, val y: Float, val id: Int, val keyCode: Int, val act: Int)
+    private class QEv(val kind: Int, var x: Float, var y: Float, val id: Int, val keyCode: Int, val act: Int)
 
     private object K {
         const val DOWN = 0
@@ -72,7 +72,11 @@ class Input(private val game: Game) {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     for (i in 0 until e.pointerCount) {
-                        queue.add(QEv(K.MOVE, e.getX(i), e.getY(i), e.getPointerId(i), 0, 0))
+                        val x = e.getX(i)
+                        val y = e.getY(i)
+                        val id = e.getPointerId(i)
+                        if (rawMode) queue.add(QEv(K.MOVE, x, y, id, 0, 0))
+                        else enqueueMove(x, y, id)
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
@@ -87,6 +91,27 @@ class Input(private val game: Game) {
             }
         }
         return true
+    }
+
+    /**
+     * 게임 프레임이 밀릴 때 ACTION_MOVE가 큐를 채워 탭/버튼 입력까지 늦추지 않도록
+     * 포인터별 미처리 이동은 최신 좌표 하나로 합친다. DOWN/UP/CANCEL 경계는 유지해
+     * 탭 판정과 멀티터치 순서는 바꾸지 않는다. 로우 터치 지도/백업 창은 원본 샘플을 보존한다.
+     * 호출자는 onTouchEvent의 lock 안에 있다.
+     */
+    private fun enqueueMove(x: Float, y: Float, id: Int) {
+        for (i in queue.lastIndex downTo 0) {
+            val pending = queue[i]
+            if (pending.id != id) continue
+            if (pending.kind == K.MOVE) {
+                pending.x = x
+                pending.y = y
+                return
+            }
+            // 이 포인터의 DOWN/UP/CANCEL 뒤로는 별도 이동 구간이다.
+            break
+        }
+        queue.add(QEv(K.MOVE, x, y, id, 0, 0))
     }
 
     fun onKeyEvent(keyCode: Int, action: Int) {
