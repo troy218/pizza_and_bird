@@ -1,114 +1,66 @@
-# preview build 2026-09-28 07:02:51Z
-# commit: 6ecbca7f9528f6e72e85103f5f21ac9e3516815d
+# preview build 2026-09-28 07:17:17Z
+# commit: 101a69706fcc8a6be0b3e72e126cbf7519223ee8
 # gradle exit code: 0
+>> kotlin 컴파일러 다운로드 중...
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
->> 프리뷰 렌더링...
-# status: ok
+# status: compile-failed
+WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
 ...
+Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:mergeReleaseJniLibFolders
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
-> Task :app:buildKotlinToolingMetadata
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:checkReleaseAarMetadata
-> Task :app:generateReleaseResValues
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:packageReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :app:mergeReleaseResources
-> Task :app:parseReleaseLocalResources
-> Task :app:processReleaseMainManifest
-> Task :app:processReleaseManifest
-> Task :app:javaPreCompileRelease
-> Task :app:desugarReleaseFileDependencies
-> Task :app:mergeReleaseStartupProfile
-> Task :app:processReleaseManifestForPackage
-> Task :app:mergeReleaseArtProfile
-> Task :app:mergeReleaseShaders
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:processReleaseResources
-> Task :app:mergeReleaseAssets
-> Task :app:mergeExtDexRelease
-> Task :app:extractReleaseVersionControlInfo
-> Task :app:collectReleaseDependencies
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-> Task :app:optimizeReleaseResources
-> Task :app:compressReleaseAssets
-
-> Task :app:compileReleaseKotlin
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mergeDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugManifestForPackage
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:compressDebugAssets
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeExtDexDebug
+> Task :app:compileDebugKotlin
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:193:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:196:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
-> Task :app:compileReleaseJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderRelease
-> Task :app:mergeReleaseGlobalSynthetics
-> Task :app:processReleaseJavaRes
-> Task :app:mergeReleaseJavaResource
-> Task :app:mergeDexRelease
-> Task :app:compileReleaseArtProfile
-> Task :app:packageRelease
-> Task :app:createReleaseApkListingFileRedirect
-> Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790578933312.json
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790579766205.json
 
-BUILD SUCCESSFUL in 38s
-40 actionable tasks: 40 executed
+BUILD SUCCESSFUL in 1m 18s
+33 actionable tasks: 33 executed
 
 ----- preview render log (last 200 lines) -----
-  + 01_tiles.png
-  + 02_sprites.png
-  + 02b_character_hd.png
-  + 03_birds.png
-  + 04_title.png
-  + 05_region_select.png
-  + 06_world_seoul_day.png
-  + 07_world_seoul_sunset.png
-  + 08_world_seoul_night.png
-  + 09_world_sokcho.png
-  + 10_world_chuncheon.png
-  + 11_world_busan.png
-  + 12_world_jeju.png
-  + 13_photo_mode.png
-  + 14_home_day.png
-  + 15_home_night.png
-  + 38_character_select.png
-  + 16_dialog.png
-  + 17_menu_tab1.png
-  + 17_menu_tab2.png
-  + 17_menu_tab3.png
-  + 17_menu_tab4.png
-  + 17_menu_tab5.png
-  + 17_menu_tab6.png
-  + 17_menu_tab7.png
-  + 17_menu_tab8.png
-  + 33_achievement_stats.png
-  + 34_achievement_detail.png
-  + 35_achievement_unlock_toast.png
-  + 21_bake_topping.png
-  + 22_bake_gauge.png
-  + 23_bake_result.png
-  + 24_photo_result.png
-  + 25_map_overlay.png
-  + 26_decor_shop.png
-  + 27_decor_pick.png
-  + 30_backup_code.png
-  + 31_backup_restore_idle.png
-  + 32_backup_restore_confirm.png
-  + 36_levelup.png
-  + 37_levelup_gear.png
-  + 28_ultrawide_title_20x9.png
-  + 29_ultrawide_world_20x9.png
-preview done -> /home/runner/work/pizza_and_bird/pizza_and_bird/tools/preview/out
+app/src/main/java/com/pizzaandbird/game/Input.kt:242:38: error: unresolved reference 'KEYCODE_Q'.
+                            KeyEvent.KEYCODE_Q -> justEatPick = true   // [P11] 빠른 피자 창
+                                     ^^^^^^^^^
