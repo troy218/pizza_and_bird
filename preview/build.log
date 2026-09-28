@@ -1,76 +1,263 @@
-# preview build 2026-09-28 11:26:14Z
-# commit: 0b231d42a0e96cb8845f994b1c2511e26213282d
+# preview build 2026-09-28 13:56:04Z
+# commit: ecb4e856094602933d78d45ba710ffc69ec92bf9
 # gradle exit code: 0
+>> kotlin 컴파일러 다운로드 중...
 >> 프리뷰 컴파일 (게임 소스 + 스텁)...
 # status: compile-failed
 WARN: 프리뷰 갱신 실패(compile-failed) — 기존 스크린샷을 보존합니다.
 
 ----- gradle build log (error lines + last 120) -----
 ...
+Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
-> Task :app:preReleaseBuild UP-TO-DATE
-> Task :app:mergeReleaseJniLibFolders
-> Task :app:mergeReleaseNativeLibs NO-SOURCE
-> Task :app:stripReleaseDebugSymbols NO-SOURCE
-> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
-> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
-> Task :app:buildKotlinToolingMetadata
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:checkReleaseAarMetadata
-> Task :app:generateReleaseResValues
-> Task :app:mapReleaseSourceSetPaths
-> Task :app:generateReleaseResources
-> Task :app:packageReleaseResources
-> Task :app:createReleaseCompatibleScreenManifests
-> Task :app:extractDeepLinksRelease
-> Task :app:parseReleaseLocalResources
-> Task :app:processReleaseMainManifest
-> Task :app:mergeReleaseResources
-> Task :app:processReleaseManifest
-> Task :app:javaPreCompileRelease
-> Task :app:desugarReleaseFileDependencies
-> Task :app:mergeReleaseStartupProfile
-> Task :app:processReleaseManifestForPackage
-> Task :app:mergeReleaseArtProfile
-> Task :app:mergeReleaseShaders
-> Task :app:compileReleaseShaders NO-SOURCE
-> Task :app:generateReleaseAssets UP-TO-DATE
-> Task :app:processReleaseResources
-> Task :app:mergeReleaseAssets
-> Task :app:extractReleaseVersionControlInfo
-> Task :app:mergeExtDexRelease
-> Task :app:collectReleaseDependencies
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:optimizeReleaseResources
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-> Task :app:compressReleaseAssets
-
-> Task :app:compileReleaseKotlin
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:mergeDebugResources
+> Task :app:processDebugMainManifest
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:mergeDebugJniLibFolders
+> Task :app:processDebugManifestForPackage
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeLibDexDebug
+> Task :app:compressDebugAssets
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeExtDexDebug
+> Task :app:compileDebugKotlin
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:193:19 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/pizza_and_bird/pizza_and_bird/app/src/main/java/com/pizzaandbird/game/KoreaMap.kt:196:18 'fun computeBounds(p0: RectF, p1: Boolean): Unit' is deprecated. Deprecated in Java.
 
-> Task :app:compileReleaseJavaWithJavac NO-SOURCE
-> Task :app:dexBuilderRelease
-> Task :app:mergeReleaseGlobalSynthetics
-> Task :app:processReleaseJavaRes
-> Task :app:mergeReleaseJavaResource
-> Task :app:mergeDexRelease
-> Task :app:compileReleaseArtProfile
-> Task :app:packageRelease
-> Task :app:createReleaseApkListingFileRedirect
-> Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790594737770.json
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1790603706980.json
 
-BUILD SUCCESSFUL in 37s
-40 actionable tasks: 40 executed
+BUILD SUCCESSFUL in 1m
+33 actionable tasks: 33 executed
 
 ----- preview render log (last 200 lines) -----
-app/src/main/java/com/pizzaandbird/game/Assets.kt:378:16: error: none of the following candidates is applicable:
-fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?): Unit
-fun drawBitmap(bitmap: Bitmap, src: Rect, dst: Rect, paint: Paint?): Unit
-fun drawBitmap(bitmap: Bitmap, src: Rect?, dst: RectF, paint: Paint?): Unit
-        canvas.drawBitmap(big, null, android.graphics.Rect(0,0,w,h), paint)
-               ^^^^^^^^^^
+    ALOAD 10
+    GETFIELD kotlin/jvm/internal/Ref$FloatRef.element : F
+    ILOAD 17
+    ISTORE 24
+   L258
+    ILOAD 24
+    TABLESWITCH
+      2: L259
+      3: L260
+      default: L261
+   L259
+    LINENUMBER 3075 L259
+    LDC 25.0
+    GOTO L262
+   L260
+    LINENUMBER 3076 L260
+    LDC 7.0
+    GOTO L262
+   L261
+    LINENUMBER 3077 L261
+    LDC 16.0
+   L262
+    LINENUMBER 3074 L262
+    FADD
+    FSTORE 23
+   L263
+    LINENUMBER 3079 L263
+    ALOAD 1
+    FLOAD 23
+    FLOAD 15
+    LDC 11.4
+    FADD
+    LDC 3.0
+    FLOAD 22
+    LDC 1.2
+    FMUL
+    FADD
+    ALOAD 0
+    GETFIELD com/pizzaandbird/game/WorldScene.uiFill : Landroid/graphics/Paint;
+    INVOKEVIRTUAL android/graphics/Canvas.drawCircle (FFFLandroid/graphics/Paint;)V
+   L41
+    LINENUMBER 3084 L41
+    NOP
+    RETURN
+   L264
+    LOCALVARIABLE bx F L26 L25 9
+    LOCALVARIABLE by F L27 L25 10
+    LOCALVARIABLE tw F L32 L25 11
+    LOCALVARIABLE mainReady Z L23 L25 8
+    LOCALVARIABLE bx F L35 L40 8
+    LOCALVARIABLE by F L36 L40 9
+    LOCALVARIABLE bmp Landroid/graphics/Bitmap; L6 L33 5
+    LOCALVARIABLE sx F L7 L33 6
+    LOCALVARIABLE sy F L8 L33 7
+    LOCALVARIABLE cxp F L62 L80 14
+    LOCALVARIABLE cyp F L63 L80 15
+    LOCALVARIABLE z F L66 L80 16
+    LOCALVARIABLE sp F L71 L80 17
+    LOCALVARIABLE bx F L74 L80 18
+    LOCALVARIABLE by F L75 L80 19
+    LOCALVARIABLE lx F L76 L80 20
+    LOCALVARIABLE ly F L77 L80 21
+    LOCALVARIABLE zt F L89 L87 14
+    LOCALVARIABLE bmp Landroid/graphics/Bitmap; L44 L87 5
+    LOCALVARIABLE sx F L45 L87 6
+    LOCALVARIABLE sy F L46 L87 7
+    LOCALVARIABLE fade F L47 L87 8
+    LOCALVARIABLE shadowK F L50 L87 9
+    LOCALVARIABLE shadowA I L51 L87 10
+    LOCALVARIABLE groundY F L53 L87 11
+    LOCALVARIABLE sh F L54 L87 12
+    LOCALVARIABLE oldA I L58 L87 13
+    LOCALVARIABLE shadowK F L111 L108 11
+    LOCALVARIABLE shadowCx F L112 L108 12
+    LOCALVARIABLE shadowHalf F L113 L108 13
+    LOCALVARIABLE groundY F L114 L108 14
+    LOCALVARIABLE alpha I L122 L125 11
+    LOCALVARIABLE flying Z L98 L126 5
+    LOCALVARIABLE bmp Landroid/graphics/Bitmap; L102 L126 6
+    LOCALVARIABLE dw F L103 L126 7
+    LOCALVARIABLE dh F L104 L126 8
+    LOCALVARIABLE bx F L105 L126 9
+    LOCALVARIABLE by F L106 L126 10
+    LOCALVARIABLE frame I L141 L142 10
+    LOCALVARIABLE u F L149 L147 12
+    LOCALVARIABLE lk F L152 L147 13
+    LOCALVARIABLE lx F L154 L147 15
+    LOCALVARIABLE ly F L155 L147 16
+    LOCALVARIABLE $i$a$-takeIf-WorldScene$drawEntity$sitLift$1 I L184 L187 19
+    LOCALVARIABLE it Lcom/pizzaandbird/game/WorldScene$BenchSit; L183 L187 18
+    LOCALVARIABLE $i$a$-let-WorldScene$drawEntity$1 I L205 L216 19
+    LOCALVARIABLE left Z L208 L216 20
+    LOCALVARIABLE x F L211 L216 21
+    LOCALVARIABLE y F L214 L216 22
+    LOCALVARIABLE item Lcom/pizzaandbird/game/Charms$Charm; L204 L216 18
+    LOCALVARIABLE t F L256 L41 22
+    LOCALVARIABLE ex F L263 L41 23
+    LOCALVARIABLE look Lcom/pizzaandbird/game/CamLook; L223 L41 16
+    LOCALVARIABLE camDir I L231 L41 17
+    LOCALVARIABLE raised Z L232 L41 18
+    LOCALVARIABLE bob F L245 L41 19
+    LOCALVARIABLE lift F L248 L41 20
+    LOCALVARIABLE ride F L251 L41 21
+    LOCALVARIABLE punching Z L130 L41 5
+    LOCALVARIABLE hd Z L131 L41 6
+    LOCALVARIABLE set Lcom/pizzaandbird/game/Assets$PlayerSet; L132 L41 7
+    LOCALVARIABLE animClip Lcom/pizzaandbird/game/Assets$Clip; L135 L41 8
+    LOCALVARIABLE bmp Landroid/graphics/Bitmap; L143 L41 9
+    LOCALVARIABLE sx Lkotlin/jvm/internal/Ref$FloatRef; L144 L41 10
+    LOCALVARIABLE sy F L146 L41 11
+    LOCALVARIABLE k F L174 L41 12
+    LOCALVARIABLE half F L175 L41 13
+    LOCALVARIABLE sitLift F L195 L41 14
+    LOCALVARIABLE bodyY F L199 L41 15
+    LOCALVARIABLE a Lcom/pizzaandbird/game/Assets; L1 L264 3
+    LOCALVARIABLE this Lcom/pizzaandbird/game/WorldScene; L0 L264 0
+    LOCALVARIABLE c Landroid/graphics/Canvas; L0 L264 1
+    LOCALVARIABLE e Ljava/lang/Object; L0 L264 2
+    MAXSTACK = 9
+    MAXLOCALS = 25
+
+File is unknown
+The root cause java.lang.OutOfMemoryError was thrown at: org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackAnalyzer$FixStackFrame.<init>(FixStackAnalyzer.kt:99)
+	at org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:89)
+	at org.jetbrains.org.objectweb.asm.MethodVisitor.visitEnd(MethodVisitor.java:783)
+	at org.jetbrains.org.objectweb.asm.tree.MethodNode.accept(MethodNode.java:772)
+	at org.jetbrains.kotlin.backend.jvm.codegen.ClassCodegen.generateMethod(ClassCodegen.kt:453)
+	at org.jetbrains.kotlin.backend.jvm.codegen.ClassCodegen.generate(ClassCodegen.kt:168)
+	at org.jetbrains.kotlin.backend.jvm.FileCodegen.lower(JvmPhases.kt:39)
+	at org.jetbrains.kotlin.backend.common.phaser.PhaseFactoriesKt.createFilePhase$lambda$4(PhaseFactories.kt:71)
+	at org.jetbrains.kotlin.backend.common.phaser.PhaseBuildersKt$createSimpleNamedCompilerPhase$1.phaseBody(PhaseBuilders.kt:69)
+	at org.jetbrains.kotlin.backend.common.phaser.SimpleNamedCompilerPhase.phaseBody(CompilerPhase.kt:226)
+	at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedCompilerPhase.invoke(CompilerPhase.kt:113)
+	at org.jetbrains.kotlin.backend.common.phaser.PerformByIrFilePhase.invokeSequential(performByIrFile.kt:62)
+	at org.jetbrains.kotlin.backend.common.phaser.PerformByIrFilePhase.invoke(performByIrFile.kt:52)
+	at org.jetbrains.kotlin.backend.common.phaser.PerformByIrFilePhase.invoke(performByIrFile.kt:38)
+	at org.jetbrains.kotlin.backend.common.phaser.NamedCompilerPhase.phaseBody(CompilerPhase.kt:166)
+	at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedCompilerPhase.invoke(CompilerPhase.kt:113)
+	at org.jetbrains.kotlin.backend.common.phaser.CompositePhase.invoke(PhaseBuilders.kt:27)
+	at org.jetbrains.kotlin.backend.common.phaser.CompositePhase.invoke(PhaseBuilders.kt:14)
+	at org.jetbrains.kotlin.backend.common.phaser.NamedCompilerPhase.phaseBody(CompilerPhase.kt:166)
+	at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedCompilerPhase.invoke(CompilerPhase.kt:113)
+	at org.jetbrains.kotlin.backend.common.phaser.CompilerPhaseKt.invokeToplevel(CompilerPhase.kt:62)
+	at org.jetbrains.kotlin.backend.jvm.JvmIrCodegenFactory.invokeCodegen(JvmIrCodegenFactory.kt:371)
+	at org.jetbrains.kotlin.codegen.CodegenFactory.generateModule(CodegenFactory.kt:47)
+	at org.jetbrains.kotlin.backend.jvm.JvmIrCodegenFactory.generateModuleInFrontendIRMode(JvmIrCodegenFactory.kt:433)
+	at org.jetbrains.kotlin.cli.jvm.compiler.pipeline.JvmCompilerPipelineKt.generateCodeFromIr(jvmCompilerPipeline.kt:246)
+	at org.jetbrains.kotlin.cli.jvm.compiler.pipeline.JvmCompilerPipelineKt.compileModulesUsingFrontendIrAndLightTree(jvmCompilerPipeline.kt:142)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:148)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:103)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:79)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMainNoExit(CLITool.kt:180)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMainNoExit$default(CLITool.kt:173)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMain(CLITool.kt:167)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler$Companion.main(K2JVMCompiler.kt:255)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.main(K2JVMCompiler.kt)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.jetbrains.kotlin.preloading.Preloader.run(Preloader.java:87)
+	at org.jetbrains.kotlin.preloading.Preloader.main(Preloader.java:44)
+Caused by: java.lang.OutOfMemoryError: Java heap space
+	at org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackAnalyzer$FixStackFrame.<init>(FixStackAnalyzer.kt:99)
+	at org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackAnalyzer.analyzer$lambda$0(FixStackAnalyzer.kt:46)
+	at org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackAnalyzer$$Lambda$1311/0x00007fe908841448.invoke(Unknown Source)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.fastMergeControlFlowEdge(FastAnalyzer.kt:256)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.mergeControlFlowEdge(FastAnalyzer.kt:214)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.processControlFlowEdge(FastAnalyzer.kt:208)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.processControlFlowEdge$default(FastAnalyzer.kt:206)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.visitOpInsn(FastAnalyzer.kt:292)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.visitMeaningfulInstruction(FastAnalyzer.kt:281)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.analyzeInstruction(FastAnalyzer.kt:113)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.analyzeMainLoop(FastAnalyzer.kt:74)
+	at org.jetbrains.kotlin.codegen.optimization.common.FastAnalyzer.analyze(FastAnalyzer.kt:53)
+	at org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackAnalyzer.analyze(FixStackAnalyzer.kt:60)
+	at org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackMethodTransformer.analyzeAndTransformSaveRestoreStack(FixStackMethodTransformer.kt:68)
+	at org.jetbrains.kotlin.codegen.optimization.fixStack.FixStackMethodTransformer.transform(FixStackMethodTransformer.kt:46)
+	at org.jetbrains.kotlin.codegen.optimization.transformer.CompositeMethodTransformer.transform(CompositeMethodTransformer.kt:25)
+	at org.jetbrains.kotlin.codegen.optimization.transformer.CompositeMethodTransformer.transform(CompositeMethodTransformer.kt:25)
+	at org.jetbrains.kotlin.codegen.optimization.OptimizationMethodVisitor.performTransformations(OptimizationMethodVisitor.kt:70)
+	at org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:67)
+	at org.jetbrains.org.objectweb.asm.MethodVisitor.visitEnd(MethodVisitor.java:783)
+	at org.jetbrains.org.objectweb.asm.tree.MethodNode.accept(MethodNode.java:772)
+	at org.jetbrains.kotlin.backend.jvm.codegen.ClassCodegen.generateMethod(ClassCodegen.kt:453)
+	at org.jetbrains.kotlin.backend.jvm.codegen.ClassCodegen.generate(ClassCodegen.kt:168)
+	at org.jetbrains.kotlin.backend.jvm.FileCodegen.lower(JvmPhases.kt:39)
+	at org.jetbrains.kotlin.backend.common.phaser.PhaseFactoriesKt.createFilePhase$lambda$4(PhaseFactories.kt:71)
+	at org.jetbrains.kotlin.backend.common.phaser.PhaseFactoriesKt$$Lambda$37/0x00007fe9080a5000.invoke(Unknown Source)
+	at org.jetbrains.kotlin.backend.common.phaser.PhaseBuildersKt$createSimpleNamedCompilerPhase$1.phaseBody(PhaseBuilders.kt:69)
+	at org.jetbrains.kotlin.backend.common.phaser.SimpleNamedCompilerPhase.phaseBody(CompilerPhase.kt:226)
+	at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedCompilerPhase.invoke(CompilerPhase.kt:113)
+	at org.jetbrains.kotlin.backend.common.phaser.PerformByIrFilePhase.invokeSequential(performByIrFile.kt:62)
+	at org.jetbrains.kotlin.backend.common.phaser.PerformByIrFilePhase.invoke(performByIrFile.kt:52)
+	at org.jetbrains.kotlin.backend.common.phaser.PerformByIrFilePhase.invoke(performByIrFile.kt:38)
+
