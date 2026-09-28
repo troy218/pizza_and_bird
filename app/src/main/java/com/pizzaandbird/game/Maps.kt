@@ -294,34 +294,74 @@ class GameMap(
     fun walkableTile(x: Int, y: Int): Boolean = !t(x, y).solid && t(x, y) != T.TUNNEL
 
     /**
-     * 시야를 가리는 키 큰 지형지물인가 — 바위·나무·산·건물 등.
-     * 벤치·가로등·이정표처럼 키가 낮은 소품은 몸을 숨기기엔 부족하고,
-     * **발목만 넘는 자갈(PropSize.PEBBLE) 뒤에도 숨지 못한다** — 그 정도 크기로는
-     * 새가 플레이어를 못 볼 테니까. 자갈 더미를 피해 새에게 다가가야 하는 재미가 생긴다.
+     * 한 칸의 시야 차폐 품질 0..1 — 지형지물마다 은폐(숨을 곳) 특성이 다르다.
+     * (생태학 근거·출처는 docs/BIRD_ECOLOGY.md "지형지물 은엄폐" — 로벨 시야차단량,
+     *  숨을 곳/도피 커버 구분, 플라이트 이니시에이션 디스턴스와 커버의 관계)
+     *
+     * - 갈대 군락(0.95): 줄기가 밀생한 수생식생 — 새 눈높이에서 시야 차단이 거의 완전하다.
+     *   뜸부기·개개비류가 갈대 뒤에서 가장 가까이 접근을 허용하는 전형적인 숨을 곳.
+     * - 산·건물 등 부피 구조물(0.9): 샘플된 시선을 완전히 끊는 단단한 덩어리.
+     * - 나무(0.85): 수관 + 굵은 줄기 — 몸통은 가리지만 줄기 사이 틈이 남는 도피 커버.
+     * - 바위: 크기급(`PropSize`)마다 다르다 — 큰 바위(0.8)는 지면 높이의 단단한 수평
+     *   차폐(머리 위로는 틈이 있어 내려다보는 맹금류의 시선에는 약하고), 허리 높이 낮은
+     *   돌(0.55)은 웅크려야 부분 차폐, **발목만 넘는 자갈(PropSize.PEBBLE, 0) 뒤에는
+     *   숨지 못한다** — 자갈 더미를 피해 새에게 다가가야 한다.
+     * - 키 큰 풀(0.4): 로벨폴 기준 중간 수준의 부분 차폐 — 웅크린 자세만 가린다.
+     * - 벤치·가로등·이정표·흙길·광장: 0 — 숨기엔 키가 낮거나 틈이 없지 않다.
      */
-    fun occludesSight(x: Int, y: Int): Boolean {
-        val tile = t(x, y)
-        if (tile.bulk || tile == T.TREE) return true
-        if (tile != T.ROCK) return false
-        return PropLooks.rockBlocksSight(rockLook(x, y))
+    fun concealmentAt(x: Int, y: Int): Float = when (t(x, y)) {
+        T.REED -> 0.95f
+        T.TREE -> 0.85f
+        T.ROCK -> when (PropLooks.rockSize(rockLook(x, y))) {
+            PropSize.PEBBLE -> 0f
+            PropSize.LOW -> 0.55f
+            PropSize.TALL -> 0.8f
+        }
+        T.TALLGRASS -> 0.4f
+        else -> if (t(x, y).bulk) 0.9f else 0f
     }
 
+    /** 시야를 가리는 지형지물 칸인가 (차폐 품질이 0보다 크면 몸을 숨길 수 있다) */
+    fun occludesSight(x: Int, y: Int): Boolean = concealmentAt(x, y) > 0f
+
     /**
-     * 두 월드 좌표(16px 논리 좌표) 사이에 시야를 가리는 지형지물이 있는지 확인한다.
-     * 새 → 플레이어 사이에 바위·나무 같은 지형지물이 있으면 플레이어는 '숨은' 상태가 된다.
+     * 두 월드 좌표(16px 논리 좌표) 사이 시선의 총 차폐 품질 0..1.
+     * 새 → 플레이어 사이에 지형지물이 있으면 플레이어는 '숨은' 상태가 된다.
+     *
+     * 여러 지형지물이 겹치면 시야가 완전히 끊길 확률이 커진다 — 화면을 통과하는 빛의
+     * 비율(1−차폐)을 칸마다 곱해, 남은 틈을 다시 차폐로 환산한다(투과율 합성).
+     * 한 칸은 시선이 여러 번 지나가도 한 번만 센다.
      */
-    fun isOccluded(x0: Float, y0: Float, x1: Float, y1: Float): Boolean {
+    fun concealmentAlong(x0: Float, y0: Float, x1: Float, y1: Float): Float {
         val dx = x1 - x0
         val dy = y1 - y0
         val dist = sqrt(dx * dx + dy * dy)
-        if (dist < 12f) return false
+        if (dist < 12f) return 0f
         val steps = (dist / 5f).toInt().coerceAtLeast(2)
+        var light = 1f
+        var lastTx = Int.MIN_VALUE
+        var lastTy = Int.MIN_VALUE
         for (i in 1 until steps) {
             val f = i.toFloat() / steps
-            if (occludesSight(((x0 + dx * f) / 16f).toInt(), ((y0 + dy * f) / 16f).toInt())) return true
+            val tx = ((x0 + dx * f) / 16f).toInt()
+            val ty = ((y0 + dy * f) / 16f).toInt()
+            if (tx == lastTx && ty == lastTy) continue   // 한 칸은 한 번만 센다 (시선은 격자를 단조로 지나간다)
+            lastTx = tx; lastTy = ty
+            val q = concealmentAt(tx, ty)
+            if (q > 0f) {
+                light *= 1f - q
+                if (light <= 0.02f) return 1f
+            }
         }
-        return false
+        return 1f - light
     }
+
+    /**
+     * 두 월드 좌표 사이에 시야를 가리는 지형지물이 있는지 확인한다.
+     * 바위·나무·갈대 같은 지형지물이 사이에 있으면 플레이어는 '숨은' 상태가 된다.
+     */
+    fun isOccluded(x0: Float, y0: Float, x1: Float, y1: Float): Boolean =
+        concealmentAlong(x0, y0, x1, y1) > 0f
 
     /** 발(스프라이트 좌상단+13px)이 밟고 있는 타일 */
     fun feetTile(px: Float, py: Float): T = t(((px + 8f) / 16f).toInt(), ((py + 13f) / 16f).toInt())
@@ -2733,6 +2773,8 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var fleeCued = false             // 도망 효과음 재생 여부 (WorldScene에서 사용)
     /** 지형지물 뒤 — 새가 플레이어를 보지 못하는 상태 (매 갱신마다 다시 판정) */
     var hiddenFromPlayer = false
+    /** 실제 적용된 은폐 품질 0..1 (지형지물 차폐 × 종군별 시각 능력) — 뷰파인더 표시 강도에 쓴다 */
+    var coverQuality = 0f
     var facing = BirdFacing.LEFT     // 월드 방향 — 사진에서는 촬영자의 방위에 맞게 변환한다
     var renderPose = BirdPose.PERCHED
     /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
@@ -2780,8 +2822,15 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
         val dxPlayer = playerCx - cx
         val dyPlayer = playerCy - cy
         val dToPlayer = sqrt(dxPlayer * dxPlayer + dyPlayer * dyPlayer)
-        hiddenFromPlayer = dToPlayer < fleeR && map.isOccluded(playerCx, playerCy, cx, cy)
-        val effFleeR = if (hiddenFromPlayer) (fleeR * HIDDEN_FLEE_K).coerceAtLeast(9f) else fleeR
+        // 지형지물의 시야 차폐 × 종군별 시각 능력 = 실제 은폐 품질(0..1).
+        // 맹금류는 시력이 뛰어나 엄폐가 잘 통하지 않고, 물가·지상 무리는 은폐한 접근에 훨씬 둔감해진다.
+        val cover = (map.concealmentAlong(playerCx, playerCy, cx, cy) * movement.coverEffect)
+            .coerceIn(0f, 1f)
+        coverQuality = cover
+        hiddenFromPlayer = dToPlayer < fleeR && cover >= COVER_HIDDEN_MIN
+        // 은폐가 완전할수록 도망 반경이 HIDDEN_FLEE_K(0.45)까지 줄어든다 — 부분 은폐는 그만큼만 줄인다.
+        val coverK = 1f - (1f - HIDDEN_FLEE_K) * cover
+        val effFleeR = if (cover > 0f) (fleeR * coverK).coerceAtLeast(9f) else fleeR
 
         when (state) {
             0 -> {
@@ -2872,7 +2921,9 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
         get() = if (state == 1 || state == 3) (kotlin.math.sin((hopT * Math.PI).toFloat()) * movement.lift) else 0f
 
     companion object {
-        /** 지형지물 뒤에 숨었을 때의 도망 반경 배율 — 평소보다 훨씬 가까이 다가갈 수 있다. */
+        /** 완전 은폐(차폐 품질 1)일 때의 도망 반경 배율 — 평소보다 훨씬 가까이 다가갈 수 있다. */
         const val HIDDEN_FLEE_K = 0.45f
+        /** '숨어있음'으로 인정하는 최소 은폐 품질. 이보다 약한 부분 은폐는 도망 감소 효과만 조금 낸다. */
+        const val COVER_HIDDEN_MIN = 0.25f
     }
 }

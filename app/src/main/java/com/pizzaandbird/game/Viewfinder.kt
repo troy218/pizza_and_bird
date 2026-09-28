@@ -484,7 +484,9 @@ class Viewfinder(private val game: Game) {
         val seen = (state.birdCounts[b.def.id] ?: 0) > 0
         val name = if (seen) b.def.name else "??? 미확인"
         val info = when {
-            b.hiddenFromPlayer -> "🌿 숨어있음  ·  ${fmt(dTiles)}칸"
+            // 은폐 품질에 따라 완전 은폐 / 부분 은폐로 나뉜다 — 풀섶·나무 틈은 '반쯤'만 숨긴다
+            b.hiddenFromPlayer && b.coverQuality >= 0.66f -> "🌿 숨어있음  ·  ${fmt(dTiles)}칸"
+            b.hiddenFromPlayer -> "🌿 반쯤 숨어있음  ·  ${fmt(dTiles)}칸"
             inRange -> "·  ${fmt(dTiles)}칸"
             else -> "더 가까이!  ·  ${fmt(dTiles)}칸"
         }
@@ -523,7 +525,8 @@ class Viewfinder(private val game: Game) {
         c.drawText(name, plate.left + 20f, plate.top + 14.5f, text)
         text.textSize = 11.5f
         text.color = when {
-            b.hiddenFromPlayer -> Color.argb(235, 148, 222, 138)   // 지형지물 뒤 — 은은한 초록
+            b.hiddenFromPlayer && b.coverQuality >= 0.66f -> Color.argb(235, 148, 222, 138)   // 완전 은폐 — 은은한 초록
+            b.hiddenFromPlayer -> Color.argb(235, 196, 214, 150)   // 부분 은폐 — 흐린 연두
             inRange -> Color.argb(232, Color.red(col), Color.green(col), Color.blue(col))
             else -> Color.argb(205, 246, 240, 224)
         }
