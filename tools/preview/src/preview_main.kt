@@ -55,6 +55,7 @@ import com.pizzaandbird.game.Scene
 import com.pizzaandbird.game.SpawnKind
 import com.pizzaandbird.game.StatsOverlay
 import com.pizzaandbird.game.T
+import com.pizzaandbird.game.treeKinds
 import com.pizzaandbird.game.TitleScene
 import com.pizzaandbird.game.WorldScene
 import java.io.File
@@ -153,6 +154,7 @@ object PreviewMain {
         // ---------------- 아트 시트 ----------------
         val assets = game.assets
         drawTilesSheet(assets)
+        drawTreeSheet(assets)
         drawSpritesSheet(assets)
         drawCharacterHdSheet(assets)
         drawBirdsSheet(assets)
@@ -168,6 +170,11 @@ object PreviewMain {
 
         // ---------------- 월드 씬 ----------------
         worldShot(game, "seoul", 12.5f, "06_world_seoul_day")
+        // 사계절 나무 — 같은 서울이라도 계절마다 어떤 수종이 섞이는지 (봄은 06번과 동일)
+        worldShot(game, "seoul", 12.5f, "06b_world_seoul_summer", day = 11)
+        worldShot(game, "seoul", 12.5f, "06c_world_seoul_autumn", day = 18)
+        worldShot(game, "seoul", 11.0f, "06d_world_seoul_winter", day = 25)
+        worldShot(game, "jeju", 12.0f, "12b_world_jeju_autumn", day = 18)
         worldShot(game, "seoul", 18.4f, "07_world_seoul_sunset")
         worldShot(game, "seoul", 22.0f, "08_world_seoul_night")
         worldShot(game, "sokcho", 13.0f, "09_world_sokcho")
@@ -286,8 +293,9 @@ object PreviewMain {
     // 월드
     // ------------------------------------------------------------------
 
-    private fun worldShot(game: Game, regionId: String, hour: Float, name: String) {
+    private fun worldShot(game: Game, regionId: String, hour: Float, name: String, day: Int = 3) {
         val s = game.state
+        s.day = day                                  // 계절 — 1~7 봄 · 8~14 여름 · 15~21 가을 · 22~28 겨울
         s.worldTime = hour
         // 광장이 잘 보이는 위치에서 시작
         s.px = 21f * 16f
@@ -540,6 +548,42 @@ object PreviewMain {
         c.drawText(text, x + 4f, y, labelPaint)
     }
 
+    /**
+     * 나무 도감 시트 — T.TREE 변형을 전부 3배로 뽑는다.
+     * 종 이름·수형(크기)·상록 여부를 함께 적어, 계절/지역별로 어떤 나무가 섞이는지
+     * 한눈에 보게 한다 (01b_trees.png).
+     */
+    private fun drawTreeSheet(a: Assets) {
+        val variants = a.tiles[T.TREE.ordinal]
+        val cols = 8
+        val cell = 128f
+        val rows = ((variants.size + cols - 1) / cols)
+        val bmp = Bitmap.createBitmap((cols * cell).toInt() + 8, (rows * (cell + 34f)).toInt() + 30, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.drawRect(0f, 0f, bmp.width.toFloat(), bmp.height.toFloat(), sheetBgPaint)
+        label(c, "TREE variants ${variants.size} — name / form", 6f, 16f)
+        for ((vi, v) in variants.withIndex()) {
+            val col = vi % cols
+            val row = vi / cols
+            val x = 6f + col * cell
+            val y = 26f + row * (cell + 34f)
+            // 잔디 바탕 위에 나무를 얹어야 그림자·크기가 실제 화면처럼 읽힌다
+            val grass = a.tiles[T.GRASS.ordinal][0]
+            for (gy in 0..2) for (gx in 0..2) {
+                c.drawBitmap(grass, null, RectF(x + gx * 32f, y + gy * 32f, x + (gx + 1) * 32f, y + (gy + 1) * 32f), a.sprPaint)
+            }
+            c.drawBitmap(v, null, RectF(x, y, x + 96f, y + 96f), a.sprPaint)
+            val kind = treeKinds.getOrNull(vi)
+            val name = kind?.name ?: "#$vi"
+            val form = kind?.form ?: ""
+            label(c, "$vi $name", x, y + 104f)
+            labelPaint.color = 0xFFCFE3C4.toInt()
+            c.drawText(form, x + 4f, y + 118f, labelPaint)
+            labelPaint.color = 0xFFFFFFFF.toInt()
+        }
+        saveSheet(bmp, "01b_trees")
+    }
+
     private fun drawTilesSheet(a: Assets) {
         val cols = 12
         val cell = 72f
@@ -553,12 +597,16 @@ object PreviewMain {
             val x = 4f + col * cell
             val y = 4f + row * (cell + 16f)
             val variants = a.tiles[ti]
-            for ((vi, v) in variants.withIndex()) {
+            // 변형이 아주 많은 타일(나무 등)은 칸을 넘어 쌓이면 이웃 칸을 가리므로
+            // 앞쪽 몇 개만 겹쳐 보여 주고, 전체 보기는 01b_trees.png 전용 시트에서 한다.
+            val shown = minOf(variants.size, 6)
+            for (vi in 0 until shown) {
                 val vx = x + vi * 4f
                 val vy = y + vi * 4f
-                c.drawBitmap(v, null, RectF(vx, vy, vx + 64f, vy + 64f), a.sprPaint)
+                c.drawBitmap(variants[vi], null, RectF(vx, vy, vx + 64f, vy + 64f), a.sprPaint)
             }
-            label(c, t.name, x, y + cell + 6f)
+            val caption = if (variants.size > shown) t.name + " ×" + variants.size else t.name
+            label(c, caption, x, y + cell + 6f)
         }
         saveSheet(bmp, "01_tiles")
     }

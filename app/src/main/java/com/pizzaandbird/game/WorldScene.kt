@@ -84,7 +84,7 @@ class WorldScene(
     private val viewfinder = Viewfinder(game)
 
     // 디테일 연출 (날씨·물·발자국·작은 생물·조명) — Fx.kt
-    private val fx = WorldFx(map, region.id.hashCode().toLong() + 31L)
+    private val fx = WorldFx(map, game.assets, region.id.hashCode().toLong() + 31L)
     private val atmosphere = CinematicAtmosphere()
     private val weather: Weather get() = state.weather()
     private var stepT = 0f

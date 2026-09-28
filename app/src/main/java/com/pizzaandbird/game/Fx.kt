@@ -155,7 +155,7 @@ fun hash2(x: Int, y: Int, salt: Int = 0): Int {
 // 월드 디테일
 // ---------------------------------------------------------------------------
 
-class WorldFx(private val map: GameMap, seed: Long) {
+class WorldFx(private val map: GameMap, private val assets: Assets, seed: Long) {
 
     var weather = Weather.SUNNY
     /** 현재 계절 — 겨울 적설 유지·얼음·곤충 출현에 쓴다. WorldScene이 매 프레임 동기화. */
@@ -871,8 +871,14 @@ class WorldFx(private val map: GameMap, seed: Long) {
                 c.drawRect(sx, sy, sx + 32f, sy + 6f + snowCover * 6f, fill)
             }
             T.TREE -> {
+                // 수관 범위(나무 종별)에 맞춰 눈모자를 얹는다 — 관목 위로 둥떠 보이지 않게
+                val kind = treeKinds.getOrNull(map.treeVariantAt(assets, x, y))
+                val cx = kind?.crownX ?: 15f
+                val cy = kind?.crownY ?: 5f
+                val rx = kind?.crownRx ?: 8f
+                val ry = kind?.crownRy ?: 3f
                 aa.color = Color.argb(a, 248, 250, 255)
-                rect.set(sx + 7f, sy + 2f, sx + 23f, sy + 8f)
+                rect.set(sx + cx - rx, sy + cy - ry, sx + cx + rx, sy + cy + ry)
                 c.drawOval(rect, aa)
             }
             else -> {}
