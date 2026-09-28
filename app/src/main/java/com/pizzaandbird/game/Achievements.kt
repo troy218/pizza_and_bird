@@ -33,10 +33,10 @@ object Ach {
         Def("dex_300", "날개의 수집가", "삼백 종이 이웃이 되었어요.", "🪶"),
         Def("dex_all", "한반도 598", "도감의 모든 이웃을 만났어요.", "🌈", hidden = true),
         Def("walk_marathon", "걸어서 마라톤", "발걸음이 마라톤 하나만큼 이어졌어요.", "👟"),
-        Def("bike_1000k", "바퀴로 천 리", "자전거 바퀴가 천 킬로미터를 돌았어요.", "🚲"),
+        Def("bike_1000k", "바퀴로 천 킬로", "자전거 바퀴가 천 킬로미터를 돌았어요.", "🚲"),
         Def("region_5", "다섯 고을 손님", "다섯 지역에서 반가운 풍경을 만났어요.", "🏘"),
         Def("region_all", "서른두 곳 지도", "모든 지역에 발자국을 남겼어요.", "🧭", hidden = true),
-        Def("night_owl", "부엉이의 친구", "밤하늘 아래 스무 장의 사진을 찍었어요.", "🦉"),
+        Def("owl_friend", "부엉이의 친구", "밤하늘 아래 스무 장의 사진을 찍었어요.", "🦉"),
         Def("rain_day", "빗속의 망원경", "빗방울 사이로 열 장의 사진을 건졌어요.", "🌧"),
         Def("snow_day", "눈 속의 증거", "눈 오는 날, 세 별짜리 순간을 담았어요.", "❄️", hidden = true),
         Def("money_1m", "첫 백만장자", "모아 둔 용돈이 백만 원에 닿았어요.", "💰"),
@@ -259,6 +259,11 @@ object Ach {
                             p.unlockedAt[id] = unlocked.optInt(id, 1).coerceAtLeast(1)
                         }
                     }
+                    // 구 id 마이그레이션: 힐링 기념 "night_owl"과 겹치던 업적 id 변경
+                    if ("night_owl" in p.unlockedAt && "owl_friend" !in p.unlockedAt) {
+                        p.unlockedAt["owl_friend"] = p.unlockedAt.getValue("night_owl")
+                    }
+                    p.unlockedAt.remove("night_owl")
                     p
                 } catch (_: Throwable) {
                     Progress()
@@ -334,7 +339,7 @@ object Ach {
 
     private fun recordPhoto(p: Progress, record: BirdPhotoRecord) {
         p.photosByRegion[record.regionId] = (p.photosByRegion[record.regionId] ?: 0) + 1
-        if (record.time >= 19.5f || record.time < 4.5f) p.nightPhotos++
+        if (DayCycle.isNightAt(record.time, Season.forDay(record.day))) p.nightPhotos++
         if (record.weatherId == Weather.RAIN.id) p.rainPhotos++
         if (record.weatherId == Weather.SNOW.id && record.stars >= 3) p.snowThreeStarPhotos++
     }
@@ -373,7 +378,7 @@ object Ach {
         award("bike_1000k", p.bikePx >= BIKE_THOUSAND_KM_PX)
         award("region_5", p.maxVisitedRegions >= 5)
         award("region_all", p.maxVisitedRegions >= Regions.ALL.size)
-        award("night_owl", p.nightPhotos >= 20)
+        award("owl_friend", p.nightPhotos >= 20)
         award("rain_day", p.rainPhotos >= 10)
         award("snow_day", p.snowThreeStarPhotos >= 1)
         award("money_1m", p.maxMoney >= 1_000_000)

@@ -246,19 +246,22 @@ class Hud(private val game: Game) {
 
         // Split-screen can leave a very narrow landscape surface. Shrink the compass
         // before it collides with the fixed-width status panel at the opposite corner.
-        mmR = minOf(dp(68f), wf * 0.16f)
+        // 상단 클러스터(가방+시계+계절 ≈ dp(139))가 좌상단 상태창을 침범하지 않게도 줄인다.
+        mmR = minOf(dp(68f), wf * 0.16f, (wf - dp(330f)) / 2f).coerceAtLeast(dp(26f))
         mmCx = w - dp(8f) - mmR
         mmCy = dp(8f) + mmR
 
-        // --- 메뉴 클러스터 (시계 왼쪽 상단) ---
+        // --- 메뉴(가방) 클러스터 — 시계 왼쪽, 화면 상단 고정 ---
+        // 시계·계절 나침반·가방은 지도 나침반과 같은 윗변(dp(8))에 붙이고,
+        // 가방은 시계와 간격을 둬 시계 왼쪽에 따로 자리한다(겹침 금지).
         menuR = dp(16f)
         val gap = dp(9f)
         val dialSize = dp(42f)
         val dialCxCalc = mmCx - mmR - gap - dialSize / 2f
         val clockSizeCalc = dp(38f)
         val clockCxCalc = dialCxCalc - dialSize / 2f - gap - clockSizeCalc / 2f
-        menuCx = clockCxCalc - dp(10f) - menuR
-        menuCy = mmCy - dp(4f)
+        menuCx = clockCxCalc - clockSizeCalc / 2f - gap - menuR
+        menuCy = dp(8f) + menuR
 
         // --- 토스트 고정 자리 -------------------------------------------
         // 사진 모드 뷰파인더 상단 정보 바(가상 y≈72) 바로 아래. 화면 배율로 환산해
@@ -286,7 +289,7 @@ class Hud(private val game: Game) {
         }
         // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 내용을 다시 읽는다
         if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST
-        // 버튼 최우선 (메뉴 클러스터가 조이스틱 구역과 겹치므로 먼저 판정)
+        // 버튼 최우선 판정
         if (inCircle(x, y, menuCx, menuCy, menuR * 1.35f)) return Ctrl.MENU
         if (inCircle(x, y, mainCx, mainCy, mainR * 1.22f)) return Ctrl.A
         if (inCircle(x, y, bikeCx, bikeCy, bikeR * 1.3f)) return Ctrl.B
@@ -493,7 +496,7 @@ class Hud(private val game: Game) {
     private val statsPanelW = 184f
 
     private fun questChipX(): Float = dp(14f) + dp(statsPanelW) / 2f
-    private fun questChipY(): Float = dp(12f) + dp(statsPanelH) + dp(20f)
+    private fun questChipY(): Float = dp(8f) + dp(statsPanelH) + dp(22f)
 
     /** 진행 중 의뢰 칩의 화면 사각형 (탭 판정용) */
     private fun questChipRect(): RectF? {
@@ -523,7 +526,8 @@ class Hud(private val game: Game) {
     private fun drawStats(c: Canvas) {
         val s = game.state
         val left = dp(12f)
-        val top = dp(12f)
+        // 우상단 클러스터(나침반·시계·계절·가방)와 같은 윗변에 붙여 화면 위에 고정
+        val top = dp(8f)
         val pw = dp(statsPanelW)
         val ph = dp(statsPanelH)
         val panel = RectF(left, top, left + pw, top + ph)
@@ -872,17 +876,18 @@ class Hud(private val game: Game) {
     }
 
     /**
-     * 우상단 클러스터 — 왼쪽부터 [시계] [계절 나침반] [지도 나침반] 순.
-     * 계절 나침반은 지도 나침반 바로 왼쪽, 시계는 계절 나침반 왼쪽에 둔다.
+     * 우상단 클러스터 — 왼쪽부터 [가방] [시계] [계절 나침반] [지도 나침반] 순.
+     * 나침반과 같은 윗변(dp(8))에 붙여 화면 위에 고정하고, 가방은 시계와
+     * 간격을 두고 왼쪽에 두어 서로 겹치지 않게 한다.
      */
     private fun drawSeasonClock(c: Canvas) {
         val s = game.state
         val gap = dp(9f)
 
-        // 계절 나침반 — 지도 나침반 왼쪽
+        // 계절 나침반 — 지도 나침반 왼쪽, 윗변을 나침반과 맞춘다
         val dialSize = dp(42f)
         val dialCx = mmCx - mmR - gap - dialSize / 2f
-        val dialCy = mmCy
+        val dialCy = dp(8f) + dialSize / 2f
         drawSeasonDial(c, s, dialCx - dialSize / 2f, dialCy - dialSize / 2f, dialSize)
         val weather = s.weather()
         Type.textCentered(
@@ -890,10 +895,11 @@ class Hud(private val game: Game) {
             dialCx, dialCy + dialSize / 2f + dp(9f), Role.CAPTION, Type.INK, 0.5f
         )
 
-        // 시계 — 계절 나침반 왼쪽
+        // 시계 — 계절 나침반 왼쪽, 윗변을 나침반과 맞춘다
         val clockSize = dp(38f)
         val clockCx = dialCx - dialSize / 2f - gap - clockSize / 2f
-        drawClock(c, s, clockCx, mmCy, clockSize)
+        val clockCy = dp(8f) + clockSize / 2f
+        drawClock(c, s, clockCx, clockCy, clockSize)
     }
 
     /** 회중시계 풍 원형 시계 — 해/달 아이콘 + 아래에 시각 */
@@ -916,7 +922,13 @@ class Hud(private val game: Game) {
         c.drawCircle(cx, cy, R, stroke)
 
         val icon = if (night) a.moonIcon else a.sunIcon
-        val isz = size * 0.5f
+        // 보름달 밤엔 달이 밝게 빛난다 (28일 중 4일 — "보름달" 기념과 같은 판정)
+        val fullMoon = night && s.isFullMoon()
+        if (fullMoon) {
+            fill.color = Color.argb(90, 250, 244, 200)
+            c.drawCircle(cx, cy, R * 0.78f, fill)
+        }
+        val isz = size * (if (fullMoon) 0.58f else 0.5f)
         c.drawBitmap(icon, null, RectF(cx - isz / 2f, cy - isz / 2f, cx + isz / 2f, cy + isz / 2f), a.sprPaint)
         Type.textCentered(c, s.timeLabel(), cx, cy + R + dp(9f), Role.CAPTION, Type.INK, 0.5f)
     }
@@ -1253,7 +1265,7 @@ class Hud(private val game: Game) {
         }
 
         // ------------------------------------------------------------
-        // 4) 메뉴 클러스터 (왼쪽 아래 구석, 모서리 둥근 사각형)
+        // 4) 메뉴(가방) 클러스터 — 상단, 시계 왼쪽 (모서리 둥근 사각형)
         // ------------------------------------------------------------
         val menuPressed = Ctrl.MENU in active
         val ms = menuR

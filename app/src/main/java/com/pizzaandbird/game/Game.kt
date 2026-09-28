@@ -8,8 +8,8 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 
-/** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 32px 렌더 */
-const val WORLD_SCALE = 2f
+/** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 64px 렌더 (4× 슈퍼샘플) */
+const val WORLD_SCALE = 4f
 
 /**
  * 기본 카메라 높이(시야 배율).
@@ -17,20 +17,22 @@ const val WORLD_SCALE = 2f
  * 1.0 = 예전처럼 높은 하늘에서 내려다보는 시점(가로 30타일이 한눈에 보인다).
  * 값이 클수록 카메라가 지면에 가까이 내려와 보이는 범위가 좁아지고 캐릭터가 커진다.
  *
- * 1.5 = 타일 32px이 48px로 그려지는 정수 배(픽셀이 뭉개지지 않는다).
- *       보이는 범위는 가로 20타일 × 세로 11.25타일 — 집(13×9타일)은 여전히 한 화면에 들어온다.
+ * 2.5 = 타일 32px이 96px로 그려지는 정수 배(픽셀이 뭉개지지 않는다).
+ *       보이는 범위는 가로 15타일 × 세로 8.5타일 — 더 몰입감 있는 시점.
+ *
+ * 3.0 = 타일 32px이 96px로 그려지는 정수 배 — 초고해상도 렌더링으로 초고화질 구현.
  */
-const val CAM_BASE_ZOOM = 1.5f
+const val CAM_BASE_ZOOM = 2.5f
 
-/** 가상 렌더링 세로 기준 (2K 설계). 모든 화면비에서 이 높이를 유지한다. */
-const val VIRT_H = 540
+/** 가상 렌더링 세로 기준 (8K 설계). 모든 화면비에서 이 높이를 유지한다. */
+const val VIRT_H = 2160
 
-/** 가상 너비 클램프 — 초광폭/4:3까지 지원 (540p 기준 4:3=720, 21.3:9=1280) */
-private const val VIRT_W_MIN = 720
-private const val VIRT_W_MAX = 1280
+/** 가상 너비 클램프 — 초광폭/4:3까지 지원 (2160p 기준 4:3=2880, 21.3:9=3840) */
+private const val VIRT_W_MIN = 2880
+private const val VIRT_W_MAX = 3840
 
-/** 월드 슈퍼샘플 비트맵 상한 (픽셀 수 — 메모리 가드, ≈52MB @ARGB8888, 4K@2× 허용) */
-private const val WORLD_BITMAP_MAX_PIXELS = 13_000_000L
+/** 월드 슈퍼샘플 비트맵 상한 (픽셀 수 — 메모리 가드, ≈800MB @ARGB8888, 8K@4× 허용) */
+private const val WORLD_BITMAP_MAX_PIXELS = 50_000_000L
 
 /**
  * 자동 화질은 2×/3×로 시작하지만 실제 프레임을 못 맞추면 한 단계 낮춘다.
@@ -205,8 +207,9 @@ class Game(val context: Context) {
 
     /** 설정(state.renderScale)과 화면 크기로 월드 배율 결정 */
     private fun computeWorldScale(w: Int, h: Int): Int {
-        val auto = (h / VIRT_H).coerceIn(1, 3).coerceAtMost(autoScaleCap)
         // FHD=2 · QHD=2 · 4K=3에서 시작, 부족한 기기에서만 1단계씩 낮춘다.
+        // VIRT_H는 옛 540px 디자인의 4배(2160)로 이관됐으므로 옛 h/540 기준(=FHD 2×)을 유지하려면 4배 보정이 필요하다.
+        val auto = (h * 4 / VIRT_H).coerceIn(1, 3).coerceAtMost(autoScaleCap)
         val s = when (state.renderScale) {
             "1" -> 1
             "2" -> 2
