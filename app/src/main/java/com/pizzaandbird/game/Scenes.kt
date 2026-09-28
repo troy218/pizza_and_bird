@@ -419,14 +419,19 @@ class TitleScene(game: Game) : Scene(game) {
     }
 
     override fun handleInput(input: Input) {
-        val tap = input.consumeTapScreen()
+        // UP 또는 DOWN 즉시 반응 — 버튼이 느리게 느껴지는 원인 개선
+        val tap = input.consumeTapOrDownScreen()
         if (tap != null) {
+            // 히트 영역 20% 확대 — 엄지 터치 관용
+            val expand = 12f * game.density
+            val sr = RectF(startRect).apply { inset(-expand, -expand) }
+            val cr = RectF(contRect).apply { inset(-expand, -expand) }
             when {
-                contRect.contains(tap.x, tap.y) && game.state.started -> {
+                cr.contains(tap.x, tap.y) && game.state.started -> {
                     game.haptic()
                     continueGame()
                 }
-                startRect.contains(tap.x, tap.y) -> {
+                sr.contains(tap.x, tap.y) -> {
                     game.haptic()
                     game.fadeTo { game.scene = CharacterSelectScene(game) }
                 }
@@ -438,7 +443,6 @@ class TitleScene(game: Game) : Scene(game) {
                 game.fadeTo { game.scene = CharacterSelectScene(game) }
         }
         if (input.justBack) {
-            // 저장이 없어도 백 버튼으로 항상 나갈 수 있어야 한다
             game.openExitConfirm()
         }
     }

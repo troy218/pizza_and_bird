@@ -429,6 +429,26 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             openOverlay(MenuOverlay(this))
             return
         }
+        if (input.justBook) {
+            openOverlay(MenuOverlay(this, initialTab = "BOOK"))
+            return
+        }
+        if (input.justAlbum) {
+            openOverlay(MenuOverlay(this, initialTab = "ALBUM"))
+            return
+        }
+        if (input.justAchieve) {
+            openOverlay(MenuOverlay(this, initialTab = "ACHIEVE"))
+            return
+        }
+        if (input.justSettings) {
+            openOverlay(MenuOverlay(this, initialTab = "SETTINGS"))
+            return
+        }
+        if (input.justStatus) {
+            openOverlay(MenuOverlay(this, initialTab = "STATUS"))
+            return
+        }
         // 앉기 연출 중: A 는 무시, B 는 일어나기/취소
         val seq = restSit
         if (seq != null) {

@@ -1360,13 +1360,27 @@ object MapBuilder {
             val ey = by + 2
             if (!footprintClear(bx, by, ex, ey)) return false
             for (y in by..ey) for (x in bx..ex) {
-                t[y][x] = when {
+                val tile = when {
                     y == by -> T.HOUSE_ROOF
                     y == by + 1 && x == bx + 1 -> T.HOUSE_WIN
+                    y == by + 2 && x == bx + 1 -> T.HOUSE_DOOR
                     else -> T.HOUSE_WALL
-                }.ordinal
-                structure[y][x] = true
+                }
+                t[y][x] = tile.ordinal
+                structure[y][x] = tile.solid
                 reserved[y][x] = true
+                if (tile == T.HOUSE_DOOR) {
+                    pave[y][x] = Pave.STONE
+                }
+            }
+            // 문 앞 포장
+            val frontY = by + 3
+            if (frontY in 0 until h) {
+                val fx = bx + 1
+                if (fx in 0 until w && !structure[frontY][fx]) {
+                    pave[frontY][fx] = Pave.STONE
+                    buildingFronts.add(fx to frontY)
+                }
             }
             return true
         }
@@ -2019,6 +2033,67 @@ object MapBuilder {
                 t[y][x] == T.SAND.ordinal || t[y][x] == T.REED.ordinal ||
                     t[y][x] == T.TALLGRASS.ordinal && (isWet || isCoast) -> -1
                 else -> 0
+            }
+        }
+
+        // 13.6 창문만 있는 집 버그 수정 — HOUSE/BLDG 중 문 없는 건물에 문을 추가해 모두 진입 가능
+        run {
+            val visitedHouse = Array(h) { BooleanArray(w) }
+            fun isHouseTile(tt: T) = tt == T.HOUSE_ROOF || tt == T.HOUSE_WALL || tt == T.HOUSE_WIN || tt == T.HOUSE_DOOR
+            fun isBldgTile(tt: T) = tt == T.BLDG_ROOF || tt == T.BLDG_WALL || tt == T.BLDG_WIN
+            for (yy in 0 until h) for (xx in 0 until w) {
+                if (visitedHouse[yy][xx]) continue
+                val tile = T.ALL[t[yy][xx]]
+                val houseCluster = isHouseTile(tile)
+                val bldgCluster = isBldgTile(tile)
+                if (!houseCluster && !bldgCluster) continue
+                // BFS로 같은 건물 클러스터 수집
+                val cluster = ArrayList<Pair<Int,Int>>()
+                val q = ArrayDeque<Pair<Int,Int>>()
+                q.add(xx to yy)
+                visitedHouse[yy][xx] = true
+                var hasDoor = false
+                while (q.isNotEmpty()) {
+                    val (cx, cy) = q.removeFirst()
+                    cluster.add(cx to cy)
+                    val ct = T.ALL[t[cy][cx]]
+                    if (ct == T.HOUSE_DOOR || ct == T.LANDMARK_DOOR) hasDoor = true
+                    for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                        val nx = cx + dx; val ny = cy + dy
+                        if (nx !in 0 until w || ny !in 0 until h) continue
+                        if (visitedHouse[ny][nx]) continue
+                        val nt = T.ALL[t[ny][nx]]
+                        val sameFamily = if (houseCluster) isHouseTile(nt) else isBldgTile(nt)
+                        if (sameFamily) {
+                            visitedHouse[ny][nx] = true
+                            q.add(nx to ny)
+                        }
+                    }
+                }
+                if (!hasDoor && cluster.isNotEmpty()) {
+                    val bottomY = cluster.maxOf { it.second }
+                    val bottomTiles = cluster.filter {
+                        it.second == bottomY && (T.ALL[t[it.second][it.first]] == T.HOUSE_WALL || T.ALL[t[it.second][it.first]] == T.BLDG_WALL)
+                    }
+                    val chosen = bottomTiles.firstOrNull { (it.second+1 in 0 until h) && !structure[it.second+1][it.first] && base[it.second+1][it.first] != T.WATER.ordinal }
+                        ?: bottomTiles.firstOrNull()
+                        ?: cluster.firstOrNull { T.ALL[t[it.second][it.first]] == T.HOUSE_WALL || T.ALL[t[it.second][it.first]] == T.BLDG_WALL }
+                    if (chosen != null) {
+                        val (dx, dy) = chosen
+                        if (houseCluster) {
+                            t[dy][dx] = T.HOUSE_DOOR.ordinal
+                        } else {
+                            // 도심 건물도 진입 가능하도록 LANDMARK_DOOR 대신 HOUSE_DOOR로 열어둠 (범용 진입)
+                            t[dy][dx] = T.HOUSE_DOOR.ordinal
+                        }
+                        structure[dy][dx] = false
+                        pave[dy][dx] = Pave.STONE
+                        if (dy+1 in 0 until h) {
+                            pave[dy+1][dx] = Pave.STONE
+                            buildingFronts.add(dx to dy+1)
+                        }
+                    }
+                }
             }
         }
 

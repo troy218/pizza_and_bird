@@ -1093,7 +1093,7 @@ class WorldScene(
                 }
                 goThroughTunnel(edge)
             }
-            T.HOUSE_DOOR -> if (map.hasHouse) enterHome()
+            T.HOUSE_DOOR -> enterHome()  // 모든 집 문은 들어가기 가능 — 창문만 있는 버그 수정
             T.LANDMARK_DOOR -> if (map.hasLandmark) enterLandmark()
             else -> {}
         }
@@ -2453,6 +2453,26 @@ class WorldScene(
             openOverlay(MenuOverlay(this))
             return
         }
+        if (input.justStatus) {
+            openOverlay(MenuOverlay(this, initialTab = "STATUS"))
+            return
+        }
+        if (input.justBook) {
+            openOverlay(MenuOverlay(this, initialTab = "BOOK"))
+            return
+        }
+        if (input.justAlbum) {
+            openOverlay(MenuOverlay(this, initialTab = "ALBUM"))
+            return
+        }
+        if (input.justAchieve) {
+            openOverlay(MenuOverlay(this, initialTab = "ACHIEVE"))
+            return
+        }
+        if (input.justSettings) {
+            openOverlay(MenuOverlay(this, initialTab = "SETTINGS"))
+            return
+        }
         if (input.justCam) {
             setPhotoMode(!photoMode)
             return
@@ -2462,6 +2482,18 @@ class WorldScene(
             return
         }
         if (input.justQuest) {
+            // 외부 칩 탭 → 바로 길안내 (텍스트/박스 크기는 동적으로, 내용에 맞게)
+            val tracker = QuestNavigation.tracker(state)
+            if (tracker != null) {
+                val active = state.activeQuests.firstOrNull { it.id == tracker.id && !it.completed }
+                val daily = state.dailyQuests.firstOrNull { it.id == tracker.id && !it.completed }
+                when {
+                    active != null -> { QuestNavigation.startQuest(game, this, active); return }
+                    daily != null -> { QuestNavigation.startDailyQuest(game, this, daily); return }
+                    tracker.id == "main" -> { QuestNavigation.startMainQuest(game, this); return }
+                    tracker.id == "legacy_bird" -> { state.questBird?.let { QuestNavigation.startLegacyBirdTrip(game, this, it) }; return }
+                }
+            }
             showQuestLog()
             return
         }

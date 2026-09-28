@@ -541,7 +541,7 @@ class Transition(private val action: () -> Unit) {
     private var doneFlag = false
 
     fun update(dt: Float) {
-        t += dt / 0.3f
+        t += dt / 0.22f  // 더 빠르게 — 버튼 반응성 개선
         if (t >= 1f) {
             if (phase == 0) {
                 action()

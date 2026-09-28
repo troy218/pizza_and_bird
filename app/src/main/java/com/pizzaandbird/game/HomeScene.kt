@@ -572,6 +572,26 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             openOverlay(MenuOverlay(this))
             return
         }
+        if (input.justStatus) {
+            openOverlay(MenuOverlay(this, initialTab = "STATUS"))
+            return
+        }
+        if (input.justBook) {
+            openOverlay(MenuOverlay(this, initialTab = "BOOK"))
+            return
+        }
+        if (input.justAlbum) {
+            openOverlay(MenuOverlay(this, initialTab = "ALBUM"))
+            return
+        }
+        if (input.justAchieve) {
+            openOverlay(MenuOverlay(this, initialTab = "ACHIEVE"))
+            return
+        }
+        if (input.justSettings) {
+            openOverlay(MenuOverlay(this, initialTab = "SETTINGS"))
+            return
+        }
         if (input.justCam) {
             game.toast("집에선 쉬어도 돼요. 새는 밖에서!")
             return

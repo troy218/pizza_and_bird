@@ -8,7 +8,7 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST, BOOK, ALBUM, SETTINGS, ACHIEVE, STATUS }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -26,8 +26,8 @@ class Input(private val game: Game) {
         const val CANCEL = 4
     }
 
-    /** 탭/드래그 구분 임계값 (실제 화면 px, 기기 밀도에 비례) */
-    private val tapDragPx = 12f * game.density
+    /** 탭/드래그 구분 임계값 (실제 화면 px, 기기 밀도에 비례) — 22dp로 늘려 살짝 움직여도 탭 유지 */
+    private val tapDragPx = 22f * game.density
 
     private val lock = Any()
     private val pointerPos = HashMap<Int, PointF>()
@@ -38,6 +38,7 @@ class Input(private val game: Game) {
     private val queue = ArrayList<QEv>()
     private val keys = HashMap<Int, Boolean>()
     private var tapScreen: PointF? = null
+    private val downScreens = ArrayList<PointF>()   // 이번 프레임에 DOWN 된 오버레이 터치 — 즉시 반응용
 
     // ----- 프레임 상태 (게임 스레드 전용) -----
     var dirX = 0f
@@ -55,6 +56,11 @@ class Input(private val game: Game) {
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
     var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
+    var justBook = false      // 도감 바로가기
+    var justAlbum = false     // 사진집 바로가기
+    var justSettings = false  // 설정 바로가기
+    var justAchieve = false   // 업적 바로가기
+    var justStatus = false    // 레벨 박스 탭 — 상태 상세
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     /** [P11] 🍕 버튼 홀드 진행도 0~1 — HUD가 버튼 주위의 링으로 보여 준다 */
@@ -181,6 +187,8 @@ class Input(private val game: Game) {
                         // 월드 탭은 떼는 순간에 반응 (드래그와 구분)
                         pointerDown[ev.id] = PointF(ev.x, ev.y)
                         pointerDragged.remove(ev.id)
+                        // 오버레이/타이틀 버튼은 DOWN 즉시 반응 — UP까지 기다리지 않음
+                        downScreens.add(PointF(ev.x, ev.y))
                     }
                 }
                 K.MOVE -> {
@@ -345,6 +353,11 @@ class Input(private val game: Game) {
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             Ctrl.QUEST -> { justQuest = true; game.haptic() }
+            Ctrl.BOOK -> { justBook = true; game.haptic() }
+            Ctrl.ALBUM -> { justAlbum = true; game.haptic() }
+            Ctrl.SETTINGS -> { justSettings = true; game.haptic() }
+            Ctrl.ACHIEVE -> { justAchieve = true; game.haptic() }
+            Ctrl.STATUS -> { justStatus = true; game.haptic() }
             else -> {}
         }
     }
@@ -405,6 +418,31 @@ class Input(private val game: Game) {
         return t
     }
 
+    /** 이번 프레임에 DOWN 된 화면 좌표 (오버레이 즉시 반응용) */
+    fun consumeDownScreen(): PointF? {
+        if (downScreens.isEmpty()) return null
+        val t = downScreens.removeAt(0)
+        return t
+    }
+
+    /** UP 탭 또는 DOWN 즉시 터치 중 하나 — 버튼 반응성 개선용 */
+    fun consumeTapOrDownScreen(): PointF? {
+        val down = if (downScreens.isNotEmpty()) downScreens.removeAt(0) else null
+        if (down != null) {
+            // DOWN이 있으면 UP 탭은 이번 프레임에 같이 소비 (중복 방지)
+            tapScreen = null
+            downScreens.clear()
+            return down
+        }
+        val t = tapScreen
+        tapScreen = null
+        downScreens.clear()
+        return t
+    }
+
+    fun hasPendingDown(): Boolean = downScreens.isNotEmpty()
+    fun peekDownScreens(): List<PointF> = downScreens.toList()
+
     /**
      * 가상 월드 좌표 탭 (씬이 소비).
      * 레터박스 바깥 터치는 월드 입력으로 흘리지 않고, 화면 오프셋/배율은
@@ -430,7 +468,13 @@ class Input(private val game: Game) {
         justMap = false
         justPunch = false
         justQuest = false
+        justBook = false
+        justAlbum = false
+        justSettings = false
+        justAchieve = false
+        justStatus = false
         tapScreen = null
+        downScreens.clear()
         rawEvents.clear()
     }
 

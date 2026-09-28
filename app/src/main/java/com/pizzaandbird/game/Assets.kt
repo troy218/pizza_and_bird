@@ -363,13 +363,19 @@ class Assets(private val context: Context) {
         return Bitmap.createScaledBitmap(big, w, h, false)
     }
 
-    /** 소형 HUD 아이콘: 목표 크기로 직접 래스터화 (부드러운 엣지) */
+    /** 소형 HUD 아이콘: 고해상도(4x)에서 래스터화 후 부드럽게 축소 — 저해상도 뭉개짐 개선 */
     private fun renderIcon(name: String, w: Int, h: Int): Bitmap {
         val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        // 4x 고해상도에서 그린 뒤 필터링으로 축소 → 안티에일리어싱 품질 향상
+        val scale = 4
+        val big = Bitmap.createBitmap(w*scale, h*scale, Bitmap.Config.ARGB_8888)
         val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
-        d.setBounds(0, 0, w, h)
-        d.draw(Canvas(bmp))
+        d.setBounds(0, 0, w*scale, h*scale)
+        d.draw(Canvas(big))
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        canvas.drawBitmap(big, null, android.graphics.Rect(0,0,w,h), paint)
         return bmp
     }
 
@@ -4090,10 +4096,8 @@ begin(T.LAMP)
     // -----------------------------------------------------------------------
 
     private fun buildIcons() {
-        pizzaIcon = renderPixel("pizza", 22, 14)
-        pizzaIconBig = Bitmap.createScaledBitmap(
-            pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
-        )
+        pizzaIcon = renderIcon("pizza", 32, 20)
+        pizzaIconBig = renderIcon("pizza", 96, 60)
         // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
         //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
         //  C 치즈(baseColor) / L·S 치즈 밝기·그늘(파생) / R·r·G 토핑1 면·테·윤 / A·b 토핑2 면·테

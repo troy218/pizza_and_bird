@@ -147,12 +147,12 @@ object PerspectivePhoto {
         }
         private val path = Path()
         private val rect = RectF()
-        private val night = 1f - daylight(hour)
+        // 계절·시각 반영 — 이전엔 고정 18시/6시 기준이라 낮에도 저녁처럼 보였음
+        private val night = DayCycle.darkness(hour, season)
         private val overcast = when (weather) {
             Weather.RAIN -> 0.65f; Weather.CLOUDY, Weather.SNOW -> 0.4f; else -> 0f
         }
-        private val dusk = max((1f - abs(hour - 18.1f) / 1.6f).coerceIn(0f, 1f),
-            (1f - abs(hour - 6f) / 1.1f).coerceIn(0f, 1f)) * (1f - overcast)
+        private val dusk = DayCycle.golden(hour, season) * (1f - overcast * 0.6f)
         private val skyTop = mix(mix(0xFF72B5D5.toInt(), 0xFFB9B2C8.toInt(), dusk),
             0xFF111C38.toInt(), night)
         private val skyHorizon = mix(mix(mix(0xFFE1EEDD.toInt(), 0xFFF5BE91.toInt(), dusk),

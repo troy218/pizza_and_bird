@@ -435,7 +435,7 @@ class NotebookOverlay(scene: Scene) : Overlay(scene) {
 // 메뉴 (상태 / 피자 / 도감 / 설정)
 // ---------------------------------------------------------------------------
 
-class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) : Overlay(scene) {
+class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false, initialTab: String? = null) : Overlay(scene) {
     /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
@@ -444,7 +444,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     }
 
     /** 탭마다 파스텔 색이 다르다 — 가방 속 색색의 인덱스 탭처럼 */
-    private enum class Tab(val label: String, val icon: String, val tint: Int) {
+    enum class Tab(val label: String, val icon: String, val tint: Int) {
         STATUS("상태", "note", UiKit.PASTEL_PEACH),
         QUEST("퀘스트", "map", UiKit.PASTEL_SKY),
         GROW("성장", "leaf", UiKit.PASTEL_MINT),
@@ -468,7 +468,11 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private fun cuteBtnOff(c: Canvas, r: RectF, label: String, size: Float) =
         UiKit.cuteButton(c, scene.game, r, label, Color.argb(120, 214, 204, 186), Color.argb(150, 74, 55, 40), size)
 
-    private var tab = if (showAchievements) Tab.ACHIEVE else Tab.STATUS
+    private var tab = when {
+        initialTab != null -> Tab.values().firstOrNull { it.name.equals(initialTab, true) || it.label == initialTab } ?: if (showAchievements) Tab.ACHIEVE else Tab.STATUS
+        showAchievements -> Tab.ACHIEVE
+        else -> Tab.STATUS
+    }
     private val tabRects = ArrayList<Pair<RectF, Tab>>()
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
@@ -483,10 +487,10 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
     override fun handleInput(input: Input) {
         val g = scene.game
-        val tap = input.consumeTapScreen()
+        // DOWN 즉시 반응으로 버튼 체감 속도 개선
+        val tap = input.consumeTapOrDownScreen()
         // justMenu 포함: 메뉴 키(M)로 열었다면 같은 키로 닫히게 토글한다.
         if (input.justB || input.justBack || input.justMenu) {
-            // 도감에서 키보드·드롭다운이 열려 있으면 그 칸부터 닫는다 (메뉴가 통째로 꺼지면 당황스럽다)
             if (tab == Tab.BOOK && (dexKeyboard || dexDrop >= 0)) {
                 if (dexDrop >= 0) dexDrop = -1
                 else {
@@ -500,14 +504,18 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             return
         }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) {
+        // 히트 영역 8dp 확장 — 작은 버튼도 쉽게 눌리게
+        fun hit(r: RectF): Boolean {
+            val ex = 8f * g.density
+            return r.left - ex <= tap.x && tap.x <= r.right + ex && r.top - ex <= tap.y && tap.y <= r.bottom + ex
+        }
+        if (hit(closeRect)) {
             g.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
             return
         }
         for ((r, t) in tabRects) {
-            if (r.contains(tap.x, tap.y)) {
-                // 📚 도감 탭은 책장 넘기는 소리로 열린다
+            if (hit(r)) {
                 if ((t == Tab.BOOK || t == Tab.ALBUM) && tab != t) g.sfx(Audio.Sfx.BOOK_OPEN, 0.7f)
                 else g.sfx(Audio.Sfx.TAP, 0.45f)
                 tab = t
@@ -516,17 +524,16 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             }
         }
         for ((r, _, action) in btnRects) {
-            if (r.contains(tap.x, tap.y)) {
+            if (hit(r)) {
                 g.sfx(Audio.Sfx.TAP, 0.5f)
                 action()
                 return
             }
         }
         if (tab == Tab.BOOK && panelR.contains(tap.x, tap.y)) {
-            // 도감 셀 탭 -> 새 정보
             for (def in Birds.ALL) {
                 val cell = bookCell(def) ?: continue
-                if (cell.contains(tap.x, tap.y)) {
+                if (hit(cell)) {
                     g.sfx(Audio.Sfx.TAP, 0.5f)
                     showBirdInfo(def)
                     return
@@ -645,28 +652,34 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         )
         UiKit.circleButton(c, g, closeCx, closeCy, closeRr, "close", 11f, 0xFFFFF3DC.toInt(), 0xFF8A4A2A.toInt())
 
-        // ---- 탭: 색색의 인덱스 탭. 고른 탭은 위로 톡 튀어나온다 ----
+        // ---- 탭: 8개라 한 줄이면 너무 좁아 두 줄(4+4)로 — 탭 히트박스 크게 ----
         tabRects.clear()
-        val nTabs = Tab.values().size
-        val tabGap = dp(scene, 7f)
-        val tabW = (panelR.width() - dp(scene, 24f) - tabGap * (nTabs - 1)) / nTabs
-        val tabTop = panelR.top + dp(scene, 45f)
-        val tabH = dp(scene, 26f)
-        for ((i, t) in Tab.values().withIndex()) {
-            val x0 = panelR.left + dp(scene, 12f) + i * (tabW + tabGap)
-            val hit = RectF(x0, tabTop - dp(scene, 4f), x0 + tabW, tabTop + tabH + dp(scene, 4f))
-            val label = if (tabW < dp(scene, 90f)) t.label else "${t.icon} ${t.label}"
+        val allTabs = Tab.values()
+        val tabGap = dp(scene, 6f)
+        val cols = 4
+        val rows = 2
+        val tabW = (panelR.width() - dp(scene, 24f) - tabGap * (cols - 1)) / cols
+        val tabH = dp(scene, 32f)
+        val tabTop0 = panelR.top + dp(scene, 45f)
+        for ((i, t) in allTabs.withIndex()) {
+            val col = i % cols
+            val row = i / cols
+            val x0 = panelR.left + dp(scene, 12f) + col * (tabW + tabGap)
+            val y0 = tabTop0 + row * (tabH + tabGap)
+            val hit = RectF(x0, y0 - dp(scene, 4f), x0 + tabW, y0 + tabH + dp(scene, 4f))
+            val label = "${t.icon} ${t.label}"
             if (t == tab) {
-                val r = RectF(x0, tabTop - dp(scene, 3f), x0 + tabW, tabTop + tabH - dp(scene, 1f))
+                val r = RectF(x0, y0 - dp(scene, 2f), x0 + tabW, y0 + tabH - dp(scene, 1f))
                 cuteBtn(c, r, label, t.tint, UiKit.INK, 12.5f)
                 UiKit.sparkle(c, r.right - dp(scene, 4f), r.top - dp(scene, 1f), dp(scene, 6f), 0xFFFFFFFF.toInt(), g.time * 4f + i)
             } else {
-                val r = RectF(x0 + dp(scene, 1.5f), tabTop + dp(scene, 2f), x0 + tabW - dp(scene, 1.5f), tabTop + tabH - dp(scene, 1f))
+                val r = RectF(x0 + dp(scene, 1.5f), y0 + dp(scene, 2f), x0 + tabW - dp(scene, 1.5f), y0 + tabH - dp(scene, 1f))
                 UiKit.cuteButton(c, g, r, label, UiKit.lighten(t.tint, 26), UiKit.MUTED, 11.5f, depthDp = 2f)
             }
             tabRects.add(hit to t)
         }
-        UiKit.stitchLine(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 78f))
+        val tabsBottom = tabTop0 + rows * (tabH + tabGap)
+        UiKit.stitchLine(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), tabsBottom + dp(scene, 4f))
 
         btnRects.clear()
         when (tab) {
@@ -681,7 +694,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         }
     }
 
-    private fun contentTop(): Float = panelR.top + dp(scene, 84f)
+    private fun contentTop(): Float = panelR.top + dp(scene, 122f)  // 2줄 탭(45+32+6+32) + 여백
     private fun contentBottom(): Float = panelR.bottom - dp(scene, 14f)
 
     private fun drawStatus(c: Canvas) {
@@ -801,85 +814,122 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         ))) })
         y += camH + dp(scene, 6f)
 
-        // 4) 정보 그리드 — 남은 높이에 맞춰 자동 배분 (2열 x 5행)
-        val gap = dp(scene, 5f)
-        val gridH = contentBottom() - y
-        val paged = gridH < dp(scene, 18f) * 5 + gap * 4
-        val gridBottom = contentBottom() - if (paged) dp(scene, 24f) else 0f
-        val rows = ((gridBottom - y + gap) / (dp(scene, 18f) + gap)).toInt().coerceIn(1, 5)
-        val rowH = ((gridBottom - y - gap * (rows - 1)) / rows).coerceAtLeast(dp(scene, 18f))
-        val colW = (right - left - gap) / 2f
-        // 자주 쓰는 바로가기는 작은 화면에서도 첫 페이지에 남긴다.
-        val cells = listOf(
-            Triple("search", "퀘스트", s.questBird?.let { Birds.byId[it]?.name } ?: "퀘스트 열기 ›"),
-            Triple("camera", "카메라샵", cameraShopCellText(s.region)),
-            Triple("calendar", "시각", "${s.timeLabel()} · 사진 ${s.photos}장"),
-            Triple("house", "우리 집", Regions.byId[s.homeRegion]?.name ?: "?"),
-            Triple("pin", "위치", "${Regions.byId[s.region]?.name ?: "?"} · ${s.visited.size}/${Regions.ALL.size}"),
-            Triple("house", "주택", "${s.ownedHomes.size}채 · 인테리어 ${s.ownedHouseStyles.size}/${HouseStyles.ALL.size}"),
-            Triple("book", "도감", "${s.birdCounts.size}/${Birds.ALL.size}종"),
-            Triple("search", "의뢰", if (s.activeQuests.isEmpty()) "없음" else "${s.activeQuests.size}/3 · ${s.activeQuests.first().title}"),
-            Triple("calendar", "플레이", timeStr),
-            Triple("bike", "자전거", "${s.bike().name} · ${s.ownedBikes.size}대" + (if (s.ownedBikeParts.isNotEmpty()) " · 부속품 ${s.ownedBikeParts.size}" else "")),
-            // [P11] 이제 피자는 판 + 조각 두 단위로 보인다 (한 판 = 8조각)
-            Triple("pizza", "피자", "${s.pizzaCount}판 · ${s.sliceCount}조각 · 장식 ${s.placedDecorIds().size}/${s.decorSlots.size} · 행운+${s.decorLuck()}"),
-            // 카메라샵은 12개 도시에만 있다 — 탭하면 위치를 알려 주고, 도시가 아니면 태워 준다.
-            Triple("camera", "카메라샵", cameraShopCellText(s.region))
-        )
-        val perPage = rows * 2
-        val pages = (cells.size + perPage - 1) / perPage
-        statusPage = statusPage.coerceIn(0, pages - 1)
-        val shownCells = cells.drop(statusPage * perPage).take(perPage)
-        for (i in shownCells.indices) {
-            val col = i % 2
-            val row = i / 2
-            val cr = RectF(
-                left + col * (colW + gap), y + row * (rowH + gap),
-                left + col * (colW + gap) + colW, y + row * (rowH + gap) + rowH
-            )
-            // 격자무늬 천처럼 두 색을 번갈아 (가로세로 체크)
-            val checker = (col + row) % 2 == 0
-            cuteCard(c, cr, if (checker) UiKit.CARD_HI else 0xFFFFF4E2.toInt(), stitched = rowH >= dp(scene, 24f))
-            textP.textSize = textDp(scene, 9.5f)
-            textP.color = 0xFF8A7360.toInt()
-            val iconToken = shownCells[i].first
-            val label = shownCells[i].second
-            UiKit.icon(c, g, iconToken, RectF(cr.left + dp(scene, 7f), cr.centerY() - dp(scene, 8f), cr.left + dp(scene, 23f), cr.centerY() + dp(scene, 8f)))
-            val ty = cr.centerY() - (textP.descent() + textP.ascent()) / 2f
-            c.drawText(label, cr.left + dp(scene, 27f), ty, textP)
-            val labelW = textP.measureText(label)
-            // 값은 오른쪽 정렬 + 넘치면 말줄임
-            textP.textSize = textDp(scene, 10.5f)
-            textP.color = 0xFF4A3728.toInt()
-            var value = shownCells[i].third
-            val maxVW = cr.width() - dp(scene, 16f) - labelW - dp(scene, 6f)
-            if (textP.measureText(value) > maxVW && maxVW > dp(scene, 20f)) {
-                while (value.length > 1 && textP.measureText("$value…") > maxVW) value = value.dropLast(1)
-                value = "$value…"
-            }
-            // 상점 셀은 눌린다 — 어디 있는지 알려 주고, 다른 지역이면 자전거로 태워 준다
-            if (label == "카메라샵") {
-                btnRects.add(Triple(cr, "shop_trip") { openShopTrip() })
-            }
-            val vty = cr.centerY() - (textP.descent() + textP.ascent()) / 2f
-            c.drawText(value, cr.right - dp(scene, 8f) - textP.measureText(value), vty, textP)
+        // 4) 마비노기식 캐릭터 + 듀랑고식 인벤토리
+        val gap = dp(scene, 6f)
+        val remainingH = contentBottom() - y
+        // 왼쪽: 캐릭터 프리뷰 (40% 너비), 오른쪽: 인벤토리 (60%)
+        val charW = (right - left) * 0.38f
+        val invW = (right - left) * 0.60f
+        val charR = RectF(left, y, left + charW, y + remainingH)
+        val invR = RectF(right - invW, y, right, y + remainingH)
+
+        // --- 캐릭터 카드 ---
+        cuteCard(c, charR, UiKit.PASTEL_PEACH, stitched = true)
+        // 캐릭터 아바타 (중앙)
+        val avatarFrames = g.assets.playerAvatarFrames(s.gender, 0)
+        if (avatarFrames.isNotEmpty()) {
+            val bmp = avatarFrames[((g.time / 0.6f).toInt() % avatarFrames.size)]
+            val avSize = charW * 0.62f
+            val avLeft = charR.left + (charW - avSize)/2f
+            val avTop = charR.top + dp(scene, 10f)
+            c.drawBitmap(bmp, null, RectF(avLeft, avTop, avLeft+avSize, avTop+avSize), g.assets.sprPaint)
         }
-        if (pages > 1) {
-            val py = contentBottom() - dp(scene, 20f)
-            val prev = RectF(left, py, left + dp(scene, 66f), contentBottom())
-            val next = RectF(right - dp(scene, 66f), py, right, contentBottom())
-            if (statusPage > 0) {
-                cuteBtn(c, prev, "‹ 이전", UiKit.PASTEL_SKY, UiKit.INK, 10f)
-                btnRects.add(Triple(prev, "status_prev") { statusPage-- })
+        // 레벨/이름
+        textP.textSize = textDp(scene, 11f)
+        textP.color = 0xFF4A2E12.toInt()
+        val nameY = charR.top + charW*0.62f + dp(scene, 22f)
+        val nameTxt = "Lv.${s.level} ${s.title()}"
+        c.drawText(nameTxt, charR.centerX() - textP.measureText(nameTxt)/2f, nameY, textP)
+        // 장비 슬롯 (마비노기식) — 세로로
+        var slotY = nameY + dp(scene, 14f)
+        val slotH = dp(scene, 22f)
+        for (slot in EquipSlot.values()) {
+            val sr = RectF(charR.left + dp(scene, 6f), slotY, charR.right - dp(scene, 6f), slotY + slotH)
+            val equippedDef = s.equippedItem(slot)
+            val bg = if (equippedDef != null) UiKit.PASTEL_MINT else UiKit.CARD_HI
+            cuteCard(c, sr, bg, stitched = false)
+            UiKit.icon(c, g, slot.icon, RectF(sr.left+dp(scene, 4f), sr.top+dp(scene, 3f), sr.left+dp(scene, 18f), sr.bottom-dp(scene, 3f)))
+            textP.textSize = textDp(scene, 9f)
+            textP.color = 0xFF4A3728.toInt()
+            val label = slot.label
+            c.drawText(label, sr.left+dp(scene, 22f), sr.centerY() - (textP.descent()+textP.ascent())/2f + dp(scene, -4f), textP)
+            if (equippedDef != null) {
+                textP.textSize = textDp(scene, 8.5f)
+                textP.color = 0xFF2A6B2A.toInt()
+                var en = equippedDef.name
+                val maxW = sr.width() - dp(scene, 28f)
+                if (textP.measureText(en) > maxW) {
+                    while (en.length>1 && textP.measureText(en+"…")>maxW) en=en.dropLast(1)
+                    en+="…"
+                }
+                c.drawText(en, sr.left+dp(scene, 22f), sr.centerY() - (textP.descent()+textP.ascent())/2f + dp(scene, 6f), textP)
+                btnRects.add(Triple(sr, "unequip_${slot.name}") { s.unequipItem(slot) })
+            } else {
+                textP.textSize = textDp(scene, 8f)
+                textP.color = 0xFF9A8A7A.toInt()
+                c.drawText("비어 있음", sr.left+dp(scene, 22f), sr.centerY() - (textP.descent()+textP.ascent())/2f + dp(scene, 6f), textP)
             }
-            if (statusPage < pages - 1) {
-                cuteBtn(c, next, "다음 ›", UiKit.PASTEL_SKY, UiKit.INK, 10f)
-                btnRects.add(Triple(next, "status_next") { statusPage++ })
-            }
+            slotY += slotH + dp(scene, 4f)
+            if (slotY + slotH > charR.bottom) break
+        }
+
+        // --- 인벤토리 (듀랑고식: 아이템별 수량) ---
+        cuteCard(c, invR, UiKit.CARD_HI, stitched = true)
+        textP.textSize = textDp(scene, 11f)
+        textP.color = 0xFF4A2E12.toInt()
+        c.drawText("가방", invR.left+dp(scene, 8f), invR.top+dp(scene, 16f), textP)
+        textP.textSize = textDp(scene, 9f)
+        textP.color = 0xFF8A7360.toInt()
+        val invCountTxt = "${s.inventory.size}종 · ${s.inventory.values.sum()}개"
+        c.drawText(invCountTxt, invR.right - dp(scene, 8f) - textP.measureText(invCountTxt), invR.top+dp(scene, 16f), textP)
+
+        var iy = invR.top + dp(scene, 24f)
+        val itemH = dp(scene, 28f)
+        val items = s.inventory.entries.toList()
+        for ((idx, entry) in items.withIndex()) {
+            if (iy + itemH > invR.bottom - dp(scene, 4f)) break
+            val def = Items.of(entry.key) ?: continue
+            val ir = RectF(invR.left+dp(scene, 6f), iy, invR.right-dp(scene, 6f), iy+itemH)
+            cuteCard(c, ir, UiKit.PASTEL_LEMON, stitched = false)
+            UiKit.icon(c, g, def.icon, RectF(ir.left+dp(scene, 5f), ir.top+dp(scene, 4f), ir.left+dp(scene, 22f), ir.bottom-dp(scene, 4f)))
             textP.textSize = textDp(scene, 10f)
-            textP.color = UiKit.MUTED
-            val label = "정보 ${statusPage + 1}/$pages"
-            c.drawText(label, panelR.centerX() - textP.measureText(label) / 2f, py + dp(scene, 14f), textP)
+            textP.color = 0xFF4A3728.toInt()
+            var n = def.name
+            val maxNameW = ir.width() - dp(scene, 70f)
+            if (textP.measureText(n) > maxNameW) {
+                while (n.length>1 && textP.measureText(n+"…")>maxNameW) n=n.dropLast(1)
+                n+="…"
+            }
+            c.drawText(n, ir.left+dp(scene, 26f), ir.centerY() - (textP.descent()+textP.ascent())/2f, textP)
+            // 수량 배지 (듀랑고식)
+            val qtyTxt = "x${entry.value}"
+            textP.textSize = textDp(scene, 10.5f)
+            textP.color = 0xFF2A5A2A.toInt()
+            val badgeR = RectF(ir.right - dp(scene, 36f), ir.centerY()-dp(scene, 10f), ir.right - dp(scene, 6f), ir.centerY()+dp(scene, 10f))
+            fillP.color = 0xFFFFF0C0.toInt()
+            c.drawRoundRect(badgeR, dp(scene, 5f), dp(scene, 5f), fillP)
+            c.drawText(qtyTxt, badgeR.centerX() - textP.measureText(qtyTxt)/2f, badgeR.centerY() - (textP.descent()+textP.ascent())/2f, textP)
+            // 탭하면 장비/사용
+            if (def.category == ItemCategory.EQUIP && def.equipSlot != null) {
+                btnRects.add(Triple(ir, "equip_${def.id}") { s.equipItem(def.equipSlot!!, def.id) })
+            } else if (def.category == ItemCategory.CONSUMABLE) {
+                btnRects.add(Triple(ir, "use_${def.id}") {
+                    if (s.removeItem(def.id,1)) {
+                        when(def.id) {
+                            "water_bottle" -> s.hunger = (s.hunger + 5f).coerceAtMost(100f)
+                            "energy_bar" -> s.hunger = (s.hunger + 20f).coerceAtMost(100f)
+                        }
+                        g.toast("${def.name} 사용!")
+                    }
+                })
+            }
+            iy += itemH + dp(scene, 4f)
+        }
+        // 기본 정보 버튼 (카메라샵 등) — 인벤토리 아래 작은 버튼
+        val shopR = RectF(invR.left+dp(scene, 6f), invR.bottom - dp(scene, 22f), invR.right-dp(scene, 6f), invR.bottom - dp(scene, 4f))
+        if (shopR.top > iy) {
+            cuteBtn(c, shopR, "camera 카메라샵: ${cameraShopCellText(s.region)}", UiKit.PASTEL_SKY, UiKit.INK, 9f)
+            btnRects.add(Triple(shopR, "shop_trip") { openShopTrip() })
         }
     }
 
@@ -2358,7 +2408,7 @@ class CameraFxOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) { finished = true; return }
         for ((r, action) in rowRects) {
             if (r.contains(tap.x, tap.y)) {
                 action()
@@ -2477,7 +2527,7 @@ class DecorShopOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) {
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) {
             scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
             return
@@ -2651,7 +2701,7 @@ class DecorPickOverlay(
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) {
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) {
             scene.game.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
             return
@@ -2774,7 +2824,7 @@ class HomeDecorOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) {
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) {
             g.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
             return
@@ -2919,7 +2969,7 @@ class HouseStyleOverlay(
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) {
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) {
             g.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
             return
@@ -3057,7 +3107,7 @@ class BikeShopOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) { finished = true; return }
         for ((r, t) in tabRects) {
             if (r.contains(tap.x, tap.y)) {
                 tab = t; page = 0
@@ -4177,6 +4227,16 @@ class PhotoResultOverlay(
             }
         }
 
+        // 닫기 버튼 — 항상 화면 안에, 하단 중앙 (이전엔 버튼이 화면 밖에 있다는 제보)
+        if (t > 0.4f) {
+            val bw = dp(scene, 120f)
+            val bh = dp(scene, 36f)
+            val bx = w/2f - bw/2f
+            val by = h - bh - dp(scene, 16f)
+            val br = RectF(bx, by, bx+bw, by+bh)
+            UiKit.cuteButton(c, scene.game, br, "닫기", UiKit.CREAM, 0xFF4A3728.toInt(), 13f)
+        }
+
     }
 
     /** 인화지 속 풍경 + 새 */
@@ -4708,7 +4768,7 @@ class MapOverlay(scene: Scene) : Overlay(scene) {
 
     private fun onTap(x: Float, y: Float) {
         val g = scene.game
-        if (closeR.contains(x, y)) {
+        if (closeR.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(x, y) }) {
             g.sfx(Audio.Sfx.TAP, 0.5f)
             close()
             return
@@ -5398,7 +5458,7 @@ class CameraShopOverlay(scene: Scene, startTab: Int = 0, startPage: Int = 0) : O
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) { finished = true; return }
         for ((r, t) in tabRects) {
             if (r.contains(tap.x, tap.y)) { tab = t; page = 0; return }
         }
@@ -5692,7 +5752,7 @@ class GearBagOverlay(scene: Scene) : Overlay(scene) {
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { finished = true; return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { finished = true; return }
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) { finished = true; return }
         for ((r, _, action) in btnRects) {
             if (r.contains(tap.x, tap.y)) { action(); return }
         }
@@ -5895,7 +5955,7 @@ class GearPickOverlay(scene: Scene, private val kind: GearKind) : Overlay(scene)
         val tap = input.consumeTapScreen()
         if (input.justB || input.justBack) { back(); return }
         if (tap == null) return
-        if (closeRect.contains(tap.x, tap.y)) { back(); return }
+        if (closeRect.let { val ex=12f*scene.game.density; android.graphics.RectF(it.left-ex, it.top-ex, it.right+ex, it.bottom+ex).contains(tap.x, tap.y) }) { back(); return }
         if (prevRect.contains(tap.x, tap.y)) { if (page > 0) page--; return }
         if (nextRect.contains(tap.x, tap.y)) {
             if ((page + 1) * perPage < owned().size + 1) page++
