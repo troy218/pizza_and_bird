@@ -139,14 +139,20 @@ class TitleScene(game: Game) : Scene(game) {
     // ------------------------------------------------------------------
 
     override fun drawWorld(c: Canvas) {
+        // 타이틀 아트는 960×540 기준 좌표로 그린다. 현재 월드 버퍼는 4배
+        // 가상 해상도(2160p)이므로, 레거시 아트 공간을 먼저 맞춰 확대한다.
+        // 이 변환이 없으면 언덕·잔디가 화면 상단 일부에만 그려진다.
+        val sceneScale = game.virtH / 540f
+        c.save()
+        c.scale(sceneScale, sceneScale)
         val p = titlePaint
         val a = game.assets
-        val W = game.virtW.toFloat()          // 화면비 적응 가상 너비
+        val W = game.virtW / sceneScale  // 레거시 기준 화면 너비
         val cx = W / 2f
         val span = W + 160f                   // 구름/새 반복 범위
 
         // 하늘 그라데이션 (24단계 보간 — 밴드 경계가 안 보일 만큼 부드럽게)
-        val bandH = game.virtH.toFloat() / skyBands.size
+        val bandH = 540f / skyBands.size
         for (i in skyBands.indices) {
             p.color = skyBands[i]
             c.drawRect(0f, i * bandH, W, (i + 1) * bandH + 1f, p)
@@ -228,7 +234,7 @@ class TitleScene(game: Game) : Scene(game) {
         // 잔디 (앞쪽 3줄 — 예전보다 얇게, 화면비로 채운다)
         val grass = a.tiles[T.GRASS.ordinal]
         val flowers = a.tiles[T.FLOWER.ordinal]
-        val maxCol = (game.virtW + 31) / 32
+        val maxCol = ((W + 31f) / 32f).toInt()
         for (row in 14..16) {
             for (col in 0 until maxCol) {
                 val variant = a.tileVariant(T.GRASS.ordinal, col, row)
@@ -292,6 +298,7 @@ class TitleScene(game: Game) : Scene(game) {
         c.drawBitmap(crane, rx + 78f, 492f - a.birdH("crane") + sin(t * 1.7f) * 2f, a.sprPaint)
         val magpie = a.birdFlipped("magpie")
         c.drawBitmap(magpie, rx - 128f, 420f + sin(t * 2.2f + 1f) * 4f, a.sprPaint)
+        c.restore()
     }
 
     private fun drawCloud(c: Canvas, p: Paint, x: Float, y: Float, s: Float) {
@@ -460,17 +467,32 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         game.hud.showControls = false
         game.hud.showStats = false
         game.hud.showMinimap = false
-        // 카드 레이아웃은 가상 너비(화면비 적응) 중심으로 배치한다
-        val cx = game.virtW / 2f
-        male = RectF(cx - 300f, 245f, cx - 30f, 390f)
-        female = RectF(cx + 30f, 245f, cx + 300f, 390f)
+        male = RectF()
+        female = RectF()
+        layoutCards()
+    }
+
+    /** 화면 회전/분할 창 크기 변경 후 카드 위치와 터치 판정을 함께 재배치한다. */
+    override fun onLayout() = layoutCards()
+
+    private fun layoutCards() {
+        // 카드 레이아웃은 960×540 기준으로 보관한다. 월드 좌표로 그릴 때와
+        // 터치 좌표를 비교할 때 모두 같은 배율을 적용해 화면 해상도에 맞춘다.
+        val sceneScale = game.virtH / 540f
+        val cx = game.virtW / sceneScale / 2f
+        male.set(cx - 300f, 245f, cx - 30f, 390f)
+        female.set(cx + 30f, 245f, cx + 300f, 390f)
     }
 
     override fun drawWorld(c: Canvas) {
+        // 월드 버퍼는 2160p지만 캐릭터 선택 아트/카드 좌표는 960×540 기준.
+        // 4배 가상 캔버스에 맞춰 변환해 카드가 화면 위쪽에 작게 몰리지 않게 한다.
+        val sceneScale = game.virtH / 540f
+        c.save()
+        c.scale(sceneScale, sceneScale)
         c.drawColor(0xFFA4E4EE.toInt())
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        // 이 화면은 가상 해상도 월드 캔버스에 그려지므로 px 단위로 지정한다 (가로는 화면비 적응)
-        val cx = game.virtW / 2f
+        val cx = game.virtW / sceneScale / 2f
         val t1 = Type.paintPx(30f, true, 0.05f, Type.BROWN)
         val s1 = "여행할 캐릭터를 골라 주세요"
         c.drawText(s1, cx - t1.measureText(s1) / 2f, 115f, t1)
@@ -494,6 +516,7 @@ class CharacterSelectScene(game: Game) : Scene(game) {
         val femaleIdle = game.assets.playerAvatarFrames("female", 0)
         card(male, "남자", game.state.gender == "male", maleIdle[((t / Anim.IDLE.frameTime).toInt() % maleIdle.size + maleIdle.size) % maleIdle.size])
         card(female, "여자", game.state.gender == "female", femaleIdle[(((t + 0.8f) / Anim.IDLE.frameTime).toInt() % femaleIdle.size + femaleIdle.size) % femaleIdle.size])
+        c.restore()
     }
 
     override fun drawHud(c: Canvas) {
@@ -521,9 +544,12 @@ class CharacterSelectScene(game: Game) : Scene(game) {
                 return
             }
             val v = game.screenToVirtual(tap)
+            val sceneScale = game.virtH / 540f
+            val x = v.x / sceneScale
+            val y = v.y / sceneScale
             when {
-                male.contains(v.x, v.y) -> { game.state.gender = "male"; game.haptic() }
-                female.contains(v.x, v.y) -> { game.state.gender = "female"; game.haptic() }
+                male.contains(x, y) -> { game.state.gender = "male"; game.haptic() }
+                female.contains(x, y) -> { game.state.gender = "female"; game.haptic() }
             }
         }
         if (input.justA) game.fadeTo { game.scene = RegionSelectScene(game) }

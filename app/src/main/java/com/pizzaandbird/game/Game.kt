@@ -375,11 +375,15 @@ class Game(val context: Context) {
         val covered = ov != null && ov.coversWorld && transition == null
         if (!covered || worldStale) {
             val wc = worldCanvas
-            wc.save()
-            wc.scale(worldScale.toFloat(), worldScale.toFloat())
-            scene.drawWorld(wc)
-            wc.restore()
-            worldStale = false
+            val saveCount = wc.save()
+            try {
+                wc.scale(worldScale.toFloat(), worldScale.toFloat())
+                scene.drawWorld(wc)
+                worldStale = false
+            } finally {
+                // 씬 렌더가 예외를 내도 다음 프레임의 Canvas 변환이 누적되지 않게 한다.
+                wc.restoreToCount(saveCount)
+            }
         }
         // 화면 합성: 월드 비트맵(고해상도) + HUD/오버레이(네이티브 해상도)
         c.drawColor(0xFF2E2A3A.toInt())

@@ -15,6 +15,8 @@ import android.view.SurfaceView
  */
 class GameView(context: Context, val game: Game) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
+    /** Loop lifecycle is touched by Activity callbacks and Surface callbacks. */
+    private val threadLock = Any()
     private var thread: Thread? = null
 
     @Volatile
@@ -43,7 +45,11 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
         game.audio.onPause()
         // 셔터 직후 앱이 백그라운드로 가도 사진 JPEG가 기록보다 늦게 사라지지 않게 한다.
         PhotoArchive.awaitPendingWrites()
-        SaveManager.save(context, game.state)
+        // Game.update/render are synchronized on Game. If a slow frame outlives the join
+        // timeout, wait for its current critical section before serializing the save.
+        synchronized(game) {
+            SaveManager.save(context, game.state)
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -65,17 +71,31 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
     }
 
     private fun startThread() {
-        if (running || !surfaceReady || !resumed) return
+        synchronized(threadLock) {
+            startThreadLocked()
+        }
+    }
+
+    /** Caller holds [threadLock]. Never start a second loop while the old one is unwinding. */
+    private fun startThreadLocked() {
+        if (!surfaceReady || !resumed || thread?.isAlive == true) return
         running = true
-        thread = Thread(this, "PizzaAndBirdLoop").also { it.start() }
+        val loop = Thread(this, "PizzaAndBirdLoop")
+        thread = loop
+        loop.start()
     }
 
     private fun stopThread() {
-        running = false
-        thread?.let {
-            try { it.join(2500) } catch (_: InterruptedException) { }
+        val current = synchronized(threadLock) {
+            running = false
+            thread
         }
-        thread = null
+        // Wake the frame pacer promptly. Keep the reference until run() exits so a quick
+        // pause/resume cannot start a second loop against the same Game state and Canvas.
+        current?.interrupt()
+        if (current != null && current !== Thread.currentThread()) {
+            try { current.join(2500) } catch (_: InterruptedException) { }
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -88,6 +108,23 @@ class GameView(context: Context, val game: Game) : SurfaceView(context), Surface
     // ---------------------------------------------------------------------
 
     override fun run() {
+        val thisThread = Thread.currentThread()
+        try {
+            runLoop()
+        } finally {
+            synchronized(threadLock) {
+                if (thread === thisThread) {
+                    thread = null
+                    running = false
+                    // Activity가 다시 포그라운드로 왔거나 Surface가 재생성된 동안
+                    // 이전 프레임이 끝났다면, 이제 안전하게 새 루프를 시작한다.
+                    startThreadLocked()
+                }
+            }
+        }
+    }
+
+    private fun runLoop() {
         var lastErrorLog = 0L
         var last = System.nanoTime()
         // 프레임 목표 시각을 '절대 그리드'에 박아 둔다. 프레임마다 처음부터
