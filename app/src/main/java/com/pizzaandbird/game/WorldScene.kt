@@ -1457,9 +1457,13 @@ class WorldScene(
         var bestD = Float.MAX_VALUE
         for (b in birds) {
             if (b.state == 2) continue
-            val d = hypot(b.cx - vx, b.cy - vy)
-            // 카메라 모드에선 AF 박스를 살짝 빗나가게 탭해도 잡히도록 넉넉하게
-            val tapR = if (photoMode) 21f else 14f
+            // 화면에 그려지는 몸통을 기준으로 판정한다.
+            // - cy 는 발 근처(스프라이트 72%)라 큰 새(백로·두루미)는 머리 쪽을 탭하면 빗나갔다.
+            // - 짧은 걸음·활공 중(state 1·3)엔 스프라이트가 hopLift 만큼 위로 떠서 그려진다.
+            val bodyCy = b.y + b.sprH * 0.5f - b.hopLift
+            val d = hypot(b.cx - vx, bodyCy - vy)
+            // 몸통 반경 + 여유. 카메라 모드에선 AF 박스를 살짝 빗나가게 탭해도 잡히게 넉넉하게.
+            val tapR = hypot(b.sprW * 0.5f, b.sprH * 0.5f) + if (photoMode) 8f else 4f
             if (d < tapR && d < bestD) { best = b; bestD = d }
         }
         val target = best
