@@ -664,7 +664,7 @@ object RegionMapStyles {
             else -> emptyList()
         }
 
-        val fieldRows = region.id in setOf("cheorwon", "hwaseong", "maehyang", "junam", "suncheon", "geumgang", "gochang", "taean", "imjin", "daegu", "jeonju")
+        val fieldRows = region.id in setOf("cheorwon", "hwaseong", "maehyang", "junam", "suncheon", "geumgang", "gochang", "taean", "imjin", "gongneung", "chuncheon", "daegu", "jeonju")
         return RegionMapStyle(
             foliageFilter = palette.foliage,
             waterFilter = palette.water,
