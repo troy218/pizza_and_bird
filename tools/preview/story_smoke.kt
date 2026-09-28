@@ -137,6 +137,16 @@ object StorySmoke {
         check(strList("KID_BASE").size == 6 && strList("ELDER_BASE").size == 6) { "이동 보존분 6줄씩 확인" }
         println("② 신규 조건부 대사 ${newLines}줄 (≥60) + 이동 보존 6+6줄 OK")
 
+        // ---------------- 2-2) 인물 관계 대사 (docs/STORY.md §1.2) ----------------
+        val relNames = listOf("KID_RELATION", "ELDER_RELATION", "VILLAGER_RELATION", "PROFESSOR_RELATION")
+        val relLines = relNames.sumOf { strList(it).size }
+        check(relLines >= 9) { "인물 관계 대사 ${relLines}줄 < 9" }
+        for (name in relNames) for (raw in strList(name)) {
+            val s = raw as String
+            check('\n' !in s && '"' !in s) { "$name 줄 규칙 위반: $s" }
+        }
+        println("②-2 인물 관계 대사 ${relLines}줄 (§1.2) OK")
+
         // ---------------- 3) 조건부 대사 실제 talkTo 경로 캡처 (5장) ----------------
         // 에피소드 담당 NPC가 아닌 조합으로만 말을 걸어 기존 대사 경로를 검증한다.
         val cap = Game(TestContext())
@@ -158,9 +168,11 @@ object StorySmoke {
         }
         dialogueShot("chuncheon", 2, 10f, Weather.SUNNY.id, NpcKind.VILLAGER, "01_villager_spring_day")
         dialogueShot("chuncheon", 23, 22.5f, Weather.SNOW.id, NpcKind.VILLAGER, "02_villager_winter_night_snow")
-        dialogueShot("seoul", 9, 12f, Weather.RAIN.id, NpcKind.KID, "03_kid_summer_rain")
-        dialogueShot("seoul", 16, 12f, Weather.WIND.id, NpcKind.ELDER, "04_elder_autumn_wind")
-        dialogueShot("seoul", 23, 23f, Weather.SNOW.id, NpcKind.ELDER, "05_elder_winter_night")
+        // 「한 사람은 한 장소에만」 이후: 각 목소리(kind)는 그 사람이 사는 곳에서만 만난다.
+        // 에피소드가 없는 지역의 사람에게만 말을 걸어 사이드 인터셉트를 피한다.
+        dialogueShot("songdo", 9, 12f, Weather.RAIN.id, NpcKind.KID, "03_kid_summer_rain")
+        dialogueShot("ganghwa", 16, 12f, Weather.WIND.id, NpcKind.ELDER, "04_elder_autumn_wind")
+        dialogueShot("cheorwon", 23, 23f, Weather.SNOW.id, NpcKind.ELDER, "05_elder_winter_night")
         println("③ 조건부 대사 캡처 5장 OK")
 
         // ---------------- 4) 12편 에피소드 전체 E2E + 제주 시나리오 캡처 3장 ----------------
@@ -259,7 +271,7 @@ object StorySmoke {
         // ---------------- 5) 숨은 에필로그 (12편 완료 후 1회) ----------------
         val w2 = WorldScene(g, "seoul", SpawnKind.SAVED)
         g.scene = w2
-        val prof = w2.map.npcs.first { it.kind == NpcKind.PROFESSOR }
+        val prof = w2.map.npcs.first()   // 에필로그는 "아무 NPC와의 첫 대화"에서 1회 열린다
         val money0 = g.state.money
         check(SideStories.intercept(w2, prof)) { "에필로그가 열리지 않음" }
         val epi = overlayOf(g)!!
@@ -287,7 +299,7 @@ object StorySmoke {
             }
         }
         // 에필로그 후에는 다시 기존 대사(조건부)로 — 실제 talkTo 경로 확인
-        talk(g, NpcKind.PROFESSOR)
+        talk(g, NpcKind.VILLAGER)
         check(overlayOf(g) != null)
         println("⑤ 숨은 에필로그 1회성 + 보상 + 12편 재방문 무반복 OK")
 

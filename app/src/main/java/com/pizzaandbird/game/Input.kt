@@ -2,6 +2,7 @@ package com.pizzaandbird.game
 
 import android.graphics.PointF
 import android.graphics.RectF
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import kotlin.math.sqrt
@@ -49,11 +50,20 @@ class Input(private val game: Game) {
     var justCam = false
     var justMenu = false
     var justBack = false
-    var justEat = false       // 간식 먹기 (🍕 버튼 / E 키)
+    var justEat = false       // 간식 먹기 (🍕 버튼 / E 키) — [P11] 피자 **한 조각**
+    var justEatPick = false   // [P11] 빠른 피자 창 (🍕 버튼 길게 누르기 / Q 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
     var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
     var isRun = false         // 달리기 홀드 (키보드 Shift)
+
+    /** [P11] 🍕 버튼 홀드 진행도 0~1 — HUD가 버튼 주위의 링으로 보여 준다 */
+    var eatHoldT = 0f
+        private set
+
+    // [P11] 🍕 버튼 홀드 추적: 손가락 id → 누른 시각 / 이미 '빠른 피자 창'을 띄웠는지
+    private val eatHoldStart = HashMap<Int, Long>()
+    private val eatHoldFired = HashSet<Int>()
 
     // ----- 로우 터치 (확대/이동 가능한 지도 같은 전체화면 오버레이용) -----
     /** 현재 창의 입력 방식만 따른다. 닫힘/교체/씬 전환 후 raw 상태가 남지 않는다. */
@@ -125,6 +135,10 @@ class Input(private val game: Game) {
             keys.clear()
             for ((id, p) in pointerPos) queue.add(QEv(K.CANCEL, p.x, p.y, id, 0, 0))
         }
+        // [P11] 피자 버튼 홀드도 함께 잊는다 (재개 후 갑자기 창이 열리면 안 된다)
+        eatHoldStart.clear()
+        eatHoldFired.clear()
+        eatHoldT = 0f
     }
 
     /** 게임 스레드: 이번 프레임 이벤트 소비 */
@@ -155,8 +169,14 @@ class Input(private val game: Game) {
                             pointerDown[ev.id] = PointF(ev.x, ev.y)
                             pointerDragged.remove(ev.id)
                         }
-                        // 버튼류는 누른 순간에 반응
-                        press(ctrl)
+                        // [P11] 피자 버튼만 '떼는 순간'에 반응한다 — 길게 누르면 빠른 피자 창
+                        if (ctrl == Ctrl.EAT) {
+                            eatHoldStart[ev.id] = SystemClock.uptimeMillis()
+                            game.haptic()
+                        } else {
+                            // 버튼류는 누른 순간에 반응
+                            press(ctrl)
+                        }
                     } else {
                         // 월드 탭은 떼는 순간에 반응 (드래그와 구분)
                         pointerDown[ev.id] = PointF(ev.x, ev.y)
@@ -193,6 +213,12 @@ class Input(private val game: Game) {
                 }
                 K.UP -> {
                     val ctrl = pointerCtrl[ev.id] ?: Ctrl.NONE
+                    // [P11] 피자 버튼 — 길게 누르기가 이미 발동했다면 먹지 않는다
+                    if (ctrl == Ctrl.EAT) {
+                        if (ev.id !in eatHoldFired) justEat = true
+                        eatHoldStart.remove(ev.id)
+                        eatHoldFired.remove(ev.id)
+                    }
                     if (ctrl == Ctrl.STICK) {
                         game.hud.releaseStick()
                         // 움직이지 않고 떼면 월드 탭으로 처리 (조이스틱 구역에서도 상호작용 유지)
@@ -217,6 +243,9 @@ class Input(private val game: Game) {
                 }
                 K.CANCEL -> {
                     if (pointerCtrl[ev.id] == Ctrl.STICK) game.hud.releaseStick()
+                    // [P11] 터치가 끊긴 피자 버튼은 아무 일도 일어나지 않게 홀드만 정리한다
+                    eatHoldStart.remove(ev.id)
+                    eatHoldFired.remove(ev.id)
                     stickTentative.remove(ev.id)
                     pointerPos.remove(ev.id)
                     pointerCtrl.remove(ev.id)
@@ -235,6 +264,7 @@ class Input(private val game: Game) {
                             KeyEvent.KEYCODE_C -> justCam = true
                             KeyEvent.KEYCODE_M, KeyEvent.KEYCODE_MENU -> justMenu = true
                             KeyEvent.KEYCODE_E -> justEat = true
+                            KeyEvent.KEYCODE_Q -> justEatPick = true   // [P11] 빠른 피자 창
                             KeyEvent.KEYCODE_F -> justPunch = true
                             KeyEvent.KEYCODE_BACK -> justBack = true
                         }
@@ -273,8 +303,36 @@ class Input(private val game: Game) {
         // 달리기 홀드 (터치 HUD에서는 버튼을 덜어내고, 키보드 Shift만 유지)
         isRun = keys[KeyEvent.KEYCODE_SHIFT_LEFT] == true ||
                 keys[KeyEvent.KEYCODE_SHIFT_RIGHT] == true
+        // [P11] 피자 버튼 홀드 — 오래 누르면 '빠른 피자 창'이 열린다 (진행 링은 HUD가 그린다)
+        eatHoldT = eatHoldProgress()
+
         // 그리기(버튼 눌림 표시)가 볼 스냅샷 — 이 프레임의 마지막에 한 번만 만든다
         refreshPressSnapshot()
+    }
+
+    /**
+     * [P11] 피자 버튼을 누른 손가락의 홀드 진행도 0~1.
+     * [EAT_HOLD_MS]를 넘기는 순간 한 번만 `justEatPick`을 세운다 (그 손가락은 떼어도 먹지 않는다).
+     */
+    private fun eatHoldProgress(): Float {
+        if (eatHoldStart.isEmpty()) return 0f
+        val now = SystemClock.uptimeMillis()
+        var t = 0f
+        for ((id, start) in eatHoldStart) {
+            val el = now - start
+            if (el >= EAT_HOLD_MS && id !in eatHoldFired) {
+                eatHoldFired.add(id)
+                justEatPick = true
+                game.haptic()
+            }
+            t = maxOf(t, (el.toFloat() / EAT_HOLD_MS).coerceIn(0f, 1f))
+        }
+        return t
+    }
+
+    companion object {
+        /** [P11] 피자 버튼을 이만큼(ms) 이상 누르고 있으면 '빠른 피자 창'이 열린다 */
+        const val EAT_HOLD_MS = 420L
     }
 
     private fun press(ctrl: Ctrl) {
@@ -283,7 +341,7 @@ class Input(private val game: Game) {
             Ctrl.B -> { justB = true; game.haptic() }
             Ctrl.CAM -> { justCam = true; game.haptic() }
             Ctrl.MENU -> { justMenu = true; game.haptic() }
-            Ctrl.EAT -> { justEat = true; game.haptic() }
+            // [P11] Ctrl.EAT 은 여기로 오지 않는다 — 누르기/떼기/길게 누르기를 위에서 따로 처리
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             Ctrl.QUEST -> { justQuest = true; game.haptic() }
@@ -368,6 +426,7 @@ class Input(private val game: Game) {
         justMenu = false
         justBack = false
         justEat = false
+        justEatPick = false
         justMap = false
         justPunch = false
         justQuest = false

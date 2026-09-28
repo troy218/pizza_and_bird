@@ -81,7 +81,7 @@ object SideStories {
             ),
             listOf(
                 "잘 가져오셨네요. 그 소년 덕에 시작한 가게가, 이제 피자로 이어져요.",
-                "마음 담긴 한 판이 간판 백 개보다 낫대요. 그 소년이 그랬어요.",
+                "그 소년 말인가요? 지금은 광릉숲에서 수첩을 펴 놓고 계신 박사님이세요. 세월이 이렇게 이어지나 봐요.",
                 "수첩에 적어 두세요. '강릉의 소나무 그늘 아래엔 늘 한 자리가 비어 있다'고요."
             )
         ) else Triple(
@@ -97,7 +97,7 @@ object SideStories {
             ),
             listOf(
                 "보기 좋네요. 그 소년 덕에 시작한 가게라니까요, 정말로.",
-                "마음 담긴 기록 한 장이 간판 백 개예요. 고마워요.",
+                "그 소년은 이제 광릉숲의 박사님이시고요. 오래 보는 일은 끝내 사람으로 남나 봐요.",
                 "수첩에 적어 두세요. '강릉의 소나무 그늘 아래엔 늘 한 자리가 비어 있다'고요."
             )
         )
@@ -677,7 +677,8 @@ object SideStories {
     private fun consumeDeliverable(s: GameState, g: Goal) {
         if (g !is Goal.Deliver) return
         val idx = findDeliverable(s, g)
-        if (idx >= 0) s.pizzas[idx] = s.pizzas[idx] - 1
+        // [P11] 할머니께는 **한 판째** 드린다 — 잘라 둔 조각 8개도 함께 나간다
+        if (idx >= 0) s.removePanAt(idx)
     }
 
     // -------------------------------------------------------------------

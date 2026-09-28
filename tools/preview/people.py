@@ -43,6 +43,30 @@ SKIN_FAIR, SKIN_NORMAL, SKIN_TAN, SKIN_DEEP = range(4)
  FLAVOR_READ, FLAVOR_NOD, FLAVOR_SWAY) = range(8)
 
 # ---------------------------------------------------------------------------
+# 사람 겉모습 — CharacterArt.kt 와 같은 번호 (색이 아니라 실루엣으로 구분)
+# ---------------------------------------------------------------------------
+
+BODY_STANDARD, BODY_TALL, BODY_STOCKY, BODY_SLIM, BODY_ROUND, BODY_HUNCH = range(6)
+
+(HAIR_SHORT, HAIR_BUZZ, HAIR_BOB, HAIR_LONG, HAIR_PONY, HAIR_BUN,
+ HAIR_PIGTAIL, HAIR_BALD, HAIR_UPDO, HAIR_PERM, HAIR_SWEEP, HAIR_BRAID) = range(12)
+
+BEARD_NONE, BEARD_MUSTACHE, BEARD_FULL, BEARD_GOATEE = range(4)
+
+(HAT_NONE, HAT_CAP, HAT_BUCKET, HAT_STRAW, HAT_BEANIE, HAT_BANDANA,
+ HAT_HEADSCARF, HAT_FISHER, HAT_VISOR) = range(9)
+
+BOTTOM_PANTS, BOTTOM_SKIRT, BOTTOM_OVERALLS = range(3)
+
+(PROP_NONE, PROP_BINOCS, PROP_CAMERA, PROP_ROD, PROP_BASKET, PROP_BOOK,
+ PROP_BRUSH, PROP_PADDLE, PROP_CUP, PROP_NET) = range(10)
+
+SKIN_FAIR, SKIN_NORMAL, SKIN_TAN, SKIN_DEEP = range(4)
+
+(FLAVOR_NONE, FLAVOR_BOUNCE, FLAVOR_PAINT, FLAVOR_SIP, FLAVOR_SCAN,
+ FLAVOR_READ, FLAVOR_NOD, FLAVOR_SWAY) = range(8)
+
+# ---------------------------------------------------------------------------
 # 색/배색
 # ---------------------------------------------------------------------------
 

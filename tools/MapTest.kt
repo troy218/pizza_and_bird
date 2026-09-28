@@ -406,24 +406,84 @@ fun main() {
     check(gs.addPizza(0, 2) && gs.addPizza(1, 1) && gs.addPizza(2, 0), "피자 추가 오류")
     check(gs.pizzaCountOf(0) == 1 && gs.pizzaCountOf(0, 2) == 1 && gs.pizzaCountOf(2, 0) == 1, "피자 개수 집계 오류")
     check(gs.pizzaCount == 3, "피자 총합 오류: ${gs.pizzaCount}")
+    // [P11] 한 판 = 8조각 — 판을 구울 때마다 조각 8개가 생긴다
+    check(gs.sliceCount == 3 * PizzaSlices.PER_PIZZA, "[P11] 조각 총합 오류: ${gs.sliceCount}")
+    check(gs.slicesOf(0) == 8 && gs.slicesOf(0, 2) == 8, "[P11] 조각 집계 오류: ${gs.slicesOf(0)}")
+    check(gs.slicesOfKind(PizzaKind.REGULAR) == 24 && gs.slicesOfKind(PizzaKind.OVEN) == 0, "[P11] 계열별 조각 집계 오류")
 
     var capOk = true
     for (i in 0 until 10) if (!gs.addPizza(1, 0)) capOk = false
     check(!capOk, "피자 상한 작동 안 함 (항상 추가됨)")
     check(gs.pizzaCount == PIZZA_CAP, "피자 상한 개수 오류: ${gs.pizzaCount}")
+    check(gs.sliceCount == PIZZA_CAP * PizzaSlices.PER_PIZZA, "[P11] 상한까지 채운 조각 수 오류: ${gs.sliceCount}")
 
-    // 가장 좋은 품질부터 먹히는지 (버섯엔 품질1 + 품질0 재고 → '맛있는 피자' 먼저)
-    val before = gs.pizzaCountOf(1)
+    // [P11] 먹기는 **한 조각**씩 — 가장 좋은 품질부터 (버섯엔 품질1 + 품질0 재고 → '맛있는 피자' 먼저)
+    val before = gs.slicesOf(1)
     val eaten = gs.eat(1)
     check(eaten != null && eaten.label == "맛있는 피자", "토핑별 먹기 오류: ${eaten?.label}")
-    check(gs.pizzaCountOf(1) == before - 1, "먹은 후 개수 오류: ${gs.pizzaCountOf(1)} != ${before - 1}")
+    check(gs.slicesOf(1) == before - 1, "[P11] 조각을 하나만 먹지 않음: ${gs.slicesOf(1)} != ${before - 1}")
+    check(gs.pizzaCountOf(1) == 2, "[P11] 조각이 남았는데 판이 사라짐: ${gs.pizzaCountOf(1)}")
     val anyEaten = gs.eatBest()
     check(anyEaten != null, "eatBest 실패 (재고 있는데 null)")
-    check(gs.pizzaCount == PIZZA_CAP - 2, "eatBest 후 총 개수 오류: ${gs.pizzaCount}")
+    check(gs.pizzaCount == PIZZA_CAP, "[P11] 조각만 먹었는데 판 수가 줄음: ${gs.pizzaCount}")
+    check(gs.sliceCount == PIZZA_CAP * PizzaSlices.PER_PIZZA - 2, "[P11] 조각 두 개를 먹은 후 총합 오류: ${gs.sliceCount}")
+
+    // [P11] 한 판을 다 비우면 그 판이 배낭에서 사라진다
+    run {
+        val one = GameState()
+        one.reset("seoul")
+        one.addPizza(3, 2)
+        check(one.pizzaCount == 1 && one.slicesOf(3) == 8, "[P11] 한 판 = 8조각 초기화 오류")
+        var last: PizzaSlices.Bite? = null
+        repeat(8) { last = one.eatSlice(3) }
+        check(one.slicesOf(3) == 0 && one.pizzaCount == 0, "[P11] 8조각을 다 먹어도 판이 남음: ${one.pizzaCount}")
+        check(last != null && last.panFinished && one.eatSlice(3) == null, "[P11] 빈 판에서 조각을 더 먹음")
+        // [P11] 빠른 피자 등록 — 등록한 피자를 우선 먹고, 품절이면 제일 좋은 것으로 넘어간다
+        one.addPizza(0, 1); one.addPizza(6, 2)
+        one.setQuickPizza(6)
+        val q1 = one.eatQuick()
+        check(q1 != null && q1.pizzaId == 6 && q1.fromQuick, "[P11] 빠른 피자 우선 먹기 오류: ${q1?.pizzaId}")
+        repeat(7) { one.eatQuick() }
+        check(one.slicesOf(6) == 0, "[P11] 빠른 피자 8조각 소진 오류: ${one.slicesOf(6)}")
+        val q2 = one.eatQuick()
+        check(q2 != null && q2.pizzaId == 0 && !q2.fromQuick, "[P11] 품절 후 자동 선택 오류: ${q2?.pizzaId}")
+        one.setQuickPizza(-1)
+        check(one.quickPizza() == null, "[P11] 빠른 피자 해제 오류")
+        // [P11] 판째로 내주기 (사이드 스토리 피자 납품) — 한 판을 더 구워 두고 확인한다
+        one.addPizza(0, 1)
+        val pans = one.pizzaCountOf(0)
+        val slices = one.slicesOf(0)
+        check(pans == 2 && slices == 15, "[P11] 납품 검사 전제 오류: $pans 판 / $slices 조각")
+        check(one.removePanOf(0) && one.pizzaCountOf(0) == pans - 1 && one.slicesOf(0) == slices - 8,
+            "[P11] 판째로 내주기 오류: ${one.pizzaCountOf(0)}/${one.slicesOf(0)}")
+    }
+
+    // [P11] 피자 특성 — 모든 피자에 특성이 붙고, 특성이 조각 효과·굽기 난이도를 실제로 바꾼다
+    check(PizzaTraits.missing().isEmpty(), "[P11] 특성이 없는 피자: ${PizzaTraits.missing()}")
+    check(Pizzas.ALL.all { it.traits.size >= 2 }, "[P11] 특성이 2개 미만인 피자가 있음")
+    check(PizzaTrait.values().all { it.desc.isNotBlank() && it.chip.isNotBlank() }, "[P11] 특성 표시 데이터 누락")
+    run {
+        val plain = Pizzas.of(0)                       // 치즈: 고소(+2) · 쫀득(×1.08)
+        val h = PizzaSlices.sliceHunger(plain, PizzaQ.PERFECT)
+        check(h in 1..40, "[P11] 조각 배고픔 범위 오류: $h")
+        check(PizzaSlices.sliceHunger(plain, PizzaQ.PERFECT) > PizzaSlices.sliceHunger(plain, PizzaQ.BURNT),
+            "[P11] 품질별 조각 효과 순서 오류")
+        // 불맛(디아볼라)은 살짝 타도 효과가 깎이지 않는다
+        val smoky = Pizzas.of(10)
+        val seafood = Pizzas.of(14)
+        check(PizzaSlices.sliceHunger(smoky, PizzaQ.BURNT) > PizzaSlices.sliceHunger(seafood, PizzaQ.BURNT),
+            "[P11] burntMult(불맛/해물) 반영 오류")
+        // 굽기 난이도: 바삭(커서 느림) vs 든든(커서 빠름)
+        check(Pizzas.of(7).cursorSpeedEff() < Pizzas.of(7).cursorSpeed, "[P11] 바삭 특성의 커서 보정 오류")
+        check(Pizzas.of(19).perfectWEff() < Pizzas.of(19).perfectW, "[P11] 진미 특성의 판정 보정 오류")
+        check(Pizzas.of(7).perfectWEff() > Pizzas.of(7).perfectW, "[P11] 신선 특성의 판정 보정 오류")
+    }
 
     // 화덕피자 재고/계열 집계 + 세이브 왕복
     check(gs.pizzas.size == Pizzas.ALL.size * 3, "피자 배열 크기 오류: ${gs.pizzas.size}")
+    check(gs.pizzaSlices.size == Pizzas.ALL.size * 3, "[P11] 조각 배열 크기 오류: ${gs.pizzaSlices.size}")
     for (i in gs.pizzas.indices) gs.pizzas[i] = 0
+    for (i in gs.pizzaSlices.indices) gs.pizzaSlices[i] = 0
     check(gs.addPizza(9, 2) && gs.addPizza(11, 0) && gs.addPizza(3, 1), "화덕/일반 피자 추가 오류")
     check(gs.pizzaCountOfKind(PizzaKind.OVEN) == 2 && gs.pizzaCountOfKind(PizzaKind.REGULAR) == 1, "계열별 집계 오류")
     val bestId = gs.eatBest()
@@ -432,12 +492,23 @@ fun main() {
     try {
         val roundTrip = GameState.fromJSON(gs.toJSON())
         check(roundTrip.pizzas.contentEquals(gs.pizzas), "피자 세이브 왕복 오류")
+        // [P11] 조각 재고 + 빠른 피자 등록도 세이브를 탄다
+        check(roundTrip.pizzaSlices.contentEquals(gs.pizzaSlices), "[P11] 조각 세이브 왕복 오류")
+        check(gs.toJSON().optInt("v") == 6, "[P11] 세이브 버전이 v6이 아님")
+        gs.setQuickPizza(9)
+        val quickTrip = GameState.fromJSON(gs.toJSON())
+        check(quickTrip.quickPizzaId == 9 && quickTrip.quickPizza()?.id == 9, "[P11] 빠른 피자 세이브 왕복 오류")
+        gs.setQuickPizza(-1)
         val legacy = gs.toJSON()
         legacy.put("v", 3)
         legacy.put("pizzas", org.json.JSONArray(listOf(1, 0, 2, 0, 0, 0, 0, 3, 0)))
         val migrated = GameState.fromJSON(legacy)
         check(migrated.pizzaCountOf(0) == 3 && migrated.pizzaCountOf(2, 1) == 3 && migrated.pizzaCountOfKind(PizzaKind.OVEN) == 0,
             "v3 세이브 피자 마이그레이션 오류")
+        // [P11] 조각 필드가 없는 옛 세이브는 "판 1개 = 8조각"으로 채워진다 (피자가 사라지면 안 된다)
+        check(migrated.sliceCount == migrated.pizzaCount * PizzaSlices.PER_PIZZA,
+            "[P11] 옛 세이브 조각 마이그레이션 오류: ${migrated.sliceCount} / ${migrated.pizzaCount}")
+        check(migrated.quickPizzaId == -1, "[P11] 옛 세이브의 빠른 피자 기본값 오류")
         // [P07] 업데이트 호환: 피자 12종 시절(v4, 36칸) 세이브 → 20종(60칸)으로 읽어도 재고가 그대로여야 한다
         val v4 = gs.toJSON()
         v4.put("v", 4)
@@ -446,6 +517,7 @@ fun main() {
         check(updated.pizzas.size == Pizzas.ALL.size * 3 && updated.pizzaCountOf(0, 2) == 1 && updated.pizzaCountOf(9, 2) == 4,
             "[P07] 기존 세이브(12종) 피자 재고 보존 오류")
         check((12..19).all { updated.pizzaCountOf(it) == 0 }, "[P07] 신규 특산 피자 재고가 0이 아님")
+        check(updated.slicesOf(9) == 4 * PizzaSlices.PER_PIZZA, "[P11] v4 세이브 조각 변환 오류: ${updated.slicesOf(9)}")
     } catch (e: RuntimeException) {
         println("SKIP: JSON 검사 생략 (android.jar 스텁) — ${e.message}")
     }

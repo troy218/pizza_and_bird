@@ -2077,20 +2077,23 @@ class WorldScene(
     /**
      * 동네 사람 잡담 — 이 지역, 이 자리에서만 하는 말이다.
      *
-     *  - 이웃 주민(`resident`)은 [P08] 조건부 대사(지역 소개 + 장별 관찰 예절 + 계절/날씨/밤)
-     *    에 그 사람 자신의 한마디를 잇는다.
-     *  - 고유 캐릭터는 자기 자리(호숫가 데크·갈대밭·시장 골목…)에 어울리는 이야기를 한다.
+     *  - [P08] 조건부 대사는 **사람의 목소리(kind)** 로 고른다 — 꼬마는 질문으로, 어르신은 회상으로,
+     *    주민은 사건으로 말한다 (docs/STORY.md §1.2 규칙 4). 지역 소개·장별 예절(storyHint)은
+     *    동네 주민(VILLAGER) 목소리가 담당하고, 그 사람 자신의 한마디를 뒤에 잇는다.
+     *  - 보리 박사(광릉숲)와 사진용품점(서울)은 각자 `talkProfessor`/`talkShop` 전용 대화를 한다.
      *  - 보고할 메인 기록이 있는데 보리 박사가 다른 지역에 있으면 🚲 이동 택지를 붙여 준다
      *    (박사는 광릉숲에만 산다 — `NpcRoster`).
      */
     private fun talkNeighbor(npc: Npc) {
         val person = npc.person
         val own = person.lines[rnd.nextInt(person.lines.size)]
-        val text = if (person.resident) {
-            "${Dialogues.villager(SideStories.ctx(this))}\n\n\"$own\""
-        } else {
-            "\"$own\""
+        val ctx = SideStories.ctx(this)
+        val voice = when (person.kind) {
+            NpcKind.KID -> Dialogues.kid(ctx)
+            NpcKind.ELDER -> Dialogues.elder(ctx)
+            else -> Dialogues.villager(ctx)
         }
+        val text = "$voice\n\n\"$own\""
         val choices = buildList {
             add(DialogOverlay.Choice(if (person.resident) "기억할게요" else "고마워요"))
             if (professorTripNeeded()) {
@@ -2460,8 +2463,12 @@ class WorldScene(
             showQuestLog()
             return
         }
-        if (input.justEat) {
-            quickEat()
+        if (input.justEatPick) {          // [P11] 🍕 길게 누르기 → 빠른 피자 창
+            openQuickPizza()
+            return
+        }
+        if (input.justEat) {              // [P11] 등록한 빠른 피자 한 조각
+            quickEatSlice()
             return
         }
         if (input.justPunch) {
@@ -2671,17 +2678,8 @@ class WorldScene(
         }
     }
 
-    private fun quickEat() {
-        val pid = state.eatBest()
-        if (pid == null) {
-            game.toast("피자가 없어요!")
-            game.sfx(Audio.Sfx.FAIL, 0.45f)
-        } else {
-            val p = Pizzas.of(pid)
-            game.toast("냠냠! ${p.emoji} ${p.fullName}")
-            game.sfx(Audio.Sfx.EAT, 0.9f)
-        }
-    }
+    // [P11] 간식(🍕) 처리는 `Scene.quickEatSlice()` · `Scene.openQuickPizza()`(QuickPizzaOverlay.kt)로
+    //       옮겼다 — 월드·집·랜드마크가 같은 규칙(등록한 빠른 피자 우선, 한 조각씩)을 쓰도록 한 곳에 모았다.
 
     // -------------------------------------------------------------------
     // 그리기

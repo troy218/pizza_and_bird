@@ -1217,29 +1217,64 @@ class Hud(private val game: Game) {
             }
         }
 
-        // 간식 (🍕) — 피자 개수 표시
-        val pizzaN = game.state.pizzaCount
+        // 간식 (🍕) — [P11] 남은 **조각** 수 표시 (한 판 = 8조각)
+        val sliceN = game.state.sliceCount
         drawArcButton(
             c, eatCx, eatCy, eatR,
-            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (pizzaN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
+            if (Ctrl.EAT in active) 0xFFD99B26.toInt() else if (sliceN > 0) 0xFFF2B63C.toInt() else Color.argb(200, 90, 84, 100),
             Ctrl.EAT in active
         )
         val pz = game.assets.pizzaIcon
         val psz = dp(20f)
         c.drawBitmap(pz, null, RectF(eatCx - psz / 2, eatCy - psz / 2, eatCx + psz / 2, eatCy + psz / 2), game.assets.sprPaint)
-        if (pizzaN > 0) {
+
+        // [P11] 빠른 피자를 등록해 두면 버튼 왼아래에 그 피자 아이콘을 작게 달아 둔다
+        game.state.quickPizza()?.let { quick ->
+            val qx = eatCx - eatR * 0.66f
+            val qy = eatCy + eatR * 0.66f
+            val qr = dp(8.5f)
+            fill.color = Color.argb(80, 20, 12, 8)
+            c.drawCircle(qx, qy + dp(1.5f), qr, fill)
+            fill.color = 0xFFF8EFDC.toInt()
+            c.drawCircle(qx, qy, qr, fill)
+            stroke.color = UiKit.GOLD
+            stroke.strokeWidth = dp(1.4f)
+            c.drawCircle(qx, qy, qr, stroke)
+            val art = game.assets.pizzaArt(quick.id)
+            val asz = qr * 1.45f
+            c.drawBitmap(art, null, RectF(qx - asz / 2, qy - asz / 2, qx + asz / 2, qy + asz / 2), game.assets.sprPaint)
+        }
+
+        if (sliceN > 0) {
             val bx = eatCx + eatR * 0.62f
             val by = eatCy - eatR * 0.62f
+            val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
+            val nt = "$sliceN"
+            // 조각 수는 두 자리(최대 8×배낭)까지 가므로 원이 아니라 알약으로 늘린다
+            val bh = dp(8.5f)
+            val bw = maxOf(bh, np.measureText(nt) / 2f + dp(5f))
+            tmpRect.set(bx - bw, by - bh + dp(1.5f), bx + bw, by + bh + dp(1.5f))
             fill.color = Color.argb(80, 20, 12, 8)
-            c.drawCircle(bx, by + dp(1.5f), dp(8.5f), fill)
+            c.drawRoundRect(tmpRect, bh, bh, fill)
+            tmpRect.set(bx - bw, by - bh, bx + bw, by + bh)
             fill.color = 0xFF6B4F35.toInt()
-            c.drawCircle(bx, by, dp(8.5f), fill)
+            c.drawRoundRect(tmpRect, bh, bh, fill)
             stroke.color = 0xFFF2D06B.toInt()
             stroke.strokeWidth = dp(1.4f)
-            c.drawCircle(bx, by, dp(8.5f), stroke)
-            val np = Type.paintAt(10f, true, 0.02f, Type.CREAM)
-            val nt = "$pizzaN"
+            c.drawRoundRect(tmpRect, bh, bh, stroke)
             c.drawText(nt, bx - np.measureText(nt) / 2, Type.midBaseline(np, by), np)
+        }
+
+        // [P11] 피자 버튼 길게 누르기 — 링이 가득 차면 '빠른 피자 창'이 열린다
+        run {
+            val ht = game.input.eatHoldT
+            if (ht > 0.02f) {
+                val rr = eatR + dp(5f)
+                tmpRect.set(eatCx - rr, eatCy - rr, eatCx + rr, eatCy + rr)
+                stroke.color = Color.argb((140 + 100 * ht).toInt().coerceIn(0, 255), 255, 236, 190)
+                stroke.strokeWidth = dp(3f)
+                c.drawArc(tmpRect, -90f, 360f * ht, false, stroke)
+            }
         }
 
         // 펀치 (👊) — 근처 고양이를 날려 보낸다. 사거리 안이면 붉은 펄스.
@@ -1688,12 +1723,16 @@ class Hud(private val game: Game) {
         c: Canvas, ox: Float, oy: Float, scale: Float, glass: Float, showNames: Boolean, s: GameState
     ) {
         val dot = maxOf(dp(2.35f), glass * 0.040f)
+        // 지역마다 하나씩 놓인 랜드마크 — 방문한 지역은 작은 배지로 크게 표시한다
+        val bd = maxOf(dp(9.4f), glass * 0.13f)
         // 매입한 집은 여러 지역에 있을 수 있다. 정착지 하나만 표시하면 이전 집을
         // 찾아 다시 들어갈 수 없으므로, 미니맵에도 모든 집 현관을 그린다.
         val ownedHomeMarks = ArrayList<Pair<Float, Float>>()
         var curX = 0f
         var curY = 0f
         var hasCur = false
+        // 라벨은 배지가 모두 깔린 뒤 그리기 위해 모아 둔다
+        val lateLabels = ArrayList<Triple<RegionDef, Float, Float>>()
 
         for (reg in Regions.ALL) {
             val x = ox + reg.mmX * scale
@@ -1704,18 +1743,33 @@ class Hud(private val game: Game) {
             if (hasOwnedHome) ownedHomeMarks.add(x to y)
             if (isCurrent) { curX = x; curY = y; hasCur = true }
 
+            val lm = Landmarks.forRegion(reg.id)
             if (visited && !isCurrent) {
-                fx.style = Paint.Style.FILL
-                fx.shader = null
-                fx.color = 0xFFF4E8CC.toInt()
-                c.drawCircle(x, y, dot + dp(0.85f), fx)
-                fx.color = analogKindColor(reg.kind)
-                c.drawCircle(x, y, dot, fx)
-                ink.style = Paint.Style.STROKE
-                ink.strokeWidth = dp(0.7f)
-                ink.color = 0xFF3A281A.toInt()
-                ink.pathEffect = null
-                c.drawCircle(x, y, dot, ink)
+                if (lm != null) {
+                    // 랜드마크 배지: 크림 원 + 아이콘 + 잉크 테두리
+                    fx.style = Paint.Style.FILL
+                    fx.shader = null
+                    fx.color = Color.argb(238, 244, 232, 204)
+                    c.drawCircle(x, y, bd / 2f, fx)
+                    UiKit.iconCenter(c, game, lm.emoji, x, y, bd * 0.66f)
+                    ink.style = Paint.Style.STROKE
+                    ink.strokeWidth = dp(0.8f)
+                    ink.color = 0xFF3A281A.toInt()
+                    ink.pathEffect = null
+                    c.drawCircle(x, y, bd / 2f, ink)
+                } else {
+                    fx.style = Paint.Style.FILL
+                    fx.shader = null
+                    fx.color = 0xFFF4E8CC.toInt()
+                    c.drawCircle(x, y, dot + dp(0.85f), fx)
+                    fx.color = analogKindColor(reg.kind)
+                    c.drawCircle(x, y, dot, fx)
+                    ink.style = Paint.Style.STROKE
+                    ink.strokeWidth = dp(0.7f)
+                    ink.color = 0xFF3A281A.toInt()
+                    ink.pathEffect = null
+                    c.drawCircle(x, y, dot, ink)
+                }
             } else if (!visited && !isCurrent) {
                 ink.style = Paint.Style.STROKE
                 ink.strokeWidth = dp(0.75f)
@@ -1724,46 +1778,67 @@ class Hud(private val game: Game) {
                 c.drawCircle(x, y, dot * 0.68f, ink)
             }
 
+            // 라벨은 배지가 다 깔린 뒤 마지막에 — 뒤 지역 배지에 눌리지 않게 한다
             if (showNames && (isCurrent || hasOwnedHome)) {
-                val nm = reg.name
-                val ip = Type.paintAt(8f, true, 0.01f, if (isCurrent) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt())
-                val tw = ip.measureText(nm)
-                val ty = y + dot + dp(9f)
-                fx.style = Paint.Style.FILL
-                fx.shader = null
-                fx.color = Color.argb(210, 244, 232, 204)
-                tmpRect.set(x - tw / 2f - dp(2f), ty - dp(8f), x + tw / 2f + dp(2f), ty + dp(2.5f))
-                c.drawRoundRect(tmpRect, dp(2f), dp(2f), fx)
-                c.drawText(nm, x - tw / 2f, ty, ip)
+                lateLabels.add(Triple(reg, x, y))
             }
         }
 
         if (hasCur) {
+            val curLm = Landmarks.forRegion(s.region)
+            val r = bd / 2f
             val phase = (game.time * 0.62f) % 1f
-            val pr = dot * 1.3f + dp(1.4f) + phase * dp(6.2f)
+            val pr = (if (curLm != null) r + dp(2.4f) else dot * 1.3f + dp(1.4f)) + phase * dp(6.2f)
             ink.style = Paint.Style.STROKE
             ink.strokeWidth = dp(1.1f)
             ink.color = Color.argb(((1f - phase) * 150f).toInt(), 176, 46, 36)
             ink.pathEffect = null
             c.drawCircle(curX, curY, pr, ink)
 
-            val rr = dot * 1.32f
             fx.style = Paint.Style.FILL
             fx.shader = null
-            fx.color = 0xFFF4E8CC.toInt()
-            c.drawCircle(curX, curY, rr + dp(0.8f), fx)
-            fx.color = 0xFFC63A2E.toInt()
-            c.drawCircle(curX, curY, rr, fx)
-            fx.color = Color.argb(210, 255, 230, 214)
-            c.drawCircle(curX - dp(0.45f), curY - dp(0.5f), dp(1.05f), fx)
+            if (curLm != null) {
+                // 랜드마크 배지 + 빨간 고리 — "지금 여기"를 아이콘 위에 얹지 않고 둘레에 둔다
+                fx.color = Color.argb(215, 246, 236, 210)
+                c.drawCircle(curX, curY, r + dp(2f), fx)
+                fx.color = 0xFFC63A2E.toInt()
+                c.drawCircle(curX, curY, r + dp(1f), fx)
+                fx.color = Color.argb(250, 244, 232, 204)
+                c.drawCircle(curX, curY, r, fx)
+                UiKit.iconCenter(c, game, curLm.emoji, curX, curY, bd * 0.66f)
+            } else {
+                val rr = dot * 1.32f
+                fx.color = 0xFFF4E8CC.toInt()
+                c.drawCircle(curX, curY, rr + dp(0.8f), fx)
+                fx.color = 0xFFC63A2E.toInt()
+                c.drawCircle(curX, curY, rr, fx)
+                fx.color = Color.argb(210, 255, 230, 214)
+                c.drawCircle(curX - dp(0.45f), curY - dp(0.5f), dp(1.05f), fx)
+            }
+        }
+
+        // 모아 둔 라벨 — 현재 위치 배지까지 다 깔린 다음 그린다
+        for ((reg, lx, ly) in lateLabels) {
+            val nm = reg.name
+            val isCur = reg.id == s.region
+            val ip = Type.paintAt(8f, true, 0.01f, if (isCur) 0xFFB4332A.toInt() else 0xFF3A2A1C.toInt())
+            val tw = ip.measureText(nm)
+            val markR = if (reg.id in s.visited || isCur) bd / 2f else dot
+            val ty = ly + markR + dp(9f)
+            fx.style = Paint.Style.FILL
+            fx.shader = null
+            fx.color = Color.argb(210, 244, 232, 204)
+            tmpRect.set(lx - tw / 2f - dp(2f), ty - dp(8f), lx + tw / 2f + dp(2f), ty + dp(2.5f))
+            c.drawRoundRect(tmpRect, dp(2f), dp(2f), fx)
+            c.drawText(nm, lx - tw / 2f, ty, ip)
         }
 
         for ((homeX, homeY) in ownedHomeMarks) {
             val hw = dp(7.2f)
             val above = if (hasCur && kotlin.math.abs(homeX - curX) < dp(4f) && kotlin.math.abs(homeY - curY) < dp(4f)) {
-                dot * 1.3f + dp(8f)
+                bd / 2f + dp(9f)
             } else {
-                dot + dp(2f)
+                bd / 2f + dp(2f)
             }
             drawInkHouse(c, homeX, homeY - above, hw)
         }
@@ -1776,16 +1851,12 @@ class Hud(private val game: Game) {
                 val x = ox + reg.mmX * scale
                 val y = oy + reg.mmY * scale
                 val pulse = (game.time * 1.1f) % 1f
-                fx.style = Paint.Style.FILL
-                fx.shader = null
-                fx.color = 0xFFF2D06B.toInt()
-                c.drawCircle(x, y, dot * 1.15f, fx)
                 ink.style = Paint.Style.STROKE
                 ink.strokeWidth = dp(1.1f)
                 ink.color = Color.argb(((1f - pulse) * 170f).toInt(), 242, 182, 60)
                 ink.pathEffect = null
-                c.drawCircle(x, y, dot + dp(1.2f) + pulse * dp(5.5f), ink)
-                UiKit.iconCenter(c, game, "star", x, y, dp(9f))
+                c.drawCircle(x, y, bd / 2f + dp(1.2f) + pulse * dp(5.5f), ink)
+                UiKit.iconCenter(c, game, "star", x, y - bd / 2f - dp(4.5f), dp(9f))
             }
         }
     }

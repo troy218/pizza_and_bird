@@ -44,6 +44,7 @@ v0.4.0은 **수첩의 뒷장** — 완결 이후에도 세계가 계속 살아 �
 | 스토리 강화 (사이드 스토리, 계절 대사) | **P8** |
 | 태블릿/폴더블 대응, 접근성 | **P9** |
 | 플레이스토어 출시 | **P10** |
+| 피자 조각(8조각)·빠른 피자 등록·피자 특성 | **P11** (릴리스 후속) |
 
 ---
 
@@ -61,6 +62,7 @@ v0.4.0은 **수첩의 뒷장** — 완결 이후에도 세계가 계속 살아 �
 | **P8** | 사이드 스토리 & 대사 시스템 | L(글 중심) | **W2** (P1 필요) | `SideStories.kt`, `Dialogues.kt`, `docs/STORY.md` | WorldScene.kt(`talkTo`) |
 | **P9** | 태블릿/폴더블 & 글자 크기 대응 | M | **W1** | (없음 — 패치 전용) | Game.kt, Input.kt, Hud.kt, UiKit.kt, Type.kt, AndroidManifest.xml, Overlays.kt(설정 탭) |
 | **P10** | 출시 패키지 (스토어·릴리스 자동화) | M | **W1** 착수 / **W3** 마감 | `.github/workflows/release-aab.yml`, `store/*`, `docs/RELEASE.md` | app/build.gradle.kts |
+| **P11** ✅ | 피자 조각·빠른 피자 등록·피자 특성 | M | 릴리스 후속 | `PizzaTraits.kt`, `PizzaSlices.kt`, `QuickPizzaOverlay.kt`, `tools/PizzaTest.kt`, `tools/jvm_stub/Json.kt` | GameState.kt(v6 저장), Input.kt, Hud.kt, Overlays.kt, World/Home/Landmark Scene.kt, SideStories.kt — **Data.kt 는 무수정** |
 
 규모: S = 반나절~1일 / M = 1~2일 / L = 2~4일 (에이전트 1세션 기준 대략치)
 
@@ -156,6 +158,7 @@ W3 (모든 기능이 main에 들어간 뒤)
 | [P08_side_stories.md](P08_side_stories.md) | 사이드 스토리 & 대사 시스템 |
 | [P09_display.md](P09_display.md) | 태블릿/폴더블 & 글자 크기 |
 | [P10_release.md](P10_release.md) | 출시 패키지 |
+| [P11_pizza_slices_traits.md](P11_pizza_slices_traits.md) | 피자 조각·빠른 피자 등록·피자 특성 ✅ |
 
 ---
 
