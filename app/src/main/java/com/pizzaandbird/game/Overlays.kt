@@ -722,7 +722,9 @@ class MenuOverlay(
     /** 가방에 보이는 아이템 한 종류 — 한 슬롯에 수량으로 쌓인다 (두라구 인벤토리식). */
     private class BagItem(
         val name: String, val qty: Int, val unit: String, val note: String,
-        val emoji: String, val tip: String
+        val emoji: String, val tip: String,
+        /** UiKit SVG 토큰이 있으면 이모지 대신 이 아이콘을 그린다 (Inventory.kt Items 연동) */
+        val token: String? = null
     )
 
     private fun bagItems(s: GameState): List<BagItem> {
@@ -747,6 +749,12 @@ class MenuOverlay(
             val n = herbs[h.id] ?: 0
             if (n <= 0) continue
             out.add(BagItem(h.name, n, "개", h.note, h.emoji, h.note))
+        }
+        // 일반 인벤토리 (듀랑고식 수량 저장 — Inventory.kt Items 카탈로그, GameState.inventory)
+        for (def in Items.ALL) {
+            val n = s.itemCount(def.id)
+            if (n <= 0) continue
+            out.add(BagItem(def.name, n, "개", def.desc, "", def.desc, def.icon))
         }
         return out
     }
@@ -884,9 +892,13 @@ class MenuOverlay(
             val r = RectF(x, y, x + cellW, y + cellH - dp(scene, 16f))
             cuteCard(c, r, UiKit.CARD_HI, 0xFFD8BE8F.toInt(), 1.3f)
             val it = shown[i]
-            // 아이콘 (이모지)
-            textP.textSize = textDp(scene, 16f)
-            UiKit.drawIconText(c, g, it.emoji, r.centerX() - textP.measureText(it.emoji) / 2f, r.centerY() + dp(scene, 5.5f), textP)
+            // 아이콘 — 인벤토리 아이템은 SVG 토큰, 나머지는 이모지
+            if (it.token != null) {
+                UiKit.iconCenter(c, g, it.token, r.centerX(), r.centerY() + dp(scene, 1f), cellW * 0.52f)
+            } else {
+                textP.textSize = textDp(scene, 16f)
+                UiKit.drawIconText(c, g, it.emoji, r.centerX() - textP.measureText(it.emoji) / 2f, r.centerY() + dp(scene, 5.5f), textP)
+            }
             // 수량 배지 — 우하단
             val qTxt = "x${it.qty}"
             textP.textSize = textDp(scene, 8.5f)
