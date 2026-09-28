@@ -15,8 +15,9 @@
 게임의 실제 렌더링 코드(Assets / Maps / Roads / Scenes / WorldScene / HomeScene / Hud /
 Overlays)를 **한 글자도 수정하지 않고** 안드로이드 없이 JVM에서 실행해
 모든 화면의 스크린샷을 PNG로 뽑는다. android.graphics 스텁(Java2D 구현)이
-android API 시그니처를 1:1로 제공한다. (MainActivity.kt / GameView.kt만 제외 —
-SurfaceView/Activity 의존이라 프리뷰 불필요)
+android API 시그니처를 1:1로 제공한다. (MainActivity.kt / GameView.kt / PostProcessing.kt 제외 —
+SurfaceView/Activity 의존이라 프리뷰 불필요하고, PostProcessing은 ColorMatrix·RenderEffect·RenderScript
+등 Android 전용 API만 쓰는 아직 미연결 파일이라 스텁이 없다)
 
 ### 구조
 

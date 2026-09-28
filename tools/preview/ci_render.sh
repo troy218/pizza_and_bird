@@ -62,7 +62,8 @@ fi
 STATUS="ok"
 if [ -x "$KCBIN" ]; then
   SRCS=$(find app/src/main/java/com/pizzaandbird/game -name '*.kt' \
-    ! -name 'MainActivity.kt' ! -name 'GameView.kt')
+    ! -name 'MainActivity.kt' ! -name 'GameView.kt' \
+    ! -name 'PostProcessing.kt')
   echo ">> 프리뷰 컴파일 (게임 소스 + 스텁)..." >> preview/build.log
   if "$KCBIN" tools/preview/src/*.kt $SRCS \
       -d "$OUT/classes-preview" -jvm-target 17 > "$OUT/render.log" 2>&1; then
