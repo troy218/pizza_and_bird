@@ -17,6 +17,7 @@ build/
 
 # 그래픽 프리뷰 파이프라인 산출물 (JVM 스크린샷 파이프라인)
 /tools/preview/out/
+/preview_out/
 /tools/preview/fonts/
 /tools/preview/.kotlinc/
 

@@ -237,7 +237,10 @@ java -cp "tools/preview/out/classes-perf:$KOTLIN_HOME/lib/kotlin-stdlib.jar" \
 
 | 파일 | 내용 |
 |---|---|
-| `01_tiles.png` | 전체 타일 아틀라스 (변형 포함) |
+| `01_tiles.png` | 전체 타일 아틀라스 — 변형이 많은 타일(나무 39종 등)은 앞쪽 6종만 겹쳐 보여 주고 라벨에 `×39` 로 전체 개수를 적는다 |
+| `01b_trees.png` | **나무 도감** — T.TREE 변형 전부를 잔디 위에 3배로 뽑고 종 이름·수형(크기) 표기 |
+| `06b~06d_world_seoul_*.png` | 서울의 여름·가을·겨울 (봄은 `06`) — 계절마다 어떤 수종으로 갈아입는지 |
+| `12b_world_jeju_autumn.png` | 제주의 가을 |
 | `02_sprites.png` | 플레이어/자전거/NPC/고양이/장식/아이콘 |
 | `02b_character_hd.png` | **캐릭터 화질 비교 시트** — 32px 도트×8 / HD(96px) 축소 / HD 1:1 / 레벨업용 256px 만세 / HD 걷기·자전거 |
 | `03_birds.png` | 새 전체 컬렉션 |

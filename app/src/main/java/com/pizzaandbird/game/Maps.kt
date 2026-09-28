@@ -199,6 +199,15 @@ class GameMap(
         mapStyle.natureArt.variant(T.ROCK, x, y, region.id)
             ?.coerceIn(0, PropLooks.ROCK_COUNT - 1) ?: 0
 
+    /**
+     * 이 칸 나무가 지금 어떤 변형(수종)으로 그려지는지 — 지역 수종 + 계절을 함께 반영한다.
+     * 눈 쌓임 연출([Fx.drawSnowOnTile])이 나무 크기에 맞게 얹히도록 좌표를 얻는 데 쓴다.
+     */
+    fun treeVariantAt(a: Assets, x: Int, y: Int): Int {
+        if (t(x, y) != T.TREE) return 0
+        return a.seasonTreeIndex(artVariant(a, T.TREE, x, y), season, x, y)
+    }
+
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
     /** 이정표 표시 기준점(지도 렌더 좌표, 32px 타일). NaN이면 항상 보인다. */

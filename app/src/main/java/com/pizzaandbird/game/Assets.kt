@@ -14,7 +14,12 @@ import android.graphics.Shader
 import android.util.LruCache
 import java.util.Random
 import java.util.concurrent.LinkedBlockingQueue
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.math.sqrt
 
 // 살아있는 풀 리그 상수 (파일 최상위 — 클래스 본문 안에서는 const val 을 쓸 수 없다)
 private const val GRASS_KINDS = 5
@@ -29,8 +34,12 @@ private const val GRASS_CURL_UNIT = 1.25f
 const val BIKE_FRAMES = 8
 
 // T.TREE 변형 인덱스 — buildTiles() 의 추가 순서와 일치해야 한다.
-// 기본 0..3 (참나무·소나무·벚나무·단풍) + extraTreeArt 8종 (4..11) + 겨울 전용 3종 (12..14)
-// + 지역 수종 4종 (15..18).
+//   0..3   기본 4종 (참나무·소나무·벚나무·단풍)
+//   4..11  extraTreeArt 8종 (버드나무·대나무·동백·곰솔·자작나무·은행·과수원·전나무)
+//   12..14 계절 전용 3종 (앙상한 나무·눈 덮인 활엽수·눈 덮인 소나무)
+//   15..36 speciesTreeArt — 한반도에 실제로 서식하는 나무 21종 + 메타세콰이아(가을)
+//   37..38 계절 전용 2종 (눈 덮인 가문비나무·눈 덮인 진달래)
+//   39..42 regionalTreeArt — 지역 가로수·특수 수종 4종 (느티나무 가로수·메타세콰이어 원뿔·제주 야자수·오리나무)
 private const val TREE_OAK = 0
 private const val TREE_PINE = 1
 private const val TREE_CHERRY = 2
@@ -46,11 +55,109 @@ private const val TREE_FIR = 11
 private const val TREE_BARE = 12
 private const val TREE_SNOWLEAF = 13
 private const val TREE_SNOWPINE = 14
-private const val TREE_ZELKOVA = 15
-private const val TREE_METASEQUOIA = 16
-private const val TREE_PALM = 17
-private const val TREE_ASPEN = 18
+// ── 실제 나무 21종 (speciesTreeArt) ────────────────────────────────────────
+private const val TREE_SPRUCE = 15          // 가문비나무 — 키 큰 침엽, 처지는 가지층
+private const val TREE_KPINE = 16           // 잣나무 — 연한 청록색 긴 침엽, 트인 수관
+private const val TREE_YEW = 17             // 주목 — 납작한 짙은 수관 + 붉은 가시아
+private const val TREE_JUNIPER = 18         // 노간주나무 — 바람에 비틀린 작은 침엽
+private const val TREE_MACHILUS = 19        // 후박나무 — 남해안 상록, 녹색 새순
+private const val TREE_GREENOAK = 20        // 붉가시나무 — 남부 상록참나무
+private const val TREE_MONGOAK = 21         // 신갈나무 — 거친 나무껍질의 큰 활엽
+private const val TREE_ACORNOAK = 22        // 상수리나무 — 갈라진 잎 + 도토리
+private const val TREE_BIGLEAF = 23         // 떡갈나무 — 한반도 최대 잎, 낮고 넓은 수관
+private const val TREE_ZELKOVA = 24         // 느티나무 — 마을 당산나무, 곧게 큰 원통형
+private const val TREE_ASH = 25             // 물푸레나무 — 마주난 가지의 키 큰 활엽
+private const val TREE_CHESTNUT = 26        // 밤나무 — 넓은 수관 + 밤송이
+private const val TREE_ACACIA = 27          // 아까시나무 — 성긴 겹잎 + 흰 꽃차례
+private const val TREE_PERSIMMON = 28       // 감나무 — 꼬부란 줄기 + 주황 열매
+private const val TREE_WINGNUT = 29         // 물오리나무 — 강변, 긴 깃모양 잎
+private const val TREE_PLANETREE = 30       // 회화나무(플라타너스) — 도심 가로수
+private const val TREE_METASEQUOIA = 31     // 메타세콰이아 — 아주 곧고 키 큰 낙침
+private const val TREE_WILDCHERRY = 32      // 산벚나무 — 작은 야생 벚꽃
+private const val TREE_AZALEA = 33          // 진달래 — 분홍 꽃이 덮이는 작은 관목
+private const val TREE_CITRUS = 34          // 감귤나무 — 제주 상록 + 귤 열매
+private const val TREE_PALM = 35            // 야자나무 — 가는 줄기에 부채꼴 잎
+private const val TREE_METASEQUOIA_A = 36   // 메타세콰이아(가을) — 잎이 붉게 물듦
+// ── 계절 전용 ────────────────────────────────────────────────────────────
+private const val TREE_SNOWSPRUCE = 37      // 눈 덮인 가문비나무
+private const val TREE_SNOWBUSH = 38        // 눈 덮인 진달래
 
+/** T.TREE 변형 한 종의 정체 — [treeKinds] 의 인덱스는 위 TREE_* 상수와 같다. */
+data class TreeKind(
+    /** 사람이 읽는 이름 (프리뷰 나무 도감·주석용) */
+    val name: String,
+    /** 수형 — 타일 안에서 실제로 차지하는 크기/실루엣 요약 */
+    val form: String,
+    /** 상록수 — 사계절 같은 그림을 쓰고 겨울에도 잎이 남아 있다 */
+    val evergreen: Boolean,
+    /**
+     * 수관(잎이 달린 부분)의 타일 내 범위 — 가운데 점(crownX, crownY)과 반지름.
+     * 눈이 쌓이는 연출([Fx.drawSnowOnTile])이 나무 크기에 맞는 자리에 얹히고,
+     * "이 나무가 타일에서 얼마나 큰가" 를 숫자로 남긴다.
+     */
+    val crownX: Float,
+    val crownY: Float,
+    val crownRx: Float,
+    val crownRy: Float
+)
+
+/**
+ * T.TREE 변형 39종의 명찰. [Assets.buildTiles] 에서 T.TREE 아트를 추가하는 순서와
+ * 1:1로 맞춰야 하며, [Assets.seasonTreeIndex] 가 계절별로 갈아입을 때 쓴다.
+ *
+ * `form` 은 한 타일(32px) 안에서 그 나무가 차지하는 크기를 뜻한다 —
+ * "아주 키 큰"은 타일 위쪽까지 꽉 차고, "작은"은 1/2 타일 높이의 관목이다.
+ */
+val treeKinds: List<TreeKind> = listOf(
+    TreeKind("참나무", "중형 활엽", false, 16f, 11f, 12f, 11f),
+    TreeKind("소나무", "중형 침엽", true, 16f, 9f, 13f, 9f),
+    TreeKind("벚나무", "중형 활엽", false, 16f, 9f, 10f, 8f),
+    TreeKind("단풍나무", "중형 활엽", false, 16f, 9f, 11f, 9f),
+    TreeKind("버드나무", "큰 활엽", false, 16f, 9f, 10f, 8f),
+    TreeKind("대나무", "키 큰 죽관", true, 16f, 12f, 7f, 10f),
+    TreeKind("동백나무", "중형 상록", true, 16f, 11f, 11f, 9f),
+    TreeKind("곰솔", "중형 침엽", true, 16f, 11f, 13f, 11f),
+    TreeKind("자작나무", "중형 활엽", false, 16f, 9f, 8f, 7f),
+    TreeKind("은행나무", "큰 활엽", false, 16f, 10f, 11f, 9f),
+    TreeKind("과수원", "중형 활엽", false, 16f, 10f, 10f, 8f),
+    TreeKind("전나무", "큰 침엽", true, 16f, 10f, 13f, 10f),
+    TreeKind("겨울 나무", "앙상한 가지", false, 16f, 7f, 11f, 7f),
+    TreeKind("눈 덮인 나무", "앙상한 가지", false, 16f, 7f, 11f, 7f),
+    TreeKind("눈 덮인 소나무", "중형 침엽", true, 16f, 9f, 13f, 9f),
+    TreeKind("가문비나무", "아주 키 큰 침엽", true, 16f, 10f, 11f, 10f),
+    TreeKind("잣나무", "큰 침엽", true, 16f, 9f, 9f, 7f),
+    TreeKind("주목", "넓고 납작한 상록", true, 16f, 12f, 12f, 8f),
+    TreeKind("노간주나무", "비틀린 작은 침엽", true, 16f, 12f, 8f, 7f),
+    TreeKind("후박나무", "중형 상록", true, 16f, 11f, 10f, 8f),
+    TreeKind("붉가시나무", "중형 상록", true, 16f, 11f, 10f, 8f),
+    TreeKind("신갈나무", "큰 활엽", false, 16f, 10f, 12f, 10f),
+    TreeKind("상수리나무", "중형 활엽", false, 16f, 11f, 9f, 8f),
+    TreeKind("떡갈나무", "아주 넓은 활엽", false, 16f, 13f, 14f, 8f),
+    TreeKind("느티나무", "아주 키 큰 활엽", false, 16f, 7f, 12f, 6f),
+    TreeKind("물푸레나무", "키 큰 활엽", false, 16f, 12f, 10f, 10f),
+    TreeKind("밤나무", "넓은 활엽", false, 16f, 10f, 11f, 9f),
+    TreeKind("아까시나무", "중형 활엽", false, 16f, 11f, 10f, 9f),
+    TreeKind("감나무", "중형 활엽", false, 16f, 10f, 9f, 8f),
+    TreeKind("물오리나무", "큰 활엽", false, 16f, 11f, 11f, 9f),
+    TreeKind("회화나무", "큰 활엽", false, 16f, 10f, 11f, 9f),
+    TreeKind("메타세콰이아", "아주 키 큰 낙침", false, 16f, 12f, 6f, 11f),
+    TreeKind("산벚나무", "작은 활엽", false, 16f, 12f, 7f, 6f),
+    TreeKind("진달래", "작은 관목", false, 16f, 14f, 7f, 6f),
+    TreeKind("감귤나무", "작은 상록", true, 16f, 14f, 7f, 6f),
+    TreeKind("야자나무", "아주 키 큰", true, 16f, 10f, 11f, 8f),
+    TreeKind("메타세콰이아(가을)", "아주 키 큰 낙침", false, 16f, 12f, 6f, 11f),
+    TreeKind("눈 덮인 가문비나무", "아주 키 큰 침엽", true, 16f, 10f, 11f, 10f),
+    TreeKind("눈 덮인 진달래", "작은 관목", false, 16f, 14f, 7f, 6f),
+    TreeKind("느티나무(가로수)", "중형 활엽", false, 16f, 10f, 12f, 10f),
+    TreeKind("메타세콰이어(원뿔)", "키 큰 낙침", false, 16f, 13f, 9f, 12f),
+    TreeKind("야자나무(제주)", "아주 키 큰", true, 16f, 10f, 11f, 8f),
+    TreeKind("오리나무", "중형 활엽", false, 16f, 9f, 9f, 8f),
+)
+// ── 지역 수종 4종 (regionalTreeArt) — 인덱스 39..42 ───────────────────────
+private const val TREE_ZELKOVA_STREET = 39   // 느티나무(가로수) — 거치미처럼 벌어진 줄기, 얼룩배기
+private const val TREE_METASEQUOIA_CONE = 40 // 메타세콰이어(원뿔) — 붉은 나무껍질의 곧은 원뿔
+private const val TREE_PALM_JEJU = 41        // 야자나무(제주 해안) — 소노베 실루엣
+private const val TREE_ALDER = 42            // 오리나무 — 하얀 곧은 줄기의 강원 산지 나무
 /**
  * 플레이어 캐릭터 스프라이트를 그리는 해상도(px, 한 변).
  *
@@ -2665,14 +2772,490 @@ class Assets(private val context: Context) {
                 p.color = c(0xFF4F8B55); cv.drawCircle(13f, 7f, 5.4f, p); cv.drawCircle(19f, 8f, 5f, p)
                 p.color = c(0xFF6BA96C); cv.drawCircle(12f, 5f, 3f, p); cv.drawCircle(20f, 5.6f, 2.6f, p)
                 noise(cv, p, r, 7f, 1f, 25f, 17f, c(0xFF335C36), 8, 1f, 1.5f)
+
             }
         }
     }
 
     /**
-     * 겨울 전용 나무 3종 — T.TREE 변형 인덱스 12·13·14.
-     * 0 앙상한 활엽수(가지뿐) · 1 눈 덮인 활엽수 · 2 눈 덮인 소나무.
+     * 한반도에 실제로 서그는 나무 21종 + 메타세콰이아(가을) — T.TREE 변형 인덱스 15..36.
+     *
+     * 종마다 **수형(크기)·잎 모양·열매·나무껍질**이 모두 다르게 찍힌다.
+     * 타일 하나(32px) 안에서 키가 위쪽까지 꽉 차는 나무(가문비나무·느티나무·야자나무·
+     * 메타세콰이아), 수관이 옆으로 넓게 퍼지는 나무(떡갈나무·주목·회화나무),
+     * 절반 타일 높이의 관목(진달래·감귤나무·산벚나무)이 섞이므로
+     * 같은 '나무 한 칸' 이라도 크기가 제각각으로 읽힌다.
+     *
+     * 인덱스는 위 TREE_* 상수 · [treeKinds] 와 같은 순서다.
      */
+    private fun speciesTreeArt(look: Int): Bitmap = tilePainter { cv, p, r ->
+        val bark = c(0xFF5D3A20)
+        val barkMid = c(0xFF7A4E2B)
+        val barkLite = c(0xFF9A6A3E)
+
+        // ── 공통 모티브 ──────────────────────────────────────────────────
+        /** 처지는 침엽 층 하나 (가문비나무) — 끝이 아래로 살짝 꺾인 실루엣 */
+        fun tier(apex: Float, baseY: Float, hw: Float, dark: Int, mid: Int, lite: Int) {
+            val path = Path()
+            p.color = dark
+            path.moveTo(16f, apex)
+            path.lineTo(16f + hw, baseY)
+            path.lineTo(16f + hw * 0.6f, baseY + 2.8f)
+            path.lineTo(16f - hw * 0.6f, baseY + 2.8f)
+            path.lineTo(16f - hw, baseY)
+            path.close()
+            cv.drawPath(path, p)
+            p.color = mid
+            path.reset()
+            path.moveTo(16f, apex)
+            path.lineTo(16f + hw * 0.52f, baseY)
+            path.lineTo(16f - hw * 0.52f, baseY)
+            path.close()
+            cv.drawPath(path, p)
+            px(cv, p, 15.1f, apex, 1.8f, 1.6f, lite)
+        }
+
+        /** 침엽 다발 — 잣나무처럼 한 점에서 바늘이 여러 개 퍼지는 모양 */
+        fun needles(cx: Float, cy: Float, len: Float, col: Int, n: Int = 5) {
+            for (i in 0 until n) {
+                val a = -1.4f + i * (2.8f / (n - 1).coerceAtLeast(1))
+                var t = 1f
+                while (t <= len) {
+                    px(cv, p, cx + cos(a) * t - 0.55f, cy + sin(a) * t - 0.55f, 1.1f, 1.1f, col)
+                    t += 1.1f
+                }
+            }
+        }
+
+        /** 잎 한 장 — 타원 + 중맥 */
+        fun leaf(cx: Float, cy: Float, w: Float, h: Float, col: Int, rib: Int) {
+            p.color = col
+            cv.drawOval(RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f), p)
+            px(cv, p, cx - w / 2f + 0.6f, cy - 0.4f, w - 1.2f, 0.9f, rib)
+        }
+
+        /** 깃모양 잎사슬 — 겹잎(물푸레·물오리)의 작은 잎들을 가지 따라 늘어놓는다 */
+        fun pinnate(x0: Float, y0: Float, x1: Float, y1: Float, n: Int, col: Int, rib: Int, size: Float = 2.6f) {
+            for (i in 0 until n) {
+                val t = i / (n - 1f)
+                leaf(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, size, size * 0.72f, col, rib)
+            }
+        }
+
+        /** 수관 블롭 — 어두운 바닥 → 중간 → 윗면 하이라이트 순으로 겹쳐 입체감을 만든다 */
+        fun crown(cx: Float, cy: Float, rad: Float, dark: Int, mid: Int, lite: Int) {
+            p.color = dark; cv.drawCircle(cx, cy, rad, p)
+            p.color = mid; cv.drawCircle(cx - rad * 0.32f, cy - rad * 0.36f, rad * 0.72f, p)
+            cv.drawCircle(cx + rad * 0.4f, cy + rad * 0.22f, rad * 0.55f, p)
+            p.color = lite; cv.drawCircle(cx - rad * 0.42f, cy - rad * 0.52f, rad * 0.38f, p)
+        }
+
+        /** 열매 한 알 — 본체 + 하이라이트 */
+        fun fruit(cx: Float, cy: Float, rad: Float, col: Int, hi: Int) {
+            p.color = col; cv.drawCircle(cx, cy, rad, p)
+            p.color = hi; cv.drawCircle(cx - rad * 0.3f, cy - rad * 0.35f, rad * 0.42f, p)
+        }
+
+        when (look) {
+            0 -> { // 가문비나무 — 아주 키 큰 침엽, 층층이 처지는 가지
+                propShadow(cv, p, 16f, 28.6f, 6.5f, 2.4f)
+                px(cv, p, 14.9f, 22f, 2.6f, 8.5f, bark)
+                px(cv, p, 15.7f, 22f, 1.1f, 8.5f, barkMid)
+                tier(1.5f, 12f, 4.6f, c(0xFF1D4636), c(0xFF2C6344), c(0xFF3F8054))
+                tier(7.5f, 18f, 7.4f, c(0xFF1D4636), c(0xFF2C6344), c(0xFF3F8054))
+                tier(14f, 24f, 10.2f, c(0xFF1D4636), c(0xFF2C6344), c(0xFF3F8054))
+                tier(21f, 30f, 12.8f, c(0xFF1D4636), c(0xFF2C6344), c(0xFF3F8054))
+                noise(cv, p, r, 5f, 2f, 27f, 28f, c(0xFF153627), 8, 1f, 1.6f)
+                noise(cv, p, r, 5f, 2f, 27f, 28f, c(0xFF4A9463), 6, 1f, 1.4f)
+            }
+            1 -> { // 잣나무 — 연한 청록색 긴 침엽이 다발로 트인 수관
+                propShadow(cv, p, 16f, 28.6f, 8.5f, 2.8f)
+                px(cv, p, 14.4f, 15f, 3.4f, 14f, c(0xFF6B5334))
+                px(cv, p, 15.4f, 15f, 1.4f, 14f, c(0xFF8A6B42))
+                noise(cv, p, r, 14f, 15f, 18f, 29f, c(0xFF54402A), 5, 1f, 1.4f)
+                // 마디에서 세 방향으로 뻗는 굵은 가지 — 수관이 트여 보이게
+                for ((bx, by) in listOf(11f to 9f, 21f to 8f, 16f to 4f)) {
+                    val steps = 6
+                    for (i in 0..steps) {
+                        val t = i / steps.toFloat()
+                        px(cv, p, 16f + (bx - 16f) * t, 15f + (by - 15f) * t, 1.2f, 1.2f, c(0xFF6B5334))
+                    }
+                }
+                // 침엽 다발 — 한 점에서 바늘이 여러 개 퍼진다
+                for ((cx, cy, len) in listOf(
+                    Triple(11f, 9f, 4.4f), Triple(21f, 8f, 4.4f), Triple(16f, 4f, 4f),
+                    Triple(8f, 14f, 3.2f), Triple(24f, 13f, 3.2f),
+                    Triple(13.5f, 12f, 2.6f), Triple(19f, 12f, 2.6f)
+                )) {
+                    needles(cx, cy, len, c(0xFF6FA05F))
+                    needles(cx, cy, len * 0.7f, c(0xFF93BE74))
+                }
+                noise(cv, p, r, 6f, 2f, 26f, 20f, c(0xFFB9D28C), 6, 1f, 1.3f)
+            }
+            2 -> { // 주목 — 납작하게 넓게 퍼지는 짙은 수관 + 붉은 씨눈(가시아)
+                propShadow(cv, p, 16f, 28.6f, 12f, 3.2f)
+                px(cv, p, 14.6f, 20f, 3f, 9f, bark)
+                px(cv, p, 15.5f, 20f, 1.2f, 9f, barkMid)
+                p.color = c(0xFF1E3D2A); cv.drawOval(RectF(3.5f, 6f, 28.5f, 20f), p)
+                p.color = c(0xFF2E5738); cv.drawCircle(12f, 11f, 7.5f, p); cv.drawCircle(21f, 13f, 7.5f, p)
+                p.color = c(0xFF417A46); cv.drawCircle(16f, 8f, 5.5f, p)
+                noise(cv, p, r, 4f, 6f, 28f, 19f, c(0xFF16301F), 10, 1f, 1.6f)
+                noise(cv, p, r, 4f, 6f, 28f, 19f, c(0xFF54986A), 6, 1f, 1.4f)
+                for ((fx, fy) in listOf(9f to 12f, 22f to 10f, 17f to 15f, 12f to 17f, 24f to 16f)) {
+                    fruit(fx, fy, 1.5f, c(0xFFD9453F), c(0xFFF08A7E))
+                }
+            }
+            3 -> { // 노간주나무 — 바람에 비틀린 줄기, 비늘 같은 잎, 청회색 열매
+                propShadow(cv, p, 16f, 28.4f, 8f, 2.6f)
+                val steps = listOf(16f to 30f, 15f to 27f, 16.5f to 24f, 14.5f to 21f, 13f to 18f, 12f to 15.5f)
+                for ((i, st) in steps.withIndex()) {
+                    val w = 3.4f - i * 0.35f
+                    px(cv, p, st.first - w / 2f, st.second, w, 3.4f, if (i % 2 == 0) bark else barkMid)
+                }
+                noise(cv, p, r, 10f, 14f, 20f, 30f, c(0xFF4A2D18), 5, 1f, 1.4f)
+                p.color = c(0xFF3D6B4A)
+                cv.drawCircle(8f, 13f, 3.4f, p); cv.drawCircle(17f, 9f, 3f, p); cv.drawCircle(24f, 15f, 3.2f, p)
+                p.color = c(0xFF598A5C)
+                cv.drawCircle(7f, 12f, 2f, p); cv.drawCircle(18f, 8f, 1.8f, p); cv.drawCircle(25f, 14f, 1.8f, p)
+                for ((bx, by) in listOf(6f to 17f, 20f to 12f, 26f to 19f)) fruit(bx, by, 1.2f, c(0xFF8FA3C4), c(0xFFC3D2E8))
+            }
+            4 -> { // 후박나무 — 남해안 상록수, 녹색을 띤 새순이 돋는다
+                propShadow(cv, p, 16f, 28.6f, 9.5f, 3f)
+                px(cv, p, 14.2f, 18f, 3.8f, 11f, bark)
+                px(cv, p, 15.2f, 18f, 1.6f, 11f, barkMid)
+                noise(cv, p, r, 14f, 18f, 18f, 29f, c(0xFF4A2D18), 4, 1f, 1.3f)
+                crown(16f, 12f, 10.5f, c(0xFF1F4A33), c(0xFF2F6B41), c(0xFF41784A))
+                for ((nx, ny) in listOf(9f to 9f, 22f to 8f, 7f to 15f, 24f to 15f, 13f to 5f, 19f to 17f)) {
+                    px(cv, p, nx, ny, 2.2f, 1.2f, c(0xFFB5642E))
+                    px(cv, p, nx + 0.3f, ny + 1.1f, 1.6f, 0.8f, c(0xFFD08A44))
+                }
+            }
+            5 -> { // 붉가시나무 — 남부 상록참나무, 광택 있는 톱니 잎
+                propShadow(cv, p, 16f, 28.6f, 9.5f, 3f)
+                px(cv, p, 14.2f, 19f, 3.6f, 10f, bark)
+                px(cv, p, 15.3f, 19f, 1.5f, 10f, barkMid)
+                crown(16f, 12f, 10.5f, c(0xFF24513A), c(0xFF37714A), c(0xFF54996A))
+                // 톱니 잎맥 — 수관 가장자리를 들쑥날쑥하게 깎아 광택 잎처럼 읽히게
+                for (i in 0 until 14) {
+                    val a = i * (6.2832f / 14)
+                    val ex = 16f + cos(a) * 10.2f
+                    val ey = 12f + sin(a) * 10.2f
+                    px(cv, p, ex, ey, 1.6f, 1.6f, if (i % 2 == 0) c(0xFF173B2A) else c(0xFF6FB87E))
+                }
+                fruit(21f, 19f, 1.4f, c(0xFF9A6A3E), c(0xFFC08E56))
+                fruit(11f, 20f, 1.3f, c(0xFF9A6A3E), c(0xFFC08E56))
+            }
+            6 -> { // 신갈나무 — 거친 나무껍질에 큰 둥근 수관
+                propShadow(cv, p, 16f, 28.6f, 10.5f, 3.2f)
+                px(cv, p, 13f, 14f, 6f, 15f, bark)
+                px(cv, p, 14.2f, 14f, 3.2f, 15f, barkMid)
+                px(cv, p, 15f, 15f, 1.2f, 13f, barkLite)
+                noise(cv, p, r, 13f, 14f, 19f, 29f, c(0xFF4A2D18), 8, 1f, 1.8f)
+                px(cv, p, 11.6f, 28f, 3.4f, 2.6f, bark)
+                px(cv, p, 17.6f, 28f, 3.4f, 2.6f, bark)
+                crown(16f, 10f, 12f, c(0xFF2E5D33), c(0xFF3F7D46), c(0xFF57A55F))
+                noise(cv, p, r, 5f, 2f, 27f, 21f, c(0xFF2C5429), 12, 1f, 1.8f)
+                noise(cv, p, r, 5f, 2f, 27f, 21f, c(0xFF7FD184), 8, 1f, 1.6f)
+            }
+            7 -> { // 상수리나무 — 갈라진 잎사귀 + 도토리
+                propShadow(cv, p, 16f, 28.6f, 9f, 3f)
+                px(cv, p, 14.2f, 18f, 3.6f, 11f, bark)
+                px(cv, p, 15.2f, 18f, 1.5f, 11f, barkMid)
+                p.color = c(0xFF2E5D33); cv.drawCircle(16f, 13f, 9.5f, p)
+                p.color = c(0xFF3F7D46)
+                cv.drawCircle(10f, 8f, 4.4f, p); cv.drawCircle(22f, 8f, 4.4f, p)
+                cv.drawCircle(8f, 15f, 4f, p); cv.drawCircle(24f, 15f, 4f, p)
+                cv.drawCircle(16f, 5f, 4.4f, p)
+                p.color = c(0xFF57A55F); cv.drawCircle(16f, 11f, 4f, p)
+                p.color = c(0xFF6FBF72); cv.drawCircle(13f, 8f, 2f, p)
+                noise(cv, p, r, 6f, 4f, 26f, 21f, c(0xFF2C5429), 8, 1f, 1.5f)
+                // 도토리 — 도토리껍질 + 열매
+                for ((ax, ay) in listOf(9f to 19f, 22f to 18f)) {
+                    px(cv, p, ax, ay + 1.4f, 2.4f, 1.2f, c(0xFF6B4A2A))
+                    fruit(ax + 1.2f, ay, 1.3f, c(0xFFB0793F), c(0xFFD8A566))
+                }
+            }
+            8 -> { // 떡갈나무 — 한반도 최대의 잎, 낮고 아주 넓게 퍼지는 수관
+                propShadow(cv, p, 16f, 28.4f, 13.5f, 3.2f)
+                px(cv, p, 14.4f, 22f, 3.4f, 7.5f, bark)
+                px(cv, p, 15.3f, 22f, 1.4f, 7.5f, barkMid)
+                p.color = c(0xFF2A5530); cv.drawOval(RectF(1.5f, 6f, 30.5f, 21f), p)
+                p.color = c(0xFF3A7442); cv.drawOval(RectF(3.5f, 8f, 28.5f, 19.5f), p)
+                p.color = c(0xFF57A55F); cv.drawCircle(9f, 8f, 4.5f, p); cv.drawCircle(22f, 9f, 4.5f, p)
+                // 큼직한 잎 — 중맥이 길게 들어간 타원을 수관 위에 얹는다
+                leaf(8f, 13f, 9f, 6f, c(0xFF3F7D46), c(0xFF7FD184))
+                leaf(22f, 12f, 10f, 6.4f, c(0xFF3F7D46), c(0xFF7FD184))
+                leaf(15f, 17f, 8f, 5.4f, c(0xFF4E9455), c(0xFF93DA93))
+                noise(cv, p, r, 4f, 7f, 28f, 20f, c(0xFF2C5429), 10, 1f, 1.7f)
+                // 떨어진 잎
+                px(cv, p, 5f, 29f, 3f, 1.4f, c(0xFF6FAE57))
+                px(cv, p, 25f, 29.6f, 3f, 1.4f, c(0xFF6FAE57))
+            }
+            9 -> { // 느티나무 — 마을 당산나무, 곧게 솟은 줄기에 위가 퍼진 수관
+                propShadow(cv, p, 16f, 28.6f, 7f, 2.6f)
+                px(cv, p, 14.6f, 9f, 2.9f, 20.5f, bark)
+                px(cv, p, 15.5f, 9f, 1.2f, 20.5f, barkMid)
+                px(cv, p, 15.9f, 11f, 0.9f, 17f, barkLite)
+                px(cv, p, 13.4f, 27f, 2.6f, 3f, bark)
+                px(cv, p, 16.6f, 27f, 2.6f, 3f, bark)
+                noise(cv, p, r, 14f, 9f, 18f, 29f, c(0xFF4A2D18), 6, 1f, 1.5f)
+                val path = Path()
+                p.color = c(0xFF33602F)
+                path.moveTo(14.8f, 15f)
+                path.lineTo(4.5f, 6f); path.quadTo(2.5f, 1.5f, 8f, 2f)
+                path.lineTo(24f, 2f); path.quadTo(29.5f, 1.5f, 27.5f, 6f)
+                path.lineTo(17.2f, 15f)
+                path.close()
+                cv.drawPath(path, p)
+                p.color = c(0xFF3F7D46)
+                cv.drawCircle(11f, 6f, 4.6f, p); cv.drawCircle(21f, 6f, 4.6f, p); cv.drawCircle(16f, 4f, 4.2f, p)
+                p.color = c(0xFF57A55F)
+                cv.drawCircle(10f, 4f, 2.6f, p); cv.drawCircle(22f, 5f, 2.2f, p); cv.drawCircle(16f, 3f, 2.4f, p)
+                noise(cv, p, r, 4f, 2f, 28f, 14f, c(0xFF2C5429), 10, 1f, 1.5f)
+                noise(cv, p, r, 4f, 2f, 28f, 14f, c(0xFF7FD184), 6, 1f, 1.4f)
+            }
+            10 -> { // 물푸레나무 — 마주난 가지에 겹잎을 다는 키 큰 활엽
+                propShadow(cv, p, 16f, 28.6f, 7.5f, 2.6f)
+                px(cv, p, 14.7f, 11f, 2.8f, 18.5f, bark)
+                px(cv, p, 15.6f, 11f, 1.1f, 18.5f, barkMid)
+                noise(cv, p, r, 14f, 11f, 18f, 29f, c(0xFF4A2D18), 5, 1f, 1.4f)
+                // 마주난 가지 3쌍
+                for ((by, spread) in listOf(15f to 6.5f, 19.5f to 8.5f, 24f to 6f)) {
+                    px(cv, p, 15.9f, by, 0.9f, 0.9f, barkMid)
+                    px(cv, p, 16f - spread - 2f, by - 1.2f, spread + 2f, 1f, barkMid)
+                    px(cv, p, 16f, by - 1.2f, spread + 2f, 1f, barkMid)
+                }
+                pinnate(9.5f, 14f, 5f, 6f, 5, c(0xFF4E8C4E), c(0xFF6FAE5B))
+                pinnate(22.5f, 14f, 27f, 6f, 5, c(0xFF4E8C4E), c(0xFF6FAE5B))
+                pinnate(8f, 19f, 4f, 14f, 4, c(0xFF5C9A54), c(0xFF86C072))
+                pinnate(24f, 19f, 28f, 14f, 4, c(0xFF5C9A54), c(0xFF86C072))
+                pinnate(16f, 10f, 16f, 4f, 4, c(0xFF6FAE5B), c(0xFF93C97E))
+            }
+            11 -> { // 밤나무 — 넓은 수관 + 밤송이
+                propShadow(cv, p, 16f, 28.6f, 11f, 3.2f)
+                px(cv, p, 13.8f, 18f, 4.4f, 11f, bark)
+                px(cv, p, 14.9f, 18f, 1.9f, 11f, barkMid)
+                noise(cv, p, r, 14f, 18f, 18f, 29f, c(0xFF4A2D18), 6, 1f, 1.6f)
+                crown(16f, 11f, 11f, c(0xFF2F6033), c(0xFF3F7D46), c(0xFF57A55F))
+                noise(cv, p, r, 5f, 3f, 27f, 21f, c(0xFF2C5429), 10, 1f, 1.7f)
+                // 길고 톱니진 잎
+                leaf(9f, 8f, 7f, 4.4f, c(0xFF4E9455), c(0xFF8FD68F))
+                leaf(22f, 9f, 7.5f, 4.6f, c(0xFF4E9455), c(0xFF8FD68F))
+                leaf(15f, 4f, 6.5f, 4f, c(0xFF57A55F), c(0xFF9BE09B))
+                // 밤송이 — 가시가 달린 겉껍질
+                for ((bx, by) in listOf(8f to 19f, 23f to 18f)) {
+                    p.color = c(0xFF6B4A2A); cv.drawCircle(bx, by, 2.2f, p)
+                    p.color = c(0xFF8A6B42)
+                    px(cv, p, bx - 2.6f, by - 1f, 1.2f, 1.2f, p.color)
+                    px(cv, p, bx + 1.6f, by - 1.4f, 1.2f, 1.2f, p.color)
+                    px(cv, p, bx - 0.6f, by + 1.6f, 1.2f, 1.2f, p.color)
+                    px(cv, p, bx - 1.6f, by + 0.6f, 1.2f, 1.2f, p.color)
+                    px(cv, p, bx + 1.4f, by + 0.8f, 1.2f, 1.2f, p.color)
+                }
+            }
+            12 -> { // 아까시나무 — 성긴 겹잎 사이로 흰 꽃차례가 늘어진다
+                propShadow(cv, p, 16f, 28.6f, 8.5f, 2.8f)
+                px(cv, p, 14.4f, 17f, 3.4f, 12f, bark)
+                px(cv, p, 15.3f, 17f, 1.4f, 12f, barkMid)
+                val twigs = listOf(
+                    Triple(15.6f, 16f, 15.6f to 5f), Triple(15.2f, 15f, 7f to 11f),
+                    Triple(16.2f, 15f, 25f to 11f), Triple(15.4f, 18f, 10f to 20f),
+                    Triple(16.2f, 18f, 22f to 20f)
+                )
+                for ((x0, y0, end) in twigs) {
+                    val steps = 9
+                    for (i in 0..steps) {
+                        val t = i / steps.toFloat()
+                        val bow = sin(t * 3.1416f) * (if (end.first > x0) 1.6f else -1.6f)
+                        px(cv, p, x0 + (end.first - x0) * t + bow - 0.4f, y0 + (end.second - y0) * t, 0.9f, 0.9f, barkMid)
+                    }
+                }
+                for ((x0, y0, end) in twigs) {
+                    pinnate(x0, y0, end.first, end.second, 5, c(0xFF4F8C4A), c(0xFF74AA5C), 2.2f)
+                }
+                // 흰 꽃차례 — 아래로 드리운 꽃알갱이
+                for ((hx, hy) in listOf(9f to 12f, 23f to 12f)) {
+                    for (i in 0 until 5) px(cv, p, hx + (i % 2) * 0.9f, hy + i * 1.5f, 1.3f, 1.3f, c(0xFFF6F2E2))
+                }
+                noise(cv, p, r, 5f, 5f, 27f, 22f, c(0xFF86C072), 8, 1f, 1.3f)
+            }
+            13 -> { // 감나무 — 꼬부란 줄기에 주황 감이 달린다
+                propShadow(cv, p, 16f, 28.6f, 8f, 2.8f)
+                val knot = listOf(16f to 29f, 15f to 26f, 17f to 23f, 15.5f to 20f, 14.5f to 17f)
+                for ((i, st) in knot.withIndex()) {
+                    val w = 3.8f - i * 0.3f
+                    px(cv, p, st.first - w / 2f, st.second, w, 3.2f, if (i % 2 == 0) bark else barkMid)
+                }
+                px(cv, p, 12.6f, 25f, 2.4f, 2f, barkMid)   // 옆으로 뻗은 굵은 가지
+                px(cv, p, 17.8f, 22f, 2.2f, 2f, barkMid)
+                noise(cv, p, r, 12f, 16f, 20f, 29f, c(0xFF4A2D18), 7, 1f, 1.5f)
+                crown(15f, 10f, 9f, c(0xFF2F6033), c(0xFF3F7D46), c(0xFF57A55F))
+                noise(cv, p, r, 6f, 3f, 25f, 19f, c(0xFF2C5429), 9, 1f, 1.5f)
+                for ((fx, fy) in listOf(8f to 12f, 12f to 8f, 21f to 11f, 19f to 15f)) fruit(fx, fy, 1.7f, c(0xFFE8843C), c(0xFFF7B45E))
+            }
+            14 -> { // 물오리나무 — 강변의 긴 깃모양 잎과 열매사슬
+                propShadow(cv, p, 16f, 28.6f, 10f, 3f)
+                px(cv, p, 14.2f, 18f, 3.8f, 11f, bark)
+                px(cv, p, 15.2f, 18f, 1.6f, 11f, barkMid)
+                crown(16f, 11f, 10f, c(0xFF2C5C33), c(0xFF3A7442), c(0xFF57A55F))
+                pinnate(16f, 12f, 4f, 4f, 7, c(0xFF3F7D46), c(0xFF7FD184), 2.8f)
+                pinnate(16f, 12f, 28f, 4f, 7, c(0xFF3F7D46), c(0xFF7FD184), 2.8f)
+                pinnate(16f, 13f, 9f, 22f, 6, c(0xFF4E9455), c(0xFF8FD68F), 2.6f)
+                pinnate(16f, 13f, 23f, 22f, 6, c(0xFF4E9455), c(0xFF8FD68F), 2.6f)
+                noise(cv, p, r, 5f, 4f, 27f, 21f, c(0xFF2C5429), 9, 1f, 1.5f)
+                // 열매串 — 아래로 늘어진 작은 알갱이 사슬
+                for ((cx, cy) in listOf(5f to 17f, 27f to 18f)) {
+                    for (i in 0 until 4) px(cv, p, cx + (i % 2) * 1f, cy + i * 1.4f, 1.2f, 1.2f, c(0xFFA88B4E))
+                }
+            }
+            15 -> { // 회화나무(플라타너스) — 도심 가로수, 얼룩 덜룩한 껍질
+                propShadow(cv, p, 16f, 28.6f, 10.5f, 3.2f)
+                px(cv, p, 13.8f, 15f, 4.6f, 14f, c(0xFF9A9484))
+                px(cv, p, 14.9f, 15f, 2.1f, 14f, c(0xFFB8B2A0))
+                px(cv, p, 13.8f, 18f, 4.6f, 2.4f, c(0xFF7E8A62))     // 벗겨진 녹색
+                px(cv, p, 15.6f, 23f, 2.6f, 2.2f, c(0xFFC8C4B0))
+                px(cv, p, 14.2f, 12f, 3.4f, 2.4f, c(0xFF8A8474))
+                px(cv, p, 16.4f, 8f, 2.2f, 3.4f, c(0xFF7E8A62))
+                noise(cv, p, r, 13f, 15f, 19f, 29f, c(0xFF6E6A5E), 6, 1f, 1.5f)
+                crown(16f, 10f, 11.5f, c(0xFF2F6636), c(0xFF3F7D46), c(0xFF57A55F))
+                noise(cv, p, r, 5f, 3f, 27f, 20f, c(0xFF2C5429), 10, 1f, 1.6f)
+                // 단풍처럼 갈라진 잎사귀
+                leaf(9f, 7f, 6.4f, 4.2f, c(0xFF4E9455), c(0xFF8FD68F))
+                leaf(23f, 8f, 6.4f, 4.2f, c(0xFF4E9455), c(0xFF8FD68F))
+                leaf(16f, 4f, 6f, 4f, c(0xFF57A55F), c(0xFF9BE09B))
+                // 구과(열매 공)
+                for ((sx, sy) in listOf(9f to 19f, 23f to 18f)) {
+                    p.color = c(0xFFB09A5E); cv.drawCircle(sx, sy, 1.7f, p)
+                    p.color = c(0xFFD2C08A); cv.drawCircle(sx - 0.5f, sy - 0.6f, 0.7f, p)
+                }
+            }
+            16 -> { // 메타세콰이아 — 아주 곧고 키 납작한 낙침, 가지가 수평으로 퍼진다
+                propShadow(cv, p, 16f, 28.6f, 5.5f, 2.2f)
+                px(cv, p, 14.9f, 6f, 2.4f, 23f, bark)
+                px(cv, p, 15.7f, 6f, 1f, 23f, barkMid)
+                px(cv, p, 13.6f, 26f, 5f, 3f, bark)      // 뿌리 받침
+                px(cv, p, 14.2f, 27.5f, 4f, 2f, barkMid)
+                noise(cv, p, r, 14f, 6f, 18f, 29f, c(0xFF4A2D18), 6, 1f, 1.5f)
+                // 수평으로 퍼지는 가지 + 깃 모양 잎사슬
+                for (row in 0 until 6) {
+                    val y = 3f + row * 4.2f
+                    val half = 3.2f + row * 1.7f
+                    px(cv, p, 16f - half, y, half, 0.8f, barkMid)
+                    px(cv, p, 16f, y, half, 0.8f, barkMid)
+                    for (i in 0 until 4) {
+                        val t = i / 3f
+                        px(cv, p, 16f - half + half * t, y - 1.6f, 0.9f, 1.8f, c(0xFF6FAE5B))
+                        px(cv, p, 16f + half * t, y - 1.6f, 0.9f, 1.8f, c(0xFF6FAE5B))
+                        px(cv, p, 16f - half + half * t - 0.6f, y - 0.8f, 0.8f, 1.2f, c(0xFF8FC470))
+                        px(cv, p, 16f + half * t - 0.4f, y - 0.8f, 0.8f, 1.2f, c(0xFF8FC470))
+                    }
+                }
+            }
+            17 -> { // 산벚나무 — 작은 야생 벚나무, 연한 분홍 꽃
+                propShadow(cv, p, 16f, 28.6f, 7.5f, 2.6f)
+                px(cv, p, 14.6f, 20f, 2.8f, 9f, bark)
+                px(cv, p, 15.4f, 20f, 1.2f, 9f, barkMid)
+                px(cv, p, 13.4f, 23f, 2.2f, 1.6f, barkMid)
+                px(cv, p, 16.6f, 24f, 2.2f, 1.6f, barkMid)
+                p.color = c(0xFFD97F99); cv.drawCircle(16f, 13f, 7.4f, p)
+                p.color = c(0xFFF2A3B3); cv.drawCircle(13f, 11f, 5.2f, p); cv.drawCircle(20f, 14f, 4.8f, p)
+                p.color = c(0xFFFFC9D6); cv.drawCircle(15f, 9f, 3.4f, p)
+                noise(cv, p, r, 9f, 7f, 24f, 19f, c(0xFFFFE0E8), 12, 1f, 1.5f)
+                noise(cv, p, r, 9f, 7f, 24f, 19f, c(0xFFC96B87), 7, 1f, 1.4f)
+                px(cv, p, 8f, 26f, 2f, 1.2f, c(0xFFF2A3B3))
+                px(cv, p, 23f, 28f, 2f, 1.2f, c(0xFFFFC9D6))
+            }
+            18 -> { // 진달래 — 절반 타일 크기의 관목, 분홍 꽃이 덮인다
+                propShadow(cv, p, 16f, 28.4f, 9f, 2.6f)
+                for ((sx, sy) in listOf(9f to 24f, 12f to 22f, 16f to 21f, 20f to 23f, 23f to 24f)) {
+                    px(cv, p, sx, sy, 1.5f, 30f - sy, c(0xFF6B4A2A))
+                }
+                px(cv, p, 10f, 22f, 1.2f, 5f, c(0xFF3F7D46))     // 잎사귀 몇 점
+                px(cv, p, 21f, 23f, 1.2f, 4f, c(0xFF3F7D46))
+                p.color = c(0xFFE2779B); cv.drawCircle(16f, 16f, 7f, p)
+                p.color = c(0xFFF2A9BE); cv.drawCircle(11.5f, 15f, 4.8f, p); cv.drawCircle(20.5f, 16f, 4.8f, p)
+                p.color = c(0xFFFFCFDC); cv.drawCircle(16f, 11f, 3.8f, p); cv.drawCircle(13f, 13f, 2.6f, p)
+                noise(cv, p, r, 9f, 9f, 24f, 21f, c(0xFFFFE3EC), 10, 1f, 1.4f)
+                noise(cv, p, r, 9f, 9f, 24f, 21f, c(0xFFC4567E), 6, 1f, 1.3f)
+            }
+            19 -> { // 감귤나무 — 제주 상록수, 짙은 잎에 귤이 주렁주렁
+                propShadow(cv, p, 16f, 28.6f, 8f, 2.6f)
+                px(cv, p, 14.6f, 21f, 2.8f, 8.5f, bark)
+                px(cv, p, 15.4f, 21f, 1.2f, 8.5f, barkMid)
+                p.color = c(0xFF24513A); cv.drawCircle(16f, 15f, 8f, p)
+                p.color = c(0xFF2F6B41); cv.drawCircle(12f, 14f, 5.4f, p); cv.drawCircle(20f, 16f, 5.2f, p)
+                p.color = c(0xFF41784A); cv.drawCircle(16f, 11f, 3.8f, p)
+                noise(cv, p, r, 8f, 8f, 25f, 21f, c(0xFF163B2A), 8, 1f, 1.4f)
+                for ((fx, fy) in listOf(9f to 17f, 14f to 13f, 22f to 15f, 18f to 19f)) fruit(fx, fy, 1.7f, c(0xFFEE8B2E), c(0xFFF7BE6A))
+                px(cv, p, 12f, 10f, 1.4f, 1.4f, c(0xFFF6F2E4))   // 귤꽃
+                px(cv, p, 20f, 11f, 1.4f, 1.4f, c(0xFFF6F2E4))
+            }
+            20 -> { // 야자나무 — 가는 줄기에 부채꼴 잎이 펼쳐진다
+                propShadow(cv, p, 16f, 28.4f, 6f, 2.4f)
+                for (i in 0 until 9) {           // 마디 흔적이 남는 가는 줄기
+                    val y = 6f + i * 2.7f
+                    px(cv, p, 15.2f, y, 1.7f, 2.3f, c(0xFF8A7A52))
+                    px(cv, p, 15.4f, y, 0.7f, 2.3f, c(0xFFA8976A))
+                    px(cv, p, 14.9f, y + 1.5f, 2.4f, 0.8f, c(0xFF6E5F3C))
+                }
+                // 부채꼴 잎 7장 — 밖으로 뻗었다가 아래로 휘어진다
+                for (i in 0 until 7) {
+                    val a = -2.45f + i * (4.9f / 6f)
+                    val reach = if (i == 0 || i == 6) 11f else 14.5f
+                    var prevX = 16f
+                    var prevY = 6f
+                    var t = 2.5f
+                    while (t <= reach) {
+                        val nx = 16f + cos(a) * t
+                        val ny = 6f + sin(a) * t + (t - 2.5f) * (t - 2.5f) * 0.17f
+                        val col = if ((t.toInt()) % 3 == 0) c(0xFF57A862) else c(0xFF2F7A46)
+                        px(cv, p, minOf(prevX, nx) - 0.8f, minOf(prevY, ny) - 0.8f,
+                            abs(nx - prevX) + 1.6f, abs(ny - prevY) + 1.6f, col)
+                        // 잎맥 — 잎대에 수직으로 짧게 세운 잎 조각
+                        val dx = nx - prevX
+                        val dy = ny - prevY
+                        val len = sqrt(dx * dx + dy * dy).coerceAtLeast(0.6f)
+                        val nxu = -dy / len
+                        val nyu = dx / len
+                        for (s in intArrayOf(-1, 1)) {
+                            px(cv, p, nx + nxu * 1.5f * s - 0.45f, ny + nyu * 1.5f * s - 0.45f,
+                                0.9f, 0.9f, if (s > 0) c(0xFF6FBF72) else c(0xFF24593A))
+                        }
+                        prevX = nx; prevY = ny
+                        t += 1.5f
+                    }
+                }
+                // 왕관 아래 털북숭이 잔재
+                for (i in 0 until 5) px(cv, p, 13f + i * 1.1f, 6.5f + (i % 2) * 0.8f, 0.8f, 1.6f, c(0xFF7A6B45))
+            }
+            else -> { // 메타세콰이아(가을) — 깃 모양 잎이 붉게 물든다
+                propShadow(cv, p, 16f, 28.6f, 5.5f, 2.2f)
+                px(cv, p, 14.9f, 6f, 2.4f, 23f, bark)
+                px(cv, p, 15.7f, 6f, 1f, 23f, barkMid)
+                px(cv, p, 13.6f, 26f, 5f, 3f, bark)
+                px(cv, p, 14.2f, 27.5f, 4f, 2f, barkMid)
+                noise(cv, p, r, 14f, 6f, 18f, 29f, c(0xFF4A2D18), 6, 1f, 1.5f)
+                for (row in 0 until 6) {
+                    val y = 3f + row * 4.2f
+                    val half = 3.2f + row * 1.7f
+                    px(cv, p, 16f - half, y, half, 0.8f, barkMid)
+                    px(cv, p, 16f, y, half, 0.8f, barkMid)
+                    for (i in 0 until 4) {
+                        val t = i / 3f
+                        val warm = if ((row + i) % 3 == 0) c(0xFFF2A34E) else if ((row + i) % 3 == 1) c(0xFFD9534F) else c(0xFFE8823C)
+                        px(cv, p, 16f - half + half * t, y - 1.6f, 0.9f, 1.8f, warm)
+                        px(cv, p, 16f + half * t, y - 1.6f, 0.9f, 1.8f, warm)
+                        px(cv, p, 16f - half + half * t - 0.6f, y - 0.8f, 0.8f, 1.2f, c(0xFFF7CE5B))
+                        px(cv, p, 16f + half * t - 0.4f, y - 0.8f, 0.8f, 1.2f, c(0xFFF7CE5B))
+                    }
+                }            }
+        }
+    }
+
+    /**
+     * 계절 전용 나무 5종 — T.TREE 변형 인덱스 12·13·14 · 37·38.
+     * 0 앙상한 활엽수(가지뿐) · 1 눈 덮인 활엽수 · 2 눈 덮인 소나무 ·
+     * 3 눈 덮인 가문비나무 · 4 눈 덮인 진달래.     */
     private fun seasonTreeArt(look: Int): Bitmap = tilePainter { cv, p, r ->
         propShadow(cv, p, 16f, 28f, 10.5f, 3f)
         val bark = c(0xFF5D3A20)
@@ -2722,7 +3305,7 @@ class Assets(private val context: Context) {
                     noise(cv, p, r, 13f, 16f, 20f, 30f, c(0xFF4A2D18), 5, 1f, 1.5f)
                 }
             }
-            else -> { // 눈 덮인 소나무
+            2 -> { // 눈 덮인 소나무
                 p.color = Color.argb(58, 26, 46, 28)
                 cv.drawOval(RectF(6f, 25f, 28f, 31f), p)
                 px(cv, p, 14.4f, 20f, 4.4f, 11f, bark)
@@ -2750,6 +3333,63 @@ class Assets(private val context: Context) {
                 noise(cv, p, r, 3f, 2f, 29f, 28f, c(0xFF1D4427), 8, 1f, 1.6f)
                 p.color = snow
                 cv.drawOval(RectF(6f, 28f, 26f, 32f), p)
+            }
+            3 -> { // 눈 덮인 가문비나무 — 처지는 침엽 츱 위로 눈이 쌓인다
+                p.color = Color.argb(58, 26, 46, 28)
+                cv.drawOval(RectF(6f, 25f, 28f, 31f), p)
+                px(cv, p, 14.9f, 22f, 2.6f, 8.5f, bark)
+                px(cv, p, 15.7f, 22f, 1.1f, 8.5f, barkLite)
+                val path = Path()
+                fun snowyTier(apex: Float, baseY: Float, hw: Float) {
+                    p.color = c(0xFF1D4636)
+                    path.reset()
+                    path.moveTo(16f, apex)
+                    path.lineTo(16f + hw, baseY)
+                    path.lineTo(16f + hw * 0.6f, baseY + 2.8f)
+                    path.lineTo(16f - hw * 0.6f, baseY + 2.8f)
+                    path.lineTo(16f - hw, baseY)
+                    path.close()
+                    cv.drawPath(path, p)
+                    // 층 위에 쌓인 눈 — 아래로 처진 끝까지 덮는다
+                    p.color = snow
+                    path.reset()
+                    path.moveTo(16f, apex)
+                    path.lineTo(16f + hw * 0.78f, baseY + 1.2f)
+                    path.lineTo(16f + hw * 0.6f, baseY + 2.8f)
+                    path.lineTo(16f - hw * 0.6f, baseY + 2.8f)
+                    path.lineTo(16f - hw * 0.78f, baseY + 1.2f)
+                    path.close()
+                    cv.drawPath(path, p)
+                    p.color = snowShade
+                    path.reset()
+                    path.moveTo(16f, apex + 1.6f)
+                    path.lineTo(16f + hw * 0.5f, baseY + 0.4f)
+                    path.lineTo(16f - hw * 0.5f, baseY + 0.4f)
+                    path.close()
+                    cv.drawPath(path, p)
+                }
+                snowyTier(1.5f, 12f, 4.6f)
+                snowyTier(7.5f, 18f, 7.4f)
+                snowyTier(14f, 24f, 10.2f)
+                snowyTier(21f, 30f, 12.8f)
+                noise(cv, p, r, 5f, 2f, 27f, 28f, c(0xFF153627), 8, 1f, 1.6f)
+                p.color = snow
+                cv.drawOval(RectF(6f, 28f, 26f, 32f), p)
+            }
+            else -> { // 눈 덮인 진달래 — 작은 관목 위에 눈모자
+                p.color = Color.argb(52, 26, 46, 28)
+                cv.drawOval(RectF(7f, 27f, 25f, 31f), p)
+                for ((sx, sy) in listOf(9f to 24f, 12f to 22f, 16f to 21f, 20f to 23f, 23f to 24f)) {
+                    px(cv, p, sx, sy, 1.5f, 30f - sy, c(0xFF5D3A20))
+                }
+                p.color = c(0xFF2F4A34); cv.drawCircle(16f, 17f, 7f, p)      // 남은 잎
+                p.color = c(0xFF3C5C40); cv.drawCircle(12f, 16f, 4.4f, p); cv.drawCircle(20f, 17f, 4.2f, p)
+                p.color = snow
+                cv.drawOval(RectF(8.5f, 11f, 23.5f, 17.5f), p)
+                px(cv, p, 9.6f, 12.8f, 13f, 1.2f, snowShade)
+                px(cv, p, 10f, 19f, 12f, 1.4f, snow)
+                p.color = snow
+                cv.drawOval(RectF(7f, 27f, 25f, 31.5f), p)
             }
         }
     }
@@ -3239,6 +3879,57 @@ begin(T.TREE)
         // 지역 수종 — 느티나무 / 향나무 / 야자수 / 오리나무 (인덱스 15·16·17·18)
         add(*Array(4) { i -> regionalTreeArt(i) })
 
+        // 실제 나무 21종 + 메타세콰이아(가을) (인덱스 15..36) — 종마다 크기·잎·열매가 다르다
+        add(*Array(22) { i -> speciesTreeArt(i) })
+
+        // 계절 전용 — 눈 덮인 가문비나무 / 눈 덮인 진달래 (인덱스 37·38)
+        add(seasonTreeArt(3), seasonTreeArt(4))
+
+begin(T.ROCK)
+        add(
+            tilePainter { c, p, r ->   // 0: 큰 바위
+                p.color = Color.argb(56, 26, 46, 28)
+                c.drawOval(RectF(4f, 24f, 28f, 31f), p)
+                // 바위 본체
+                px(c, p, 5f, 11f, 22f, 16f, c(0xFF5A626C))
+                px(c, p, 6f, 9f, 18f, 16f, c(0xFF7C8590))
+                px(c, p, 7.4f, 8f, 13f, 12f, c(0xFF9AA3AD))
+                px(c, p, 9f, 9f, 8f, 6f, c(0xFFB5BDC6))
+                px(c, p, 10.4f, 9.6f, 4f, 2.6f, c(0xFFD0D7DE))
+                // 단면 음영
+                px(c, p, 5f, 22f, 22f, 5f, c(0xFF4A5158))
+                px(c, p, 21f, 12f, 6f, 14f, c(0xFF4A5158))
+                // 균열
+                px(c, p, 14f, 12f, 1.2f, 8f, c(0xFF3E454C))
+                px(c, p, 15f, 18f, 1.2f, 5f, c(0xFF3E454C))
+                px(c, p, 11f, 19f, 4f, 1.2f, c(0xFF3E454C))
+                // 이끼
+                px(c, p, 7f, 10f, 5f, 2.2f, c(0xFF6FAE57))
+                px(c, p, 8.4f, 8.6f, 3f, 1.6f, c(0xFF8CC46C))
+                noise(c, p, r, 6f, 9f, 22f, 22f, c(0xFF6B747E), 6, 1f, 1.6f)
+                // 밑에 자갈
+                px(c, p, 25f, 25f, 3f, 2.4f, c(0xFF8A949E))
+                px(c, p, 25.4f, 25.4f, 1.6f, 1.2f, c(0xFFB0BAC2))
+            },
+            tilePainter { c, p, r ->   // 1: 바위 무리
+                p.color = Color.argb(52, 26, 46, 28)
+                c.drawOval(RectF(6f, 23f, 26f, 30f), p)
+                px(c, p, 8f, 15f, 16f, 11f, c(0xFF6B747E))
+                px(c, p, 9f, 13f, 13f, 11f, c(0xFF8A949E))
+                px(c, p, 10.4f, 14f, 8f, 5f, c(0xFFA5B0BA))
+                px(c, p, 11.6f, 14.6f, 4f, 2.2f, c(0xFFC2CBD3))
+                px(c, p, 8f, 22f, 16f, 4f, c(0xFF4A5158))
+                // 작은 바위
+                px(c, p, 22f, 21f, 6f, 6f, c(0xFF7C8590))
+                px(c, p, 23f, 21.6f, 3.4f, 2.6f, c(0xFFA5B0BA))
+                px(c, p, 3f, 22f, 5f, 5f, c(0xFF6B747E))
+                px(c, p, 3.8f, 22.6f, 2.6f, 2f, c(0xFF9AA3AD))
+                // 이끼
+                px(c, p, 9f, 14f, 4f, 1.8f, c(0xFF6FAE57))
+                px(c, p, 18f, 19f, 3f, 1.6f, c(0xFF5D8A4A))
+                noise(c, p, r, 8f, 13f, 24f, 24f, c(0xFF5D6772), 5, 1f, 1.4f)
+            }
+        )
 begin(T.ROCK)
         // 바위 28종 — 암종·크기급이 모두 다르다 (PropLooks.ROCKS 와 1:1)
         add(*Array(PropLooks.ROCK_COUNT) { i -> rockArt(i) })
@@ -4041,43 +4732,67 @@ begin(T.LAMP)
 
     /**
      * 계절에 맞는 나무 변형 인덱스.
-     * 상록수(소나무·대나무·곰솔·전나무)는 사계절 그대로 두고 겨울엔 눈을 얹는다.
-     * 활엽수는 봄 벚꽃 · 여름 푸른 잎 · 가을 단풍/은행 · 겨울 앙상한 가지+눈으로 바뀐다.
-     * 같은 칸은 같은 계절에 항상 같은 나무 (결정적 해시).
+     *
+     * - **상록수**(소나무·곰솔·잣나무·전나무·가문비나무·주목·노간주나무·동백·후박나무·
+     *   붉가시나무·감귤·야자·대나무)는 사계절 같은 그림을 쓰고, 겨울에는 눈을 얹는 종만 갈아입는다.
+     * - **낙엽수**는 봄·여름에 지역이 고른 종 그대로 잎을 물들이므로 지역의 실제 수종이
+     *   살아나고, 가을엔 단풍·은행·메타세콰이아·감·참나무로 물들며, 겨울엔 앙상한 가지(+눈)가 된다.
+     * - 같은 칸은 같은 계절에 항상 같은 나무 (결정적 해시).
      */
     fun seasonTreeIndex(base: Int, season: Season, x: Int, y: Int): Int {
-        val evergreen = base == TREE_PINE || base == TREE_BAMBOO || base == TREE_SEAPINE ||
-            base == TREE_FIR || base == TREE_METASEQUOIA || base == TREE_PALM
-        if (evergreen) {
-            return if (season == Season.WINTER && (base == TREE_PINE || base == TREE_FIR)) TREE_SNOWPINE else base
-        }
+        val kind = treeKinds.getOrNull(base)
+        if (kind != null && kind.evergreen) {
+            // 겨울 전용 변형은 다른 계절에 그대로 쓰면 안 된다 — 원래 상록수로 되돌린다
+            return when {
+                base == TREE_SNOWPINE && season != Season.WINTER -> TREE_PINE
+                base == TREE_SNOWSPRUCE && season != Season.WINTER -> TREE_SPRUCE
+                season != Season.WINTER -> base
+                base == TREE_SPRUCE -> TREE_SNOWSPRUCE      // 가문비나무는 눈을 얹는다
+                base == TREE_PINE || base == TREE_FIR -> TREE_SNOWPINE
+                else -> base
+            }        }
+        // 잎이 무성한 낙엽수만 봄·여름에 자기 그림을 유지한다 — 겨울 전용 변형은 다른 계절에 쓰지 않는다
+        val winterOnly = base == TREE_BARE || base == TREE_SNOWLEAF || base == TREE_SNOWBUSH ||
+            base == TREE_SNOWPINE || base == TREE_SNOWSPRUCE
+        val leafy = treeKinds.getOrNull(base) != null && !winterOnly
         var h = x * 0x45D9F3B + y * 0x119DE1F3 + season.ordinal * 0x27D4EB2D
         h = (h xor (h ushr 16)) * 0x45D9F3B
         h = h xor (h ushr 16)
         val pick = Math.floorMod(h, 100)
+        // 봄·여름에 지역 종과 섞어 주는 낙엽수 후보 (잎이 무성한 종만)
+        val leafyPool = intArrayOf(
+            TREE_OAK, TREE_MONGOAK, TREE_ACORNOAK, TREE_BIGLEAF, TREE_ZELKOVA, TREE_ASH,
+            TREE_CHESTNUT, TREE_ACACIA, TREE_PERSIMMON, TREE_WINGNUT, TREE_PLANETREE,
+            TREE_BIRCH, TREE_ORCHARD, TREE_WILDCHERRY, TREE_WILLOW
+        )
+        val alt = leafyPool[Math.floorMod(h ushr 8, leafyPool.size)]
         return when (season) {
             Season.SPRING -> when {
-                pick < 58 -> TREE_CHERRY   // 온 동네가 벚나무
-                pick < 70 -> TREE_OAK
-                pick < 80 -> TREE_WILLOW
-                pick < 90 -> TREE_CAMELLIA
-                else -> TREE_BIRCH
+                leafy && pick < 42 -> base          // 지역이 고른 종은 봄에도 그대로
+                pick < 74 -> TREE_CHERRY            // 온 동네가 벚나무
+                pick < 82 -> TREE_AZALEA            // 진달래
+                pick < 90 -> TREE_WILDCHERRY         // 산벚나무
+                else -> alt
             }
             Season.SUMMER -> when {
-                pick < 45 -> TREE_OAK
-                pick < 60 -> TREE_WILLOW
-                pick < 72 -> TREE_ORCHARD
-                pick < 84 -> TREE_CAMELLIA
-                else -> TREE_BIRCH
+                leafy && pick < 68 -> base
+                pick < 76 -> TREE_ACACIA
+                pick < 84 -> TREE_PLANETREE
+                else -> alt
             }
             Season.AUTUMN -> when {
-                pick < 55 -> TREE_MAPLE    // 단풍
-                pick < 78 -> TREE_GINKGO   // 은행 노랑
-                else -> TREE_OAK           // 누렇게 틴트되어 읽힌다
+                pick < 30 -> TREE_MAPLE              // 단풍
+                pick < 48 -> TREE_GINKGO             // 은행 노랑
+                pick < 58 -> TREE_METASEQUOIA_A      // 메타세콰이아가 붉게 물든다
+                pick < 68 -> TREE_PERSIMMON          // 감나무에 주황 열매
+                pick < 80 -> TREE_MONGOAK            // 신갈나무
+                pick < 90 -> TREE_ACORNOAK           // 상수리나무
+                else -> TREE_WINGNUT                 // 물오리나무
             }
             Season.WINTER -> when {
-                pick < 58 -> TREE_BARE     // 앙상한 가지
-                else -> TREE_SNOWLEAF      // 눈 덮인 가지
+                pick < 50 -> TREE_BARE               // 앙상한 가지
+                pick < 88 -> TREE_SNOWLEAF           // 눈 덮인 가지
+                else -> TREE_SNOWBUSH                // 눈 덮인 진달래 관목
             }
         }.coerceIn(0, tiles[T.TREE.ordinal].size - 1)
     }
