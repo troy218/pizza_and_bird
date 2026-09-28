@@ -108,16 +108,28 @@ class GrassField(map: GameMap) {
     /**
      * 타일 하나에 심을 풀 계획 = (다발 수, 강제 풀잎 종류)
      * 강제 종류가 -1 이면 종류를 자유롭게 섞고, NO_GRASS 면 심지 않는다.
+     *
+     * 「풀이 나면 안 되는 자리」를 타일보다 먼저 걸러 낸다 —
+     *  · **석재 포장**(광장·도심 대로·돌다리·랜드마크 문턱) 위에는 절대 심지 않는다.
+     *  · **흙길에는 시골에서만**, 아주 드물게(7%) 갓길 잡초를 허용한다.
+     *    도심 샛길까지 잡초가 나면 관리가 안 된 인상이라 도시에서는 심지 않는다.
+     *  · **물**(강·호수·바다) 위에는 절대 심지 않는다.
+     *    (둑길·다리 아래로 지면이 모래로 바뀐 칸은 물이 아니지만, 포장이 먼저 걸러 준다)
      */
-    private fun planFor(tile: T, r: Random): Pair<Int, Int> = when (tile) {
-        T.GRASS -> (if (r.nextFloat() < 0.35f) 2 else 1) to -1
-        T.FLOWER -> 1 to -1                        // 꽃이 보이도록 성기게
-        T.TALLGRASS -> (2 + r.nextInt(2)) to 2
-        T.REED -> 2 to 4
-        T.SAND -> if (r.nextFloat() > 0.22f) (0 to NO_GRASS) else (1 to 3)   // 모래밭엔 드물게
-        // 돌길/광장 틈새에서 자라는 잡초
-        T.PATH, T.PLAZA -> if (r.nextFloat() > 0.10f) (0 to NO_GRASS) else (1 to 0)
-        else -> 0 to NO_GRASS
+    private fun planFor(map: GameMap, tx: Int, ty: Int, tile: T, r: Random): Pair<Int, Int> {
+        when (map.paveAt(tx, ty)) {
+            Pave.STONE -> return 0 to NO_GRASS                    // 돌바닥 틈풀 금지
+            Pave.DIRT -> return if (!map.region.city && r.nextFloat() < 0.07f) 1 to 0 else 0 to NO_GRASS
+        }
+        if (map.groundAt(tx, ty) == T.WATER) return 0 to NO_GRASS // 물 위엔 풀이 없다
+        return when (tile) {
+            T.GRASS -> (if (r.nextFloat() < 0.35f) 2 else 1) to -1
+            T.FLOWER -> 1 to -1                        // 꽃이 보이도록 성기게
+            T.TALLGRASS -> (2 + r.nextInt(2)) to 2
+            T.REED -> 2 to 4
+            T.SAND -> if (r.nextFloat() > 0.22f) (0 to NO_GRASS) else (1 to 3)   // 모래밭엔 드물게
+            else -> 0 to NO_GRASS
+        }
     }
 
     /** 타일 종류마다 풀을 다르게 심는다 (결정적 — 같은 지역은 항상 같은 밭) */
@@ -125,7 +137,7 @@ class GrassField(map: GameMap) {
         for (ty in 0 until map.h) {
             for (tx in 0 until map.w) {
                 val tile = map.t(tx, ty)
-                val plan = planFor(tile, r)
+                val plan = planFor(map, tx, ty, tile, r)
                 if (plan.second == NO_GRASS) continue
                 val forced = plan.second
 
