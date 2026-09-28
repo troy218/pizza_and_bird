@@ -275,12 +275,13 @@ class BirdDetailOverlay(
             c.drawBitmap(bmp, null, RectF(dx, dy, dx + dw, dy + dh), photoPaint)
             c.restoreToCount(saveCount)
         } else {
-            // 사진 로딩 중이거나 폴백: 도트 스프라이트 크게 확대 표시
-            val dotBmp = a.bird(def.id)
-            val k = dp(2.8f)
+            // 사진 로딩 중이거나 폴백: 표시 크기에 맞춰 다시 그린 스프라이트 (계단 없이)
+            val wantH = photoInnerR.height() * 0.82f
+            val dotBmp = a.birdIcon(def.id, wantH)
+            val k = (wantH / dotBmp.height).coerceAtMost(dp(2.8f))
             val bx = photoInnerR.centerX() - dotBmp.width * k / 2f
             val by = photoInnerR.centerY() - dotBmp.height * k / 2f
-            c.drawBitmap(dotBmp, null, RectF(bx, by, bx + dotBmp.width * k, by + dotBmp.height * k), a.sprPaint)
+            c.drawBitmap(dotBmp, null, RectF(bx, by, bx + dotBmp.width * k, by + dotBmp.height * k), a.iconPaint)
         }
 
         // 사진 테두리 헤어라인

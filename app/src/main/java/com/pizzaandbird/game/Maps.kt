@@ -96,6 +96,27 @@ data class ViewpointInfo(
     val height: Int
 )
 
+/**
+ * 지도에 세워진 **들어갈 수 있는 집** 한 채.
+ *
+ * 예전에는 '우리 집'(플레이어 소유·정착지)의 현관만 들어갈 수 있었고, 도시의 상가나
+ * 시골 민가는 벽과 창만 있는 장식이었다(제보: "못 들어가는 집이 너무 많다").
+ * 이제 모든 집이 이 목록에 등록되고, 현관 앞에서 A(또는 문을 밟기)로 들어간다.
+ *
+ * @param index 지역 안에서의 순번 — 같은 지역·같은 순번이면 늘 같은 실내가 나온다.
+ * @param kind 0 민가 · 1 도시 상가 · 2 한옥/농가 (실내 분위기에 쓰인다)
+ */
+data class HouseInfo(
+    val index: Int,
+    val bx: Int,
+    val by: Int,
+    val w: Int,
+    val h: Int,
+    val doorX: Int,
+    val doorY: Int,
+    val kind: Int = 0
+)
+
 class GameMap(
     val region: RegionDef,
     val w: Int,
@@ -113,6 +134,8 @@ class GameMap(
     val hasLandmark: Boolean = false,
     val landmarkDoorX: Int = -1,
     val landmarkDoorY: Int = -1,
+    /** 이 지역에 세워진 들어갈 수 있는 집들 (우리 집 포함) */
+    val houses: List<HouseInfo> = emptyList(),
     /** Climbable contour height in tile steps. Negative values are low wet ground. */
     val elevation: Array<IntArray> = Array(h) { IntArray(w) },
     val viewpoints: List<ViewpointInfo> = emptyList()
@@ -365,6 +388,40 @@ class GameMap(
 
     /** 발(스프라이트 좌상단+13px)이 밟고 있는 타일 */
     fun feetTile(px: Float, py: Float): T = t(((px + 8f) / 16f).toInt(), ((py + 13f) / 16f).toInt())
+
+    /** 발 위치의 타일 좌표 */
+    fun feetTileX(px: Float): Int = ((px + 8f) / 16f).toInt()
+    fun feetTileY(py: Float): Int = ((py + 13f) / 16f).toInt()
+
+    /**
+     * 이 현관 칸에 들어갈 수 있는 집. 없으면 null.
+     *
+     * 우리 집(정착지·매입한 집)은 [houses] 목록에 함께 들어 있어, 도시 상가·시골 민가와
+     * 똑같은 경로로 들어간다 — 예전에는 `hasHouse` 하나만 검사해 다른 집은 문이 있어도
+     * 반응하지 않았다.
+     */
+    fun houseAt(doorX: Int, doorY: Int): HouseInfo? =
+        houses.firstOrNull { it.doorX == doorX && it.doorY == doorY }
+
+    /** 발밑 타일이 어떤 집의 현관인가 (없으면 null) */
+    fun houseUnderFeet(px: Float, py: Float): HouseInfo? = houseAt(feetTileX(px), feetTileY(py))
+
+    /** 이 집이 우리 집(플레이어 소유)인가 — 실내 연출(이삿짐·인테리어)을 가른다 */
+    fun isOwnHome(house: HouseInfo): Boolean = hasHouse && house.doorX == houseDoorX && house.doorY == houseDoorY
+
+    /** 가장 가까운 집 현관 — 서 있는 자리에서 상호작용 반경 안이면 A 버튼이 '들어가기'가 된다 */
+    fun nearestHouseDoor(px: Float, py: Float, range: Float): HouseInfo? =
+        houses.filter { it.doorX >= 0 }
+            .minByOrNull {
+                val dx = it.doorX * 16f + 8f - px
+                val dy = it.doorY * 16f + 8f - py
+                dx * dx + dy * dy
+            }
+            ?.takeIf {
+                val dx = it.doorX * 16f + 8f - px
+                val dy = it.doorY * 16f + 8f - py
+                dx * dx + dy * dy <= range * range
+            }
 
     /** 이웃 8칸의 포장 여부를 비트마스크로 (오토타일 키) */
     private fun paveMask(x: Int, y: Int): Int {
@@ -854,6 +911,8 @@ object MapBuilder {
         val elevation = Array(h) { IntArray(w) }
         val reserved = Array(h) { BooleanArray(w) }
         val structure = Array(h) { BooleanArray(w) }      // 길이 뚫고 지나갈 수 없는 칸
+        // 들어갈 수 있는 집 목록 (지역 상가·민가 + 우리 집) — 현관 좌표로 조회한다.
+        val houses = ArrayList<HouseInfo>()
         val rnd = Random(region.id.hashCode().toLong())
         val exits = Regions.exits(region.id)
         val mapStyle = RegionMapStyles.forRegion(region)
@@ -1354,23 +1413,62 @@ object MapBuilder {
             buildingFronts.add(if (ey + 1 <= AVE_Y) (bx + wid / 2 to ey + 1) else (bx + wid / 2 to by - 1))
         }
 
-        /** 기와 민가 한 채 — 3칸 폭 (지붕 1줄 + 창·벽 2줄). 정문 상호작용은 없다. */
-        fun tryFarmhouse(bx: Int, by: Int): Boolean {
+        /**
+         * 민가 한 채 — 3칸 폭 (지붕 1줄 + 창·벽 2줄)에 **가운데 현관**을 낸다.
+         *
+         * 현관은 [HouseInfo] 로 등록되어 안으로 들어갈 수 있다 (제보: "못 들어가는 집이 너무 많다").
+         * 문 앞 한 칸은 반드시 비워 두어 A 버튼이 '들어가기'로 잡히게 한다.
+         */
+        fun tryFarmhouse(bx: Int, by: Int, kind: Int = 0): Boolean {
             val ex = bx + 2
             val ey = by + 2
             if (!footprintClear(bx, by, ex, ey)) return false
+            val frontY = ey + 1
+            // 문 앞 칸이 지나갈 수 있어야 한다 (건물 벽·물·예약칸이면 세우지 않는다)
+            if (!inb(bx + 1, frontY) || structure[frontY][bx + 1] || reserved[frontY][bx + 1]) return false
+            if (base[frontY][bx + 1] == T.WATER.ordinal || base[ey][bx + 1] == T.WATER.ordinal) return false
             for (y in by..ey) for (x in bx..ex) {
                 t[y][x] = when {
                     y == by -> T.HOUSE_ROOF
-                    y == by + 1 && x == bx + 1 -> T.HOUSE_WIN
+                    y == by + 1 && (x == bx || x == bx + 2) -> T.HOUSE_WIN
+                    y == ey && x == bx + 1 -> T.HOUSE_DOOR
                     else -> T.HOUSE_WALL
                 }.ordinal
-                structure[y][x] = true
+                structure[y][x] = !(y == ey && x == bx + 1)
                 reserved[y][x] = true
             }
+            houses.add(
+                HouseInfo(
+                    index = houses.size, bx = bx, by = by, w = 3, h = 3,
+                    doorX = bx + 1, doorY = ey, kind = kind
+                )
+            )
             return true
         }
 
+        /**
+         * 도시 주택가 — 빈 초록에 민가를 여러 채 세운다.
+         *
+         * 예전에는 도시에 고층 상가(창·벽만 있는 장식)만 늘어서서 "못 들어가는 집"이
+         * 대부분이었다. 이제 도시에도 **골목을 따라 들어갈 수 있는 집**을 채운다.
+         */
+        fun plantHouses(want: Int, city: Boolean) {
+            if (want <= 0) return
+            var placed = 0
+            val step = 6
+            for (by in 3..(h - 6)) {
+                if (placed >= want) break
+                if (by in AVE_Y - 2..AVE_Y + 3) continue
+                val rowOffset = (by % 2) * 3
+                for (bx in 3 + rowOffset..(w - 6) step step) {
+                    if (placed >= want) break
+                    if (bx in AVE_X - 2..AVE_X + 3) continue
+                    if (tryFarmhouse(bx, by, if (city) 1 else 2)) placed++
+                }
+            }
+        }
+
+        // 들어갈 수 있는 집 목록 — 도시 상가·시골 민가·우리 집이 모두 여기에 들어간다.
         val isMetro = region.id in setOf("seoul", "busan", "daegu", "incheon", "daejeon", "gwangju", "ulsan")
         if (region.city && isMetro) {
             // 북측 도심 띠 — 간선 북쪽, 네 구석의 기본 블록(6..8 / 31..33)과 집 보호구역(x18..28)
@@ -1385,25 +1483,17 @@ object MapBuilder {
                 tryTower(bx, 24, 3, 3 + rnd.nextInt(2))
             }
         } else if (region.id == "jeonju") {
-            // 한옥마을 느낌 — 기와집 2채. 집 보호구역(x18..28, y6..14)과 지형 충돌을 피해
-            // 후보지를 넓게 돌아 가며 두 채를 세운다.
+            // 한옥마을 느낌 — 기와집 여러 채. 후보지를 넓게 돌아 가며 세운다.
             var hanok = 0
-            for ((hx, hy) in listOf(30 to 6, 32 to 8, 31 to 10, 29 to 12, 24 to 20, 26 to 21)) {
-                if (hanok >= 2) break
-                if (tryFarmhouse(hx, hy)) hanok++
+            for ((hx, hy) in listOf(30 to 6, 32 to 8, 31 to 10, 29 to 12, 24 to 20, 26 to 21, 13 to 8, 8 to 20)) {
+                if (hanok >= 4) break
+                if (tryFarmhouse(hx, hy, 2)) hanok++
             }
         }
 
-        // 4.6 시골 마을 — 도시가 아닌 지역엔 마을 입구의 민가 한두 채가 시골 정취를 살린다.
-        //     자연 탐조지라도 지도 어딘가 집이 서 있으면 "어느 동네"인지 읽힌다.
-        if (!region.city) {
-            val want = 1 + rnd.nextInt(2)     // 1~2채
-            var placed = 0
-            for ((hx, hy) in listOf(30 to 10, 13 to 19, 8 to 5, 29 to 24, 28 to 5, 8 to 24, 25 to 23)) {
-                if (placed >= want) break
-                if (tryFarmhouse(hx, hy)) placed++
-            }
-        }
+        // 4.6 마을 — 도시든 자연 탐조지든 **들어갈 수 있는 집**을 채운다.
+        //     도시는 상가 골목(6채), 그 밖은 마을 민가(3채)부터 시작한다.
+        plantHouses(if (region.city) 6 else 3, region.city)
 
 
         // 5. 우리 집 -------------------------------------------------------------
@@ -1431,6 +1521,13 @@ object MapBuilder {
             for (y in 8..12) for (x in 20..26) reserved[y][x] = true
             houseDoorX = 23
             houseDoorY = 11
+            // 우리 집도 '들어갈 수 있는 집' 목록의 일원 — 지역 상가·민가와 같은 경로로 들어간다.
+            houses.add(
+                HouseInfo(
+                    index = houses.size, bx = 21, by = 8, w = 5, h = 4,
+                    doorX = houseDoorX, doorY = houseDoorY, kind = 3
+                )
+            )
             // 현관 문턱은 광장과 같은 석재 포장
             for (x in 23..24) pave[11][x] = Pave.STONE
         }
@@ -2109,12 +2206,76 @@ object MapBuilder {
             tunnels = tunnelList
         )
 
+        // 15. 집 검증 -------------------------------------------------------------
+        //     문 앞 칸에서 광장(스폰 자리)까지 **실제로 걸어갈 수 있는 집만** 남긴다.
+        //     물 건너·섬에 세워진 집은 문이 있어도 들어갈 수 없어 "오류난 집"으로 보인다.
+        val walkable = reachableTiles(t, base, structure, 20 to 15)
+        val enterable = houses.filter { it.doorX >= 0 && walkable[it.doorY * w + it.doorX] }
+        for (house in houses) {
+            if (house in enterable) continue
+            // 갈 수 없는 집은 지도에서 지운다 — 유령 건물(창문만 있는 집)을 남기지 않는다.
+            for (y in house.by until minOf(house.by + house.h, h)) {
+                for (x in house.bx until minOf(house.bx + house.w, w)) {
+                    t[y][x] = base[y][x]
+                    structure[y][x] = false
+                    reserved[y][x] = false
+                }
+            }
+        }
+        val finalHouses = enterable.mapIndexed { i, h0 -> h0.copy(index = i) }
+        // 우리 집 현관이 (지형 때문에) 사라졌다면 '우리 집' 판정도 내린다 —
+        // 문 없는 집을 우리 집이라고 하면 안내가 어긋난다.
+        val homeStillThere = finalHouses.any { it.doorX == houseDoorX && it.doorY == houseDoorY }
+
         return GameMap(
-            region, w, h, t, base, pave, deco, npcs, hasHouse, houseDoorX, houseDoorY,
+            region, w, h, t, base, pave, deco, npcs, hasHouse && homeStillThere, houseDoorX, houseDoorY,
             mapStyle, tunnelList,
             hasLandmark = landmarkDoorX >= 0, landmarkDoorX = landmarkDoorX, landmarkDoorY = landmarkDoorY,
+            houses = finalHouses,
             elevation = elevation, viewpoints = viewpoints
         )
+    }
+
+    /**
+     * 걸어서 닿을 수 있는 타일을 표시한다 (4방향 BFS).
+     * 집 문 앞·NPC 자리처럼 "여기로 걸어갈 수 있나"를 지도 위에서 검증할 때 쓴다.
+     * 물·구조물은 지나가지 못한다.
+     */
+    private fun reachableTiles(
+        t: Array<IntArray>, base: Array<IntArray>, structure: Array<BooleanArray>,
+        start: Pair<Int, Int>
+    ): BooleanArray {
+        val h = t.size
+        val w = t[0].size
+        val seen = BooleanArray(w * h)
+        val queue = ArrayDeque<Int>()
+        fun passable(x: Int, y: Int): Boolean {
+            if (x < 0 || y < 0 || x >= w || y >= h) return false
+            if (structure[y][x]) return false
+            if (base[y][x] == T.WATER.ordinal) return false
+            return true
+        }
+        val (sx, sy) = start
+        val sx0 = sx.coerceIn(0, w - 1)
+        val sy0 = sy.coerceIn(0, h - 1)
+        if (!passable(sx0, sy0)) return seen
+        seen[sy0 * w + sx0] = true
+        queue.add(sy0 * w + sx0)
+        while (queue.isNotEmpty()) {
+            val idx = queue.removeFirst()
+            val x = idx % w
+            val y = idx / w
+            for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                val nx = x + dx
+                val ny = y + dy
+                if (!passable(nx, ny)) continue
+                val ni = ny * w + nx
+                if (seen[ni]) continue
+                seen[ni] = true
+                queue.add(ni)
+            }
+        }
+        return seen
     }
 
     /**
@@ -2466,6 +2627,43 @@ object MapBuilder {
         val pave = Array(h) { IntArray(w) }
         val deco = Array(h) { IntArray(w) }
         return GameMap(home, w, h, t, base, pave, deco, emptyList(), true, 7, h - 1)
+    }
+
+    /**
+     * **방문한 집의 실내** (16x12). 우리 집([buildHome])과 같은 바닥·벽을 쓰되,
+     * 집마다 가구 배치가 조금씩 달라 같은 동네라도 "다른 집"으로 읽힌다.
+     *
+     * 화덕·침대는 넣지 않는다 — 남의 집 살림을 함부로 쓸 수는 없으니까.
+     * (가구·마루는 [HouseScene]이 코드로 그린다.)
+     */
+    fun buildHouseRoom(kind: Int, seed: Int): GameMap {
+        val w = 16
+        val h = 12
+        val t = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
+        for (x in 0 until w) { t[0][x] = T.WALL_IN.ordinal; t[1][x] = T.WALL_IN.ordinal }
+        for (y in 0 until h) { t[y][0] = T.WALL_IN.ordinal; t[y][w - 1] = T.WALL_IN.ordinal }
+        for (x in 0 until w) t[h - 1][x] = T.WALL_IN.ordinal
+        t[h - 1][7] = T.HOUSE_DOOR.ordinal
+        t[h - 1][8] = T.HOUSE_DOOR.ordinal
+        // 창문 — 집집마다 개수가 조금 다르다 (2~5개)
+        val windows = when ((seed and 3)) {
+            0 -> intArrayOf(2, 6, 10, 13)
+            1 -> intArrayOf(3, 7, 12)
+            2 -> intArrayOf(2, 5, 8, 11, 14)
+            else -> intArrayOf(4, 9, 12)
+        }
+        for (wx in windows) t[1][wx.coerceIn(1, w - 2)] = T.WALL_WIN.ordinal
+        // 상가(도시)는 물건 상자를, 민가는 장작 단을 하나 놓는다 — 지나다닐 길은 넉넉히 남긴다
+        if (kind == 1) {
+            t[3][13] = T.BOX.ordinal
+        } else if (kind != 3) {
+            t[4][2] = T.BOX.ordinal
+        }
+        val region = Regions.byId["seoul"] ?: Regions.ALL.first()  // 실내맵은 지역 무관(더미)
+        val base = Array(h) { IntArray(w) { T.FLOOR.ordinal } }
+        val pave = Array(h) { IntArray(w) }
+        val deco = Array(h) { IntArray(w) }
+        return GameMap(region, w, h, t, base, pave, deco, emptyList(), false, -1, -1)
     }
 
     /** 지역 랜드마크 내부 맵 (16x12) — 상호작용(전시/휴식/안내)은 LandmarkScene이 담당한다. */

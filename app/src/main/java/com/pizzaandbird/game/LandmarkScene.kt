@@ -426,7 +426,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             questPathKey = ""
         }
         if (input.justBack || input.justMenu) {
-            openOverlay(MenuOverlay(this))
+            openOverlay(MenuOverlay(this, MenuOverlay.TAB_BAG))
             return
         }
         // 앉기 연출 중: A 는 무시, B 는 일어나기/취소
@@ -448,7 +448,8 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             return
         }
         if (input.justQuest) {
-            QuestNavigation.openTracker(this)
+            // 카드를 누르면 곧바로 목적지로 안내를 시작한다 (실내에서는 현관까지 걸어 나간다)
+            if (!QuestNavigation.autoTravelTracked(game, this)) QuestNavigation.openTracker(this)
             return
         }
         if (input.justB) {

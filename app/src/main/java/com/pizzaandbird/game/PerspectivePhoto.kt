@@ -147,16 +147,20 @@ object PerspectivePhoto {
         }
         private val path = Path()
         private val rect = RectF()
-        private val night = 1f - daylight(hour)
+        // ---- 시간대 · 계절은 월드와 **같은 곡선**(`DayCycle`)에서 가져온다 --------
+        // 예전에는 시각을 고정 상수(18.1시 / 6.0시)와 비교해 노을을 만들었다. 그래서
+        // 계절·위도에 따라 해가 지는 시각이 다른데도 사진만 늘 같은 저녁 색을 썼고,
+        // "지금 낮인데 사진은 저녁" 같은 어긋남이 생겼다. 이제 월드가 쓰는 태양 고도
+        // 램프(SKY · SKY_TOP · SUNLIGHT)를 그대로 쓰므로 **찍는 순간의 하늘**이 나온다.
+        private val solar = DayCycle.solarHour(hour, season)
+        private val golden = DayCycle.golden(hour, season)      // 일출·일몰 직전후
+        private val night = DayCycle.darkness(hour, season)     // 0(한낮) ~ 1(한밤)
         private val overcast = when (weather) {
-            Weather.RAIN -> 0.65f; Weather.CLOUDY, Weather.SNOW -> 0.4f; else -> 0f
+            Weather.RAIN -> 0.65f; Weather.CLOUDY, Weather.SNOW -> 0.4f; Weather.WIND -> 0.15f; else -> 0f
         }
-        private val dusk = max((1f - abs(hour - 18.1f) / 1.6f).coerceIn(0f, 1f),
-            (1f - abs(hour - 6f) / 1.1f).coerceIn(0f, 1f)) * (1f - overcast)
-        private val skyTop = mix(mix(0xFF72B5D5.toInt(), 0xFFB9B2C8.toInt(), dusk),
-            0xFF111C38.toInt(), night)
-        private val skyHorizon = mix(mix(mix(0xFFE1EEDD.toInt(), 0xFFF5BE91.toInt(), dusk),
-            0xFFA8B6BC.toInt(), overcast), 0xFF3D526B.toInt(), night)
+        private val dusk = golden * (1f - overcast)
+        private val skyTop = mix(DayCycle.skyTopColor(hour, season), 0xFF9AA6B4.toInt(), overcast * 0.5f)
+        private val skyHorizon = mix(DayCycle.skyColor(hour, season), 0xFFA8B6BC.toInt(), overcast * 0.75f)
         private val seed = map.region.id.hashCode()
 
         private data class Face(val points: List<PhotoPoint>, val color: Int, val depth: Float)
@@ -207,9 +211,13 @@ object PerspectivePhoto {
                 }
             }
             if (overcast < 0.5f) {
-                val sx = w * (0.76f - camera.forwardX * 0.17f)
-                val sy = h * (0.13f + dusk * 0.16f)
-                paint.color = Color.argb(22, 255, 234, 187)
+                // 해는 일출(왼쪽) → 남중(높이) → 일몰(오른쪽) 경로를 따른다.
+                val dayT = ((solar - 6f) / 12f).coerceIn(0f, 1f)
+                val alt = (1f - abs(solar - 12f) / 6f).coerceIn(0f, 1f)
+                val sx = w * (0.12f + 0.74f * dayT)
+                val sy = h * (0.34f - 0.24f * alt)
+                val halo = mix(0xFFFFEABB.toInt(), 0xFFFFC078.toInt(), golden)
+                paint.color = Color.argb(26, Color.red(halo), Color.green(halo), Color.blue(halo))
                 c.drawCircle(sx, sy, 34f, paint)
                 paint.color = if (night > 0.5f) 0xFFF2F0D7.toInt() else 0xFFFFF1C3.toInt()
                 c.drawCircle(sx, sy, if (night > 0.5f) 9f else 13f, paint)

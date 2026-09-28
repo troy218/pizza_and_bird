@@ -240,6 +240,38 @@ object QuestNavigation {
         scene.openOverlay(DialogOverlay(scene, tracker?.title ?: "퀘스트", body, choices))
     }
 
+    /**
+     * HUD 퀘스트 카드를 눌렀을 때 — 목표를 **다시 읽어 보는 대신 곧바로 데려다준다.**
+     *
+     * 트래커가 고른 퀘스트(수락한 서브 의뢰 · 일일 미션 · 메인 장 · 예전 새 의뢰)에 맞춰
+     * 자전거 길안내를 시작한다. 목적지가 집 화덕이면 실내에서 화덕까지 걸어가고,
+     * 밖이면 지역 그래프를 따라 터널을 넘어간다. 안내할 목표가 없으면 false.
+     */
+    fun autoTravelTracked(game: Game, scene: Scene): Boolean {
+        val s = game.state
+        val tracker = tracker(s) ?: return false
+        val active = s.activeQuests.firstOrNull { it.id == tracker.id && !it.completed }
+        if (active != null) {
+            startQuest(game, scene, active)
+            return true
+        }
+        if (tracker.id == "legacy_bird") {
+            val birdId = s.questBird ?: return false
+            startLegacyBirdTrip(game, scene, birdId)
+            return true
+        }
+        if (tracker.id == "main") {
+            startMainQuest(game, scene)
+            return true
+        }
+        val daily = s.dailyQuests.firstOrNull { it.id == tracker.id && !it.completed }
+        if (daily != null) {
+            startDailyQuest(game, scene, daily)
+            return true
+        }
+        return false
+    }
+
     fun nextRegionOnRoute(fromRegionId: String, targetRegionId: String): String? {
         val route = regionRoute(fromRegionId, targetRegionId) ?: return null
         return route.getOrNull(1)

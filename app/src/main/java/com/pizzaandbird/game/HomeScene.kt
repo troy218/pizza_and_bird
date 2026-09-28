@@ -569,7 +569,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             return
         }
         if (input.justMenu) {
-            openOverlay(MenuOverlay(this))
+            openOverlay(MenuOverlay(this, MenuOverlay.TAB_BAG))
             return
         }
         if (input.justCam) {
@@ -577,7 +577,9 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             return
         }
         if (input.justQuest) {
-            QuestNavigation.openTracker(this)
+            // 카드를 누르면 집 안에서는 화덕/현관까지 걸어가고, 밖에서는 자전거로 안내한다.
+            // (안내할 목표가 없을 때만 예전처럼 목록을 보여 준다)
+            if (!QuestNavigation.autoTravelTracked(game, this)) QuestNavigation.openTracker(this)
             return
         }
         if (input.justB) {

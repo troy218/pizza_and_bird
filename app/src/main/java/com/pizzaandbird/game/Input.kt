@@ -7,8 +7,13 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import kotlin.math.sqrt
 
-/** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
+/**
+ * 가상 컨트롤 종류.
+ *
+ * STATUS 는 좌상단 레벨/상태 상자(누르면 내 상태 창), DEX·ACHIEVE·SETTINGS 는
+ * 가방(세줄 메뉴) 밖으로 꺼낸 오른쪽 세로 기둥의 빠른 메뉴다.
+ */
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST, STATUS, DEX, ACHIEVE, SETTINGS }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -37,7 +42,25 @@ class Input(private val game: Game) {
     private val stickTentative = HashSet<Int>()   // 아직 안 움직인 스틱 손가락 (떼면 탭으로)
     private val queue = ArrayList<QEv>()
     private val keys = HashMap<Int, Boolean>()
-    private var tapScreen: PointF? = null
+
+    /**
+     * 소비 대기 중인 탭(화면 좌표) 큐.
+     *
+     * 예전에는 `tapScreen` 한 칸만 두어 한 프레임 안에 두 번 두드리면 앞의 탭이
+     * 조용히 사라졌다. "버튼을 여러 번 눌러야 반응한다"는 제보의 한 원인이라
+     * 작은 큐로 바꿔 이번 프레임에 들어온 탭을 버리지 않는다(최대 [MAX_TAPS]).
+     * 큐는 프레임 끝(`endFrame`)에 비워, 다음 화면으로 새어 나가지 않는다.
+     */
+    private val taps = ArrayDeque<PointF>()
+
+    /** DOWN 에서 이미 탭으로 처리한 손가락 — 떼는 순간 또 탭이 되지 않게 한다 */
+    private val tappedAtDown = HashSet<Int>()
+
+    /** 이번 프레임에 쌓인 탭이 큐 상한을 넘지 않게 (폭주 방지) */
+    private fun pushTap(x: Float, y: Float) {
+        if (taps.size >= MAX_TAPS) return
+        taps.addLast(PointF(x, y))
+    }
 
     // ----- 프레임 상태 (게임 스레드 전용) -----
     var dirX = 0f
@@ -54,7 +77,11 @@ class Input(private val game: Game) {
     var justEatPick = false   // [P11] 빠른 피자 창 (🍕 버튼 길게 누르기 / Q 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
-    var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
+    var justQuest = false     // 진행 중 퀘스트 카드 탭 — 카드가 곧바로 자전거 길안내를 시작한다
+    var justStatus = false    // 레벨/상태 상자 탭 — 내 상태 창
+    var justDex = false       // 빠른 메뉴: 도감
+    var justAchieve = false   // 빠른 메뉴: 업적
+    var justSettings = false  // 빠른 메뉴: 설정
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     /** [P11] 🍕 버튼 홀드 진행도 0~1 — HUD가 버튼 주위의 링으로 보여 준다 */
@@ -139,6 +166,8 @@ class Input(private val game: Game) {
         eatHoldStart.clear()
         eatHoldFired.clear()
         eatHoldT = 0f
+        tappedAtDown.clear()
+        taps.clear()
     }
 
     /** 게임 스레드: 이번 프레임 이벤트 소비 */
@@ -157,8 +186,17 @@ class Input(private val game: Game) {
                         rawEvents.add(RawEv(RawEv.DOWN, ev.id, ev.x, ev.y))
                         continue@loop
                     }
-                    // 모달 오버레이가 열려 있으면 뒤에 깔린 HUD 버튼이 터치를 가로채면 안 된다.
-                    val ctrl = if (game.scene.overlay == null) game.hud.controlAt(ev.x, ev.y) else Ctrl.NONE
+                    // 모달 오버레이(가방·상점·대화·메뉴)가 열려 있으면 뒤에 깔린 HUD
+                    // 버튼은 터치를 가로채지 않는다. 대신 **누르는 순간** 탭으로 넘겨
+                    // 버튼이 즉시 반응하게 한다 — 예전에는 손을 뗄 때(UP)까지 기다려서
+                    // 프레임이 밀리는 동안 "눌러도 안 먹는다"고 느껴졌다.
+                    if (game.scene.overlay != null) {
+                        pointerCtrl[ev.id] = Ctrl.NONE
+                        tappedAtDown.add(ev.id)
+                        pushTap(ev.x, ev.y)
+                        continue@loop
+                    }
+                    val ctrl = game.hud.controlAt(ev.x, ev.y)
                     pointerCtrl[ev.id] = ctrl
                     if (ctrl != Ctrl.NONE) {
                         // 조이스틱: 손을 댄 자리가 베이스가 된다 (듀랑고식 플로팅)
@@ -213,6 +251,8 @@ class Input(private val game: Game) {
                 }
                 K.UP -> {
                     val ctrl = pointerCtrl[ev.id] ?: Ctrl.NONE
+                    // DOWN 에서 이미 탭으로 넘긴 손가락은 떼도 다시 탭이 되지 않는다
+                    val consumed = tappedAtDown.remove(ev.id)
                     // [P11] 피자 버튼 — 길게 누르기가 이미 발동했다면 먹지 않는다
                     if (ctrl == Ctrl.EAT) {
                         if (ev.id !in eatHoldFired) justEat = true
@@ -222,17 +262,17 @@ class Input(private val game: Game) {
                     if (ctrl == Ctrl.STICK) {
                         game.hud.releaseStick()
                         // 움직이지 않고 떼면 월드 탭으로 처리 (조이스틱 구역에서도 상호작용 유지)
-                        if (ev.id in stickTentative && ev.id !in pointerDragged) {
-                            tapScreen = PointF(ev.x, ev.y)
+                        if (!consumed && ev.id in stickTentative && ev.id !in pointerDragged) {
+                            pushTap(ev.x, ev.y)
                         }
                         stickTentative.remove(ev.id)
                     }
                     val down = pointerDown[ev.id]
-                    if (!rawMode && ctrl == Ctrl.NONE && down != null && ev.id !in pointerDragged) {
+                    if (!consumed && !rawMode && ctrl == Ctrl.NONE && down != null && ev.id !in pointerDragged) {
                         val dx = ev.x - down.x
                         val dy = ev.y - down.y
                         if (dx * dx + dy * dy <= tapDragPx * tapDragPx) {
-                            tapScreen = PointF(ev.x, ev.y)
+                            pushTap(ev.x, ev.y)
                         }
                     }
                     pointerPos.remove(ev.id)
@@ -244,6 +284,7 @@ class Input(private val game: Game) {
                 K.CANCEL -> {
                     if (pointerCtrl[ev.id] == Ctrl.STICK) game.hud.releaseStick()
                     // [P11] 터치가 끊긴 피자 버튼은 아무 일도 일어나지 않게 홀드만 정리한다
+                    tappedAtDown.remove(ev.id)
                     eatHoldStart.remove(ev.id)
                     eatHoldFired.remove(ev.id)
                     stickTentative.remove(ev.id)
@@ -333,6 +374,9 @@ class Input(private val game: Game) {
     companion object {
         /** [P11] 피자 버튼을 이만큼(ms) 이상 누르고 있으면 '빠른 피자 창'이 열린다 */
         const val EAT_HOLD_MS = 420L
+
+        /** 한 프레임에 쌓아 두는 탭의 최대 개수 — 연타가 들어와도 순서대로 처리한다 */
+        private const val MAX_TAPS = 4
     }
 
     private fun press(ctrl: Ctrl) {
@@ -345,6 +389,10 @@ class Input(private val game: Game) {
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             Ctrl.QUEST -> { justQuest = true; game.haptic() }
+            Ctrl.STATUS -> { justStatus = true; game.haptic() }
+            Ctrl.DEX -> { justDex = true; game.haptic() }
+            Ctrl.ACHIEVE -> { justAchieve = true; game.haptic() }
+            Ctrl.SETTINGS -> { justSettings = true; game.haptic() }
             else -> {}
         }
     }
@@ -398,11 +446,12 @@ class Input(private val game: Game) {
         ctrlSnap = HashSet(pointerCtrl.values)
     }
 
-    /** 화면 좌표 탭 (오버레이가 소비) */
-    fun consumeTapScreen(): PointF? {
-        val t = tapScreen
-        tapScreen = null
-        return t
+    /** 화면 좌표 탭 (오버레이가 소비) — 가장 먼저 들어온 탭부터 하나씩 */
+    fun consumeTapScreen(): PointF? = taps.removeFirstOrNull()
+
+    /** 아직 소비되지 않은 탭 버리기 — 화면(씬/오버레이)이 바뀌면 남은 탭은 새 화면에 쓰지 않는다 */
+    fun dropTaps() {
+        taps.clear()
     }
 
     /**
@@ -411,9 +460,7 @@ class Input(private val game: Game) {
      * Game.screenToWorld가 카메라 오프셋과 망원 배율까지 함께 역변환한다.
      */
     fun consumeTapWorld(): PointF? {
-        val t = tapScreen
-        tapScreen = null
-        if (t == null) return null
+        val t = consumeTapScreen() ?: return null
         if (!game.isInsideVirtualViewport(t)) return null
         return game.screenToWorld(t)
     }
@@ -430,7 +477,13 @@ class Input(private val game: Game) {
         justMap = false
         justPunch = false
         justQuest = false
-        tapScreen = null
+        justStatus = false
+        justDex = false
+        justAchieve = false
+        justSettings = false
+        // 이번 프레임에 소비되지 않은 탭은 버린다 — 다음 프레임/다음 화면으로 새지 않게
+        // (한 프레임 안의 여러 번 두드림은 큐가 순서대로 넘겨준다)
+        taps.clear()
         rawEvents.clear()
     }
 

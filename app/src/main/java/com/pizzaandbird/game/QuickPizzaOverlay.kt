@@ -189,7 +189,7 @@ class QuickPizzaOverlay(scene: Scene) : Overlay(scene) {
             c.drawBitmap(
                 a.pizzaArt(quick.id), null,
                 RectF(banR.left + dp(6f), banR.centerY() - artSz / 2f, banR.left + dp(6f) + artSz, banR.centerY() + artSz / 2f),
-                a.sprPaint
+                a.iconPaint
             )
             val tx = banR.left + dp(10f) + artSz
             tp.textSize = tdp(10.5f)
@@ -273,7 +273,7 @@ class QuickPizzaOverlay(scene: Scene) : Overlay(scene) {
             c.drawBitmap(
                 a.pizzaArt(p.id), null,
                 RectF(cr.left + dp(7f), cr.centerY() - artW / 2f, cr.left + dp(7f) + artW, cr.centerY() + artW / 2f),
-                a.sprPaint
+                a.iconPaint
             )
 
             // 오른쪽 버튼 두 개 (⚡ 등록 / 🍕 한 조각)

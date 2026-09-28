@@ -271,7 +271,7 @@ class TitleScene(game: Game) : Scene(game) {
 
         // 피자 (부유하며 살랑살랑)
         val pizzaY = 410f + sin(t * 2.2f) * 5f
-        c.drawBitmap(a.pizzaIconBig, lx - 44f, pizzaY, a.sprPaint)
+        c.drawBitmap(a.pizzaIconBig, lx - 44f, pizzaY, a.iconPaint)
         // 피자 위에 앉은 참새
         val sparrow = a.bird("sparrow")
         c.drawBitmap(sparrow, lx + 8f, pizzaY - a.birdH("sparrow") + 10f + sin(t * 2.4f) * 2f, a.sprPaint)
@@ -454,8 +454,8 @@ class TitleScene(game: Game) : Scene(game) {
     }
 }
 
-/** 스폰 위치 종류 */
-enum class SpawnKind { SAVED, TUNNEL, HOME, LANDMARK }
+/** 스폰 위치 종류 — HOUSE_DOOR 는 "방금 나온 그 집 현관 앞"으로 돌아온다 */
+enum class SpawnKind { SAVED, TUNNEL, HOME, LANDMARK, HOUSE_DOOR }
 
 /** 첫 플레이 시 아바타 선택 화면. 카드는 가상 캔버스(화면비 적응), 버튼은 실제 화면 좌표로 그린다. */
 class CharacterSelectScene(game: Game) : Scene(game) {

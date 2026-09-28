@@ -390,10 +390,24 @@ class Game(val context: Context) {
         }
         audio.update(dt)   // BGM/환경음 페이드 진행
         input.process()
+        handleHudShortcuts()
         val tr = transition
         if (tr != null) {
             tr.update(dt)
             if (tr.finished) transition = null
+            // 페이드가 새 화면을 이미 갈아 끼운 뒤(페이드 인)에는 입력을 받는다.
+            // 예전에는 0.6초 내내 손가락을 무시해, 화면이 보이는데도 버튼이
+            // "여러 번 눌러야" 먹는 것처럼 느껴졌다.
+            if (tr != null && tr.acceptsInput) {
+                val ov0 = scene.overlay
+                if (ov0 != null) {
+                    ov0.handleInput(input)
+                    if (ov0.finished && scene.overlay === ov0) scene.closeOverlay()
+                } else {
+                    scene.handleInput(input)
+                }
+                if (scene.overlay !== ov0) input.dropTaps()
+            }
             input.endFrame()
             return
         }
@@ -409,8 +423,33 @@ class Game(val context: Context) {
         } else {
             scene.handleInput(input)
         }
+        // 한 번의 탭이 새 창을 열었다면 남은 탭은 새 화면에 넘기지 않는다
+        if (scene.overlay !== ov) input.dropTaps()
         scene.update(dt)
         input.endFrame()
+    }
+
+    /**
+     * HUD 상단의 빠른 메뉴(도감·업적·설정)와 레벨/상태 상자 — 어느 씬에서든 같은 창을 연다.
+     *
+     * 예전에는 설정·업적·도감이 가방(세줄 메뉴) 안에만 있어, 그 화면을 보려면
+     * 가방을 열고 탭을 다시 골라야 했다. 이제 화면에 바로 꺼내 두고 한 번에 연다.
+     */
+    private fun handleHudShortcuts() {
+        val sc = scene
+        if (sc.overlay != null || transition != null) return
+        val open: Overlay? = when {
+            input.justStatus -> MenuOverlay(sc, MenuOverlay.TAB_STATUS)
+            input.justDex -> MenuOverlay(sc, MenuOverlay.TAB_BOOK)
+            input.justAchieve -> MenuOverlay(sc, MenuOverlay.TAB_ACHIEVE)
+            input.justSettings -> MenuOverlay(sc, MenuOverlay.TAB_SETTINGS)
+            else -> null
+        }
+        if (open != null) {
+            sc.openOverlay(open)
+            // 한 번의 탭이 새 창의 버튼까지 누르지 않게 남은 탭은 버린다
+            input.dropTaps()
+        }
     }
 
     @Synchronized
@@ -539,6 +578,15 @@ class Transition(private val action: () -> Unit) {
     private var t = 0f
     private var phase = 0
     private var doneFlag = false
+
+    /**
+     * 화면이 새 씬으로 갈아 끼워진 뒤(페이드 인)인가.
+     *
+     * 이 구간에는 화면이 서서히 밝아지며 새 씬이 이미 그려지고 있으므로,
+     * 손가락을 계속 무시하면 "눌러도 반응이 없다"고 느껴진다.
+     * 페이드 아웃(아직 이전 화면) 구간은 입력을 받지 않는다.
+     */
+    val acceptsInput: Boolean get() = phase == 1 && !doneFlag
 
     fun update(dt: Float) {
         t += dt / 0.3f

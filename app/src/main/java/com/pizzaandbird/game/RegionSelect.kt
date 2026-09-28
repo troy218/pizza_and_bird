@@ -185,7 +185,7 @@ class RegionSelectScene(game: Game) : Scene(game) {
             val by = 60f + i * 34f + sin(t * 1.8f + i * 2f) * 9f
             c.drawBitmap(a.bird(birds[i]), bx, by, a.sprPaint)
         }
-        c.drawBitmap(a.pizzaIcon, 34f, 474f + sin(t * 2f) * 3f, a.sprPaint)
+        c.drawBitmap(a.pizzaIcon, 34f, 474f + sin(t * 2f) * 3f, a.iconPaint)
         c.drawBitmap(a.birdFlipped("magpie"), 894f, 470f + sin(t * 2.4f) * 3f, a.sprPaint)
         c.drawBitmap(a.bird("crane"), 26f, 428f + sin(t * 1.6f) * 3f, a.sprPaint)
         c.restore()

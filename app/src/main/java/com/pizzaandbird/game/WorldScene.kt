@@ -38,7 +38,10 @@ class WorldScene(
     game: Game,
     regionId: String,
     private val spawnKind: SpawnKind = SpawnKind.SAVED,
-    private val spawnDir: Dir = Dir.S
+    private val spawnDir: Dir = Dir.S,
+    /** HOUSE_DOOR 스폰 — 나온 집의 현관 타일 (그 앞으로 돌아온다) */
+    private val doorX: Int = -1,
+    private val doorY: Int = -1
 ) : Scene(game) {
 
     private val state = game.state
@@ -188,6 +191,10 @@ class WorldScene(
         val (sx, sy) = when (spawnKind) {
             SpawnKind.SAVED -> state.px to state.py
             SpawnKind.HOME -> 376f to 12.2f * 16f
+            // 방문한 집에서 나오면 **그 집 현관 바로 앞**으로 — 엉뚱한 집 문 앞에 서지 않는다.
+            SpawnKind.HOUSE_DOOR ->
+                if (doorX >= 0 && doorY in 0 until map.h - 1) doorX * 16f to (doorY + 1) * 16f
+                else 376f to 12.2f * 16f
             SpawnKind.LANDMARK ->                      // 랜드마크에서 나오면 정문 바로 앞
                 if (map.landmarkDoorX >= 0) map.landmarkDoorX * 16f to (map.landmarkDoorY + 1) * 16f
                 else 18f * 16f to 14f * 16f
@@ -207,6 +214,7 @@ class WorldScene(
         }
         // 저장 위치 복귀·터널 이동 시에는 자전거 탑승 상태 유지 (터널을 지나도 내리지 않는다)
         player.bike = (spawnKind == SpawnKind.SAVED || spawnKind == SpawnKind.TUNNEL) && state.onBike
+        if (spawnKind == SpawnKind.HOUSE_DOOR) player.facing = Dir.S
 
         if (region.id !in state.visited) {
             state.visited.add(region.id)
@@ -541,7 +549,7 @@ class WorldScene(
             nearTile(T.SIGN) != null -> "map"
             nearTile(T.BENCH) != null -> "coffee"
             nearFlowerTile() != null && Healing.pickableHerbs(state.season(), region.habitats).isNotEmpty() -> "leaf"
-            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
+            map.nearestHouseDoor(player.x, player.y, 30f) != null -> "house"
             nearLandmarkDoor() -> "pin"
             nearestViewpoint() != null -> "map"
             nearestCat() != null -> "fist"
@@ -1093,7 +1101,16 @@ class WorldScene(
                 }
                 goThroughTunnel(edge)
             }
-            T.HOUSE_DOOR -> if (map.hasHouse) enterHome()
+            T.HOUSE_DOOR -> {
+                // 지도에 세워진 **모든 집**이 들어갈 수 있다. 우리 집은 살림이 있는 HomeScene,
+                // 다른 집은 주인을 만나는 HouseScene 으로 간다.
+                val house = map.houseUnderFeet(player.x, player.y)
+                when {
+                    house == null -> if (map.hasHouse) enterHome()
+                    map.isOwnHome(house) -> enterHome()
+                    else -> enterHouse(house)
+                }
+            }
             T.LANDMARK_DOOR -> if (map.hasLandmark) enterLandmark()
             else -> {}
         }
@@ -1131,6 +1148,19 @@ class WorldScene(
         game.audio.stopSteps()
         game.fadeTo {
             game.scene = HomeScene(game, region.id)
+        }
+    }
+
+    /** 이웃집(도시 상가·시골 민가·한옥)으로 들어간다. 나올 때는 그 집 현관 앞으로. */
+    private fun enterHouse(house: HouseInfo) {
+        state.px = player.x
+        state.py = player.y
+        state.region = region.id
+        SaveManager.save(game.context, state)
+        game.audio.stopSteps()
+        game.sfx(Audio.Sfx.BAG_OPEN, 0.5f)
+        game.fadeTo {
+            game.scene = HouseScene(game, region, house)
         }
     }
 
@@ -2450,7 +2480,8 @@ class WorldScene(
             return
         }
         if (input.justMenu) {
-            openOverlay(MenuOverlay(this))
+            // 🎒 버튼 = 가방(소지품). 한 번 더 누르면 닫히는 토글은 MenuOverlay 가 처리한다.
+            openOverlay(MenuOverlay(this, MenuOverlay.TAB_BAG))
             return
         }
         if (input.justCam) {
@@ -2462,7 +2493,9 @@ class WorldScene(
             return
         }
         if (input.justQuest) {
-            showQuestLog()
+            // 퀘스트 카드를 누르면 곧바로 목적지로 자전거 길안내를 시작한다.
+            // (안내할 목표가 없을 때만 예전처럼 목록을 보여 준다)
+            if (!QuestNavigation.autoTravelTracked(game, this)) showQuestLog()
             return
         }
         if (input.justEatPick) {          // [P11] 🍕 길게 누르기 → 빠른 피자 창
@@ -2549,13 +2582,11 @@ class WorldScene(
                 }
                 return
             }
-            if (map.hasHouse) {
-                val ddx = (map.houseDoorX * 16f + 16f) - player.cx
-                val ddy = (map.houseDoorY * 16f + 8f) - player.cy
-                if (hypot(ddx, ddy) < 30f) {
-                    enterHome()
-                    return
-                }
+            // 집 현관 앞이면 어느 집이든 들어간다 (우리 집은 살림이 있는 HomeScene)
+            val doorHouse = map.nearestHouseDoor(player.x, player.y, 30f)
+            if (doorHouse != null) {
+                if (map.isOwnHome(doorHouse)) enterHome() else enterHouse(doorHouse)
+                return
             }
             if (nearLandmarkDoor()) {
                 enterLandmark()

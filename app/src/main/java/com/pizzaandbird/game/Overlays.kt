@@ -109,7 +109,7 @@ private fun drawPizzaArt(c: Canvas, scene: Scene, pizzaId: Int, cx: Float, cy: F
     val a = scene.game.assets
     val bmp = a.pizzaArt(pizzaId)
     val h = w * bmp.height / bmp.width
-    c.drawBitmap(bmp, null, RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f), a.sprPaint)
+    c.drawBitmap(bmp, null, RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f), a.iconPaint)
 }
 
 // ---------------------------------------------------------------------------
@@ -435,7 +435,7 @@ class NotebookOverlay(scene: Scene) : Overlay(scene) {
 // 메뉴 (상태 / 피자 / 도감 / 설정)
 // ---------------------------------------------------------------------------
 
-class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) : Overlay(scene) {
+class MenuOverlay(scene: Scene, private val startTab: Int = TAB_STATUS) : Overlay(scene) {
     /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
 
@@ -452,7 +452,9 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         BOOK("도감", "book", UiKit.PASTEL_LILAC),
         ALBUM("사진집", "camera", UiKit.PASTEL_SKY),
         SETTINGS("설정", "gear", UiKit.PASTEL_SAND),
-        ACHIEVE("업적", "🏅", UiKit.PASTEL_LEMON)
+        ACHIEVE("업적", "🏅", UiKit.PASTEL_LEMON),
+        // 소지품(가방) — 듀랑고식 수량 목록 + 마비노기식 페이퍼돌/꾸미기 슬롯
+        BAG("가방", "backpack", UiKit.PASTEL_MINT)
     }
 
     // ---- 가방 속 전용 그리기 도우미 (아기자기 키트) ----
@@ -468,7 +470,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private fun cuteBtnOff(c: Canvas, r: RectF, label: String, size: Float) =
         UiKit.cuteButton(c, scene.game, r, label, Color.argb(120, 214, 204, 186), Color.argb(150, 74, 55, 40), size)
 
-    private var tab = if (showAchievements) Tab.ACHIEVE else Tab.STATUS
+    private var tab = Tab.values()[startTab.coerceIn(0, Tab.values().size - 1)]
     private val tabRects = ArrayList<Pair<RectF, Tab>>()
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
@@ -480,6 +482,8 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     private var achievementPage = 0
     private val albumPhotoPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private var panelR = RectF()
+    /** 가방(소지품) 탭 — 카테고리·쪽 넘김 상태를 이 안에 둔다 */
+    private val bagPanel = BagPanel(scene)
 
     override fun handleInput(input: Input) {
         val g = scene.game
@@ -678,7 +682,19 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             Tab.ALBUM -> drawAlbum(c)
             Tab.SETTINGS -> drawSettings(c)
             Tab.ACHIEVE -> drawAchievements(c)
+            Tab.BAG -> drawBag(c)
         }
+    }
+
+    /** 🎒 가방 탭 — 왼쪽 페이퍼돌+꾸미기 슬롯, 오른쪽 소지품 목록([BagPanel]) */
+    private fun drawBag(c: Canvas) {
+        bagPanel.draw(
+            c,
+            RectF(
+                panelR.left + dp(scene, 12f), contentTop() + dp(scene, 4f),
+                panelR.right - dp(scene, 12f), contentBottom()
+            )
+        ) { r, action -> btnRects.add(Triple(r, "bag", action)) }
     }
 
     private fun contentTop(): Float = panelR.top + dp(scene, 84f)
@@ -1413,6 +1429,17 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     }
 
     companion object {
+        // 가방 탭 순서 — HUD의 빠른 메뉴(도감·업적·설정)도 이 번호로 창을 연다.
+        const val TAB_STATUS = 0
+        const val TAB_QUEST = 1
+        const val TAB_GROW = 2
+        const val TAB_PIZZA = 3
+        const val TAB_BOOK = 4
+        const val TAB_ALBUM = 5
+        const val TAB_SETTINGS = 6
+        const val TAB_ACHIEVE = 7
+        const val TAB_BAG = 8
+
         /** 마지막으로 보던 피자 계열 탭 (메뉴를 닫았다 열어도 유지) */
         private var lastPizzaKindTab: PizzaKind = PizzaKind.OVEN
         /** 도감 표시 모드 (사진 모드 vs 도트 모드) */
@@ -1800,11 +1827,11 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     }
                     c.restoreToCount(saveCount)
                 } else {
-                    val bmp = a.bird(def.id)
+                    val bmp = a.birdIcon(def.id, thumbBoxSize)
                     val k = (thumbBoxSize / bmp.height).coerceAtMost(dp(scene, 0.85f))
                     val bx = thumbR.centerX() - bmp.width * k / 2f
                     val by = thumbR.centerY() - bmp.height * k / 2f
-                    c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+                    c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.iconPaint)
                 }
 
                 strokeP.color = if (seen) Color.argb(160, 218, 175, 110) else Color.argb(70, 100, 90, 80)
@@ -1813,24 +1840,26 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
 
                 tx = thumbR.right + dp(scene, 6f)
             } else {
-                // [도트 모드]: 기존 픽셀 도트 스프라이트
-                val bmp = a.bird(def.id)
+                // [도트 모드] — 표시 크기에 맞춰 다시 그린 아이콘 (확대해도 계단이 보이지 않는다)
                 val maxH = chh - dp(scene, 8f)
+                val bmp = a.birdIcon(def.id, maxH)
                 val k = (maxH / bmp.height).coerceAtMost(dp(scene, 0.95f))
+                val bw = bmp.width * k
+                val bh = bmp.height * k
                 val bx = r.left + dp(scene, 4f)
-                val by = r.centerY() - bmp.height * k / 2f
+                val by = r.centerY() - bh / 2f
                 if (seen) {
                     fillP.color = Color.argb(40, Color.red(tierColor), Color.green(tierColor), Color.blue(tierColor))
-                    c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 15f), fillP)
-                    c.drawBitmap(bmp, null, RectF(bx, by, bx + bmp.width * k, by + bmp.height * k), a.sprPaint)
+                    c.drawCircle(bx + bw / 2f, r.centerY(), dp(scene, 15f), fillP)
+                    c.drawBitmap(bmp, null, RectF(bx, by, bx + bw, by + bh), a.iconPaint)
                 } else {
                     fillP.color = Color.argb(95, 150, 140, 130)
-                    c.drawCircle(bx + bmp.width * k / 2f, r.centerY(), dp(scene, 7f), fillP)
+                    c.drawCircle(bx + bw / 2f, r.centerY(), dp(scene, 7f), fillP)
                     textP.textSize = textDp(scene, 9.5f)
                     textP.color = 0xFFF8EFDC.toInt()
-                    c.drawText("?", bx + bmp.width * k / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+                    c.drawText("?", bx + bw / 2f - textP.measureText("?") / 2f, r.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
                 }
-                tx = bx + bmp.width * k + dp(scene, 5f)
+                tx = bx + bw + dp(scene, 5f)
             }
 
             val top0 = r.centerY() - dp(scene, 20f)
@@ -2029,7 +2058,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
         val statsBtn = RectF(right - dp(scene, 101f), top + dp(scene, 5f), right - dp(scene, 7f), top + dp(scene, 27f))
         cuteBtn(c, statsBtn, "통계 자세히", UiKit.PASTEL_SAND, UiKit.INK, 9f)
         btnRects.add(Triple(statsBtn, "stats-detail") {
-            scene.openOverlay(StatsOverlay(scene) { scene.openOverlay(MenuOverlay(scene, showAchievements = true)) })
+            scene.openOverlay(StatsOverlay(scene) { scene.openOverlay(MenuOverlay(scene, MenuOverlay.TAB_ACHIEVE)) })
         })
 
         val summaries = listOf(
@@ -2091,7 +2120,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
             }
             btnRects.add(Triple(r, def.id) {
                 scene.openOverlay(AchievementDetailOverlay(scene, def) {
-                    scene.openOverlay(MenuOverlay(scene, showAchievements = true))
+                    scene.openOverlay(MenuOverlay(scene, MenuOverlay.TAB_ACHIEVE))
                 })
             })
         }
@@ -3846,7 +3875,7 @@ class BakeOverlay(
                 c.drawText(kl, sx0 + starW, r.centerY() - dp(scene, 32f), textP)
 
                 // 피자(종류별 아이콘) + 후광
-                val k = dp(scene, 3.4f)
+                val k = dp(scene, 3.4f) / PIZZA_ICON_SCALE
                 val bmp = a.pizzaArt(p.id)
                 val bw = bmp.width * k
                 val bh = bmp.height * k
@@ -3989,15 +4018,28 @@ class PhotoResultOverlay(
         val inset = dp(scene, 11f)
         val landscape = capturedPhoto != null
         val photoAspect = capturedPhoto?.let { it.height.toFloat() / it.width } ?: 0.74f
+
+        // ---- 화면 밖으로 밀리지 않는 배치 -------------------------------
+        // 인화지 아래에는 의뢰 보수 · 경험치 · 촬영 노트 · [닫기] 단추가 차례로 쌓인다.
+        // 그 높이를 **먼저** 재고 남은 만큼만 인화지에 준다 — 예전에는 카드가 화면의
+        // 76%를 먼저 차지해, 정보 줄과 닫기 단추가 화면 아래로 밀려나 보이지 않았다.
+        val footer = dp(scene, 96f)                        // 인화지 안쪽 캡션(이름·별점·정보)
+        val closeH = dp(scene, 30f)
+        val bottomPad = dp(scene, 12f)
+        val topPad = dp(scene, 12f)
+        val notesShown = if (t > 0.5f) notes.take(3) else emptyList()
+        val stackH = (if (questLine != null) dp(scene, 32f) else 0f) +
+            (if (expGain > 0) dp(scene, 30f) else 0f) +
+            (if (notesShown.isEmpty()) 0f else dp(scene, 13f) * notesShown.size + dp(scene, 4f))
+        val maxH = (h - topPad - dp(scene, 10f) - stackH - closeH - bottomPad)
+            .coerceAtLeast(dp(scene, 150f))
         val maxW = if (landscape) minOf(w * 0.82f, dp(scene, 520f)) else minOf(w * 0.62f, dp(scene, 340f))
-        val maxH = h * 0.76f
-        // 원근 풍경의 양옆을 잘라내지 않는 가로 인화지. 캡션/별점 공간은 그대로 확보한다.
-        val footer = dp(scene, 96f)
         val cardW = if (landscape) minOf(maxW, (maxH - inset - footer) / photoAspect + inset * 2f)
             else minOf(maxW, maxH / 1.26f)
         val cardH = if (landscape) (cardW - inset * 2f) * photoAspect + inset + footer else cardW * 1.26f
         val cx = w / 2f
-        val cy = h * 0.5f - dp(scene, 6f)
+        // 카드는 위쪽 영역의 가운데 — 아래 정보 줄이 카드에 밀리지 않는다
+        val cy = topPad + maxH / 2f
 
         val pop = easeOutBack((t / 0.36f).coerceIn(0f, 1f))
         val scale = 0.9f + 0.1f * pop
@@ -4043,14 +4085,14 @@ class PhotoResultOverlay(
         c.drawRoundRect(photo, 0f, 0f, strokeP)
 
         // 캡션: 이름
-        val capTop = photo.bottom + dp(scene, 12f)
-        textP.textSize = textDp(scene, 17f)
+        val capTop = photo.bottom + dp(scene, 10f)
+        textP.textSize = textDp(scene, 16f)
         textP.color = 0xFF3B2F24.toInt()
         val nm = def.name
-        c.drawText(nm, card.centerX() - textP.measureText(nm) / 2, capTop + dp(scene, 12f), textP)
+        c.drawText(nm, card.centerX() - textP.measureText(nm) / 2, capTop + dp(scene, 11f), textP)
 
         // 캡션: 등급 · 영문명
-        textP.textSize = textDp(scene, 10.5f)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF8A7360.toInt()
         val tierColor = when (def.tier) {
             Tier.COMMON -> 0xFF777F82.toInt()
@@ -4059,16 +4101,21 @@ class PhotoResultOverlay(
             Tier.LEGEND -> 0xFFB65342.toInt()
         }
         val numPrefix = if (def.birdNum > 0) "No. ${String.format("%03d", def.birdNum)} · " else ""
-        val sub = "$numPrefix${def.tier.label} · ${def.seasonLabel} · ${def.timeWindowLabel}" +
+        var sub = "$numPrefix${def.tier.label} · ${def.seasonLabel} · ${def.timeWindowLabel}" +
                 (if (def.englishName.isNotBlank()) " · ${def.englishName}" else "")
-        c.drawText(sub, card.centerX() - textP.measureText(sub) / 2, capTop + dp(scene, 28f), textP)
+        val subMaxW = cardW - dp(scene, 24f)
+        if (textP.measureText(sub) > subMaxW) {
+            while (sub.length > 1 && textP.measureText("$sub…") > subMaxW) sub = sub.dropLast(1)
+            sub += "…"
+        }
+        c.drawText(sub, card.centerX() - textP.measureText(sub) / 2, capTop + dp(scene, 25f), textP)
         fillP.color = tierColor
-        c.drawCircle(card.centerX() - textP.measureText(sub) / 2 - dp(scene, 8f), capTop + dp(scene, 25f), dp(scene, 2.6f), fillP)
+        c.drawCircle(card.centerX() - textP.measureText(sub) / 2 - dp(scene, 7f), capTop + dp(scene, 22f), dp(scene, 2.4f), fillP)
 
         // 별점 (하나씩 톡톡 튀어나온다)
-        val starR = dp(scene, 13f)
-        val gap = dp(scene, 34f)
-        val starY = capTop + dp(scene, 50f)
+        val starR = dp(scene, 11f)
+        val gap = dp(scene, 30f)
+        val starY = capTop + dp(scene, 44f)
         for (i in 0 until 3) {
             val p = ((t - 0.34f - i * 0.09f) / 0.16f).coerceIn(0f, 1f)
             val k = 0.5f + 0.5f * easeOutBack(p)
@@ -4083,11 +4130,10 @@ class PhotoResultOverlay(
                 strokeP.strokeWidth = dp(scene, 1.6f)
                 c.drawPath(starPath(sx, starY, starR * 0.86f), strokeP)
             }
-
         }
 
-        // 캡션: 촬영 정보
-        textP.textSize = textDp(scene, 10.5f)
+        // 캡션: 촬영 정보 (인화지 아래쪽 한 줄)
+        textP.textSize = textDp(scene, 10f)
         textP.color = 0xFF9A8570.toInt()
         var camTxt = cameraTxt
         val camMaxW = cardW - dp(scene, 130f)
@@ -4110,7 +4156,7 @@ class PhotoResultOverlay(
             while (info.length > 1 && textP.measureText("$info…") > infoMaxW) info = info.dropLast(1)
             info += "…"
         }
-        c.drawText(info, card.centerX() - textP.measureText(info) / 2, card.bottom - dp(scene, 12f), textP)
+        c.drawText(info, card.centerX() - textP.measureText(info) / 2, card.bottom - dp(scene, 10f), textP)
 
         // 첫 발견 스티커
         if (isNew) {
@@ -4134,24 +4180,28 @@ class PhotoResultOverlay(
 
         c.restore()
 
-        // 의뢰 보수 & 경험치
-        var badgeY = cy + cardH / 2f + dp(scene, 24f)
+        // ---- 인화지 아래 정보 줄 (계산해 둔 높이 안에서만 그린다) ----
+        var badgeY = cy + cardH / 2f + dp(scene, 18f)
         if (questLine != null) {
-            textP.textSize = textDp(scene, 12.5f)
-            val qw = textP.measureText(questLine) + dp(scene, 26f)
-            val qr = RectF(cx - qw / 2f, badgeY - dp(scene, 14f), cx + qw / 2f, badgeY + dp(scene, 14f))
+            textP.textSize = textDp(scene, 12f)
+            var ql: String = questLine
+            val qMax = w - dp(scene, 40f)
+            while (ql.length > 1 && textP.measureText(ql) > qMax) ql = ql.dropLast(1)
+            if (ql != questLine) ql += "…"
+            val qw = textP.measureText(ql) + dp(scene, 26f)
+            val qr = RectF(cx - qw / 2f, badgeY - dp(scene, 13f), cx + qw / 2f, badgeY + dp(scene, 13f))
             fillP.color = Color.argb(220, 43, 38, 58)
-            c.drawRoundRect(qr, dp(scene, 14f), dp(scene, 14f), fillP)
+            c.drawRoundRect(qr, dp(scene, 13f), dp(scene, 13f), fillP)
             strokeP.color = 0xFFF2D06B.toInt()
             strokeP.strokeWidth = dp(scene, 1.6f)
-            c.drawRoundRect(qr, dp(scene, 14f), dp(scene, 14f), strokeP)
+            c.drawRoundRect(qr, dp(scene, 13f), dp(scene, 13f), strokeP)
             textP.color = 0xFFF7E9A8.toInt()
-            c.drawText(questLine, qr.centerX() - textP.measureText(questLine) / 2, qr.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+            c.drawText(ql, qr.centerX() - textP.measureText(ql) / 2, qr.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
             badgeY += dp(scene, 32f)
         }
 
         if (expGain > 0) {
-            val expTxt = if (levelsGained > 0) "경험치 +  · 레벨 업!" else "경험치 +"
+            val expTxt = if (levelsGained > 0) "경험치 +$expGain · 레벨 업!" else "경험치 +$expGain"
             textP.textSize = textDp(scene, 12f)
             val ew = textP.measureText(expTxt) + dp(scene, 24f)
             val er = RectF(cx - ew / 2f, badgeY - dp(scene, 13f), cx + ew / 2f, badgeY + dp(scene, 13f))
@@ -4162,21 +4212,37 @@ class PhotoResultOverlay(
             c.drawRoundRect(er, dp(scene, 13f), dp(scene, 13f), strokeP)
             textP.color = 0xFFB4F0B4.toInt()
             c.drawText(expTxt, er.centerX() - textP.measureText(expTxt) / 2, er.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
+            badgeY += dp(scene, 30f)
         }
 
         // 촬영 노트 — 장비가 사진에 어떤 영향을 줬는지
-        if (notes.isNotEmpty() && t > 0.5f) {
+        if (notesShown.isNotEmpty()) {
             textP.textSize = textDp(scene, 10f)
-            var ny = badgeY + (if (expGain > 0) dp(scene, 30f) else dp(scene, 4f))
-            for (n in notes.take(3)) {
+            var ny = badgeY + dp(scene, 6f)
+            for (n in notesShown) {
                 val bad = n.contains("노이즈") || n.contains("흔들") || n.contains("물방울")
                 textP.color = Color.argb(235, if (bad) 246 else 176, if (bad) 176 else 232, if (bad) 156 else 176)
-                val nt = (if (bad) "· " else "· ") + n
-                c.drawText(nt, cx - textP.measureText(nt) / 2, ny, textP)
+                var nt = "· $n"
+                val maxW = w - dp(scene, 40f)
+                while (nt.length > 2 && textP.measureText(nt) > maxW) nt = nt.dropLast(1)
+                c.drawText(nt, cx - textP.measureText(nt) / 2f, ny, textP)
                 ny += dp(scene, 13f)
             }
+            badgeY = ny
         }
 
+        // ---- [닫기] 단추 — 항상 화면 안, 맨 아래 고정 ----
+        // (예전에는 "아무 곳이나 탭" 안내뿐이라 아래 정보가 화면 밖으로 나가면
+        //  무엇을 눌러야 하는지 알 수 없었다)
+        val btnW = minOf(dp(scene, 190f), w - dp(scene, 40f))
+        val btnR = RectF(cx - btnW / 2f, h - bottomPad - closeH, cx + btnW / 2f, h - bottomPad)
+        UiKit.cuteButton(c, g, btnR, "check 확인 · 닫기", 0xFFF2B63C.toInt(), 0xFF4A2E12.toInt(), 12.5f)
+        if (levelsGained > 0) {
+            textP.textSize = textDp(scene, 9.5f)
+            textP.color = Color.argb(200, 255, 244, 214)
+            val tip = "누르면 레벨 업 축하 화면으로 이어집니다"
+            c.drawText(tip, cx - textP.measureText(tip) / 2f, btnR.top - dp(scene, 4f), textP)
+        }
     }
 
     /** 인화지 속 풍경 + 새 */

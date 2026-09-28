@@ -112,6 +112,17 @@ enum class Anim(val frames: Int, val frameTime: Float) {
  * - 타일 32x32 / 캐릭터 32x32 / 새 13종 체형 + 9종 깃무늬 + 비행 2프레임
  * - 캐릭터/타일은 코드로 생성, 작은 장식 일러스트는 로컬 SVG — 네트워크·외부 라이브러리 없음
  */
+/**
+ * 피자 종류 아이콘(ASCII 도트 스프라이트)의 **해상도 배율**.
+ * 한 칸을 3×3 픽셀로 굽는다 — 도트 느낌은 그대로지만 메뉴에서 크게 그릴 때
+ * 계단이 눈에 띄지 않는다 (제보: "피자 아이콘 화질이 구리다").
+ * 크기를 배율로 계산하던 화면은 이 값으로 나눠 쓴다.
+ */
+const val PIZZA_ICON_SCALE = 3
+
+/** UI용 새 아이콘(표시 크기에 맞춰 다시 그린 스프라이트)을 몇 장까지 들고 있을지 */
+private const val BIRD_ICON_CACHE = 40
+
 class Assets(private val context: Context) {
 
     private fun c(v: Long): Int = v.toInt()
@@ -119,6 +130,17 @@ class Assets(private val context: Context) {
     // 그리기용 공유 페인트
     val sprPaint = Paint()                                  // 스프라이트 (최근접 샘플링)
     val pxPaint = Paint()                                   // 화면 업스케일 (픽셀 느낌 유지)
+
+    /**
+     * UI 아이콘용 페인트 (부드러운 보간).
+     *
+     * HUD·버튼·목록처럼 **작은 원본을 크게/작게** 그리는 자리에서 픽셀 스프라이트를
+     * 최근접 샘플링으로 늘리면 계단이 그대로 보인다(제보: "아이콘 화질이 구리다").
+     * 아이콘은 벡터 원본에서 목표 크기로 곧게 래스터화해 두고, 그릴 때는 이 페인트로
+     * 보간해 어느 크기에서도 매끄럽게 보이게 한다. 타일·월드 스프라이트는 그대로
+     * [sprPaint] 를 써서 픽셀 느낌을 지킨다.
+     */
+    val iconPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     val shadowPaint = Paint().apply { color = Color.argb(70, 30, 40, 30); isAntiAlias = true }
 
     // 플레이어 / NPC --------------------------------------------------------
@@ -316,17 +338,21 @@ class Assets(private val context: Context) {
     // 공용 헬퍼
     // -----------------------------------------------------------------------
 
-    private fun sprite(rows: List<String>, pal: Map<Char, Int>): Bitmap {
+    private fun sprite(rows: List<String>, pal: Map<Char, Int>, scale: Int = 1): Bitmap {
         val w = rows.maxOf { it.length }
         val h = rows.size
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val k = scale.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(w * k, h * k, Bitmap.Config.ARGB_8888)
         for (y in rows.indices) {
             val r = rows[y]
             for (x in 0 until r.length) {
                 val col = pal[r[x]] ?: continue
-                bmp.setPixel(x, y, col)
+                // 한 칸을 k×k 로 키운다 — 도트 느낌은 그대로, 표시 크기에서 계단이 사라진다
+                for (dy in 0 until k) for (dx in 0 until k) bmp.setPixel(x * k + dx, y * k + dy, col)
             }
         }
+        if (k == 1) return bmp
+        // 격자 사이 이음새(사각 픽셀 경계)는 그대로 두고, 가장자리만 살짝 부드럽게
         return bmp
     }
 
@@ -335,6 +361,7 @@ class Assets(private val context: Context) {
         m.postScale(-1f, 1f, src.width / 2f, 0f)
         return Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, false)
     }
+
 
     /** 색 밝기 조절 (팔레트 음영 파생용) */
     private fun shade(color: Int, f: Float): Int = Color.argb(
@@ -4090,10 +4117,12 @@ begin(T.LAMP)
     // -----------------------------------------------------------------------
 
     private fun buildIcons() {
-        pizzaIcon = renderPixel("pizza", 22, 14)
-        pizzaIconBig = Bitmap.createScaledBitmap(
-            pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
-        )
+        // 아이콘은 **벡터(SVG) 원본에서 표시 크기 이상으로 곧게 래스터화**한다.
+        // 예전에는 22×14 픽셀 비트맵을 만들어 20dp 자리에 3~5배로 늘려 그렸기 때문에
+        // 계단이 그대로 보였다(제보: "피자 아이콘 화질이 구리다"). 이제는 88×56으로
+        // 그려 두고 [iconPaint] 로 보간해 그리므로 어떤 크기에서도 매끄럽다.
+        pizzaIcon = renderIcon("pizza", 88, 56)
+        pizzaIconBig = renderIcon("pizza", 176, 112)
         // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
         //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
         //  C 치즈(baseColor) / L·S 치즈 밝기·그늘(파생) / R·r·G 토핑1 면·테·윤 / A·b 토핑2 면·테
@@ -4144,23 +4173,24 @@ begin(T.LAMP)
                     pizzaOven, base + mapOf(
                         'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45),
                         'h' to c(0xFFEDC293), 'k' to c(0xFF5A3A2A)
-                    )
+                    ), PIZZA_ICON_SCALE
                 )
             } else {
                 sprite(
                     pizza, base + mapOf(
                         'c' to c(0xFFE8A75C), 'd' to c(0xFFD18F4A),
                         'h' to c(0xFFF2C078), 'k' to c(0xFFBF7640)
-                    )
+                    ), PIZZA_ICON_SCALE
                 )
             }
         }
 
-        cloverIcon = renderIcon("clover", 14, 14)
-        cameraIcon = renderIcon("camera", 20, 16)
-        houseIcon = renderIcon("house", 14, 14)
-        sunIcon = renderIcon("sun", 16, 16)
-        moonIcon = renderIcon("moon", 14, 14)
+        // 나머지 HUD 아이콘도 같은 원칙 (벡터 → 고해상)
+        cloverIcon = renderIcon("clover", 56, 56)
+        cameraIcon = renderIcon("camera", 80, 64)
+        houseIcon = renderIcon("house", 56, 56)
+        sunIcon = renderIcon("sun", 64, 64)
+        moonIcon = renderIcon("moon", 56, 56)
     }
 
     // -----------------------------------------------------------------------
@@ -4596,6 +4626,40 @@ begin(T.LAMP)
 
     /** 오른쪽을 바라보는 새 — 단순 반전이 아니라 방향 캐시의 실제 자세를 사용한다. */
     fun birdFlipped(id: String): Bitmap = birdPose(id, BirdFacing.RIGHT, BirdPose.PERCHED)
+
+    /**
+     * UI용 새 아이콘 — **표시 크기에 맞춰 그린다.**
+     *
+     * 도감 목록·상세 머리글처럼 새를 작게/크게 그리는 자리에서 76px 스프라이트를
+     * 확대하면 계단이 그대로 보였다(제보: "새 화질이 구리다"). 요청한 높이에 맞는
+     * 해상도로 리깅을 다시 그려 캐시한다 — 최근 [BIRD_ICON_CACHE] 장만 들고 있어
+     * 598종을 모두 돌아도 메모리가 늘지 않는다.
+     *
+     * @param targetHpx 화면에 그릴 높이(실제 px). 이 값의 2배를 넘지 않는 해상도로 그린다.
+     */
+    fun birdIcon(
+        id: String,
+        targetHpx: Float,
+        facing: BirdFacing = BirdFacing.LEFT,
+        pose: BirdPose = BirdPose.PERCHED
+    ): Bitmap {
+        val def = Birds.byId[id] ?: Birds.ALL.first()
+        val base = bird(def.id).height.coerceAtLeast(1)
+        // 8px 단위로 반올림해 캐시가 조각나지 않게 하고, 1~3배로 제한한다.
+        val want = (targetHpx.coerceAtLeast(8f) / 8f).toInt().coerceIn(1, 24)
+        val scale = ((want * 8f) / base).toInt().coerceIn(1, 3)
+        val key = "${def.id}|${facing.name}|${pose.name}|$scale"
+        birdIconCache[key]?.let { return it }
+        val bmp = DetailedBirdRenderer.render(def, facing, pose, birdReferencePalette(def), scale)
+        birdIconCache[key] = bmp
+        return bmp
+    }
+
+    /** UI 새 아이콘 캐시 (LRU) — 최근 것만 유지해 메모리를 묶어 둔다 */
+    private val birdIconCache = object : LinkedHashMap<String, Bitmap>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean =
+            size > BIRD_ICON_CACHE
+    }
 
     /** 도주 비행 프레임. 종별 팔레트와 체형을 유지하며 좌우 방향도 지원한다. */
     fun birdFlight(id: String, frame: Int, faceLeft: Boolean): Bitmap {

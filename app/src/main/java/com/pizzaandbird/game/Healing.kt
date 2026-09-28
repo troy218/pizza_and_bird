@@ -473,7 +473,8 @@ object Healing {
         TinyMoment("first_butterfly", "첫 나비", "🦋", 1, "노란 나비가 앞장서서 날았다."),
         TinyMoment("dragonfly_hover", "잠자리 정지비행", "🪰", 1, "잠자리가 코앞에서 멈췄다."),
         TinyMoment("full_moon", "보름달", "🌕", 2, "달이 너무 밝아 그림자가 생겼다."),
-        TinyMoment("quiet_morning", "조용한 아침", "🌅", 2, "해 뜨기 전에 나와 버렸다.")
+        TinyMoment("quiet_morning", "조용한 아침", "🌅", 2, "해 뜨기 전에 나와 버렸다."),
+        TinyMoment("neighbor_home", "이웃집 방문", "🏠", 2, "동네 집에 초대받아 마루에 앉았다.")
     )
 
     private fun unlocked(state: GameState): LinkedHashSet<String> {

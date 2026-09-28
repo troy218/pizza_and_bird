@@ -86,21 +86,34 @@ object DetailedBirdRenderer {
         return Color.argb(Color.alpha(color), ch(Color.red(color)), ch(Color.green(color)), ch(Color.blue(color)))
     }
 
-    fun render(def: BirdDef, facing: BirdFacing, pose: BirdPose, pal: BirdRenderPalette): Bitmap {
+    fun render(def: BirdDef, facing: BirdFacing, pose: BirdPose, pal: BirdRenderPalette): Bitmap =
+        render(def, facing, pose, pal, 1)
+
+    /**
+     * [rawScale]배 해상도로 새를 그린다.
+     *
+     * 기본(1)은 월드·필드용 76px 스프라이트다. UI(도감 목록·상세 머리글)에서
+     * 크게 늘려 그릴 때는 2~3 을 넘겨 **그리는 순간의 해상도**로 다시 그린다 —
+     * 작은 비트맵을 확대해 계단이 보이던 문제(제보: "새 화질이 구리다")를 없앤다.
+     */
+    fun render(def: BirdDef, facing: BirdFacing, pose: BirdPose, pal: BirdRenderPalette, rawScale: Int): Bitmap {
+        val k = rawScale.coerceIn(1, 4)
         if (facing == BirdFacing.RIGHT) {
-            val left = render(def, BirdFacing.LEFT, pose, pal)
+            val left = render(def, BirdFacing.LEFT, pose, pal, k)
             val m = Matrix().apply { setScale(-1f, 1f) }
             return Bitmap.createBitmap(left, 0, 0, left.width, left.height, m, false)
         }
 
-        val raw = Bitmap.createBitmap(76, 76, Bitmap.Config.ARGB_8888)
+        val raw = Bitmap.createBitmap(76 * k, 76 * k, Bitmap.Config.ARGB_8888)
         val c = Canvas(raw)
+        // 좌표계는 그대로 두고 캔버스만 확대한다 — 76px 그림이 k배 해상도로 다시 그려진다.
+        c.scale(k.toFloat(), k.toFloat())
         if (facing == BirdFacing.FRONT || facing == BirdFacing.BACK) {
             drawFrontBack(c, def, pose, pal, facing == BirdFacing.BACK)
         } else {
             drawSide(c, def, pose, pal)
         }
-        val cropped = crop(raw, 2)
+        val cropped = crop(raw, 2 * k)
         if (def.art.scale == 1f) return cropped
         return Bitmap.createScaledBitmap(
             cropped,
