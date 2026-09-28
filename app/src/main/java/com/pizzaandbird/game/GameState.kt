@@ -346,7 +346,7 @@ class GameState {
     /** 지금까지 획득한 숙련 포인트 총량 (사용 + 보유) */
     fun skillInvested(): Int = skillPoints + skills.values.sum()
 
-    /** 사진용품점 '탐조 강습' 비용 — 살수록 비싸진다 (돈으로 SP 구매) */
+    /** 본점 카메라샵의 '탐조 강습' 비용 — 살수록 비싸진다 (돈으로 SP 구매) */
     fun trainingCost(): Int = 800 + skillInvested() * 500
 
     // ------------------ 낮/밤 ------------------
@@ -369,7 +369,10 @@ class GameState {
     }
 
     /** 밤(올빼미 등 밤새 출현) 여부 — 해가 지평선 아래로 충분히 내려간 때. 계절 따라 이동한다. */
-    fun isNight(): Boolean = DayCycle.sunAltitude(worldTime, season()) < -0.12f
+    fun isNight(): Boolean = DayCycle.isNightAt(worldTime, season())
+
+    /** 보름달(28일 주기 중 4일) — "보름달" 기념·시계 문양 판정용 */
+    fun isFullMoon(): Boolean = ((day - 1) % 28) in 12..15
 
     fun timeLabel(): String {
         val h = worldTime.toInt().coerceIn(0, 23)
@@ -729,6 +732,9 @@ class GameState {
                         )
                     )
                 }
+                // 이후 판정은 activeQuests 단일 경로 — 레거시 필드를 비워 중복 보상을 막는다
+                s.questBird = null
+                s.questReward = 0
             }
             val dq = j.optJSONArray("dailyQuests")
             if (dq != null) {

@@ -14,7 +14,8 @@ import java.io.File
  *
  *  1) 조건부 대사 매트릭스: 4계절 × 5날씨 × 밤/낮 × 장(0/2/4/6) × 지역 — villager/kid/elder 전 조합 생성 검사
  *  2) 신규 조건부 대사 수량 60줄 이상 (DoD) + 이동 보존분 6+6줄 확인
- *  3) 12편 에피소드 전체 E2E: 도입 → 의뢰 → 심부름 미충족 nudge → 충족 → 마무리+보상 → 완료(재방문 무반복)
+ *  3) 12편 에피소드 전체 E2E: 도입 → 의뢰 → nudge → 충족 → 마무리+보상 → 완료
+ *     → 「수첩에 한 줄」 기록 확인 → 「뒷장」 1회(재방문) → 그다음이 없는 것까지 (v0.5)
  *  4) 💬 마커: 담당 NPC에만 표시, 완료 후 소멸
  *  5) 숨은 에필로그 「수첩의 뒷장」 1회성 + 보상
  *  6) 대화 화면 캡처 8장 (docs/img/story/ 또는 실행 인자 폴더)
@@ -172,7 +173,8 @@ object StorySmoke {
             check(SideStories.current(g.context, ep.regionId) == ep)
             val w = WorldScene(g, ep.regionId, SpawnKind.SAVED)
             g.scene = w
-            val npc = w.map.npcs.first { it.kind == ep.npc }
+            // 담당자는 그 동네의 이웃 주민(resident) — 종류(kind)로 고르면 여러 명 걸린다 (`NpcRoster`)
+            val npc = w.map.npcs.first { it.person.resident && it.person.regionId == ep.regionId }
             check(SideStories.hasMarker(g.context, ep.regionId, npc.person)) { "${ep.id} 💬 마커 없음" }
             check(!SideStories.hasMarker(g.context, ep.regionId, NpcRoster.professor))
 
@@ -230,10 +232,26 @@ object StorySmoke {
             check(g.state.luck == (luck0 + ep.reward.second).coerceAtMost(100f)) { "${ep.id} 행운 보상 오차" }
             totalReward += ep.reward.first
 
+            // v0.5 「수첩에 한 줄」 — 마무리 막이 수첩에 실제로 적어 두었다
+            val jot = SideStories.journal(g.context).firstOrNull { it.regionId == ep.regionId }
+            check(jot != null && jot.line == ep.journal) { "${ep.id} 수첩 기록 누락: ${jot?.line}" }
+            check(jot!!.episodeId == ep.id) { "${ep.id} 수첩 메타 불일치" }
+
             // 완료 후: 마커 소멸. 단, 마지막(12번째) 편을 끝낸 직후 대화는 숨은 에필로그가 이어받는다(정상).
             check(!SideStories.hasMarker(g.context, ep.regionId, npc.person))
             if (ep.regionId != SideStories.EPISODES.last().regionId) {
-                check(!SideStories.intercept(w, npc)) { "${ep.id} 완료 후 반복" }
+                // v0.5: 완료 후 첫 재회상은 「뒷장」이 받는다 — 한 번만, 그다음이 없다
+                check(ep.hasEcho && SideStories.progress(g.context, ep.regionId) == 4)
+                check(SideStories.intercept(w, npc)) { "${ep.id} 뒷장이 열리지 않음" }
+                val echo = overlayOf(g)!!
+                check(titleOf(echo) == "${ep.title} · 뒷장") { "${ep.id} 뒷장 제목: ${titleOf(echo)}" }
+                check(bodyOf(echo) == "\"${ep.echo.joinToString("\n")}\"") { "${ep.id} 뒷장 본문 불일치" }
+                if (ep.regionId == "sokcho") render(g, "10_sokcho_echo")
+                val moneyBefore = g.state.money
+                pick(echo)
+                check(SideStories.progress(g.context, ep.regionId) == 5) { "${ep.id} 뒷장 소비 실패" }
+                check(g.state.money == moneyBefore + ep.echoReward.first) { "${ep.id} 뒷장 답례 오차" }
+                check(!SideStories.intercept(w, npc)) { "${ep.id} 뒷장 반복 노출" }
             }
         }
         println("④ 12편 에피소드 E2E OK (총 보상 ${won(totalReward)}, nudge 경로 포함)")
@@ -247,15 +265,26 @@ object StorySmoke {
         val epi = overlayOf(g)!!
         check(titleOf(epi) == "수첩의 뒷장") { "에필로그 제목 불일치: ${titleOf(epi)}" }
         render(g, "09_epilogue")
-        pick(epi)
+        // 선택지 ①은 📔 수첩(앞장/뒷장)을 열어 준다 — ②가 보상을 준다
+        val labels = (privateField(epi, "choices") as List<DialogOverlay.Choice>).joinToString("|") { it.label }
+        check("수첩을 펼쳐 본다" in labels) { "에필로그에 수첩 선택지가 없다: $labels" }
+        pick(epi, 1)
         check(g.state.money == money0 + 30000) { "에필로그 보상 오차" }
         check(!SideStories.intercept(w2, prof)) { "에필로그 반복 노출" }
-        // 에필로그 후 12편 전부 재방문 → 어디서도 반복되지 않는다(제주편의 '완료 후 무반복'까지 여기서 검증)
+        // 에필로그 후 12편 전부 재방문 → 어디서도 반복되지 않는다.
+        // (제주편은 에필로그가 앞섰으므로 「뒷장」이 이때 처음 열리고, 바로 소비된다)
         for (ep in SideStories.EPISODES) {
             val w3 = WorldScene(g, ep.regionId, SpawnKind.SAVED)
             g.scene = w3
-            val npc3 = w3.map.npcs.first { it.kind == ep.npc }
-            check(!SideStories.intercept(w3, npc3)) { "${ep.id} 에필로그 후 반복" }
+            val npc3 = w3.map.npcs.first { it.person.resident && it.person.regionId == ep.regionId }
+            if (SideStories.progress(g.context, ep.regionId) == 4 && ep.hasEcho) {
+                check(SideStories.intercept(w3, npc3)) { "${ep.id} 에필로그 이후 뒷장이 열리지 않음" }
+                pick(overlayOf(g)!!)
+                check(SideStories.progress(g.context, ep.regionId) == 5)
+                check(!SideStories.intercept(w3, npc3)) { "${ep.id} 뒷장 반복 노출" }
+            } else {
+                check(!SideStories.intercept(w3, npc3)) { "${ep.id} 에필로그 후 반복" }
+            }
         }
         // 에필로그 후에는 다시 기존 대사(조건부)로 — 실제 talkTo 경로 확인
         talk(g, NpcKind.PROFESSOR)
@@ -265,7 +294,13 @@ object StorySmoke {
         // ---------------- 6) 세이브 키 확인 (규칙 3 — feat_story_v1) ----------------
         val saved = g.context.getSharedPreferences("pizza_and_bird_save", Context.MODE_PRIVATE)
             .getString(SideStories.SAVE_KEY, null)
-        check(saved != null && saved.contains("\"epi\":true") && saved.contains("\"jeju\":4")) { "feat_story_v1 저장 이상: $saved" }
+        check(saved != null && saved.contains("\"epi\":true") && saved.contains("\"jeju\":5")) {
+            "feat_story_v1 저장 이상: $saved"
+        }
+        // v0.5: 「수첩에 한 줄」 12줄이 같은 키 안에 남아 있어야 한다 (새 세이브 키를 만들지 않는다)
+        check(saved != null && saved.contains("\"j\":[") && saved.contains("제주")) {
+            "수첩 기록이 feat_story_v1 에 없다: $saved"
+        }
         println("⑥ 세이브 키 ${SideStories.SAVE_KEY} OK")
 
         println("\n✅ StorySmoke 전체 통과 — 캡처 ${outDir.list()?.size ?: 0}장: $outDir")

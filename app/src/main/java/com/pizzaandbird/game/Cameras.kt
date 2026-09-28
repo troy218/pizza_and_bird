@@ -20,6 +20,18 @@ import kotlin.math.roundToInt
  *  - AF 성능이 낮으면 움직이는 새를 놓친다. 연사가 빠르면 한 번 더 기회가 있다.
  *  - 텔레컨버터는 초점거리를 늘리는 대신 조리개가 어두워지고 AF/화질이 떨어진다.
  *  - 무거운 장비는 이동 속도를 떨어뜨리고 배가 빨리 고프다.
+ *
+ * 가격 구조 (2026년 실제 미러리스 라인업 정가의 **상대 관계**를 게임 경제 규모로 옮긴 것)
+ *  - 실제 정가를 그대로 쓰지 않는다. 대신 `docs/reference` 의 라인업 자료에서 뽑은
+ *    "항목 사이의 배율" 을 지킨다 (`tools/camera_price_model.py` 로 점검).
+ *  - **센서가 급을 정한다** — 같은 급에서 풀프레임 바디 ≈ APS-C 의 2배, 중형은 그 위.
+ *  - **바디 < 렌즈** 구간이 분명히 있다 — 입문 렌즈는 바디의 절반 이하지만,
+ *    초망원 대구경 단렌즈(500/600mm F4)는 최고급 바디보다 비싸다.
+ *  - **망원·조리개는 무게로 값을 매긴다** — 렌즈 가격 ≈ 무게^0.9 (유리 덩어리 값).
+ *    같은 화각에서 조리개 1스톱이 밝으면 대략 ×1.5~2.
+ *  - **초망원은 급이 다르다** — 400mm+ 대구경 단렌즈 ≈ 같은 화각 초망원 줌의 5배.
+ *  - **일체형이 항상 싼 게 아니다** — 센서 큰 프리미엄 컴팩트는 상급 바디값.
+ *  - 따라서 최적 루트는 대체로 **바디 급을 조금 낮추고 렌즈에 투자** 하는 쪽.
  */
 
 // ---------------------------------------------------------------------------
@@ -270,63 +282,63 @@ object CameraGear {
             CamLook(0, COL_SILVER, COL_SILVER_D, ACC_BLUE, 1.6f, 3.0f, COL_DARK_LENS, false, false, true)
         ),
         CompactCam(
-            "c_pocket", "한빛이미징", "포켓 Z8", GearGrade.ENTRY, 180000, 183,
+            "c_pocket", "한빛이미징", "포켓 Z8", GearGrade.ENTRY, 240000, 183,
             "주머니에 쏙 들어가는 8배 줌. 여행용으로 딱이지만 망원단이 어둡다.",
             Sensor.T23, 24, 200, 3.3f, 6.9f, 20f, 4.0f, 6f, 2.5f, false, 1.5f,
             CamLook(0, COL_BLACK, COL_BLACK_D, ACC_BLUE, 2.0f, 3.2f, COL_DARK_LENS, false, false, true)
         ),
         CompactCam(
-            "c_zoom20", "하늘광학", "줌샷 Z20", GearGrade.ENTRY, 90000, 300,
+            "c_zoom20", "하늘광학", "줌샷 Z20", GearGrade.ENTRY, 120000, 300,
             "1/2.3\" 센서로 480mm까지 당기는 보급 슈퍼줌. 화질은 양보하고 사거리를 얻었다.",
             Sensor.T23, 24, 480, 3.3f, 6.4f, 20f, 3.5f, 5f, 2.5f, false, 1.3f,
             CamLook(0, COL_BLACK, COL_BLACK_D, ACC_RED, 2.6f, 3.4f, COL_DARK_LENS, false, false, true)
         ),
         CompactCam(
-            "c_tough", "참새정밀", "아쿠아 W3", GearGrade.ENTRY, 150000, 250,
+            "c_tough", "참새정밀", "아쿠아 W3", GearGrade.ENTRY, 170000, 250,
             "수심 15m 방수·내충격. 비바람 치는 갯벌에서도 겁 없이 꺼낼 수 있다.",
             Sensor.T23, 25, 100, 2.0f, 4.9f, 12f, 4.0f, 10f, 2.0f, true, 1.4f,
             CamLook(0, 0xFF3E8FA8.toInt(), 0xFF2C6B80.toInt(), ACC_GOLD, 1.4f, 3.0f, COL_DARK_LENS, false, false, true)
         ),
         CompactCam(
-            "c_retro", "까치광학", "레트로 F2", GearGrade.ENTRY, 320000, 290,
+            "c_retro", "까치광학", "레트로 F2", GearGrade.ENTRY, 380000, 290,
             "필름 카메라를 닮은 감성 컴팩트. 찍는 맛이 좋아 기분(행운)이 올라간다.",
             Sensor.T17, 28, 112, 2.0f, 4.9f, 12f, 3.5f, 3f, 1.0f, false, 2.2f,
             CamLook(0, COL_LEATHER, COL_LEATHER_D, COL_SILVER, 1.8f, 3.2f, COL_DARK_LENS, false, true, false),
             luck = 4
         ),
         CompactCam(
-            "c_bridge60", "솔개옵틱", "브리지 B60", GearGrade.MID, 280000, 650,
+            "c_bridge60", "솔개옵틱", "브리지 B60", GearGrade.MID, 340000, 650,
             "60배 줌 브릿지. 환산 1200mm의 압도적 사거리지만 작은 센서라 어두우면 힘들다.",
             Sensor.T23, 20, 1200, 2.8f, 5.9f, 16f, 4.0f, 7f, 3.5f, false, 1.6f,
             CamLook(1, COL_BLACK, COL_BLACK_D, ACC_RED, 5.0f, 4.6f, COL_DARK_LENS, true, true, true)
         ),
         CompactCam(
-            "c_one_fast", "하늘광학", "프로 X1", GearGrade.MID, 420000, 300,
+            "c_one_fast", "하늘광학", "프로 X1", GearGrade.MID, 430000, 300,
             "1인치 센서 + F1.8 밝은 렌즈. 망원은 짧아도 어두운 숲과 새벽에 강하다.",
             Sensor.ONE, 24, 70, 1.8f, 2.8f, 20f, 6.0f, 24f, 2.0f, false, 3.4f,
             CamLook(0, COL_BLACK, COL_BLACK_D, ACC_GOLD, 2.2f, 3.6f, COL_DARK_LENS, false, true, true)
         ),
         CompactCam(
-            "c_travel", "한빛이미징", "트래블 T20", GearGrade.MID, 560000, 302,
+            "c_travel", "한빛이미징", "트래블 T20", GearGrade.MID, 550000, 302,
             "1인치에 환산 200mm 줌을 담은 만능 여행기. 무게 대비 성능이 훌륭하다.",
             Sensor.ONE, 24, 200, 2.8f, 4.5f, 20f, 6.0f, 20f, 2.5f, false, 3.0f,
             CamLook(0, COL_BLACK, COL_BLACK_D, ACC_BLUE, 2.8f, 3.6f, COL_DARK_LENS, false, true, true)
         ),
         CompactCam(
-            "c_apsc_prime", "까치광학", "스트리트 R3", GearGrade.HIGH, 700000, 257,
+            "c_apsc_prime", "까치광학", "스트리트 R3", GearGrade.HIGH, 800000, 257,
             "APS-C 센서에 28mm 단렌즈. 새보다 풍경·근접용이지만 화질만큼은 진심이다.",
             Sensor.APSC, 28, 28, 2.8f, 2.8f, 24f, 5.0f, 4f, 1.5f, false, 5.0f,
             CamLook(0, COL_BLACK, COL_BLACK_D, COL_SILVER, 1.2f, 3.4f, COL_DARK_LENS, false, false, false),
             luck = 2
         ),
         CompactCam(
-            "c_bridge_pro", "솔개옵틱", "브리지 프로 B24", GearGrade.HIGH, 1050000, 1095,
+            "c_bridge_pro", "솔개옵틱", "브리지 프로 B24", GearGrade.HIGH, 980000, 1095,
             "1인치 센서에 환산 24-600mm F2.4-4 고정 렌즈. 렌즈 교환 없이 다 되는 만능 브릿지.",
             Sensor.ONE, 24, 600, 2.4f, 4.0f, 20f, 7.0f, 24f, 3.5f, true, 4.2f,
             CamLook(1, COL_BLACK, COL_BLACK_D, ACC_GOLD, 6.0f, 5.2f, COL_DARK_LENS, true, true, true)
         ),
         CompactCam(
-            "c_ff", "루멘", "FX 컴팩트", GearGrade.HIGH, 1800000, 507,
+            "c_ff", "루멘", "FX 컴팩트", GearGrade.HIGH, 2200000, 507,
             "주머니에 들어가는 풀프레임. 35mm F2 단렌즈의 화질은 최상급, 사거리는 최하급.",
             Sensor.FF, 35, 35, 2.0f, 2.0f, 42f, 5.5f, 5f, 0.0f, false, 5.6f,
             CamLook(0, COL_GRAPH, COL_GRAPH_D, COL_SILVER, 1.6f, 3.8f, COL_DARK_LENS, true, true, false),
@@ -339,61 +351,61 @@ object CameraGear {
     // ------------------------------------------------------------------
     val BODIES: List<CamBody> = listOf(
         CamBody(
-            "b_dslr_entry", "한빛이미징", "D3000", GearGrade.ENTRY, 200000, 465,
+            "b_dslr_entry", "한빛이미징", "D3000", GearGrade.ENTRY, 240000, 465,
             "광학 뷰파인더의 입문 DSLR. 느리지만 배터리가 오래가고 손에 착 붙는다.",
             Sensor.APSC, Mounts.F, 24f, 4.5f, 5f, 0f, false, false,
             CamLook(3, COL_BLACK, COL_BLACK_D, ACC_RED, 0f, 0f, COL_DARK_LENS, false, true, true)
         ),
         CamBody(
-            "b_apsc_entry", "하늘광학", "M10", GearGrade.ENTRY, 260000, 375,
+            "b_apsc_entry", "하늘광학", "M10", GearGrade.ENTRY, 300000, 375,
             "가볍고 다루기 쉬운 APS-C 미러리스 입문기. 첫 렌즈교환식으로 가장 무난하다.",
             Sensor.APSC, Mounts.E, 24f, 5.0f, 8f, 0f, false, false,
             CamLook(2, COL_BLACK, COL_BLACK_D, ACC_BLUE, 0f, 0f, COL_DARK_LENS, false, false, true)
         ),
         CamBody(
-            "b_apsc_mid", "하늘광학", "M50", GearGrade.MID, 480000, 507,
+            "b_apsc_mid", "하늘광학", "M50", GearGrade.MID, 560000, 507,
             "동물 눈 인식 AF와 바디 손떨림 보정을 갖춘 APS-C 중급기. 크롭 1.5배가 망원에 유리하다.",
             Sensor.APSC, Mounts.E, 26f, 7.0f, 11f, 2.5f, true, true,
             CamLook(2, COL_BLACK, COL_BLACK_D, ACC_GOLD, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_m43", "참새정밀", "G9 마이크로", GearGrade.MID, 560000, 658,
+            "b_m43", "참새정밀", "G9 마이크로", GearGrade.MID, 660000, 658,
             "2배 크롭이라 같은 렌즈로 두 배 당긴다. 강력한 IBIS와 20연사, 가벼운 시스템이 강점.",
             Sensor.M43, Mounts.M43, 20f, 6.5f, 20f, 4.0f, true, true,
             CamLook(2, COL_BLACK, COL_BLACK_D, ACC_GREEN, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_dslr_mid", "한빛이미징", "D700", GearGrade.MID, 620000, 700,
+            "b_dslr_mid", "한빛이미징", "D700", GearGrade.MID, 480000, 700,
             "32MP APS-C DSLR. 튼튼한 방진방적 바디에 10연사, 망원 화각도 1.5배로 벌어준다.",
             Sensor.APSC, Mounts.F, 32f, 6.5f, 10f, 0f, true, false,
             CamLook(3, COL_BLACK, COL_BLACK_D, ACC_GOLD, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_ff_entry", "루멘", "Z6", GearGrade.MID, 850000, 675,
+            "b_ff_entry", "루멘", "Z6", GearGrade.MID, 820000, 675,
             "입문 풀프레임 미러리스. 고감도와 계조가 넉넉해 새벽·해질녘에 강하다.",
             Sensor.FF, Mounts.E, 24f, 7.0f, 10f, 3.0f, true, false,
             CamLook(2, COL_GRAPH, COL_GRAPH_D, COL_SILVER, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_ff_hires", "루멘", "Z7R", GearGrade.HIGH, 1400000, 737,
+            "b_ff_hires", "루멘", "Z7R", GearGrade.HIGH, 1450000, 737,
             "61MP 고화소 풀프레임. 크롭해도 디테일이 남아 작은 새를 크게 뽑을 수 있다.",
             Sensor.FF, Mounts.E, 61f, 7.0f, 10f, 3.0f, true, true,
             CamLook(2, COL_GRAPH, COL_GRAPH_D, ACC_GOLD, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_ff_bird", "루멘", "Z9 버드", GearGrade.HIGH, 1900000, 900,
+            "b_ff_bird", "루멘", "Z9 버드", GearGrade.HIGH, 1750000, 900,
             "조류 인식 AF 탑재. 30연사로 날아오르는 순간을 붙잡는 탐조 전용기.",
             Sensor.FF, Mounts.E, 24f, 9.5f, 30f, 3.5f, true, true,
             CamLook(4, COL_BLACK, COL_BLACK_D, ACC_GOLD, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_flagship", "오리온", "F1 플래그십", GearGrade.PRO, 2600000, 1160,
+            "b_flagship", "오리온", "F1 플래그십", GearGrade.PRO, 2300000, 1160,
             "세로그립 일체형 플래그십. 120연사와 절대 놓치지 않는 AF, 그리고 묵직한 무게.",
             Sensor.FF, Mounts.E, 24f, 10f, 120f, 3.5f, true, true,
             CamLook(4, COL_BLACK, COL_BLACK_D, ACC_RED, 0f, 0f, COL_DARK_LENS, false, true, false)
         ),
         CamBody(
-            "b_mf", "오리온", "MF100 중형", GearGrade.PRO, 3200000, 1400,
+            "b_mf", "오리온", "MF100 중형", GearGrade.PRO, 3000000, 1400,
             "102MP 중형 센서. 화질은 다른 차원이지만 AF가 느리고 망원 화각이 0.79배로 좁아진다.",
             Sensor.MF, Mounts.MF, 102f, 3.5f, 5f, 2.0f, true, false,
             CamLook(5, COL_GRAPH, COL_GRAPH_D, COL_SILVER, 0f, 0f, COL_DARK_LENS, false, true, false),
@@ -406,117 +418,117 @@ object CameraGear {
     // ------------------------------------------------------------------
     val LENSES: List<CamLens> = listOf(
         CamLens(
-            "l_kit1855", "하늘광학", "18-55mm F3.5-5.6 번들", GearGrade.ENTRY, 40000, 205,
+            "l_kit1855", "하늘광학", "18-55mm F3.5-5.6 번들", GearGrade.ENTRY, 100000, 205,
             "바디와 함께 주는 기본 줌. 가볍고 무난하지만 새를 찍기엔 너무 짧다.",
             setOf(Mounts.E, Mounts.F), Coverage.APSC, 18, 55, 3.5f, 5.6f,
             2.0f, 2.0f, 0f, false, false, 2.0f, 3.2f, COL_DARK_LENS, false
         ),
         CamLens(
-            "l_55210", "하늘광학", "55-210mm F4.5-6.3", GearGrade.ENTRY, 90000, 345,
+            "l_55210", "하늘광학", "55-210mm F4.5-6.3", GearGrade.ENTRY, 170000, 345,
             "APS-C 전용 보급 망원. 가볍고 싸서 첫 망원으로 좋다.",
             setOf(Mounts.E, Mounts.F), Coverage.APSC, 55, 210, 4.5f, 6.3f,
             2.5f, 2.4f, -0.3f, false, false, 3.4f, 3.4f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_35f18", "까치광학", "35mm F1.8 팬케이크", GearGrade.ENTRY, 70000, 145,
+            "l_35f18", "까치광학", "35mm F1.8 팬케이크", GearGrade.ENTRY, 80000, 145,
             "주머니에 넣고 다니는 밝은 단렌즈. 어두운 골목과 실내에 강하다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 35, 35, 1.8f, 1.8f,
             0f, 4.0f, 0.3f, false, false, 1.4f, 3.0f, COL_DARK_LENS, false,
             luck = 1
         ),
         CamLens(
-            "l_1635f4", "루멘", "16-35mm F4 광각 줌", GearGrade.MID, 190000, 540,
+            "l_1635f4", "루멘", "16-35mm F4 광각 줌", GearGrade.MID, 340000, 540,
             "풍경과 서식지를 넓게 담는 광각. 새 촬영에는 거의 쓸모가 없다.",
             setOf(Mounts.E), Coverage.FF, 16, 35, 4.0f, 4.0f,
             1.5f, 4.2f, 0.2f, false, false, 2.2f, 3.8f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_2470f28", "루멘", "24-70mm F2.8 표준 줌", GearGrade.MID, 330000, 805,
+            "l_2470f28", "루멘", "24-70mm F2.8 표준 줌", GearGrade.MID, 490000, 805,
             "가장 쓸모 많은 표준 줌. 밝고 선명하지만 망원은 부족하다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 24, 70, 2.8f, 2.8f,
             2.0f, 4.6f, 0.4f, false, false, 2.8f, 4.2f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_90macro", "까치광학", "90mm F2.8 매크로", GearGrade.MID, 170000, 600,
+            "l_90macro", "까치광학", "90mm F2.8 매크로", GearGrade.MID, 240000, 600,
             "코앞까지 다가가 찍는 접사 렌즈. 최단 촬영 거리가 아주 짧다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 90, 90, 2.8f, 2.8f,
             2.0f, 5.0f, -0.5f, false, true, 3.0f, 3.4f, COL_DARK_LENS, false
         ),
         CamLens(
-            "l_70300", "솔개옵틱", "70-300mm F4-5.6", GearGrade.ENTRY, 140000, 680,
+            "l_70300", "솔개옵틱", "70-300mm F4-5.6", GearGrade.ENTRY, 300000, 680,
             "첫 망원 줌의 정석. 가격 대비 사거리가 훌륭하다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 70, 300, 4.0f, 5.6f,
             2.5f, 3.2f, -0.2f, false, false, 4.2f, 3.8f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_100400", "솔개옵틱", "100-400mm F4.5-5.6", GearGrade.MID, 470000, 1135,
+            "l_100400", "솔개옵틱", "100-400mm F4.5-5.6", GearGrade.MID, 520000, 1135,
             "탐조인의 실전 줌. 화질과 휴대성의 균형이 좋고 텔레컨버터도 물린다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 100, 400, 4.5f, 5.6f,
             3.0f, 4.4f, 0.2f, true, false, 5.6f, 4.6f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_150600c", "참새정밀", "150-600mm F5-6.3 컨템", GearGrade.MID, 300000, 1930,
+            "l_150600c", "참새정밀", "150-600mm F5-6.3 컨템", GearGrade.MID, 380000, 1930,
             "가성비 초망원. 무겁고 AF가 굼뜨지만 600mm를 이 값에 살 수 있다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 150, 600, 5.0f, 6.3f,
             2.5f, 3.4f, -1.5f, true, false, 7.0f, 5.0f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_200600", "루멘", "200-600mm F5.6-6.3 G", GearGrade.HIGH, 620000, 2115,
+            "l_200600", "루멘", "200-600mm F5.6-6.3 G", GearGrade.HIGH, 640000, 2115,
             "인너 줌 방식의 초망원. 조용하고 빠른 AF로 새 사진의 표준이 된 렌즈.",
             setOf(Mounts.E), Coverage.FF, 200, 600, 5.6f, 6.3f,
             3.0f, 4.8f, 0.3f, true, false, 7.6f, 5.2f, COL_GRAY_LENS, true
         ),
         CamLens(
-            "l_300f28", "오리온", "300mm F2.8 단렌즈", GearGrade.HIGH, 1300000, 1470,
+            "l_300f28", "오리온", "300mm F2.8 단렌즈", GearGrade.HIGH, 1750000, 1470,
             "밝은 대구경 망원 단렌즈. 어두운 숲에서도 셔터가 살고 텔레컨버터 궁합이 최고다.",
             setOf(Mounts.E, Mounts.F), Coverage.FF, 300, 300, 2.8f, 2.8f,
             3.0f, 5.4f, 1.0f, true, false, 6.4f, 6.4f, COL_WHITE_LENS, true
         ),
         CamLens(
-            "l_500f4", "오리온", "500mm F4 단렌즈", GearGrade.PRO, 2100000, 3050,
+            "l_500f4", "오리온", "500mm F4 단렌즈", GearGrade.PRO, 2400000, 3050,
             "프로 초망원. 압도적인 해상력과 AF, 그리고 팔이 떨어질 듯한 무게.",
             setOf(Mounts.E), Coverage.FF, 500, 500, 4.0f, 4.0f,
             3.5f, 5.8f, 1.5f, true, false, 8.4f, 7.0f, COL_WHITE_LENS, true
         ),
         CamLens(
-            "l_600f4", "오리온", "600mm F4 단렌즈", GearGrade.PRO, 2900000, 3810,
+            "l_600f4", "오리온", "600mm F4 단렌즈", GearGrade.PRO, 3100000, 3810,
             "탐조 장비의 끝판왕. 삼각대 없이는 하루를 버티기 어렵다.",
             setOf(Mounts.E), Coverage.FF, 600, 600, 4.0f, 4.0f,
             3.5f, 6.0f, 1.5f, true, false, 9.4f, 7.4f, COL_WHITE_LENS, true
         ),
         CamLens(
-            "l_800f63", "루멘", "800mm F6.3 단렌즈", GearGrade.HIGH, 1500000, 2475,
+            "l_800f63", "루멘", "800mm F6.3 단렌즈", GearGrade.HIGH, 1300000, 2475,
             "가벼운 초망원 단렌즈. 어둡지만 손에 들고 800mm를 쓸 수 있다.",
             setOf(Mounts.E), Coverage.FF, 800, 800, 6.3f, 6.3f,
             3.0f, 5.2f, 0.6f, true, false, 9.0f, 5.8f, COL_WHITE_LENS, true
         ),
         CamLens(
-            "l_m43_1260", "참새정밀", "12-60mm F3.5-5.6", GearGrade.ENTRY, 140000, 210,
+            "l_m43_1260", "참새정밀", "12-60mm F3.5-5.6", GearGrade.ENTRY, 110000, 210,
             "마이크로 포서드 표준 줌. 환산 24-120mm를 아주 가볍게 소화한다.",
             setOf(Mounts.M43), Coverage.M43, 12, 60, 3.5f, 5.6f,
             2.5f, 3.4f, 0.2f, false, false, 2.2f, 3.2f, COL_DARK_LENS, false
         ),
         CamLens(
-            "l_m43_100400", "참새정밀", "100-400mm F4-6.3", GearGrade.MID, 380000, 985,
+            "l_m43_100400", "참새정밀", "100-400mm F4-6.3", GearGrade.MID, 420000, 985,
             "환산 800mm를 1kg이 안 되게 담았다. 가벼운 초망원 시스템의 매력.",
             setOf(Mounts.M43), Coverage.M43, 100, 400, 4.0f, 6.3f,
             3.0f, 3.8f, 0f, true, false, 6.0f, 4.4f, COL_DARK_LENS, true
         ),
         CamLens(
-            "l_m43_300f4", "참새정밀", "300mm F4 단렌즈", GearGrade.HIGH, 950000, 1270,
+            "l_m43_300f4", "참새정밀", "300mm F4 단렌즈", GearGrade.HIGH, 900000, 1270,
             "환산 600mm F4. 초망원 단렌즈를 배낭에 넣고 산을 오를 수 있게 해준다.",
             setOf(Mounts.M43), Coverage.M43, 300, 300, 4.0f, 4.0f,
             3.5f, 5.4f, 0.8f, true, false, 6.6f, 5.2f, COL_WHITE_LENS, true
         ),
         CamLens(
-            "l_mf_55", "오리온", "55mm F1.7 표준", GearGrade.HIGH, 700000, 780,
+            "l_mf_55", "오리온", "55mm F1.7 표준", GearGrade.HIGH, 650000, 780,
             "중형 표준 렌즈. 환산 44mm의 담백한 화각과 믿기 힘든 묘사력.",
             setOf(Mounts.MF), Coverage.MF, 55, 55, 1.7f, 1.7f,
             0f, 6.0f, -0.3f, false, false, 2.6f, 4.6f, COL_DARK_LENS, false,
             luck = 2
         ),
         CamLens(
-            "l_mf_100200", "오리온", "100-200mm F5.6", GearGrade.HIGH, 900000, 1050,
+            "l_mf_100200", "오리온", "100-200mm F5.6", GearGrade.HIGH, 850000, 1050,
             "중형 망원 줌. 환산 79-158mm로 초상과 풍경에 좋지만 새에겐 여전히 짧다.",
             setOf(Mounts.MF), Coverage.MF, 100, 200, 5.6f, 5.6f,
             2.0f, 5.8f, -0.4f, false, false, 4.4f, 4.6f, COL_DARK_LENS, true
@@ -528,12 +540,12 @@ object CameraGear {
     // ------------------------------------------------------------------
     val TELECONVS: List<TeleConv> = listOf(
         TeleConv(
-            "tc_14", "오리온", "1.4× 텔레컨버터", 120000, 170,
+            "tc_14", "오리온", "1.4× 텔레컨버터", 140000, 170,
             "초점거리를 1.4배로. 조리개 1스톱 손해, AF는 조금 느려진다.",
             setOf(Mounts.E, Mounts.F, Mounts.M43), 1.4f, 1.0f, 0.5f
         ),
         TeleConv(
-            "tc_20", "오리온", "2.0× 텔레컨버터", 150000, 210,
+            "tc_20", "오리온", "2.0× 텔레컨버터", 180000, 210,
             "초점거리를 두 배로. 대신 2스톱이 어두워지고 화질·AF 손실이 크다.",
             setOf(Mounts.E, Mounts.F, Mounts.M43), 2.0f, 2.5f, 1.2f
         )
@@ -556,7 +568,7 @@ object CameraGear {
             "F 렌즈 ↔ E 바디 결합 (AF -1)"
         ),
         CamAccessory(
-            ACC_TRIPOD, "솔개옵틱", "카본 삼각대 + 짐벌", 190000, 1800,
+            ACC_TRIPOD, "솔개옵틱", "카본 삼각대 + 짐벌", 260000, 1800,
             "초망원의 흔들림을 잡아 준다. 멈춰 서서 찍을 때 진가를 발휘한다.",
             "흔들림 보정 대폭 ↑ (무게 +1.8kg)"
         ),

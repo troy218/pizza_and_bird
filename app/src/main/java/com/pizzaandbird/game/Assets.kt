@@ -29,7 +29,8 @@ private const val GRASS_CURL_UNIT = 1.25f
 const val BIKE_FRAMES = 8
 
 // T.TREE 변형 인덱스 — buildTiles() 의 추가 순서와 일치해야 한다.
-// 기본 0..3 (참나무·소나무·벚나무·단풍) + extraTreeArt 8종 (4..11) + 겨울 전용 3종 (12..14).
+// 기본 0..3 (참나무·소나무·벚나무·단풍) + extraTreeArt 8종 (4..11) + 겨울 전용 3종 (12..14)
+// + 지역 수종 4종 (15..18).
 private const val TREE_OAK = 0
 private const val TREE_PINE = 1
 private const val TREE_CHERRY = 2
@@ -45,6 +46,10 @@ private const val TREE_FIR = 11
 private const val TREE_BARE = 12
 private const val TREE_SNOWLEAF = 13
 private const val TREE_SNOWPINE = 14
+private const val TREE_ZELKOVA = 15
+private const val TREE_METASEQUOIA = 16
+private const val TREE_PALM = 17
+private const val TREE_ASPEN = 18
 
 /**
  * 플레이어 캐릭터 스프라이트를 그리는 해상도(px, 한 변).
@@ -86,13 +91,15 @@ const val NPC_FRAME_TIME = 0.2f
  * RUN   : 달리기 (큰 보폭 · 앞으로 기울인 자세 · 굽힌 팔)
  * SNEAK : 살금살금 (카메라 모드에서 이동할 때)
  * AIM   : 카메라 조준 (숨죽인 미세한 흔들림)
+ * SIT   : 벤치에 앉기 (숨쉬며 두리번 — 상단 여백 SIT_TOPPAD 사용)
  */
 enum class Anim(val frames: Int, val frameTime: Float) {
     IDLE(12, 0.17f),
     WALK(8, 0.085f),
     RUN(8, 0.062f),
     SNEAK(8, 0.13f),
-    AIM(4, 0.2f);
+    AIM(4, 0.2f),
+    SIT(8, 0.17f);
 
     /** 한 바퀴 도는 데 걸리는 시간(초) */
     val cycle: Float get() = frames * frameTime
@@ -422,7 +429,9 @@ class Assets(private val context: Context) {
         val down: Array<Bitmap>,
         val up: Array<Bitmap>,
         val side: Array<Bitmap>,
-        val sideL: Array<Bitmap>
+        val sideL: Array<Bitmap>,
+        /** 프레임 상단 여백(px) — 앉은 자세처럼 머리가 넘칠 때 그릴 y 에서 이만큼 뺀다 */
+        val topPad: Int = 0
     ) {
         val count: Int get() = down.size
 
@@ -440,6 +449,7 @@ class Assets(private val context: Context) {
     /** 플레이어 동작 세트 (한 성별 x 한 등급) */
     class PlayerSet(
         val idle: Clip, val walk: Clip, val run: Clip, val sneak: Clip, val aim: Clip,
+        val sit: Clip,
         val punch: Clip
     ) {
         fun clip(anim: Anim): Clip = when (anim) {
@@ -448,6 +458,7 @@ class Assets(private val context: Context) {
             Anim.RUN -> run
             Anim.SNEAK -> sneak
             Anim.AIM -> aim
+            Anim.SIT -> sit
         }
 
         // 기존 코드 호환 (아바타 썸네일 등) — 서 있는 자세
@@ -509,13 +520,14 @@ class Assets(private val context: Context) {
     fun warmIdle(): Boolean = warmQueue.isEmpty()
 
     private fun buildClip(
-        look: CharacterArt.Look, frames: Int, px: Int, pose: (Float) -> CharacterArt.Pose
+        look: CharacterArt.Look, frames: Int, px: Int, topPad: Int = 0,
+        pose: (Float) -> CharacterArt.Pose
     ): Clip {
-        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look, px) }
-        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look, px) }
-        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look, px) }
+        val down = Array(frames) { CharacterArt.render(CharacterArt.FRONT, pose(it / frames.toFloat()), look, px, topPad) }
+        val up = Array(frames) { CharacterArt.render(CharacterArt.BACK, pose(it / frames.toFloat()), look, px, topPad) }
+        val side = Array(frames) { CharacterArt.render(CharacterArt.SIDE, pose(it / frames.toFloat()), look, px, topPad) }
         val sideL = Array(frames) { flipH(side[it]) }
-        return Clip(down, up, side, sideL)
+        return Clip(down, up, side, sideL, topPad)
     }
 
     /**
@@ -536,6 +548,9 @@ class Assets(private val context: Context) {
             run = buildClip(lk, Anim.RUN.frames, px) { CharacterArt.walkPose(it, CharacterArt.RUN) },
             sneak = buildClip(lk, Anim.SNEAK.frames, px) { CharacterArt.walkPose(it, CharacterArt.SNEAK) },
             aim = buildClip(lk, Anim.AIM.frames, px) { CharacterArt.aimPose(it) },
+            sit = buildClip(lk, Anim.SIT.frames, px, CharacterArt.SIT_TOPPAD) {
+                CharacterArt.sitPose(it / Anim.SIT.frames.toFloat())
+            },
             punch = buildClip(lk, 4, px) { CharacterArt.punchPose(it) }
         )
         synchronized(playerCache) {
@@ -758,21 +773,30 @@ class Assets(private val context: Context) {
     //   누구인지(이름·옷·사는 지역)는 NpcRoster.kt, 자리는 MapBuilder.placeCast 가 정한다.
     // -----------------------------------------------------------------------
 
-    /** 사람 옷차림([NpcLook]) -> 렌더용 Look. 바디가 요구하는 체형은 자동으로 따라붙는다. */
+    /** 사람 겉모습([NpcLook]) -> 렌더용 Look. 체형·헤어·모자·수염·소품까지 그대로 간다. */
     private fun npcLook(kind: NpcKind, look: NpcLook): CharacterArt.Look {
+        val (skin, skin2) = when (look.skin) {
+            CharacterArt.SKIN_FAIR -> c(0xFFFFE3C4) to c(0xFFF0C39E)
+            CharacterArt.SKIN_TAN -> c(0xFFF5B885) to c(0xFFE09A6E)
+            CharacterArt.SKIN_DEEP -> c(0xFFD99A6B) to c(0xFFB87A52)
+            else -> c(0xFFFFD9B0) to c(0xFFE8B88C)
+        }
         val pal = CharacterArt.Pal(
             hair = c(look.hair.toLong()), hair2 = shade(c(look.hair.toLong()), 0.75f),
-            skin = c(0xFFFFD9B0), skin2 = c(0xFFE8B88C),
+            skin = skin, skin2 = skin2,
             top = c(look.top.toLong()), top2 = c(look.top2.toLong()),
             pants = c(look.pants.toLong()), pants2 = shade(c(look.pants.toLong()), 0.75f),
             shoe = c(0xFF3A3A44), line = c(0xFF33241C),
             pack = c(look.pack.toLong()), pack2 = shade(c(look.pack.toLong()), 0.75f),
             eye = c(0xFF2E2620), blush = c(0xFFF2A58C)
         )
-        // 모자·조끼·목도리 — 탐조가와 같은 파츠를 써서 사람마다 실루엣이 달라진다
-        val gear = if (look.cap == null && look.vest == null && look.scarf == null) null
+        // 새 모자 파츠를 쓰면 탐조가 장비 모자는 비운다 (둘 다 그리면 겹친다).
+        // 모자 색은 명시색 → 옛 cap 색 → 옷색 순으로 정해진다.
+        val useHat = look.hat != CharacterArt.HAT_NONE
+        val gear = if (!useHat && look.cap == null && look.vest == null && look.scarf == null) null
         else CharacterArt.Gear(
-            cap = look.cap, capDark = shade(look.cap ?: 0, 0.72f),
+            cap = if (useHat) null else look.cap,
+            capDark = shade(look.cap ?: 0, 0.72f),
             vest = look.vest, vestDark = shade(look.vest ?: 0, 0.75f),
             scarf = look.scarf,
             brim = look.cap != null
@@ -782,9 +806,19 @@ class Assets(private val context: Context) {
             gear = gear,
             glasses = look.glasses,
             apron = look.apron,
-            cane = look.cane || kind == NpcKind.ELDER,
+            cane = look.cane,
             small = look.small || kind == NpcKind.KID,
             longHair = look.longHair,
+            body = look.body,
+            hairStyle = look.hairStyle,
+            beard = look.beard,
+            hat = look.hat,
+            hatColor = look.hatColor ?: look.cap ?: 0,
+            bottom = look.bottom,
+            prop = look.prop,
+            propColor = look.propColor ?: 0,
+            wrinkles = look.wrinkles || kind == NpcKind.ELDER,
+            freckles = look.freckles,
             keepsake = when (kind) {
                 NpcKind.PROFESSOR -> "feather"
                 NpcKind.SHOP -> "clover"
@@ -818,6 +852,24 @@ class Assets(private val context: Context) {
     private val npcHdCache = SpriteLru<String, Array<Bitmap>>(8)
 
     /**
+     * 소품·바디에서 소동작을 정한다 — 같은 VILLAGER 라도 쌍안경 든 관찰원은
+     * 두리번거리고, 붓 든 화가는 붓질하고, 찻잔 든 주인은 홀짝인다.
+     */
+    private fun flavorFor(person: NpcPerson): Int = when (person.look.prop) {
+        CharacterArt.PROP_BRUSH -> CharacterArt.FLAVOR_PAINT
+        CharacterArt.PROP_CUP -> CharacterArt.FLAVOR_SIP
+        CharacterArt.PROP_BINOCS -> CharacterArt.FLAVOR_SCAN
+        CharacterArt.PROP_BOOK -> CharacterArt.FLAVOR_READ
+        CharacterArt.PROP_ROD, CharacterArt.PROP_NET, CharacterArt.PROP_PADDLE ->
+            CharacterArt.FLAVOR_SWAY
+        else -> when (person.kind) {
+            NpcKind.KID -> CharacterArt.FLAVOR_BOUNCE
+            NpcKind.ELDER -> CharacterArt.FLAVOR_NOD
+            else -> CharacterArt.FLAVOR_NONE
+        }
+    }
+
+    /**
      * 사람 한 명의 대기 애니메이션 프레임 (12장, 약 2.4초 루프).
      * @param hd 플레이어와 같은 화질([CHARACTER_PX])로 그릴지 — 월드가 2배 이상 슈퍼샘플일 때 true.
      */
@@ -827,9 +879,15 @@ class Assets(private val context: Context) {
         }
         val lk = npcLook(person.kind, person.look)
         val art = npcArtKind(person.kind)
+        val flavor = flavorFor(person)
+        // 사람마다 박자가 어긋나게 — 옆에 서 있어도 숨결·깜빡임이 겹치지 않는다
+        val seed = ((person.id.hashCode() and 0x7FFFFFFF) % 1000) / 1000f
         val px = if (hd) CHARACTER_PX else CharacterArt.SIZE
         val frames = Array(NPC_FRAMES) {
-            CharacterArt.render(CharacterArt.FRONT, CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat()), lk, px)
+            CharacterArt.render(
+                CharacterArt.FRONT,
+                CharacterArt.npcPose(art, it / NPC_FRAMES.toFloat(), flavor, seed), lk, px
+            )
         }
         if (hd) synchronized(npcHdCache) { npcHdCache[person.id] = frames }
         else npcCache.put(person.id, frames)
@@ -853,6 +911,10 @@ class Assets(private val context: Context) {
         val i = (((time + offset) / NPC_FRAME_TIME).toInt() % frames.size + frames.size) % frames.size
         return frames[i]
     }
+
+    /** 랜드마크 안내인 — 테마마다 다른 얼굴 ([NpcRoster.docentFor]) */
+    fun docentBitmap(theme: LandmarkTheme, time: Float, hd: Boolean = false): Bitmap =
+        npcBitmap(NpcRoster.docentFor(theme), time, 1.3f, hd)
 
     val npcProfessor: Bitmap get() = npcFrames(NpcRoster.professor)[0]
     val npcShop: Bitmap get() = npcFrames(NpcRoster.shopkeeper)[0]
@@ -1742,89 +1804,698 @@ class Assets(private val context: Context) {
         return grassPoses[k][li][ci]
     }
 
-    /** 투명한 소품 바위 — 바탕 타일은 GameMap이 그리므로 실루엣만 그린다. */
-    private fun extraRockArt(look: Int): Bitmap = tilePainter { cv, p, r ->
-        fun polygon(color: Int, vararg xy: Float) {
-            val shape = Path()
-            shape.moveTo(xy[0], xy[1])
-            var i = 2
-            while (i < xy.size) { shape.lineTo(xy[i], xy[i + 1]); i += 2 }
-            shape.close()
-            p.color = color
-            cv.drawPath(shape, p)
+    // ── 바위 아트 키트 ──────────────────────────────────────────────────────
+    // 게임의 빛은 왼쪽 위(9시)에서 온다. 모든 바위가 같은 조명 규칙을 쓰도록
+    // 하이라이트는 좌상단, 어두운 테두리는 우하단에 둔다.
+    // 32x32 타일에 **다양한 크기**로 그린다 — [PropLooks] 의 세 크기급과 1:1.
+
+    // 암종 팔레트 — [그늘, 중간, 빛, 하이라이트]
+    private val P_GRAN_D = c(0xFF4C5158)
+    private val P_GRAN_M = c(0xFF8B9298)
+    private val P_GRAN_L = c(0xFFC3C7C7)
+    private val P_GRAN_H = c(0xFFEAE7DE)
+    private val GRANITE = intArrayOf(P_GRAN_D, P_GRAN_M, P_GRAN_L, P_GRAN_H)
+
+    private val P_BAS_D = c(0xFF1E2326)
+    private val P_BAS_M = c(0xFF454D50)
+    private val P_BAS_L = c(0xFF6E777A)
+    private val P_BAS_H = c(0xFF9BA3A2)
+    private val BASALT = intArrayOf(P_BAS_D, P_BAS_M, P_BAS_L, P_BAS_H)
+
+    private val P_SED_D = c(0xFF4A555C)
+    private val P_SED_M = c(0xFF7C8892)
+    private val P_SED_L = c(0xFFA3AFB7)
+    private val P_SED_H = c(0xFFC9D2D6)
+    private val P_SED_A = c(0xFF5E8A4E)
+    private val SEDIMENT = intArrayOf(P_SED_D, P_SED_M, P_SED_L, P_SED_H)
+
+    private val P_LIM_D = c(0xFF6B6F63)
+    private val P_LIM_M = c(0xFFA6AC9C)
+    private val P_LIM_L = c(0xFFC9CCB7)
+    private val P_LIM_H = c(0xFFEDEBDA)
+    private val LIMESTONE = intArrayOf(P_LIM_D, P_LIM_M, P_LIM_L, P_LIM_H)
+
+    private val P_SAN_D = c(0xFF6A5646)
+    private val P_SAN_M = c(0xFFA5825F)
+    private val P_SAN_L = c(0xFFD0AC7F)
+    private val P_SAN_H = c(0xFFEBD2A6)
+    private val SANDSTONE = intArrayOf(P_SAN_D, P_SAN_M, P_SAN_L, P_SAN_H)
+
+    private val P_CON_D = c(0xFF5F656B)
+    private val P_CON_M = c(0xFF8E959B)
+    private val P_CON_L = c(0xFFB8BFC3)
+    private val P_CON_H = c(0xFFD8DDDE)
+    private val CONCRETE = intArrayOf(P_CON_D, P_CON_M, P_CON_L, P_CON_H)
+
+    private val GABION = intArrayOf(c(0xFF3B4145), c(0xFF6E757A), c(0xFF949BA0), c(0xFFBCC2C4))
+    private val STONES_IN_CAGE = intArrayOf(c(0xFF525A5F), c(0xFF8B9399), c(0xFFB2B9BC), c(0xFFD2D8DA))
+
+    private val P_COB_D = c(0xFF525C63)
+    private val P_COB_M = c(0xFF818C92)
+    private val P_COB_L = c(0xFFA8B2B5)
+    private val P_COB_H = c(0xFFD2DADA)
+    private val COBBLE = intArrayOf(P_COB_D, P_COB_M, P_COB_L, P_COB_H)
+
+    /**
+     * 색에 불투명도를 곱한다 (0~255).
+     * `c()`·`pal()` 은 Long 을 받지만 이건 Int 를 받는다 — `0xFFRRGGBB` 리터럴은 Long 이므로
+     * 호출할 때 `.toInt()` 를 붙여야 한다 (Kotlin 은 8자리 16진수 리터럴을 Int 로 좁혀 주지 않는다).
+     */
+    private fun fade(col: Int, a: Int): Int = Color.argb(
+        a.coerceIn(0, 255), Color.red(col), Color.green(col), Color.blue(col)
+    )
+
+    /** 0xFF…… 리터럴(Long) 편의 오버로드 */
+    private fun fade(col: Long, a: Int): Int = fade(col.toInt(), a)
+
+    /** [pts] = x,y,x,y,… 닫힌 다각형 경로. */
+    private fun polyPath(pts: FloatArray): Path {
+        val path = Path()
+        path.moveTo(pts[0], pts[1])
+        var i = 2
+        while (i + 1 < pts.size) { path.lineTo(pts[i], pts[i + 1]); i += 2 }
+        path.close()
+        return path
+    }
+
+    /** 다각형이 한 행에서 차지하는 가장 바깥 [x0, x1) 스팬. 없으면 null. */
+    private fun rowSpan(pts: FloatArray, yc: Float): FloatArray? {
+        val n = pts.size / 2
+        var lo = Float.MAX_VALUE
+        var hi = -Float.MAX_VALUE
+        var hits = 0
+        for (i in 0 until n) {
+            val j = (i + 1) % n
+            val y0 = pts[i * 2 + 1]
+            val y1 = pts[j * 2 + 1]
+            if ((y0 <= yc && yc < y1) || (y1 <= yc && yc < y0)) {
+                val t = (yc - y0) / (y1 - y0)
+                val x = pts[i * 2] + t * (pts[j * 2] - pts[i * 2])
+                if (x < lo) lo = x
+                if (x > hi) hi = x
+                hits++
+            }
         }
-        propShadow(cv, p, 16f, 27f, 11f, 3.3f)
-        when (look) {
-            0 -> { // 설악·한라의 뾰족한 화강암 노두
-                polygon(c(0xFF454D57), 2f, 26f, 5f, 14f, 11f, 17f, 18f, 5f, 24f, 11f, 30f, 26f)
-                polygon(c(0xFF828D98), 4f, 23f, 7f, 14f, 11f, 17f, 18f, 5f, 23f, 12f, 27f, 24f)
-                polygon(c(0xFFB5C0C7), 7f, 14f, 11f, 17f, 18f, 5f, 16f, 16f, 12f, 19f)
-                polygon(c(0xFF6B7580), 18f, 5f, 24f, 11f, 21f, 16f, 16f, 16f)
-                px(cv, p, 10f, 20f, 1.4f, 4f, c(0xFF414953))
-                px(cv, p, 21f, 16f, 1.4f, 6f, c(0xFF414953))
-                noise(cv, p, r, 5f, 9f, 28f, 25f, c(0xFFC7D0D6), 5, 1f, 1.8f)
+        return if (hits >= 2) floatArrayOf(lo, hi) else null
+    }
+
+    /** [pts] 의 바운딩 박스. */
+    private fun bounds(pts: FloatArray): FloatArray {
+        var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+        var i = 0
+        while (i < pts.size) {
+            val x = pts[i]; val y = pts[i + 1]
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+            i += 2
+        }
+        return floatArrayOf(minX, minY, maxX, maxY)
+    }
+
+    /**
+     * 불규칙 타원 실루엣 정점 — 매개 변위로 모양을 다르게 뽑는다(결정적 시드).
+     * [rough] 가 클수록 각진다.
+     */
+    private fun lump(
+        r: Random, cx: Float, cy: Float, rx: Float, ry: Float, n: Int, rough: Float
+    ): FloatArray {
+        val out = FloatArray(n * 2)
+        for (i in 0 until n) {
+            val a = (i.toFloat() / n) * 2f * Math.PI.toFloat()
+            val k = 1f + (r.nextFloat() - 0.5f) * rough
+            out[i * 2] = cx + kotlin.math.cos(a) * rx * k
+            out[i * 2 + 1] = cy + kotlin.math.sin(a) * ry * k
+        }
+        return out
+    }
+
+    /** 바위 실루엣 안에만 사각형을 그린다. */
+    private fun inRock(cv: Canvas, p: Paint, path: Path, x: Float, y: Float, w: Float, h: Float, col: Int) {
+        cv.save(); cv.clipPath(path); px(cv, p, x, y, w, h, col); cv.restore()
+    }
+
+    /** 바위 실루엣 안에만 타원을 그린다. */
+    private fun inRockOval(cv: Canvas, p: Paint, path: Path, cx: Float, cy: Float, rx: Float, ry: Float, col: Int) {
+        cv.save(); cv.clipPath(path)
+        p.color = col
+        cv.drawOval(RectF(cx - rx, cy - ry, cx + rx, cy + ry), p)
+        cv.restore()
+    }
+
+    /** 바위 실루엣 안에만 선을 긋는다(균열·층리 경계). */
+    private fun inRockLine(
+        cv: Canvas, p: Paint, path: Path,
+        x0: Float, y0: Float, x1: Float, y1: Float, col: Int, w: Float
+    ) {
+        val steps = (maxOf(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2f).toInt() + 1
+        cv.save(); cv.clipPath(path)
+        p.color = col
+        for (i in 0..steps) {
+            val t = i / steps.toFloat()
+            val x = x0 + (x1 - x0) * t
+            val y = y0 + (y1 - y0) * t
+            cv.drawRect(x - w / 2f, y - w / 2f, x + w / 2f, y + w / 2f, p)
+        }
+        cv.restore()
+    }
+
+    /**
+     * 바위 본체 하나 — 실루엣 + 윗빛/아랫그늘 디더 그라데이션 + 표면 알갱이 + 테두리.
+     *
+     * @param pal [그늘, 중간, 빛, 하이라이트] — 암종마다 다른 4단계 회색조
+     * @param topBand 실루엣 위쪽 비율만큼 하이라이트까지 밝힌다 (윗면이 빛을 받는다)
+     * @return 이후 이끼·조개·층리를 덧그릴 때 쓰는 클립 경로
+     */
+    private fun rockBody(
+        cv: Canvas, p: Paint, r: Random, pts: FloatArray, pal: IntArray,
+        bands: Int = 5, speck: Int = 0, speckCol: Int? = null,
+        rim: Boolean = true, topBand: Float = 0.15f
+    ): Path {
+        val path = polyPath(pts)
+        val bb = bounds(pts)
+        val minX = bb[0]; val minY = bb[1]; val maxX = bb[2]; val maxY = bb[3]
+        val h = (maxY - minY).coerceAtLeast(1f)
+        val w = (maxX - minX).coerceAtLeast(1f)
+
+        cv.save()
+        cv.clipPath(path)
+        // 행마다 위→아래 그라데이션. 밴드 경계는 짝수 행에서 한 칸 밀어 계단처럼 읽힌다.
+        var y = minY
+        var row = 0
+        while (y < maxY + 1f) {
+            val t = ((y + 0.5f) - minY) / h
+            var col: Int
+            var k = 0f
+            if (t < topBand) {
+                col = lerpColor(pal[3], pal[2], t / topBand)
+            } else {
+                k = (t - topBand) / (1f - topBand)
+                col = lerpColor(pal[2], pal[0], k)
             }
-            1 -> { // 계곡의 둥근 물수리 자갈
-                p.color = c(0xFF626D76); cv.drawOval(RectF(3f, 19f, 13f, 27f), p)
-                p.color = c(0xFF89949A); cv.drawOval(RectF(4f, 18f, 12f, 25f), p)
-                p.color = c(0xFF4B555E); cv.drawOval(RectF(11f, 14f, 24f, 27f), p)
-                p.color = c(0xFF9BA7AC); cv.drawOval(RectF(12f, 13f, 23f, 24f), p)
-                p.color = c(0xFF626D76); cv.drawOval(RectF(22f, 20f, 30f, 27f), p)
-                p.color = c(0xFFB4BEC0); cv.drawOval(RectF(22f, 19f, 29f, 24f), p)
-                px(cv, p, 14f, 16f, 4f, 1.2f, c(0xFFD6DEDA))
-                px(cv, p, 6f, 20f, 3f, 1.2f, c(0xFFD1DAD5))
+            val frac = k * bands
+            val bi = frac.toInt()
+            if (frac - bi < 0.5f && bi < bands - 1 && row % 2 == 0) {
+                col = lerpColor(pal[2], pal[0], (bi + 1) / bands.toFloat())
             }
-            2 -> { // 제주 현무암 기둥 — 육각 기둥이 모여 있는 모양
-                polygon(c(0xFF25282A), 3f, 27f, 4f, 13f, 7f, 9f, 11f, 11f, 12f, 26f)
-                polygon(c(0xFF565A5A), 4f, 25f, 5f, 13f, 8f, 10f, 10f, 12f, 11f, 25f)
-                polygon(c(0xFF202426), 11f, 27f, 12f, 10f, 16f, 6f, 20f, 10f, 20f, 26f)
-                polygon(c(0xFF4D5252), 12f, 25f, 13f, 11f, 16f, 7f, 18f, 11f, 18f, 25f)
-                polygon(c(0xFF25282A), 19f, 27f, 20f, 15f, 24f, 11f, 28f, 14f, 29f, 27f)
-                polygon(c(0xFF616564), 21f, 25f, 21f, 15f, 24f, 12f, 27f, 15f, 27f, 25f)
-                px(cv, p, 7f, 15f, 1f, 8f, c(0xFF858985))
-                px(cv, p, 15f, 12f, 1f, 9f, c(0xFF858985))
-                px(cv, p, 24f, 17f, 1f, 6f, c(0xFF858985))
+            px(cv, p, minX - 1f, y, w + 2f, 1.05f, col)
+            y += 1f
+            row++
+        }
+        // 좌상단 능선 하이라이트 / 우하단 그늘
+        p.color = fade(pal[3], 78)
+        cv.drawOval(RectF(minX + w * 0.08f, minY + h * 0.08f, minX + w * 0.60f, minY + h * 0.36f), p)
+        p.color = fade(pal[0], 120)
+        cv.drawOval(RectF(maxX - w * 0.58f, maxY - h * 0.50f, maxX + w * 0.14f, maxY + h * 0.10f), p)
+        if (speck > 0) {
+            val sc = speckCol ?: shade(pal[0], 0.86f)
+            repeat(speck) {
+                val sx = minX + r.nextFloat() * w
+                val sy = minY + r.nextFloat() * h
+                val s = 1f + r.nextFloat() * 1.6f
+                px(cv, p, sx, sy, s, s * 0.85f, sc)
             }
-            3 -> { // 동해 물결에 닳은 낮은 층리 바위
-                polygon(c(0xFF505B63), 2f, 26f, 5f, 19f, 10f, 18f, 15f, 20f, 22f, 16f, 29f, 21f, 30f, 27f)
-                polygon(c(0xFF89949A), 4f, 22f, 8f, 18f, 14f, 20f, 21f, 16f, 27f, 21f, 27f, 24f)
-                px(cv, p, 6f, 22f, 8f, 1.4f, c(0xFFB5BEC0))
-                px(cv, p, 17f, 20f, 8f, 1.4f, c(0xFFB5BEC0))
-                px(cv, p, 4f, 25f, 22f, 1.2f, c(0xFF3D474E))
-                // 조개껍데기와 물때
-                px(cv, p, 11f, 17f, 2f, 1.4f, c(0xFFF2E7CE))
-                px(cv, p, 12f, 16f, 1f, 1f, c(0xFFF2E7CE))
-                px(cv, p, 24f, 23f, 2f, 1f, c(0xFF6F8B58))
-            }
-            4 -> { // 숲의 이끼 낀 둥근 바위와 작은 고사리
-                p.color = c(0xFF4B5359); cv.drawOval(RectF(4f, 13f, 28f, 28f), p)
-                p.color = c(0xFF737F83); cv.drawOval(RectF(5f, 11f, 26f, 25f), p)
-                p.color = c(0xFF9AA59A); cv.drawOval(RectF(8f, 11f, 21f, 20f), p)
-                px(cv, p, 7f, 14f, 8f, 2f, c(0xFF739653))
-                px(cv, p, 9f, 12f, 5f, 2f, c(0xFF98B86C))
-                px(cv, p, 20f, 18f, 5f, 2f, c(0xFF5F824E))
-                for (i in 0..2) {
-                    px(cv, p, 2f + i * 2.3f, 24f - i * 2f, 1.2f, 5f + i * 2f, c(0xFF4F824A))
-                    px(cv, p, 1f + i * 2.3f, 24f - i * 2f, 2f, 1.2f, c(0xFF7FB15B))
+        }
+        cv.restore()
+
+        // 빛이 좌상단이므로 어두운 테두리는 오른쪽·아래에만 얹는다
+        if (rim) {
+            val dark = fade(pal[0], 150)
+            var lastY = -1f
+            var lastX0 = 0f
+            var lastX1 = 0f
+            var ry = minY
+            while (ry <= maxY) {
+                val sp = rowSpan(pts, ry + 0.5f)
+                if (sp != null) {
+                    px(cv, p, sp[1] - 1f, ry, 1f, 1.05f, dark)
+                    lastY = ry; lastX0 = sp[0]; lastX1 = sp[1]
                 }
-                noise(cv, p, r, 8f, 12f, 25f, 24f, c(0xFFB8C0AF), 5, 1f, 1.5f)
+                ry += 1f
             }
-            5 -> { // 평야의 따뜻한 사암 단층
-                polygon(c(0xFF69594D), 3f, 27f, 5f, 15f, 11f, 12f, 26f, 14f, 30f, 27f)
-                polygon(c(0xFFAD8967), 4f, 23f, 6f, 15f, 11f, 13f, 25f, 15f, 28f, 23f)
-                px(cv, p, 7f, 17f, 17f, 1.6f, c(0xFFD0B08A))
-                px(cv, p, 6f, 21f, 20f, 1.6f, c(0xFF8E6D56))
-                px(cv, p, 10f, 24f, 14f, 1.2f, c(0xFF785D4A))
-                px(cv, p, 11f, 14f, 7f, 2f, c(0xFFE0C39B))
+            if (lastY >= 0f) px(cv, p, lastX0, lastY, lastX1 - lastX0, 1.05f, dark)
+        }
+        return path
+    }
+
+    /** 소품용 접지 그림자 (바닥 타일은 GameMap 이 깔아 준다). */
+    private fun rockShadow(cv: Canvas, p: Paint, cx: Float, cy: Float, rx: Float, ry: Float, a: Int = 0x40) {
+        p.color = fade(0x202C20, a)
+        cv.drawOval(RectF(cx - rx, cy - ry, cx + rx, cy + ry), p)
+    }
+
+    /** 바위 위에 이끼·풀이 앉은 자국. */
+    private fun mossCap(cv: Canvas, p: Paint, path: Path, cx: Float, cy: Float, rx: Float, ry: Float, lite: Boolean) {
+        inRockOval(cv, p, path, cx, cy, rx, ry, c(0xFF5F824E))
+        inRockOval(cv, p, path, cx - rx * 0.22f, cy - ry * 0.28f, rx * 0.58f, ry * 0.6f,
+            if (lite) c(0xFF8CC46C) else c(0xFF7FB15B))
+    }
+
+    /** 해면선에 붙는 깃물·이끼 톱니 띠. */
+    private fun weedFringe(cv: Canvas, p: Paint, path: Path, x: Float, y: Float, w: Float, h: Float, col: Int) {
+        var i = 0
+        while (i < w.toInt()) {
+            inRock(cv, p, path, x + i, y + (i % 2) * 1.2f, 1f, h, col)
+            i++
+        }
+    }
+
+    /**
+     * 바위 소품 28종 — [PropLooks.ROCKS] 순서와 1:1.
+     *
+     * 암종(화강암·현무암·해식퇴적암·석회암·사암·인공석재·자연쇳돌)과 크기급
+     * (자갈·낮은 돌·큰 바위)을 모두 다르게 두어, 지역마다 다른 돌무더기가 서게 한다.
+     */
+    private fun rockArt(look: Int): Bitmap = tilePainter { cv, p, r ->
+        when (look) {
+            // ═══ 화강암 — 설악·광릉·왕피의 비고지 ═══════════════════════════
+            0 -> { // 화강암 노두 — 각진 면 3개가 지는 암괴
+                rockShadow(cv, p, 16f, 28.5f, 11.5f, 3.2f)
+                val body = floatArrayOf(
+                    3f, 28f, 5f, 18f, 8f, 15f, 14f, 14f, 19f, 15f, 22f, 17f, 27f, 19f,
+                    29f, 27f, 19f, 30f, 8f, 30f
+                )
+                val k = rockBody(cv, p, r, body, GRANITE, speck = 8, topBand = 0.12f)
+                inRockLine(cv, p, k, 9f, 15.6f, 18f, 14.4f, fade(P_GRAN_H, 170), 1f)
+                inRockLine(cv, p, k, 18f, 14.4f, 22f, 17.4f, fade(P_GRAN_D, 150), 1f)
+                inRockLine(cv, p, k, 22f, 17.4f, 19f, 29.4f, fade(P_GRAN_D, 110), 1f)
+                inRockOval(cv, p, k, 10f, 21f, 4f, 4f, fade(P_GRAN_L, 90))
+                inRockOval(cv, p, k, 24f, 24f, 3.4f, 3f, fade(P_GRAN_D, 110))
+                for (d in intArrayOf(0, 1, 2, 3, 4)) {
+                    val dx = floatArrayOf(8f, 15f, 20f, 12f, 25f)[d]
+                    val dy = floatArrayOf(19f, 17f, 22f, 25f, 21f)[d]
+                    val s = floatArrayOf(2f, 1.6f, 2.2f, 1.4f, 1.6f)[d]
+                    inRock(cv, p, k, dx, dy, s, s, fade(P_GRAN_H, 180))
+                }
+                crackIn(cv, p, k, 18f, 15f, 1.1f, 2.4f, fade(P_GRAN_D, 190), 4)
+                crackIn(cv, p, k, 24f, 19f, -1.3f, -2.2f, fade(P_GRAN_D, 150), 3)
             }
-            else -> { // 조개 구멍이 패인 밝은 석회암
-                polygon(c(0xFF62655F), 3f, 27f, 4f, 15f, 9f, 11f, 15f, 14f, 21f, 9f, 29f, 16f)
-                polygon(c(0xFFB0B4A5), 5f, 24f, 6f, 15f, 10f, 12f, 15f, 15f, 21f, 10f, 27f, 17f)
-                polygon(c(0xFFD3D3BD), 10f, 13f, 15f, 15f, 21f, 10f, 26f, 16f, 25f, 23f, 18f, 25f)
-                p.color = c(0xFF667067); cv.drawCircle(11f, 19f, 1.8f, p); cv.drawCircle(22f, 19f, 1.4f, p)
-                p.color = c(0xFFEEEBD4); cv.drawCircle(10f, 18f, 0.8f, p); cv.drawCircle(21f, 18f, 0.8f, p)
-                px(cv, p, 7f, 25f, 15f, 1.2f, c(0xFF788176))
+            1 -> { // 설악 암괴 — 주 절리면이 지는 첨탑
+                rockShadow(cv, p, 16f, 29.5f, 12f, 3.4f)
+                val body = floatArrayOf(7f, 30f, 9f, 12f, 14f, 3f, 19f, 9f, 25f, 14f, 27f, 30f, 16f, 31f)
+                val k = rockBody(cv, p, r, body, GRANITE, bands = 6, speck = 12)
+                inRock(cv, p, k, 14f, 6f, 2.6f, 22f, fade(P_GRAN_D, 110))
+                inRock(cv, p, k, 15.4f, 6f, 1f, 22f, fade(P_GRAN_H, 80))
+                inRock(cv, p, k, 22f, 16f, 2.2f, 13f, fade(P_GRAN_D, 100))
+                for (d in intArrayOf(0, 1, 2, 3)) {
+                    val dx = floatArrayOf(11f, 17f, 21f, 12f)[d]
+                    val dy = floatArrayOf(12f, 9f, 20f, 23f)[d]
+                    inRock(cv, p, k, dx, dy, 1.6f, 1.6f, fade(P_GRAN_H, 150))
+                }
+                mossCap(cv, p, k, 12f, 28.4f, 5f, 1.8f, true)
+                crackIn(cv, p, k, 18f, 3f, 1.2f, 2.6f, fade(P_GRAN_D, 170), 5)
             }
+            2 -> { // 노두 자갈 — 흘러내린 부순 사면
+                rockShadow(cv, p, 16f, 28.5f, 9f, 2.4f)
+                val cx = floatArrayOf(3f, 6f, 10f, 14f, 18f, 22f, 26f, 7f, 12f, 17f, 22f, 10f, 15f, 19f, 14f, 17f)
+                val cy = floatArrayOf(27f, 26f, 27f, 28f, 27f, 26f, 27f, 23f, 24f, 23f, 23f, 20f, 21f, 20f, 17.5f, 18f)
+                val cw = floatArrayOf(2.6f, 3f, 2.8f, 2.4f, 3f, 2.6f, 2.4f, 3.4f, 3f, 3.6f, 3f, 2.8f, 2.4f, 2.6f, 2f, 1.8f)
+                val ch = floatArrayOf(2f, 2.4f, 2.2f, 2f, 2.2f, 2f, 2f, 2.6f, 2.4f, 2.8f, 2.4f, 2.2f, 2f, 2f, 1.8f, 1.6f)
+                for (i in cx.indices) {
+                    rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 6, 0.5f),
+                        GRANITE, bands = 2, speck = 1, rim = false, topBand = 0.32f)
+                }
+            }
+            3 -> { // 이끼 화강암 — 숲 바닥의 반원형 바위
+                rockShadow(cv, p, 16f, 28.5f, 10f, 3f)
+                val k = rockBody(cv, p, r, lump(r, 16f, 22f, 11f, 6.4f, 11, 0.26f), GRANITE, speck = 6)
+                mossCap(cv, p, k, 13f, 17f, 7f, 3f, true)
+                mossCap(cv, p, k, 20f, 15.2f, 3.8f, 1.8f, false)
+                for (i in 0..2) {
+                    inRock(cv, p, k, 4f + i * 1.9f, 24f - i * 1.8f, 1.1f, 4f + i * 1.6f, c(0xFF4F824A))
+                    inRock(cv, p, k, 3.4f + i * 1.9f, 24f - i * 1.8f, 1.8f, 1f, c(0xFF7FB15B))
+                }
+            }
+            // ═══ 현무암 — 제주·하도리·한라 ════════════════════════════════
+            4 -> { // 현무암 기둥 — 서로 어긋난 육각 기둥 무리
+                rockShadow(cv, p, 16f, 29.5f, 12f, 3.2f)
+                val cx = floatArrayOf(4f, 10f, 18f, 24f)
+                val ct = floatArrayOf(12f, 4f, 8f, 15f)
+                val cw = floatArrayOf(6.2f, 7.4f, 6.4f, 5.4f)
+                for (i in cx.indices) {
+                    val x = cx[i]; val top = ct[i]; val w = cw[i]
+                    val body = floatArrayOf(x, 30f, x + 0.6f, top + 2f, x + w / 2f, top,
+                        x + w - 0.6f, top + 2.4f, x + w, 30f)
+                    val k = rockBody(cv, p, r, body, BASALT, bands = 4, speck = 3)
+                    inRock(cv, p, k, x + w * 0.42f, top + 2f, 1f, 26f, fade(P_BAS_H, 90))
+                    inRock(cv, p, k, x + w * 0.62f, top + 3f, 1f, 25f, fade(P_BAS_D, 150))
+                }
+                for (x in floatArrayOf(9.6f, 17.2f, 23.4f)) {
+                    p.color = fade(0xFF101416.toInt(), 190)
+                    cv.drawRect(x, 8f, x + 1.4f, 30f, p)
+                }
+            }
+            5 -> { // 용암 성벽 — 기둥상 단열이 선 검은 암벽
+                rockShadow(cv, p, 16f, 30f, 12f, 3f)
+                val body = floatArrayOf(2f, 30f, 3f, 12f, 7f, 7f, 13f, 10f, 19f, 4f, 25f, 9f, 29f, 14f, 30f, 30f)
+                val k = rockBody(cv, p, r, body, BASALT, bands = 6, speck = 6)
+                for (i in 0..4) {
+                    val x = floatArrayOf(6f, 11f, 17f, 23f, 27f)[i]
+                    val y0 = floatArrayOf(8f, 11f, 5f, 10f, 15f)[i]
+                    inRock(cv, p, k, x, y0, 1.3f, 30f - y0, fade(0xFF14181A.toInt(), 170))
+                    inRock(cv, p, k, x + 1.4f, y0 + 1f, 1.1f, 29f - y0, fade(P_BAS_L, 120))
+                    inRock(cv, p, k, x + 2.6f, y0 + 2f, 0.8f, 28f - y0, fade(P_BAS_H, 70))
+                }
+                inRock(cv, p, k, 3f, 27f, 26f, 3f, fade(0xFF2C3234.toInt(), 200))
+            }
+            6 -> { // 현무암 자갈 — 기공이 구멍난 검은 부순 돌
+                rockShadow(cv, p, 16f, 28.5f, 9f, 2.2f)
+                val cx = intArrayOf(4, 8, 12, 16, 21, 25, 7, 12, 17, 22, 14, 19)
+                val cy = floatArrayOf(26f, 24f, 26f, 24f, 25f, 23f, 21f, 21.5f, 20f, 21f, 18f, 18.5f)
+                val cw = floatArrayOf(3f, 3.6f, 3f, 3.4f, 3f, 3.2f, 3f, 3.4f, 3f, 2.8f, 2.4f, 2.2f)
+                val ch = floatArrayOf(2.6f, 3f, 2.4f, 3f, 2.6f, 2.8f, 2.4f, 2.6f, 2.4f, 2.2f, 2f, 1.8f)
+                for (i in cx.indices) {
+                    val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.45f),
+                        BASALT, bands = 2, speck = 1, rim = false, topBand = 0.36f)
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.35f, cy[i] + ch[i] * 0.32f, 1f, 1f, fade(0xFF0C0F10.toInt(), 200))
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.58f, cy[i] + ch[i] * 0.5f, 1f, 1f, fade(0xFF0C0F10.toInt(), 170))
+                }
+            }
+            7 -> { // 현무암 방패바위 — 물에 닳은 매끈한 검은 바위
+                rockShadow(cv, p, 16f, 28.5f, 10.5f, 3f)
+                val k = rockBody(cv, p, r, lump(r, 16f, 21f, 11f, 7f, 12, 0.2f), BASALT, bands = 5, speck = 4)
+                inRockOval(cv, p, k, 11f, 18f, 4f, 2f, fade(P_BAS_H, 80))
+                for (i in 0..3) {
+                    val dx = floatArrayOf(19f, 22f, 13f, 17f)[i]
+                    val dy = floatArrayOf(17f, 21f, 25f, 23f)[i]
+                    inRock(cv, p, k, dx, dy, 1f, 1f, fade(0xFF0C0F10.toInt(), 170))
+                }
+            }
+            // ═══ 해식 퇴적암 — 동해안 ═══════════════════════════════════
+            8 -> { // 동해 층리 바위 — 얇은 지층이 줄눈을 이루는 바위
+                rockShadow(cv, p, 16f, 28.5f, 11f, 3f)
+                val body = floatArrayOf(
+                    3f, 28f, 5f, 18f, 11f, 15f, 21f, 16f, 28f, 21f, 30f, 27f, 20f, 30f, 8f, 30f
+                )
+                val k = rockBody(cv, p, r, body, SEDIMENT, bands = 5, speck = 4)
+                for (i in 0..2) {
+                    val y = floatArrayOf(19f, 22.4f, 25.4f)[i]
+                    val hh = floatArrayOf(1.4f, 1.2f, 1.6f)[i]
+                    inRock(cv, p, k, 4f, y, 25f, hh, fade(P_SED_D, 120))
+                    inRock(cv, p, k, 4f, y + hh, 25f, 0.9f, fade(P_SED_H, 110))
+                }
+                inRockLine(cv, p, k, 18f, 17f, 20f, 28f, fade(P_SED_D, 110), 1f)
+                weedFringe(cv, p, k, 22f, 24.4f, 7f, 2.4f, fade(P_SED_A, 170))
+            }
+            9 -> { // 해식 절벽 — 밑동에 파식 홈이 파인 절벽
+                rockShadow(cv, p, 16f, 30f, 12f, 3f)
+                val body = floatArrayOf(6f, 30f, 8f, 12f, 11f, 5f, 17f, 3f, 24f, 6f, 27f, 14f, 28f, 30f, 15f, 31f)
+                val k = rockBody(cv, p, r, body, SEDIMENT, bands = 6, speck = 5)
+                for (i in 0..2) {
+                    val y = floatArrayOf(11f, 15.5f, 19.5f)[i]
+                    inRock(cv, p, k, 6f, y, 22f, 1.2f, fade(P_SED_D, 95))
+                    inRock(cv, p, k, 6f, y + 1.2f, 22f, 0.9f, fade(P_SED_H, 80))
+                }
+                inRock(cv, p, k, 5f, 23.4f, 24f, 3.2f, fade(0xFF2B343A.toInt(), 200))
+                inRock(cv, p, k, 5f, 22.6f, 24f, 1f, fade(P_SED_H, 140))
+                inRock(cv, p, k, 5f, 26.6f, 24f, 3.4f, fade(P_SED_D, 90))
+                weedFringe(cv, p, k, 7f, 26.4f, 19f, 2.2f, fade(P_SED_A, 150))
+            }
+            10 -> { // 해안 사암 블록 — 깨진 모서리가 각진 블록
+                rockShadow(cv, p, 16f, 28.5f, 9.5f, 2.8f)
+                val body = floatArrayOf(5f, 28f, 6f, 18f, 8f, 15f, 16f, 16f, 21f, 14f, 26f, 18f, 27f, 27f, 15f, 30f)
+                val k = rockBody(cv, p, r, body, SEDIMENT, bands = 4, speck = 4)
+                inRockLine(cv, p, k, 8f, 15.4f, 16f, 16.4f, fade(P_SED_H, 190), 1f)
+                inRockLine(cv, p, k, 21f, 14.4f, 26f, 18.4f, fade(P_SED_H, 190), 1f)
+                inRock(cv, p, k, 6f, 21f, 21f, 1.4f, fade(P_SED_D, 140))
+                inRock(cv, p, k, 6f, 22.4f, 21f, 0.9f, fade(P_SED_H, 120))
+                inRock(cv, p, k, 6f, 25.4f, 21f, 1.2f, fade(P_SED_D, 130))
+                inRockLine(cv, p, k, 12f, 18f, 10f, 30f, fade(P_SED_D, 150), 1f)
+                inRockOval(cv, p, k, 20f, 23f, 3f, 2.6f, fade(P_SED_D, 90))
+            }
+            11 -> { // 갯바위 선반 — 파도에 밀려 눕는 넓적한 바위
+                rockShadow(cv, p, 16f, 27.5f, 12f, 2.6f)
+                val body = floatArrayOf(
+                    2f, 24f, 5f, 19f, 13f, 18f, 22f, 19f, 30f, 23f, 30f, 26f, 16f, 28f, 3f, 26f
+                )
+                val k = rockBody(cv, p, r, body, SEDIMENT, bands = 4, speck = 5)
+                inRock(cv, p, k, 2f, 22f, 30f, 1.4f, fade(0xFF3A4A50.toInt(), 200))
+                weedFringe(cv, p, k, 4f, 24.4f, 24f, 2.4f, fade(P_SED_A, 190))
+                for (i in 0..3) {
+                    val dx = floatArrayOf(9f, 18f, 24f, 14f)[i]
+                    val dy = floatArrayOf(24f, 25f, 23.6f, 22.4f)[i]
+                    inRock(cv, p, k, dx, dy, 1.6f, 1.2f, c(0xFFF0E4CB))
+                }
+                inRockOval(cv, p, k, 16f, 21f, 8f, 1.4f, fade(P_SED_H, 90))
+            }
+            // ═══ 석회암 — 전주·광주 서안 ═════════════════════════════════
+            12 -> { // 밝은 석회암 — 용식 구멍이 패인 연한 바위
+                rockShadow(cv, p, 16f, 28.5f, 10f, 3f)
+                val body = floatArrayOf(5f, 28f, 6f, 16f, 12f, 13f, 23f, 15f, 28f, 21f, 28f, 28f, 16f, 30f)
+                val k = rockBody(cv, p, r, body, LIMESTONE, bands = 5, speck = 6)
+                for (i in 0..2) {
+                    val cx = floatArrayOf(11f, 20f, 23f)[i]
+                    val cy = floatArrayOf(20f, 18f, 24f)[i]
+                    val rad = floatArrayOf(1.9f, 1.5f, 1.7f)[i]
+                    inRockOval(cv, p, k, cx, cy, rad, rad * 0.9f, fade(0xFF4A5247.toInt(), 200))
+                    inRockOval(cv, p, k, cx - 0.5f, cy - 0.6f, rad * 0.45f, rad * 0.4f, fade(P_LIM_H, 190))
+                }
+                inRock(cv, p, k, 6f, 26f, 22f, 1.6f, fade(P_LIM_D, 120))
+            }
+            13 -> { // 석회암 절벽 — 구멍이 뚫린 밝은 절벽면
+                rockShadow(cv, p, 16f, 30f, 11.5f, 3f)
+                val body = floatArrayOf(7f, 30f, 8f, 10f, 13f, 4f, 22f, 6f, 27f, 13f, 27f, 30f, 15f, 31f)
+                val k = rockBody(cv, p, r, body, LIMESTONE, bands = 6, speck = 8)
+                for (i in 0..3) {
+                    val cx = floatArrayOf(13f, 21f, 16f, 23f)[i]
+                    val cy = floatArrayOf(14f, 19f, 24f, 9f)[i]
+                    val rad = floatArrayOf(2.2f, 1.8f, 1.6f, 1.4f)[i]
+                    inRockOval(cv, p, k, cx, cy, rad, rad, fade(0xFF515949.toInt(), 180))
+                    inRockOval(cv, p, k, cx - 0.6f, cy - 0.7f, rad * 0.4f, rad * 0.4f, fade(P_LIM_H, 170))
+                }
+                inRock(cv, p, k, 8f, 27f, 19f, 2f, fade(P_LIM_D, 110))
+            }
+            14 -> { // 석회암 자갈 — 갯바위 밑에 모인 밝은 자갈
+                rockShadow(cv, p, 16f, 28.5f, 7.5f, 2f)
+                val cx = intArrayOf(5, 9, 14, 19, 24, 27, 7, 12, 17, 22, 14)
+                val cy = floatArrayOf(26f, 24f, 26f, 24f, 25f, 27f, 21f, 21.5f, 20f, 21f, 18f)
+                val cw = floatArrayOf(3.2f, 3.6f, 3f, 3.4f, 3f, 2.2f, 3f, 3.4f, 3f, 2.6f, 2.4f)
+                val ch = floatArrayOf(2.6f, 3f, 2.4f, 2.8f, 2.4f, 1.8f, 2.4f, 2.6f, 2.4f, 2.2f, 2f)
+                for (i in cx.indices) {
+                    val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.4f),
+                        LIMESTONE, bands = 2, speck = 1, rim = false, topBand = 0.36f)
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.3f, cy[i] + ch[i] * 0.34f, 1f, 1f, fade(0xFF4A5247.toInt(), 200))
+                }
+            }
+            // ═══ 사암 — 철원 평야·대구 분지 ═════════════════════════════
+            15 -> { // 사암 단층 — 따뜻한 색의 어긋난 층
+                rockShadow(cv, p, 16f, 28.5f, 10.5f, 3f)
+                val body = floatArrayOf(4f, 28f, 6f, 15f, 13f, 12f, 24f, 13f, 29f, 19f, 29f, 28f, 17f, 30f)
+                val k = rockBody(cv, p, r, body, SANDSTONE, bands = 5, speck = 5)
+                for (i in 0..2) {
+                    val y = floatArrayOf(17f, 20f, 23.5f)[i]
+                    val hh = floatArrayOf(1.6f, 1.4f, 1.6f)[i]
+                    inRock(cv, p, k, 5f, y, 25f, hh, fade(P_SAN_D, 140))
+                    inRock(cv, p, k, 5f, y + hh, 25f, 0.9f, fade(P_SAN_H, 110))
+                }
+                crackIn(cv, p, k, 20f, 13f, 1.4f, 2.4f, fade(P_SAN_D, 200), 4)
+            }
+            16 -> { // 사암 절벽 — 사교층리가 비스듬히 지는 벽
+                rockShadow(cv, p, 16f, 30f, 12f, 3f)
+                val body = floatArrayOf(6f, 30f, 7f, 9f, 14f, 3f, 23f, 6f, 28f, 13f, 28f, 30f, 15f, 31f)
+                val k = rockBody(cv, p, r, body, SANDSTONE, bands = 6, speck = 7)
+                for (i in 0..3) {
+                    val y = floatArrayOf(7f, 11f, 15f, 19f)[i]
+                    inRock(cv, p, k, 6f, y, 23f, 1.6f, fade(P_SAN_D, 130))
+                    inRock(cv, p, k, 6f, y + 1.6f, 23f, 1f, fade(P_SAN_H, 100))
+                }
+                for (i in 0..1) {
+                    val y = floatArrayOf(13f, 20f)[i]
+                    inRockLine(cv, p, k, 7f, y + 2.4f, 28f, y, fade(P_SAN_H, 85), 1f)
+                }
+            }
+            17 -> { // 사암 조각돌 — 논둑에 흩어진 따뜻한 자갈
+                rockShadow(cv, p, 16f, 28.5f, 7.5f, 2f)
+                val cx = floatArrayOf(4f, 8f, 12f, 17f, 22f, 26f, 7f, 12f, 17f, 22f, 14f, 19f)
+                val cy = floatArrayOf(26f, 25f, 27f, 26f, 26f, 27f, 22f, 22f, 22f, 22f, 19f, 19f)
+                val cw = floatArrayOf(3f, 3.2f, 2.8f, 3f, 2.8f, 2.2f, 3.2f, 3.4f, 3f, 3.2f, 2.6f, 2.4f)
+                val ch = floatArrayOf(2.4f, 2.6f, 2.2f, 2.4f, 2.2f, 1.8f, 2.6f, 2.8f, 2.4f, 2.6f, 2.2f, 2f)
+                for (i in cx.indices) {
+                    val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 7, 0.42f),
+                        SANDSTONE, bands = 2, speck = 1, rim = false, topBand = 0.34f)
+                    inRock(cv, p, k, cx[i].toFloat(), cy[i] + ch[i] * 0.5f, cw[i], 0.9f, fade(P_SAN_D, 110))
+                }
+            }
+            // ═══ 인공 석재 — 항구 방파제·한옥 돌담·도시 화단 ═══════════════
+            18 -> { // 방파제 블록 — 계기초 블록이 이중으로 쌓인 방파제
+                rockShadow(cv, p, 16f, 28.5f, 12f, 3f)
+                val bx = floatArrayOf(3f, 11f, 18f, 25f, 5f, 12f, 19f, 9f, 16f, 22f)
+                val by = floatArrayOf(23f, 23.5f, 23f, 24f, 16.5f, 17f, 16.5f, 11f, 11.5f, 13f)
+                val bw = floatArrayOf(8f, 7.5f, 8f, 5f, 7f, 7f, 7.5f, 6f, 6.5f, 5f)
+                val bh = floatArrayOf(6f, 5.5f, 6f, 5f, 6.5f, 6f, 6.5f, 5.5f, 5f, 5f)
+                for (i in bx.indices) {
+                    val x = bx[i]; val y = by[i]; val w = bw[i]; val h = bh[i]
+                    val body = floatArrayOf(x, y + h, x + 0.4f, y + 0.8f, x + w * 0.45f, y,
+                        x + w, y + 1.2f, x + w, y + h - 0.8f)
+                    val k = rockBody(cv, p, r, body, CONCRETE, bands = 3, speck = 2, topBand = 0.3f)
+                    inRock(cv, p, k, x + 0.4f, y + 0.8f, w * 0.5f, 1f, fade(P_CON_H, 170))
+                    inRock(cv, p, k, x + 0.4f, y + h - 1.6f, w - 0.8f, 1f, fade(P_CON_D, 150))
+                }
+            }
+            19 -> { // 옹벽 돌담 — 마른돌로 쌓은 돌담
+                rockShadow(cv, p, 16f, 30f, 11f, 2.8f)
+                val ry = floatArrayOf(5f, 4f, 5f, 4f, 7f)
+                val rx = floatArrayOf(6f, 4f, 5f, 4f, 7f)
+                val rw = floatArrayOf(20f, 24f, 22f, 25f, 19f)
+                val rh = floatArrayOf(5f, 5f, 5f, 5f, 4.4f)
+                for (rowI in ry.indices) {
+                    val y = ry[rowI]; val w = rw[rowI]
+                    val n = maxOf(2, (w / 7f).toInt())
+                    val bw = w / n
+                    for (i in 0 until n) {
+                        val x = rx[rowI] + i * bw + (if (rowI % 2 == 0) 0f else 0.6f)
+                        val body = floatArrayOf(x, y + rh[rowI], x + 0.5f, y + 0.8f,
+                            x + bw - 1f, y, x + bw - 0.4f, y + rh[rowI] - 0.6f)
+                        val k = rockBody(cv, p, r, body, CONCRETE, bands = 3, speck = 1)
+                        inRock(cv, p, k, x + 0.5f, y + 0.8f, bw - 2f, 0.9f, fade(P_CON_H, 130))
+                    }
+                }
+                p.color = fade(0xFF5F824E.toInt(), 170)
+                for (i in 0..4) cv.drawRect(5f + i * 4.4f, 20f, 7.4f + i * 4.4f, 21.6f, p)
+            }
+            20 -> { // 조경 화단석 — 다듬어 네모난 화단 돌
+                rockShadow(cv, p, 16f, 28f, 7f, 1.8f)
+                val bx = floatArrayOf(7f, 16f, 11f, 18f)
+                val by = floatArrayOf(23f, 22f, 18f, 17f)
+                val bw = floatArrayOf(8f, 9f, 6f, 6f)
+                val bh = floatArrayOf(5f, 5.4f, 4.4f, 4.4f)
+                for (i in bx.indices) {
+                    val x = bx[i]; val y = by[i]; val w = bw[i]; val h = bh[i]
+                    val body = floatArrayOf(x, y + h, x + 0.5f, y + 0.6f, x + w - 0.8f, y, x + w, y + h - 0.5f)
+                    rockBody(cv, p, r, body, CONCRETE, bands = 2)
+                }
+                p.color = fade(0xFFB4B9B4.toInt(), 220)
+                cv.drawRect(4f, 28f, 28f, 29.6f, p)
+            }
+            21 -> { // 호안석 가비온 — 철망에 꿰매 돌을 채운 제방
+                rockShadow(cv, p, 16f, 28.5f, 11f, 3f)
+                val body = floatArrayOf(4f, 28f, 5f, 15f, 12f, 12f, 24f, 14f, 28f, 20f, 28f, 28f, 16f, 30f)
+                val k = rockBody(cv, p, r, body, GABION, bands = 4, speck = 10, speckCol = c(0xFF525A5F))
+                for (i in 0..3) {
+                    val y = floatArrayOf(15.6f, 19.6f, 23.6f, 27.4f)[i]
+                    inRock(cv, p, k, 4f, y, 25f, 1f, fade(0xFF2E363A.toInt(), 205))
+                }
+                var wx = 4f
+                while (wx < 29f) {
+                    inRock(cv, p, k, wx, 12f, 1f, 16f, fade(0xFF2E363A.toInt(), 205))
+                    wx += 3f
+                }
+                val gx = intArrayOf(7, 14, 21, 9, 17, 24)
+                val gy = floatArrayOf(17f, 17.4f, 16.6f, 21f, 21.4f, 21f)
+                val gw = floatArrayOf(4f, 4.6f, 4f, 4.4f, 4f, 3.4f)
+                val gh = floatArrayOf(3.4f, 3.2f, 3.4f, 3.6f, 3.2f, 3f)
+                for (i in gx.indices) {
+                    rockBody(cv, p, r, lump(r, gx[i] + gw[i] / 2f, gy[i] + gh[i] / 2f, gw[i], gh[i], 7, 0.35f),
+                        STONES_IN_CAGE, bands = 2, speck = 1, rim = false, topBand = 0.34f)
+                }
+                inRock(cv, p, k, 6f, 12.6f, 20f, 1.4f, fade(0xFF8E959B.toInt(), 190))
+            }
+            // ═══ 자연 쇳돌 — 강가·갯벌·숲·해안 ═════════════════════════════
+            22 -> { // 강 자갈 더미 — 물에 둥글게 닳은 자갈
+                rockShadow(cv, p, 16f, 28.5f, 9f, 2.4f)
+                val cx = intArrayOf(5, 12, 19, 24, 9, 16)
+                val cy = floatArrayOf(24f, 22f, 24f, 21f, 18f, 17f)
+                val cw = floatArrayOf(6f, 7f, 6f, 5f, 5f, 6f)
+                val ch = floatArrayOf(4.4f, 5f, 4.4f, 4f, 3.6f, 4f)
+                for (i in cx.indices) {
+                    val k = rockBody(cv, p, r, lump(r, cx[i] + cw[i] / 2f, cy[i] + ch[i] / 2f, cw[i], ch[i], 9, 0.18f),
+                        COBBLE, bands = 3, speck = 1, rim = false)
+                    inRock(cv, p, k, cx[i] + cw[i] * 0.28f, cy[i] + ch[i] * 0.24f, cw[i] * 0.34f, 1f, fade(P_COB_H, 140))
+                }
+            }
+            23 -> { // 숲 이끼 바위 — 이끼와 고사리가 앉은 바위
+                rockShadow(cv, p, 16f, 28.5f, 10f, 3f)
+                val k = rockBody(cv, p, r, lump(r, 16f, 21f, 11f, 7.4f, 12, 0.2f), COBBLE, bands = 5, speck = 4)
+                mossCap(cv, p, k, 14f, 16f, 7.4f, 2.8f, true)
+                mossCap(cv, p, k, 20f, 14.4f, 3.6f, 1.6f, false)
+                inRockOval(cv, p, k, 8f, 19f, 2.6f, 1.4f, c(0xFF4E7040))
+                for (i in 0..2) {
+                    inRock(cv, p, k, 3.5f + i * 2f, 23.4f - i * 1.7f, 1.1f, 4.4f + i * 1.5f, c(0xFF4F824A))
+                    inRock(cv, p, k, 2.9f + i * 2f, 23.4f - i * 1.7f, 1.8f, 1f, c(0xFF7FB15B))
+                }
+            }
+            24 -> { // 갯벌 사구돌 — 갯벌에 박힌 사구(토기알) 돌
+                rockShadow(cv, p, 16f, 28.5f, 8f, 2.2f)
+                val cx = intArrayOf(8, 14, 21, 25, 11)
+                val cy = floatArrayOf(25f, 22f, 24f, 21f, 19f)
+                val rad = floatArrayOf(3.2f, 4f, 3.4f, 2.6f, 2.6f)
+                for (i in cx.indices) {
+                    val k = rockBody(cv, p, r, lump(r, cx[i].toFloat(), cy[i], rad[i], rad[i] * 0.86f, 9, 0.3f),
+                        SANDSTONE, bands = 3, speck = 2, rim = false)
+                    inRockOval(cv, p, k, cx[i].toFloat(), cy[i], rad[i] * 0.5f, rad[i] * 0.4f, fade(0xFF8A6A4E.toInt(), 150))
+                }
+            }
+            25 -> { // 조개 자갈 — 조개껍데기가 부서진 하얀 자갈밭
+                rockShadow(cv, p, 16f, 28.5f, 9f, 2.2f)
+                val cx = intArrayOf(4, 8, 13, 18, 23, 27, 6, 11, 16, 21, 25, 13, 19, 10)
+                val cy = floatArrayOf(27f, 25f, 27f, 26f, 27f, 25f, 22f, 22f, 21f, 22f, 21f, 18.5f, 18f, 19f)
+                val cw = floatArrayOf(3.4f, 3.8f, 3.2f, 3.4f, 3f, 2.6f, 3.4f, 3.6f, 3.2f, 3.4f, 2.8f, 2.8f, 2.6f, 2.2f)
+                val ch = floatArrayOf(2.4f, 2.8f, 2.2f, 2.4f, 2f, 2.2f, 2.6f, 2.8f, 2.4f, 2.6f, 2.2f, 2.2f, 2f, 1.8f)
+                for (i in cx.indices) {
+                    val x = cx[i].toFloat(); val y = cy[i]; val w = cw[i]; val h = ch[i]
+                    p.color = if (i % 3 == 0) c(0xFFFBF4E2) else c(0xFFF0E4CD)
+                    cv.drawOval(RectF(x, y, x + w, y + h), p)
+                    p.color = c(0xFFD6C3A0)
+                    cv.drawOval(RectF(x + 0.3f, y + h - 1.2f, x + w - 0.3f, y + h), p)
+                    var j = 0
+                    while (j < 2) {
+                        val sx = x + 0.6f + j * (w - 1.6f) / 2f
+                        p.color = c(0xFFE3D2B2)
+                        cv.drawRect(sx, y + 0.4f, sx + 0.9f, y + h - 1.4f, p)
+                        j++
+                    }
+                }
+            }
+            26 -> { // 대왕암 첨탑 — 바다 한가운데 선 돌기둥
+                rockShadow(cv, p, 16f, 30f, 9f, 2.8f)
+                val body = floatArrayOf(10f, 30f, 11f, 14f, 14f, 3f, 19f, 6f, 22f, 16f, 22f, 30f, 15f, 31f)
+                val k = rockBody(cv, p, r, body, SEDIMENT, bands = 6, speck = 5)
+                for (i in 0..4) {
+                    val y = 8f + i * 5f
+                    inRock(cv, p, k, 10f, y, 13f, 1.4f, fade(P_SED_D, 140))
+                }
+                inRock(cv, p, k, 9f, 24f, 15f, 3f, fade(0xFF2F383E.toInt(), 170))
+                weedFringe(cv, p, k, 10f, 27f, 11f, 2f, fade(P_SED_A, 170))
+                inRock(cv, p, k, 9f, 28.4f, 15f, 2f, fade(0xFF3E4A50.toInt(), 200))
+            }
+            else -> { // 갈대 곁 도라돌 — 물가 갈대 사이에 놓인 도라돌
+                rockShadow(cv, p, 16f, 28f, 8f, 2.2f)
+                for (i in 0..2) {
+                    val x = floatArrayOf(9f, 18f, 13f)[i]
+                    val y = floatArrayOf(23f, 22f, 20f)[i]
+                    val w = floatArrayOf(8f, 7f, 6f)[i]
+                    val h = floatArrayOf(6f, 5.4f, 4.4f)[i]
+                    rockBody(cv, p, r, lump(r, x + w / 2f, y + h / 2f, w, h, 10, 0.22f),
+                        COBBLE, bands = 3, speck = 2, rim = false)
+                }
+                for (i in 0..4) {
+                    val x = floatArrayOf(5f, 7.5f, 25f, 27f, 22f)[i]
+                    val hh = floatArrayOf(9f, 12f, 10f, 8f, 6f)[i]
+                    p.color = c(0xFF8FAE5C)
+                    cv.drawRect(x, 28f - hh, x + 1.2f, 28f, p)
+                    p.color = c(0xFFC4C877)
+                    cv.drawRect(x - 0.9f, 28f - hh + 2.2f, x + 2.1f, 28f - hh + 3.4f, p)
+                }
+                for (i in 0..2) {
+                    val x = floatArrayOf(6.2f, 26.2f, 24.5f)[i]
+                    val hh = floatArrayOf(14f, 13f, 9f)[i]
+                    p.color = c(0xFF5F8249)
+                    cv.drawRect(x, 28f - hh, x + 1f, 28f, p)
+                }
+            }
+        }
+    }
+
+    /** 균열 — 바위 실루엣 안에만 찍는다. */
+    private fun crackIn(
+        cv: Canvas, p: Paint, path: Path, x: Float, y: Float, dx: Float, dy: Float, col: Int, steps: Int
+    ) {
+        var i = 0
+        while (i < steps) {
+            inRock(cv, p, path, x + dx * i, y + dy * i, 1f, 1f, col)
+            i++
         }
     }
 
@@ -1894,6 +2565,106 @@ class Assets(private val context: Context) {
                 path.moveTo(16f, 0f); path.lineTo(25f, 13f); path.lineTo(21f, 12f); path.lineTo(29f, 22f); path.lineTo(23f, 20f); path.lineTo(31f, 30f); path.lineTo(1f, 30f); path.lineTo(9f, 20f); path.lineTo(3f, 22f); path.lineTo(11f, 12f); path.lineTo(7f, 13f); path.close()
                 cv.drawPath(path, p)
                 px(cv, p, 12f, 9f, 7f, 1.2f, c(0xFF3E7950)); px(cv, p, 9f, 18f, 14f, 1.2f, c(0xFF3E7950)); px(cv, p, 6f, 27f, 20f, 1.2f, c(0xFF3E7950))
+            }
+        }
+    }
+
+    /**
+     * 지역 수종 4종 — T.TREE 변형 인덱스 15·16·17·18.
+     * 가로수(느티나무)·공원 침엽수(향나무)·제주 야자수·강원 오리나무로,
+     * "나무도 그 지역이어야 한다"는 같은 원칙을 따른다.
+     */
+    private fun regionalTreeArt(look: Int): Bitmap = tilePainter { cv, p, r ->
+        propShadow(cv, p, 16f, 28f, 10.5f, 3f)
+        when (look) {
+            0 -> { // 느티나무 — 거치미처럼 벌어진 가로수, 얼룩배기
+                px(cv, p, 14.2f, 15f, 5.4f, 16f, c(0xFF9A8C79))
+                px(cv, p, 15.2f, 15f, 2.4f, 16f, c(0xFFBCAF9B))
+                // 두 갈래로 갈라진 줄기
+                for (i in 0..3) {
+                    px(cv, p, 12.4f - i * 0.5f, 12f - i * 3.4f, 2.4f - i * 0.3f, 4f, c(0xFF9A8C79))
+                    px(cv, p, 18.2f + i * 0.4f, 11f - i * 3.1f, 2.2f - i * 0.3f, 3.6f, c(0xFF8E806E))
+                }
+                // 얼룩배기 — 느티나무 특유
+                px(cv, p, 14.6f, 22f, 1.6f, 2.2f, c(0xFFD8CFBE))
+                px(cv, p, 15f, 17f, 2f, 1.4f, c(0xFFD8CFBE))
+                px(cv, p, 14.4f, 27f, 2f, 1.2f, c(0xFFD8CFBE))
+                // 벌어진 수관
+                p.color = c(0xFF3B6B41); cv.drawCircle(16f, 10f, 11.5f, p)
+                p.color = c(0xFF4E8A52); cv.drawCircle(11f, 8f, 7f, p); cv.drawCircle(21f, 9f, 7f, p)
+                p.color = c(0xFF66A868); cv.drawCircle(9f, 12f, 4.4f, p); cv.drawCircle(23f, 12f, 4.4f, p)
+                p.color = c(0xFF7EC07E); cv.drawCircle(12f, 6f, 3.2f, p); cv.drawCircle(20f, 6.6f, 2.6f, p)
+                noise(cv, p, r, 4f, 1f, 28f, 21f, c(0xFF34603A), 10, 1f, 1.8f)
+            }
+            1 -> { // 향나무(메타세쿼oia) — 빨간나무 껍질의 곧은 원뿔
+                px(cv, p, 14.4f, 19f, 4.6f, 12f, c(0xFF7A4A34))
+                px(cv, p, 15.2f, 19f, 1.6f, 12f, c(0xFF9E6446))
+                noise(cv, p, r, 14.6f, 19f, 18.4f, 30f, c(0xFF5E3624), 5, 1f, 1.4f)
+                // 깃털처럼 얇은 가지층
+                for (i in 0 until 6) {
+                    val y = 3f + i * 4.4f
+                    val half = 3.2f + i * 2.1f
+                    p.color = c(0xFF1E4C36)
+                    px(cv, p, 16f - half, y + 1.6f, half * 2f, 2.4f, p.color)
+                    p.color = c(0xFF2E6B48)
+                    px(cv, p, 16f - half + 0.8f, y, half * 2f - 1.6f, 1.8f, p.color)
+                    p.color = c(0xFF4B8C5C)
+                    for (d in 0 until 4) {
+                        val fx = 16f - half + 1.4f + d * (half * 2f - 2.8f) / 3f
+                        px(cv, p, fx, y - 0.6f, 1.2f, 1.2f, p.color)
+                    }
+                }
+                px(cv, p, 15f, 0f, 2.4f, 4f, c(0xFF2E6B48))
+            }
+            2 -> { // 야자수(소노베) — 제주 해안 가로수의 고유한 실루엣
+                // 고리 모양 줄기
+                for (i in 0 until 6) {
+                    val y = 12f + i * 3.1f
+                    px(cv, p, 15.2f - i * 0.25f, y, 3.6f, 3.1f, c(0xFF7A5A38))
+                    px(cv, p, 15.6f - i * 0.25f, y + 0.4f, 2.2f, 2.2f, c(0xFF93704A))
+                    px(cv, p, 15f - i * 0.25f, y + 2.6f, 4.4f, 0.8f, c(0xFF5E432A))
+                }
+                // 바깥으로 젖혀진 잎
+                for (i in 0 until 7) {
+                    val a = -160f + i * 47f
+                    val len = 11f - i % 2 * 1.5f
+                    val dx = kotlin.math.cos(Math.toRadians(a.toDouble())).toFloat() * len
+                    val dy = kotlin.math.sin(Math.toRadians(a.toDouble())).toFloat() * len * 0.72f
+                    p.color = if (i % 2 == 0) c(0xFF2E7A46) else c(0xFF3E9455)
+                    p.strokeWidth = 2.4f
+                    cv.drawLine(16f, 11f, 16f + dx, 11f + dy, p)
+                    p.strokeWidth = 1f
+                    // 잎 몸통 — 갈대뻑질처럼 가늘게 뻗은 소엽
+                    var t = 0.35f
+                    while (t < 1.05f) {
+                        val lx = 16f + dx * t
+                        val ly = 11f + dy * t
+                        val pl = 2.4f * (1f - (t - 0.35f) * 0.6f)
+                        px(cv, p, lx, ly - pl, 1.1f, pl * 2f, if (i % 2 == 0) c(0xFF4B9E60) else c(0xFF63B46F))
+                        t += 0.16f
+                    }
+                }
+                // 야자수 열매 송이
+                p.color = c(0xFF8A6A2E); cv.drawCircle(16f, 13.5f, 2.6f, p)
+                p.color = c(0xFFB98C3A)
+                cv.drawCircle(15f, 12.8f, 1f, p); cv.drawCircle(17f, 14.2f, 0.9f, p)
+            }
+            else -> { // 오리나무 — 강원 산지 가는 곧은 줄기의 하얀 나무
+                px(cv, p, 14.6f, 12f, 3.6f, 19f, c(0xFFD9DCC8))
+                px(cv, p, 15.4f, 12f, 1.4f, 19f, c(0xFFB4B9A4))
+                // 검은 눈무늬(애벌레 먹은 자리)
+                for ((x, y) in listOf(15f to 16f, 16.4f to 21f, 15f to 26f, 17.2f to 18f)) {
+                    px(cv, p, x, y, 2.2f, 1.4f, c(0xFF4A4F43))
+                }
+                for (i in 0..2) {
+                    px(cv, p, 15f - i * 0.4f, 14f - i * 4.4f, 1.6f, 5f, c(0xFFD9DCC8))
+                    px(cv, p, 16.6f + i * 0.3f, 13f - i * 4f, 1.4f, 4.4f, c(0xFFC6CAB4))
+                }
+                // 좁고 곧은 수관
+                p.color = c(0xFF3A6B40); cv.drawCircle(16f, 8f, 8.4f, p)
+                p.color = c(0xFF4F8B55); cv.drawCircle(13f, 7f, 5.4f, p); cv.drawCircle(19f, 8f, 5f, p)
+                p.color = c(0xFF6BA96C); cv.drawCircle(12f, 5f, 3f, p); cv.drawCircle(20f, 5.6f, 2.6f, p)
+                noise(cv, p, r, 7f, 1f, 25f, 17f, c(0xFF335C36), 8, 1f, 1.5f)
             }
         }
     }
@@ -2465,53 +3236,12 @@ begin(T.TREE)
         // 계절 전용 — 겨울 앙상한 나무 / 눈 덮인 활엽수 / 눈 덮인 소나무 (인덱스 12·13·14)
         add(seasonTreeArt(0), seasonTreeArt(1), seasonTreeArt(2))
 
-begin(T.ROCK)
-        add(
-            tilePainter { c, p, r ->   // 0: 큰 바위
-                p.color = Color.argb(56, 26, 46, 28)
-                c.drawOval(RectF(4f, 24f, 28f, 31f), p)
-                // 바위 본체
-                px(c, p, 5f, 11f, 22f, 16f, c(0xFF5A626C))
-                px(c, p, 6f, 9f, 18f, 16f, c(0xFF7C8590))
-                px(c, p, 7.4f, 8f, 13f, 12f, c(0xFF9AA3AD))
-                px(c, p, 9f, 9f, 8f, 6f, c(0xFFB5BDC6))
-                px(c, p, 10.4f, 9.6f, 4f, 2.6f, c(0xFFD0D7DE))
-                // 단면 음영
-                px(c, p, 5f, 22f, 22f, 5f, c(0xFF4A5158))
-                px(c, p, 21f, 12f, 6f, 14f, c(0xFF4A5158))
-                // 균열
-                px(c, p, 14f, 12f, 1.2f, 8f, c(0xFF3E454C))
-                px(c, p, 15f, 18f, 1.2f, 5f, c(0xFF3E454C))
-                px(c, p, 11f, 19f, 4f, 1.2f, c(0xFF3E454C))
-                // 이끼
-                px(c, p, 7f, 10f, 5f, 2.2f, c(0xFF6FAE57))
-                px(c, p, 8.4f, 8.6f, 3f, 1.6f, c(0xFF8CC46C))
-                noise(c, p, r, 6f, 9f, 22f, 22f, c(0xFF6B747E), 6, 1f, 1.6f)
-                // 밑에 자갈
-                px(c, p, 25f, 25f, 3f, 2.4f, c(0xFF8A949E))
-                px(c, p, 25.4f, 25.4f, 1.6f, 1.2f, c(0xFFB0BAC2))
-            },
-            tilePainter { c, p, r ->   // 1: 바위 무리
-                p.color = Color.argb(52, 26, 46, 28)
-                c.drawOval(RectF(6f, 23f, 26f, 30f), p)
-                px(c, p, 8f, 15f, 16f, 11f, c(0xFF6B747E))
-                px(c, p, 9f, 13f, 13f, 11f, c(0xFF8A949E))
-                px(c, p, 10.4f, 14f, 8f, 5f, c(0xFFA5B0BA))
-                px(c, p, 11.6f, 14.6f, 4f, 2.2f, c(0xFFC2CBD3))
-                px(c, p, 8f, 22f, 16f, 4f, c(0xFF4A5158))
-                // 작은 바위
-                px(c, p, 22f, 21f, 6f, 6f, c(0xFF7C8590))
-                px(c, p, 23f, 21.6f, 3.4f, 2.6f, c(0xFFA5B0BA))
-                px(c, p, 3f, 22f, 5f, 5f, c(0xFF6B747E))
-                px(c, p, 3.8f, 22.6f, 2.6f, 2f, c(0xFF9AA3AD))
-                // 이끼
-                px(c, p, 9f, 14f, 4f, 1.8f, c(0xFF6FAE57))
-                px(c, p, 18f, 19f, 3f, 1.6f, c(0xFF5D8A4A))
-                noise(c, p, r, 8f, 13f, 24f, 24f, c(0xFF5D6772), 5, 1f, 1.4f)
-            }
-        )
+        // 지역 수종 — 느티나무 / 향나무 / 야자수 / 오리나무 (인덱스 15·16·17·18)
+        add(*Array(4) { i -> regionalTreeArt(i) })
 
-        add(*Array(7) { i -> extraRockArt(i) })
+begin(T.ROCK)
+        // 바위 28종 — 암종·크기급이 모두 다르다 (PropLooks.ROCKS 와 1:1)
+        add(*Array(PropLooks.ROCK_COUNT) { i -> rockArt(i) })
 
 begin(T.MOUNTAIN)
         add(
@@ -3316,7 +4046,8 @@ begin(T.LAMP)
      * 같은 칸은 같은 계절에 항상 같은 나무 (결정적 해시).
      */
     fun seasonTreeIndex(base: Int, season: Season, x: Int, y: Int): Int {
-        val evergreen = base == TREE_PINE || base == TREE_BAMBOO || base == TREE_SEAPINE || base == TREE_FIR
+        val evergreen = base == TREE_PINE || base == TREE_BAMBOO || base == TREE_SEAPINE ||
+            base == TREE_FIR || base == TREE_METASEQUOIA || base == TREE_PALM
         if (evergreen) {
             return if (season == Season.WINTER && (base == TREE_PINE || base == TREE_FIR)) TREE_SNOWPINE else base
         }

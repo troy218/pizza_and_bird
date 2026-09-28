@@ -43,6 +43,9 @@ import com.pizzaandbird.game.MenuOverlay
 import com.pizzaandbird.game.NpcKind
 import com.pizzaandbird.game.NpcRoster
 import com.pizzaandbird.game.PhotoResultOverlay
+import com.pizzaandbird.game.PerspectivePhoto
+import com.pizzaandbird.game.Season
+import com.pizzaandbird.game.Weather
 import com.pizzaandbird.game.PizzaKind
 import com.pizzaandbird.game.Pizzas
 import com.pizzaandbird.game.Player
@@ -438,7 +441,18 @@ object PreviewMain {
 
         // 사진 결과
         scene.closeOverlay()
-        val photo = PhotoResultOverlay(scene, Birds.byId["crane"]!!, 3, true, 2, "의뢰 완료! +₩7,800 (3성 보너스)")
+        // 폴백 일러스트가 아니라 실제 앱의 눈높이 3D 촬영 경로를 프리뷰한다.
+        val def = Birds.byId.getValue("sparrow")
+        game.assets.preloadBird(def.id)
+        val subject = FieldBird(def, 0f, 0f).apply {
+            x = 20.5f * 16f - sprW / 2f
+            y = 12.5f * 16f - sprH
+        }
+        val shot = PerspectivePhoto.capture(game.assets, (scene as WorldScene).map, subject,
+            20.5f * 16f, 17.5f * 16f, 12f, Weather.SUNNY, Season.SPRING, 3f)
+        val photo = PhotoResultOverlay(scene, def, 3, true, 2, null,
+            distTiles = 5f, timeTxt = "12:00", cameraTxt = s.rig().title,
+            capturedPhoto = shot.bitmap, birdFacing = shot.facing, birdPose = shot.pose)
         scene.openOverlay(photo)
         simulate(game, 0.9f)
         renderScreen(game, "24_photo_result", settlePhotos = true)
