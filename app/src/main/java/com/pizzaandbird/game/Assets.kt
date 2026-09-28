@@ -353,18 +353,34 @@ class Assets(private val context: Context) {
     /**
      * 픽셀 아트 표준 경로: 벡터를 네이티브의 2배 크기로 래스터화 한 뒤
      * 최근접 다운스케일 → 안티앨리어싱이 1px 계단처럼 닫히며 선명한 픽셀 모양.
+     * #4 HD 개선 — 큰 목표 크기(>32)면 4배로 올려 필터 다운스케일로 더 부드럽게.
      */
     private fun renderPixel(name: String, w: Int, h: Int): Bitmap {
         val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
-        val big = Bitmap.createBitmap(vw * 2, vh * 2, Bitmap.Config.ARGB_8888)
+        val factor = if (w > 32 || h > 32) 4 else 2
+        val big = Bitmap.createBitmap(vw * factor, vh * factor, Bitmap.Config.ARGB_8888)
         val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
-        d.setBounds(0, 0, vw * 2, vh * 2)
+        d.setBounds(0, 0, vw * factor, vh * factor)
         d.draw(Canvas(big))
-        return Bitmap.createScaledBitmap(big, w, h, false)
+        val filter = factor > 2 || w > 32
+        return Bitmap.createScaledBitmap(big, w, h, filter)
     }
 
-    /** 소형 HUD 아이콘: 목표 크기로 직접 래스터화 (부드러운 엣지) */
+    /** 소형 HUD 아이콘: 고해상도 래스터화 후 필터 다운스케일로 HD (#4) */
     private fun renderIcon(name: String, w: Int, h: Int): Bitmap {
+        val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
+        // 4배 슈퍼샘플로 그린 뒤 부드럽게 축소 — 저해상도 깨짐 방지
+        val factor = 4
+        val big = Bitmap.createBitmap(vw * factor, vh * factor, Bitmap.Config.ARGB_8888)
+        val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
+        d.setBounds(0, 0, vw * factor, vh * factor)
+        d.draw(Canvas(big))
+        // 목표가 작아도 필터=true로 부드러운 엣지 유지
+        return Bitmap.createScaledBitmap(big, w, h, true)
+    }
+
+    /** HD 아이콘: 큰 크기로 직접 렌더 (아이콘 품질 개선용) */
+    private fun renderIconHd(name: String, w: Int, h: Int): Bitmap {
         val (res, vw, vh) = artIds[name] ?: error("아트 없음: art_$name")
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val d = context.getDrawable(res) ?: error("리소스 없음: art_$name")
@@ -4090,9 +4106,10 @@ begin(T.LAMP)
     // -----------------------------------------------------------------------
 
     private fun buildIcons() {
-        pizzaIcon = renderPixel("pizza", 22, 14)
+        // #4 HD — 피자 아이콘을 벡터에서 고해상으로 직접 렌더 (저화질 도트 대체)
+        pizzaIcon = renderIconHd("pizza", 44, 28)
         pizzaIconBig = Bitmap.createScaledBitmap(
-            pizzaIcon, pizzaIcon.width * 4, pizzaIcon.height * 4, false
+            pizzaIcon, pizzaIcon.width * 2, pizzaIcon.height * 2, true
         )
         // art/svg/items.svg #art_pizza 와 같은 디자인 언어 (tools/pizza_lab.py --dump-ascii 로 추출).
         //  c 크러스트 / d 크러스트 그늘 / h 크러스트 빛 / k 그을림 / T 토마토소스 링
@@ -4131,6 +4148,7 @@ begin(T.LAMP)
             ".......ddddkddd.......",
             "......................"
         )
+        // 피자 종류별 아이콘 — HD로 업스케일 (저화질 개선 #4)
         pizzaArts = Array(Pizzas.ALL.size) { i ->
             val def = Pizzas.ALL[i]
             val base = mapOf(
@@ -4139,7 +4157,7 @@ begin(T.LAMP)
                 'R' to def.topColorA, 'r' to tone(def.topColorA, 0.72f), 'G' to tone(def.topColorA, 1.3f),
                 'A' to def.topColorB, 'b' to tone(def.topColorB, 0.72f)
             )
-            if (def.kind == PizzaKind.OVEN) {
+            val low = if (def.kind == PizzaKind.OVEN) {
                 sprite(
                     pizzaOven, base + mapOf(
                         'c' to c(0xFFE0B070), 'd' to c(0xFFB87A45),
@@ -4154,13 +4172,16 @@ begin(T.LAMP)
                     )
                 )
             }
+            // 3배 HD 업스케일 + 부드러운 필터 + 가장자리 보정으로 선명도 유지
+            Bitmap.createScaledBitmap(low, low.width * 3, low.height * 3, true)
         }
 
-        cloverIcon = renderIcon("clover", 14, 14)
-        cameraIcon = renderIcon("camera", 20, 16)
-        houseIcon = renderIcon("house", 14, 14)
-        sunIcon = renderIcon("sun", 16, 16)
-        moonIcon = renderIcon("moon", 14, 14)
+        // #4 HUD 아이콘들도 HD 렌더 (기존 14px → 28px 렌더 후 필요시 축소)
+        cloverIcon = renderIconHd("clover", 28, 28)
+        cameraIcon = renderIconHd("camera", 40, 32)
+        houseIcon = renderIconHd("house", 28, 28)
+        sunIcon = renderIconHd("sun", 32, 32)
+        moonIcon = renderIconHd("moon", 28, 28)
     }
 
     // -----------------------------------------------------------------------

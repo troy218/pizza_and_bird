@@ -580,6 +580,26 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             QuestNavigation.openTracker(this)
             return
         }
+        if (input.justStatus) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.STATUS))
+            return
+        }
+        if (input.justQuickBook) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.BOOK))
+            return
+        }
+        if (input.justQuickAlbum) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.ALBUM))
+            return
+        }
+        if (input.justQuickSettings) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.SETTINGS))
+            return
+        }
+        if (input.justQuickAchieve) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.ACHIEVE))
+            return
+        }
         if (input.justB) {
             game.toast("집 안에서 자전거는 위험해요!")
             return

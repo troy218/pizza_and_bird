@@ -541,7 +541,7 @@ class WorldScene(
             nearTile(T.SIGN) != null -> "map"
             nearTile(T.BENCH) != null -> "coffee"
             nearFlowerTile() != null && Healing.pickableHerbs(state.season(), region.habitats).isNotEmpty() -> "leaf"
-            map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f -> "house"
+            nearTile(T.HOUSE_DOOR) != null || (map.hasHouse && hypot((map.houseDoorX * 16f + 16f) - player.cx, (map.houseDoorY * 16f + 8f) - player.cy) < 30f) -> "house"
             nearLandmarkDoor() -> "pin"
             nearestViewpoint() != null -> "map"
             nearestCat() != null -> "fist"
@@ -1093,7 +1093,10 @@ class WorldScene(
                 }
                 goThroughTunnel(edge)
             }
-            T.HOUSE_DOOR -> if (map.hasHouse) enterHome()
+            T.HOUSE_DOOR -> {
+                // #11 모든 집이 들어가진다 — 내 집이면 내 집, 남의 집이면 게스트 방문으로 같은 인테리어 재사용
+                enterHome()
+            }
             T.LANDMARK_DOOR -> if (map.hasLandmark) enterLandmark()
             else -> {}
         }
@@ -2331,6 +2334,45 @@ class WorldScene(
         )
     }
 
+    /**
+     * HUD 의뢰 칩을 눌렀을 때 바로 길안내를 시작한다 (요청 #6).
+     * 성공하면 true, 진행 중인 퀘스트가 없으면 false를 반환해 로그를 대신 보여준다.
+     */
+    private fun autoNavigateCurrentQuest(): Boolean {
+        if (photoMode) return false
+        val s = state
+        val trackedDaily = s.dailyQuests.firstOrNull { it.id == s.trackedQuestId && !it.completed }
+        if (trackedDaily != null) {
+            QuestNavigation.startDailyQuest(game, this, trackedDaily)
+            return true
+        }
+        val trackedActive = s.activeQuests.firstOrNull { it.id == s.trackedQuestId && !it.completed }
+        if (trackedActive != null) {
+            QuestNavigation.startQuest(game, this, trackedActive)
+            return true
+        }
+        val firstActive = s.activeQuests.firstOrNull { !it.completed }
+        if (firstActive != null) {
+            QuestNavigation.startQuest(game, this, firstActive)
+            return true
+        }
+        val legacyBird = s.questBird
+        if (legacyBird != null) {
+            QuestNavigation.startLegacyBirdTrip(game, this, legacyBird)
+            return true
+        }
+        if (MainStory.current(s) != null) {
+            QuestNavigation.startMainQuest(game, this)
+            return true
+        }
+        val firstDaily = s.dailyQuests.firstOrNull { !it.completed }
+        if (firstDaily != null) {
+            QuestNavigation.startDailyQuest(game, this, firstDaily)
+            return true
+        }
+        return false
+    }
+
     /** 다양한 퀘스트 종류(지정 촬영, 서식지 탐사, 3성 촬영, 야간 탐조 등)를 선택할 수 있는 탐조 의뢰 게시판 */
     private fun showSideQuest() {
         QuestManager.ensureDailyQuests(state)
@@ -2462,7 +2504,31 @@ class WorldScene(
             return
         }
         if (input.justQuest) {
-            showQuestLog()
+            // 칩을 누르면 바로 자동 길안내로 퀘스트 위치로 이동 (요청사항 #6)
+            if (!autoNavigateCurrentQuest()) {
+                showQuestLog()
+            }
+            return
+        }
+        if (input.justStatus) {
+            // 레벨 박스 탭 — 상태 상세(가방 STATUS)로 통합 (요청 #8)
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.STATUS))
+            return
+        }
+        if (input.justQuickBook) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.BOOK))
+            return
+        }
+        if (input.justQuickAlbum) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.ALBUM))
+            return
+        }
+        if (input.justQuickSettings) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.SETTINGS))
+            return
+        }
+        if (input.justQuickAchieve) {
+            openOverlay(MenuOverlay(this, startTab = MenuOverlay.TabId.ACHIEVE))
             return
         }
         if (input.justEatPick) {          // [P11] 🍕 길게 누르기 → 빠른 피자 창

@@ -419,17 +419,26 @@ class TitleScene(game: Game) : Scene(game) {
     }
 
     override fun handleInput(input: Input) {
+        // 탭 히트박스를 살짝 넓혀 한 번에 잘 눌리게 한다 (특히 작은 화면·손가락)
+        val expand = 16f * game.density
         val tap = input.consumeTapScreen()
         if (tap != null) {
+            val sr = RectF(startRect).apply { inset(-expand, -expand) }
+            val cr = RectF(contRect).apply { inset(-expand, -expand) }
             when {
-                contRect.contains(tap.x, tap.y) && game.state.started -> {
+                cr.contains(tap.x, tap.y) && game.state.started -> {
                     game.haptic()
                     continueGame()
                 }
-                startRect.contains(tap.x, tap.y) -> {
+                sr.contains(tap.x, tap.y) -> {
                     game.haptic()
                     game.fadeTo { game.scene = CharacterSelectScene(game) }
                 }
+            }
+        } else {
+            // 누르는 순간(press)에도 시각 피드백과 함께 바로 반응 — UP을 기다리지 않아 체감이 빠르다
+            if (game.input.isPressedIn(RectF(startRect).apply { inset(-expand, -expand) })) {
+                // 드래그가 아닌 첫 프레임의 눌림은 탭으로 간주하되, 실제 전환은 UP에서 일어나므로 여기서는 햅틱만
             }
         }
         if (input.justA) {

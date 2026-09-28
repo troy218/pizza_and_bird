@@ -147,16 +147,16 @@ object PerspectivePhoto {
         }
         private val path = Path()
         private val rect = RectF()
-        private val night = 1f - daylight(hour)
+        // 시간/계절/날씨를 DayCycle 단일 진실 공급원에서 받는다 — 낮인데 저녁으로 보이는 버그 방지
+        private val daylightK = DayCycle.daylight(hour, season)
+        private val night = DayCycle.darkness(hour, season)
         private val overcast = when (weather) {
             Weather.RAIN -> 0.65f; Weather.CLOUDY, Weather.SNOW -> 0.4f; else -> 0f
         }
-        private val dusk = max((1f - abs(hour - 18.1f) / 1.6f).coerceIn(0f, 1f),
-            (1f - abs(hour - 6f) / 1.1f).coerceIn(0f, 1f)) * (1f - overcast)
-        private val skyTop = mix(mix(0xFF72B5D5.toInt(), 0xFFB9B2C8.toInt(), dusk),
-            0xFF111C38.toInt(), night)
-        private val skyHorizon = mix(mix(mix(0xFFE1EEDD.toInt(), 0xFFF5BE91.toInt(), dusk),
-            0xFFA8B6BC.toInt(), overcast), 0xFF3D526B.toInt(), night)
+        private val dusk = DayCycle.golden(hour, season) * (1f - overcast)
+        // DayCycle의 연속 하늘 램프를 그대로 쓴다 — 계절마다 일출/일몰이 달라지고 낮/저녁이 정확히 구분된다
+        private val skyTop = DayCycle.skyTopColor(hour, season)
+        private val skyHorizon = DayCycle.skyColor(hour, season)
         private val seed = map.region.id.hashCode()
 
         private data class Face(val points: List<PhotoPoint>, val color: Int, val depth: Float)

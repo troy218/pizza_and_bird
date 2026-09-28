@@ -1354,19 +1354,25 @@ object MapBuilder {
             buildingFronts.add(if (ey + 1 <= AVE_Y) (bx + wid / 2 to ey + 1) else (bx + wid / 2 to by - 1))
         }
 
-        /** 기와 민가 한 채 — 3칸 폭 (지붕 1줄 + 창·벽 2줄). 정문 상호작용은 없다. */
+        /** 기와 민가 한 채 — 3칸 폭 (지붕 1줄 + 창·벽 + 문). 이제 모든 집이 들어갈 수 있다 (#11). */
         fun tryFarmhouse(bx: Int, by: Int): Boolean {
             val ex = bx + 2
             val ey = by + 2
             if (!footprintClear(bx, by, ex, ey)) return false
             for (y in by..ey) for (x in bx..ex) {
-                t[y][x] = when {
+                val tile = when {
                     y == by -> T.HOUSE_ROOF
                     y == by + 1 && x == bx + 1 -> T.HOUSE_WIN
+                    y == by + 2 && x == bx + 1 -> T.HOUSE_DOOR
                     else -> T.HOUSE_WALL
-                }.ordinal
-                structure[y][x] = true
+                }
+                t[y][x] = tile.ordinal
+                // 문은 걸어 들어갈 수 있게 structure=false, 나머지는 벽
+                structure[y][x] = tile != T.HOUSE_DOOR
                 reserved[y][x] = true
+                if (tile == T.HOUSE_DOOR) {
+                    pave[y][x] = Pave.STONE.ordinal
+                }
             }
             return true
         }

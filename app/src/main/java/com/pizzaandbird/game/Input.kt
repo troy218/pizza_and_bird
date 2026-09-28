@@ -7,8 +7,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import kotlin.math.sqrt
 
-/** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST }
+/** 가상 컨트롤 종류 — STATUS는 레벨 박스 탭 (요청 #8), QUICK_*는 가방 밖 바로가기 (#2) */
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST, STATUS,
+    QUICK_BOOK, QUICK_ALBUM, QUICK_SETTINGS, QUICK_ACHIEVE }
 
 /**
  * 멀티터치 + 키보드 입력.
@@ -26,8 +27,8 @@ class Input(private val game: Game) {
         const val CANCEL = 4
     }
 
-    /** 탭/드래그 구분 임계값 (실제 화면 px, 기기 밀도에 비례) */
-    private val tapDragPx = 12f * game.density
+    /** 탭/드래그 구분 임계값 (실제 화면 px, 기기 밀도에 비례) — 12→24로 늘려 손가락 떨림으로 탭이 버려지는 경우를 줄인다 */
+    private val tapDragPx = 24f * game.density
 
     private val lock = Any()
     private val pointerPos = HashMap<Int, PointF>()
@@ -55,6 +56,11 @@ class Input(private val game: Game) {
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
     var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 내용을 다시 읽어 본다
+    var justStatus = false    // 레벨 박스 탭 — 상태 상세 (요청 #8)
+    var justQuickBook = false
+    var justQuickAlbum = false
+    var justQuickSettings = false
+    var justQuickAchieve = false
     var isRun = false         // 달리기 홀드 (키보드 Shift)
 
     /** [P11] 🍕 버튼 홀드 진행도 0~1 — HUD가 버튼 주위의 링으로 보여 준다 */
@@ -345,6 +351,11 @@ class Input(private val game: Game) {
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             Ctrl.QUEST -> { justQuest = true; game.haptic() }
+            Ctrl.STATUS -> { justStatus = true; game.haptic() }
+            Ctrl.QUICK_BOOK -> { justQuickBook = true; game.haptic() }
+            Ctrl.QUICK_ALBUM -> { justQuickAlbum = true; game.haptic() }
+            Ctrl.QUICK_SETTINGS -> { justQuickSettings = true; game.haptic() }
+            Ctrl.QUICK_ACHIEVE -> { justQuickAchieve = true; game.haptic() }
             else -> {}
         }
     }
@@ -430,6 +441,11 @@ class Input(private val game: Game) {
         justMap = false
         justPunch = false
         justQuest = false
+        justStatus = false
+        justQuickBook = false
+        justQuickAlbum = false
+        justQuickSettings = false
+        justQuickAchieve = false
         tapScreen = null
         rawEvents.clear()
     }
