@@ -6,6 +6,7 @@ import android.content.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.PointF
+import android.graphics.RectF
 import android.view.KeyEvent
 import android.view.MotionEvent
 import com.pizzaandbird.game.*
@@ -33,6 +34,17 @@ object InputSmoke {
         g.input.onTouchEvent(MotionEvent(MotionEvent.ACTION_UP, pointers = point))
         frame(g)
     }
+    private fun tapButton(g: Game, name: String) {
+        val r = g.scene.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(g.scene) as RectF
+        check(r.width() > 0f && r.height() > 0f)
+        tap(g, r.centerX(), r.centerY())
+    }
+    /** 가상(VirtW x 2160) 좌표로 배치된 UI(캐릭터 카드 등)의 가운데를 탭한다 */
+    private fun tapVirtualRect(g: Game, owner: Any, name: String) {
+        val r = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner) as RectF
+        check(r.width() > 0f && r.height() > 0f)
+        tap(g, g.viewOffX + r.centerX() * g.viewScale, g.viewOffY + r.centerY() * g.viewScale)
+    }
     private fun advanceFade(g: Game) { repeat(40) { frame(g) }; render(g) }
     private fun near(a: Float, b: Float) = check(abs(a - b) < 0.01f) { "$a != $b" }
 
@@ -41,33 +53,34 @@ object InputSmoke {
         val g = Game(TestContext())
         // 가로가 더 긴 기기의 양쪽 레터박스까지 검증한다 (가상 1200x540 -> 2400x1080).
         g.onSurfaceChanged(2400, 1080)
+        repeat(60) { frame(g) } // 타이틀 등장 애니메이션 완료
         render(g)
-        tap(g, 1200f, 650f) // 타이틀의 '새로 시작하기'
+        tapButton(g, "startRect")
         advanceFade(g)
         check(g.scene is CharacterSelectScene)
-        tap(g, g.viewOffX + 645f * 2f, 310f * 2f) // 가상 화면의 여자 카드
+        tapVirtualRect(g, g.scene, "female") // 여자 카드
         check(g.state.gender == "female")
-        tap(g, 1200f, 1008f) // 실제 화면의 '계속하기'
+        tapButton(g, "nextRect") // 실제 화면의 계속하기
         advanceFade(g)
         check(g.scene is RegionSelectScene)
-        tap(g, 100f, 70f) // 뒤로 가서 캐릭터를 다시 고를 수 있다
+        tapButton(g, "backRect") // 뒤로 가서 캐릭터를 다시 고를 수 있다
         advanceFade(g)
         check(g.scene is CharacterSelectScene)
         render(g)
-        tap(g, 1200f, 1008f)
+        tapButton(g, "nextRect")
         advanceFade(g)
         check(g.scene is RegionSelectScene)
-        tap(g, 2194f, 1000f) // 서울 시작 버튼
+        tapButton(g, "confirmRect") // 서울 시작 버튼
         advanceFade(g)
         check(g.scene is WorldScene && g.state.started && g.state.gender == "female")
 
         val world = g.scene as WorldScene
         val camera = world.cameraOffset()
         // 화면 한가운데는 카메라 줌과 무관하게 카메라 오프셋만 반영된다
-        // (가상 1200x540 -> 월드 300x135, WORLD_SCALE=2).
+        // (월드 좌표 = 가상 / WORLD_SCALE(4), 화면 중앙 = 가상 중앙).
         val center = PointF(g.viewOffX + g.virtW * g.viewScale / 2f, g.screenH / 2f)
-        near(g.screenToWorld(center).x, camera.x + 300f)
-        near(g.screenToWorld(center).y, camera.y + 135f)
+        near(g.screenToWorld(center).x, camera.x + g.virtW / 8f)
+        near(g.screenToWorld(center).y, camera.y + g.virtH / 8f)
 
         // 모달이 떠 있으면 HUD A 버튼 위의 터치도 모달에만 전달되어야 한다.
         var modalTap: PointF? = null
@@ -87,7 +100,9 @@ object InputSmoke {
         world.openOverlay(mapOverlay)
         repeat(8) { frame(g) }
         render(g)
-        val canceled = listOf(Triple(0, 2286f, 46f)) // 지도의 닫기 버튼 위
+        // 닫기 버튼 위에서 취소된 터치는 지도 탭으로 처리하지 않아야 한다
+        val closeR = mapOverlay.javaClass.getDeclaredField("closeR").apply { isAccessible = true }.get(mapOverlay) as RectF
+        val canceled = listOf(Triple(0, closeR.centerX(), closeR.centerY()))
         g.input.onTouchEvent(MotionEvent(MotionEvent.ACTION_DOWN, pointers = canceled))
         g.input.onTouchEvent(MotionEvent(MotionEvent.ACTION_CANCEL, pointers = canceled))
         frame(g)
@@ -100,9 +115,9 @@ object InputSmoke {
         g.scene = HomeScene(g)
         frame(g)
         val homeCamera = g.scene.cameraOffset()
-        // 집도 마찬가지로 화면 한가운데 = 카메라 오프셋 + (가상 중앙 / 2)
-        near(g.screenToWorld(center).x, homeCamera.x + 300f)
-        near(g.screenToWorld(center).y, homeCamera.y + 135f)
+        // 집도 마찬가지로 화면 한가운데 = 카메라 오프셋 + (가상 중앙 / WORLD_SCALE)
+        near(g.screenToWorld(center).x, homeCamera.x + g.virtW / 8f)
+        near(g.screenToWorld(center).y, homeCamera.y + g.virtH / 8f)
 
         // 앱이 백그라운드로 가는 동안 누른 키가 유지되지 않아야 한다.
         g.input.onKeyEvent(KeyEvent.KEYCODE_D, KeyEvent.ACTION_DOWN)

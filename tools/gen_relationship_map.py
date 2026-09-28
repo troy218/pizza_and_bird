@@ -163,7 +163,8 @@ def build():
     grandma = node(300, 285, 244, 112, "할머니", "수첩의 앞장 · 화덕과 참새", CAMEL)
     prof = node(1230, 285, 252, 112, "보리 박사", "광릉숲 · 조류학자", SAGE)
     player = node(760, 505, 288, 128, "플레이어", "수첩을 이어 쓰는 사람", SKY)
-    shop = node(1268, 575, 262, 112, "사진용품점 남기택", "서울 · 카메라 가게 사장님", ROSE, small=True)
+    shop = node(1268, 545, 262, 112, "카메라샵 사장님들", "12개 도시 · 진열대마다 다르게", ROSE, small=True)
+    bo = node(1005, 762, 230, 112, "보경 · 강릉", "안목 카페 · 첫 손님의 기억", ROSE, small=True)
     elder = node(240, 575, 232, 112, "동네 어르신들", "옛 이웃의 기억", TEAL, small=True)
     villager = node(295, 855, 242, 112, "동네 주민들", "창밖의 첫 스승", PURPLE, small=True)
     kid = node(760, 890, 242, 112, "꼬마들", "후배 탐조인", AMBER, small=True)
@@ -173,16 +174,17 @@ def build():
     edge(draw, grandma, prof, "이십 년, 쌍안경 가방을 나눠 멘 동료", CAMEL, t=0.5, bend=88 * S, off=(0, 6 * S))
     edge(draw, grandma, player, "수첩 · 화덕피자 · 가르침의 계승", CAMEL, t=0.42, bend=26 * S, off=(-40 * S, -22 * S))
     edge(draw, prof, player, "멘토에서 동반자로 (6장의 고백)", SAGE, t=0.42, bend=-26 * S, off=(44 * S, -22 * S))
-    edge(draw, prof, shop, "첫 손님과 사장님 — 오래된 인연", ROSE, t=0.5, bend=-44 * S, off=(64 * S, -8 * S))
-    edge(draw, shop, player, "장비를 건네는 손님 · “젊은 사장님”", ROSE, t=0.58, bend=30 * S, off=(-10 * S, 38 * S))
+    edge(draw, prof, shop, "오래된 인연 — 수첩 이야기가 오가면", ROSE, t=0.5, bend=-44 * S, off=(64 * S, -8 * S))
+    edge(draw, shop, player, "장비를 건네는 손님", ROSE, t=0.38, bend=22 * S, off=(0, 24 * S))
     edge(draw, elder, grandma, "그 시절을 기억하는 이웃", TEAL, dashed=True, t=0.5, bend=22 * S, off=(-64 * S, -10 * S))
     edge(draw, elder, player, "회상으로 건네는 돌봄", TEAL, dashed=True, t=0.5, bend=10 * S, off=(0, 22 * S))
     edge(draw, villager, player, "이름을 가르쳐 준 첫 스승", PURPLE, t=0.5, bend=30 * S, off=(-24 * S, -18 * S))
-    edge(draw, kid, prof, "수첩을 찾던 박사를 본 목격자", AMBER, dashed=True, t=0.34, bend=-120 * S, off=(-46 * S, 34 * S))
-    edge(draw, kid, player, "따라 배우고 나중에 물려받는 사이", AMBER, t=0.5, bend=14 * S, off=(46 * S, 22 * S))
+    edge(draw, kid, prof, "수첩을 찾던 박사를 본 목격자", AMBER, dashed=True, t=0.34, bend=-120 * S, off=(-46 * S, 50 * S))
+    edge(draw, kid, player, "따라 배우고 나중에 물려받는 사이", AMBER, t=0.5, bend=14 * S, off=(-140 * S, 30 * S))
     edge(draw, folks, player, "각 동네의 스승 · 지역 이야기", PURPLE, t=0.5, bend=-28 * S, off=(30 * S, -18 * S))
+    edge(draw, bo, prof, "첫 손님은 카메라 든 소년 (R4 회수)", ROSE, t=0.45, bend=-36 * S, off=(-30 * S, -60 * S))
 
-    for n in (grandma, prof, player, shop, elder, villager, kid, folks):
+    for n in (grandma, prof, player, shop, bo, elder, villager, kid, folks):
         n.draw(draw)
 
     # ── 세 개의 서사 축 노트 박스 (맨 위 가운데 빈자리) ──

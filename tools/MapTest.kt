@@ -93,10 +93,25 @@ fun main() {
         val dupName = names.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
         check(dupName.isEmpty(), "NPC 이름 중복: $dupName")
         check(NpcRoster.ALL.count { it.kind == NpcKind.PROFESSOR } == 1, "보리 박사는 한 명이어야 한다")
-        check(NpcRoster.ALL.count { it.kind == NpcKind.SHOP } == 1, "사진용품점은 한 곳이어야 한다")
+        // 카메라샵은 **12개 도시에 하나씩** — 습지·산속 탐조지에는 없다 (`CameraShops`)
+        val shopCast = NpcRoster.ALL.filter { it.kind == NpcKind.SHOP }
+        check(shopCast.size == CameraShops.CITY_IDS.size, "카메라샵 사장 수 오류: ${shopCast.size}명")
+        check(shopCast.map { it.regionId }.toSet() == CameraShops.CITY_IDS, "카메라샵 사장 거주지와 진열대 불일치")
+        check(shopCast.map { it.name }.distinct().size == shopCast.size, "카메라샵 사장 이름 중복")
         check(NpcRoster.byId[NpcRoster.professor.id]?.regionId == NpcRoster.PROFESSOR_REGION,
             "보리 박사 거주지 오류")
-        check(NpcRoster.shopkeeper.regionId == NpcRoster.SHOP_REGION, "사진용품점 위치 오류")
+        check(NpcRoster.shopkeeper.regionId == NpcRoster.SHOP_REGION, "본점 위치 오류")
+        // 진열대 규칙: 서울 본점은 전 제품, 그 외 도시는 부분 진열. 어디에도 없는 장비는 없다.
+        for (shop in CameraShops.ALL) {
+            check(CameraShops.catalog(shop.regionId).isNotEmpty(), "진열대가 빈 도시 ${shop.regionId}")
+            for (gearId in shop.stock) {
+                check(CameraGear.byId.containsKey(gearId), "없는 장비 id 진열됨 ${shop.regionId} $gearId")
+            }
+        }
+        for (gear in CameraGear.ALL) {
+            check(shopCast.any { CameraShops.shop(it.regionId)?.carries(gear.id) == true },
+                "어느 도시에서도 살 수 없는 장비: ${gear.id}")
+        }
         for (r in Regions.ALL) {
             val cast = NpcRoster.forRegion(r.id)
             check(cast.size >= 2, "사람이 2명 미만인 지역 ${r.id}: ${cast.size}명")
@@ -190,15 +205,21 @@ fun main() {
                     check(d >= 3, "사람이 붙어 있음 ${r.id}: ${n.name}(${n.tileX},${n.tileY}) ↔ ${m.name}(${m.tileX},${m.tileY})")
                 }
             }
-            // 보리 박사·사진용품점은 자기 동네에만 있다
+            // 보리 박사는 광릉숲 한 곳, 카메라샵 사장은 12개 도시에만 서 있다
+            var shopHere = 0
             for (n in map.npcs) {
                 if (n.kind == NpcKind.PROFESSOR) {
                     check(r.id == NpcRoster.PROFESSOR_REGION, "다른 지역에 나타난 보리 박사 ${r.id}")
                 }
                 if (n.kind == NpcKind.SHOP) {
-                    check(r.id == NpcRoster.SHOP_REGION, "다른 지역에 나타난 사진용품점 ${r.id}")
+                    shopHere++
+                    check(r.id in CameraShops.CITY_IDS, "도시가 아닌데 카메라샵이 선 곳 ${r.id}")
+                    val info = CameraShops.shop(r.id)
+                    check(info != null && n.person.id == "shop:" + r.id,
+                        "그 동네 사장 아닌 사람이 진열대를 보고 있다 ${r.id}: ${n.person.id}")
                 }
             }
+            check(shopHere == (if (r.id in CameraShops.CITY_IDS) 1 else 0), "도시별 카메라샵 사장 수 오류 ${r.id}")
 
             // 터널 타일 & 플라자까지 경로
             for ((d, _) in Regions.exits(r.id)) {
