@@ -151,11 +151,16 @@ class Viewfinder(private val game: Game) {
         camY: Float,
         zoom: Float = 1f
     ) {
-        val w = game.virtW.toFloat()
-        val h = game.virtH.toFloat()
+        // 뷰파인더 UI(프레임·정보 바·표식)는 540 설계 px로 작성돼 있다.
+        // 2160p 가상 캔버스에는 UI_K배로 확대해 그린다 — 위치·크기가 모두 설계 값 그대로
+        // 화면 비율을 유지한다. (확대 없이 그리면 UI가 화면 구석에 1/4 크기로 쪼그라든다)
+        val w = game.virtW / UI_K
+        val h = game.virtH / UI_K
+        c.save()
+        c.scale(UI_K, UI_K)
         val rig = state.rig()
         val rangeTiles = rig.reach
-        val rangePx = rangeTiles * 16f * WORLD_SCALE * zoom
+        val rangePx = rangeTiles * 16f * WORLD_SCALE * zoom / UI_K
         val px = sx(playerCx, camX, zoom)
         val py = sy(playerCy, camY, zoom)
 
@@ -168,7 +173,7 @@ class Viewfinder(private val game: Game) {
         // 최단 촬영 거리도 사거리와 같은 축첍(zoom)으로 그려야 실제 판정과 맞아떨어진다.
         // zoom 을 빼먹으면 원이 실제보다 훨씬 작게 그려져 "충분히 떨어졌다"고 믿고
         // 셔터를 눌렀다가 '너무 가까워요'로 사진이 날아간다.
-        val minPx = rig.minDist * 16f * WORLD_SCALE * zoom
+        val minPx = rig.minDist * 16f * WORLD_SCALE * zoom / UI_K
         drawRange(c, px, py, rangePx, rangeTiles, minPx, rig.minDist)
 
         val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles, zoom)
@@ -181,17 +186,21 @@ class Viewfinder(private val game: Game) {
 
         drawTopBar(c, w)
         drawBottomBar(c, w, h, focus, playerCx, playerCy, rangeTiles)
+        c.restore()
     }
 
-    /** 월드 논리 좌표 → 화면 좌표 (월드가 화면 중앙 기준으로 zoom 배 확대돼 있다) */
+    /**
+     * 월드 논리 좌표 → 뷰파인더(540 설계) 좌표. 월드가 화면 중앙 기준으로 zoom 배
+     * 확대돼 있는 것까지 되돌린 뒤, 가상(2160) → 설계(540)로 축소한다.
+     */
     private fun sx(wx: Float, camX: Float, zoom: Float): Float {
         val hx = game.virtW / 2f
-        return hx + ((wx - camX) * WORLD_SCALE - hx) * zoom
+        return (hx + ((wx - camX) * WORLD_SCALE - hx) * zoom) / UI_K
     }
 
     private fun sy(wy: Float, camY: Float, zoom: Float): Float {
         val hy = game.virtH / 2f
-        return hy + ((wy - camY) * WORLD_SCALE - hy) * zoom
+        return (hy + ((wy - camY) * WORLD_SCALE - hy) * zoom) / UI_K
     }
 
     /**
@@ -335,7 +344,7 @@ class Viewfinder(private val game: Game) {
         }
 
         // 라벨: 사거리 (원 아래쪽, 화면 안으로 보정)
-        val labelY = (py + rangePx + 18f).coerceIn(120f, game.virtH - 104f)
+        val labelY = (py + rangePx + 18f).coerceIn(120f, game.virtH / UI_K - 104f)
         text.textSize = 12.5f
         val lbl = "사거리 ${fmt(rangeTiles)}칸"
         val lw = text.measureText(lbl)
@@ -378,8 +387,8 @@ class Viewfinder(private val game: Game) {
     ): FieldBird? {
         var best: FieldBird? = null
         var bestD = Float.MAX_VALUE
-        val w = game.virtW.toFloat()
-        val h = game.virtH.toFloat()
+        val w = game.virtW / UI_K
+        val h = game.virtH / UI_K
         for (b in birds) {
             if (b.state == 2) continue
             val sx = sx(b.cx, camX, zoom)
@@ -407,7 +416,7 @@ class Viewfinder(private val game: Game) {
             if (b.state == 2) continue
             val sx = sx(b.cx, camX, zoom)
             val sy = birdSy(b, camY, zoom)
-            if (sx < -40f || sx > game.virtW + 40f || sy < -40f || sy > game.virtH + 40f) continue
+            if (sx < -40f || sx > game.virtW / UI_K + 40f || sy < -40f || sy > game.virtH / UI_K + 40f) continue
             val dTiles = hypot(b.cx - pcx, b.cy - pcy) / 16f
             val inRange = dTiles <= rangeTiles
             if (b === focus) {
@@ -418,9 +427,9 @@ class Viewfinder(private val game: Game) {
                 val (stars, col) = zone(ratio)
                 val ratingW = 3f * 13f
                 // 화면 밖이나 정보 바(상단 y<84 / 하단 y>h-92) 밑으로 숨지 않게 보정한다.
-                val bx = sx.coerceIn(ratingW / 2f + 14f, game.virtW - ratingW / 2f - 14f)
-                val by = (sy - b.sprH * WORLD_SCALE * 0.5f * zoom - 24f)
-                    .coerceIn(SAFE_TOP + 11f, game.virtH - SAFE_BOTTOM - 6f)
+                val bx = sx.coerceIn(ratingW / 2f + 14f, game.virtW / UI_K - ratingW / 2f - 14f)
+                val by = (sy - b.sprH * WORLD_SCALE * 0.5f * zoom / UI_K - 24f)
+                    .coerceIn(SAFE_TOP + 11f, game.virtH / UI_K - SAFE_BOTTOM - 6f)
                 fill.color = Color.argb(140, 16, 14, 24)
                 c.drawRoundRect(RectF(bx - ratingW / 2f - 6f, by - 11f, bx + ratingW / 2f + 6f, by + 6f), 5f, 5f, fill)
                 stroke.color = Color.argb(150, Color.red(col), Color.green(col), Color.blue(col))
@@ -445,8 +454,8 @@ class Viewfinder(private val game: Game) {
         val ratio = (dTiles / rangeTiles).coerceAtLeast(0.001f)
         val (stars, col) = zone(ratio)
         val pulse = if (inRange) 1f + sin(clock * 5.5f) * 0.02f else 1f + sin(clock * 3f) * 0.05f
-        val halfW = (b.sprW * WORLD_SCALE * 0.5f * zoom + 13f) * pulse
-        val halfH = (b.sprH * WORLD_SCALE * 0.5f * zoom + 13f) * pulse
+        val halfW = (b.sprW * WORLD_SCALE * 0.5f * zoom / UI_K + 13f) * pulse
+        val halfH = (b.sprH * WORLD_SCALE * 0.5f * zoom / UI_K + 13f) * pulse
         val box = RectF(sx - halfW, sy - halfH, sx + halfW, sy + halfH)
 
         // 어두운 보조 사각형 (초점 영역 강조)
@@ -497,11 +506,11 @@ class Viewfinder(private val game: Game) {
         val infoW = text.measureText(info) + if (inRange) 3f * 13f else 0f
         val plateW = maxOf(nameW, infoW) + 22f
         val plateH = 34f
-        val plateCx = sx.coerceIn(46f + plateW / 2f, game.virtW - 46f - plateW / 2f)
+        val plateCx = sx.coerceIn(46f + plateW / 2f, game.virtW / UI_K - 46f - plateW / 2f)
         var plateTop = box.top - plateH - 8f
         if (plateTop < SAFE_TOP) plateTop = box.bottom + 8f
         // 새가 화면 아래쪽이면 라벨이 하단 정보 바에 묻히지 않게 위로 당긴다
-        plateTop = plateTop.coerceIn(SAFE_TOP, (game.virtH - SAFE_BOTTOM - plateH).coerceAtLeast(SAFE_TOP))
+        plateTop = plateTop.coerceIn(SAFE_TOP, (game.virtH / UI_K - SAFE_BOTTOM - plateH).coerceAtLeast(SAFE_TOP))
         val plate = RectF(plateCx - plateW / 2f, plateTop, plateCx + plateW / 2f, plateTop + plateH)
 
         fill.color = Color.argb(196, 14, 12, 22)
@@ -687,8 +696,10 @@ class Viewfinder(private val game: Game) {
     fun drawShutter(c: Canvas) {
         val e = closedAmount()
         if (e <= 0.002f && flash <= 0.01f) return
-        val w = game.virtW.toFloat()
-        val h = game.virtH.toFloat()
+        val w = game.virtW / UI_K
+        val h = game.virtH / UI_K
+        c.save()
+        c.scale(UI_K, UI_K)
 
         if (e > 0.002f) {
             val mid = h / 2f
@@ -747,6 +758,7 @@ class Viewfinder(private val game: Game) {
             fill.color = Color.argb((165 * flash).toInt().coerceIn(0, 255), 255, 252, 244)
             c.drawRect(0f, 0f, w, h, fill)
         }
+        c.restore()
     }
 
     // ------------------------------------------------------------------

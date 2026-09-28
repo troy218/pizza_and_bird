@@ -524,6 +524,9 @@ class SpeedStreaks(seed: Long = 20250927L) {
         if (list.isEmpty() || intensity <= 0.02f) return
         val len = hypot(dirX, dirY)
         if (len < 0.001f) return
+        // 잔상 굵기·길이는 540 설계 px 기준 — 2160p 가상 캔버스에는 UI_K배로 확대한다
+        c.save()
+        c.scale(UI_K, UI_K)
         val nx = dirX / len
         val ny = dirY / len
         for (p in list) {
@@ -535,6 +538,7 @@ class SpeedStreaks(seed: Long = 20250927L) {
             val l = p.len * (0.5f + 0.5f * intensity)
             c.drawLine(p.x, p.y, p.x - nx * l, p.y - ny * l, paint)
         }
+        c.restore()
     }
 
     fun clear() = list.clear()

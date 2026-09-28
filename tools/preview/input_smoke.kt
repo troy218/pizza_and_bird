@@ -39,11 +39,16 @@ object InputSmoke {
         check(r.width() > 0f && r.height() > 0f)
         tap(g, r.centerX(), r.centerY())
     }
-    /** 가상(VirtW x 2160) 좌표로 배치된 UI(캐릭터 카드 등)의 가운데를 탭한다 */
+    /**
+     * 540 설계 좌표로 배치된 UI(캐릭터 카드 등)의 가운데를 탭한다.
+     * 씬들이 카드 레이아웃을 960×540 기준으로 보관하고 sceneScale(=virtH/540)배로
+     * 그리므로, 화면 좌표 = 여백 + 설계좌표 × sceneScale × viewScale 이다.
+     */
     private fun tapVirtualRect(g: Game, owner: Any, name: String) {
         val r = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner) as RectF
         check(r.width() > 0f && r.height() > 0f)
-        tap(g, g.viewOffX + r.centerX() * g.viewScale, g.viewOffY + r.centerY() * g.viewScale)
+        val sceneScale = g.virtH / 540f
+        tap(g, g.viewOffX + r.centerX() * sceneScale * g.viewScale, g.viewOffY + r.centerY() * sceneScale * g.viewScale)
     }
     private fun advanceFade(g: Game) { repeat(40) { frame(g) }; render(g) }
     private fun near(a: Float, b: Float) = check(abs(a - b) < 0.01f) { "$a != $b" }
@@ -79,8 +84,8 @@ object InputSmoke {
         // 화면 한가운데는 카메라 줌과 무관하게 카메라 오프셋만 반영된다
         // (월드 좌표 = 가상 / WORLD_SCALE, 화면 중앙 = 가상 중앙).
         val center = PointF(g.viewOffX + g.virtW * g.viewScale / 2f, g.screenH / 2f)
-        near(g.screenToWorld(center).x, camera.x + g.virtW / 8f)
-        near(g.screenToWorld(center).y, camera.y + g.virtH / 8f)
+        near(g.screenToWorld(center).x, camera.x + g.virtW / (2f * WORLD_SCALE))
+        near(g.screenToWorld(center).y, camera.y + g.virtH / (2f * WORLD_SCALE))
 
         // 모달이 떠 있으면 HUD A 버튼 위의 터치도 모달에만 전달되어야 한다.
         var modalTap: PointF? = null
@@ -116,8 +121,8 @@ object InputSmoke {
         frame(g)
         val homeCamera = g.scene.cameraOffset()
         // 집도 마찬가지로 화면 한가운데 = 카메라 오프셋 + (가상 중앙 / WORLD_SCALE)
-        near(g.screenToWorld(center).x, homeCamera.x + g.virtW / 8f)
-        near(g.screenToWorld(center).y, homeCamera.y + g.virtH / 8f)
+        near(g.screenToWorld(center).x, homeCamera.x + g.virtW / (2f * WORLD_SCALE))
+        near(g.screenToWorld(center).y, homeCamera.y + g.virtH / (2f * WORLD_SCALE))
 
         // 앱이 백그라운드로 가는 동안 누른 키가 유지되지 않아야 한다.
         g.input.onKeyEvent(KeyEvent.KEYCODE_D, KeyEvent.ACTION_DOWN)

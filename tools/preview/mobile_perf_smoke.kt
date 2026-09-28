@@ -36,28 +36,32 @@ object MobilePerfSmoke {
         g.onSurfaceChanged(2340, 1080) // S22+ 가로 화면 (FHD+)
         val virtW = g.virtW
         val hudX = g.hud.mainCx
-        check(g.worldScale == 2)
+        // 자동 배율 = 화면 1:1(viewScale 0.5) × 1.15 여유 = 0.575 — FHD에서 2를 고정하던
+        // 옛 방식은 7680×4320(3,300만 px)을 매 프레임 그려 입력이 수백 ms 늦어졌다.
+        check(g.worldScale == 0.575f) { "auto scale = ${g.worldScale}" }
+        check(g.worldBitmap.width == (virtW * 0.575f).toInt()) // 비트맵 ≈ 화면 해상도
         g.scene = WorldScene(g, "seoul", SpawnKind.HOME)
         repeat(89) { g.onFrameRendered(28_000_000L, 33_333_333L) }
-        check(g.worldScale == 2)
+        check(g.worldScale == 0.575f)
         g.onFrameRendered(28_000_000L, 33_333_333L)
-        check(g.worldScale == 1 && g.worldBitmap.width == virtW)
+        // 프레임이 계속 밀리면 20%씩 내려 바닥(0.5)까지 내려간다
+        check(g.worldScale == 0.5f) { "downscale = ${g.worldScale}" }
         check(g.hud.mainCx == hudX && g.screenW == 2340) // HUD는 실해상도 유지
         repeat(90) { g.onFrameRendered(28_000_000L, 33_333_333L) }
-        check(g.worldScale == 1) // 자동 모드는 화질을 다시 올리지 않아 흔들리지 않는다
+        check(g.worldScale == 0.5f) // 자동 모드는 화질을 다시 올리지 않아 흔들리지 않는다
         g.state.renderScale = "2"
         g.applyRenderQuality()
         repeat(90) { g.onFrameRendered(28_000_000L, 33_333_333L) }
-        check(g.worldScale == 2) // 수동 고화질은 강제로 낮추지 않는다
+        check(g.worldScale == 2f) // 수동 고화질은 강제로 낮추지 않는다
         g.state.renderScale = "auto"
         g.applyRenderQuality()
         val sc = g.scene as WorldScene
         sc.openOverlay(MenuOverlay(sc))
         repeat(90) { g.onFrameRendered(28_000_000L, 33_333_333L) }
-        check(g.worldScale == 2) // 무거운 메뉴가 월드 자동 화질에 영향을 주지 않는다
+        check(g.worldScale == 0.575f) // 무거운 메뉴가 월드 자동 화질에 영향을 주지 않는다
         sc.closeOverlay()
         repeat(90) { g.onFrameRendered(28_000_000L, 33_333_333L) }
-        check(g.worldScale == 1)
+        check(g.worldScale == 0.5f) { "second downscale = ${g.worldScale}" }
 
         // 청크는 첫 방문에만 만들고, 물이 있는 타일은 이후에도 애니메이션한다.
         val map = MapBuilder.build(Regions.byId.getValue("seoul"), "seoul")

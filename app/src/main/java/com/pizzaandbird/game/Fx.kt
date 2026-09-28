@@ -993,8 +993,13 @@ class WorldFx(private val map: GameMap, seed: Long) {
      * 실수로 넘겨 비/눈 영역이 어긋나던 일을 구조적으로 막는다.
      */
     fun drawWeather(c: Canvas) {
+        // 날씨 입자는 540 설계 좌표(비·눈 속도·크기 포함)로 시뮬레이션된다.
+        // 가상 캔버스가 2160p로 커진 지금은 UI_K배로 확대해 그대로 올린다 —
+        // 확대하지 않으면 빗줄기가 머리카락처럼 가늘고 느리게 떨어진다.
         val w = scrW
         val h = scrH
+        c.save()
+        c.scale(UI_K, UI_K)
         when (weather) {
             Weather.CLOUDY -> {
                 fill.color = Color.argb(30, 70, 78, 96)
@@ -1044,6 +1049,7 @@ class WorldFx(private val map: GameMap, seed: Long) {
             }
             Weather.SUNNY -> {}
         }
+        c.restore()
     }
 
     /**

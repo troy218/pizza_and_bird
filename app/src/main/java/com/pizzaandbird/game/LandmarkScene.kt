@@ -641,7 +641,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sy = (docentY - 13f - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f), a.shadowPaint)
         val bmp = a.docentBitmap(theme, game.time, game.hdSprites)
-        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        a.drawPlayer(c, bmp, sx, sy, SPRITE_DOT_K)
         // 머리 위 💬 마커
         val bx = sx + 16f
         val by = sy - 12f
@@ -678,7 +678,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, bodyY, game.worldScale.toFloat())
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, bodyY, SPRITE_DOT_K)
     }
 
     override fun drawHud(c: Canvas) {
