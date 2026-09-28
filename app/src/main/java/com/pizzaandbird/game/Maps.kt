@@ -185,9 +185,19 @@ class GameMap(
         else -> fallback
     }
 
-    /** A region chooses its own silhouettes; non-nature tiles keep the global tile pattern. */
-    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int =
-        mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+    /**
+     * A region chooses its own silhouettes; non-nature tiles keep the global tile pattern.
+     * 지역 표가 아트 수를 넘어섰더라도 크래시하지 않도록 항상 실제 범위로 눌러 준다.
+     */
+    private fun artVariant(a: Assets, tile: T, x: Int, y: Int): Int {
+        val picked = mapStyle.natureArt.variant(tile, x, y, region.id) ?: a.tileVariant(tile.ordinal, x, y)
+        return picked.coerceIn(0, a.tiles[tile.ordinal].size - 1)
+    }
+
+    /** 이 칸에 그려질 바위 변형 — 숨김 판정이 함께 쓴다. */
+    fun rockLook(x: Int, y: Int): Int =
+        mapStyle.natureArt.variant(T.ROCK, x, y, region.id)
+            ?.coerceIn(0, PropLooks.ROCK_COUNT - 1) ?: 0
 
     private val exits: Map<Dir, String> = Regions.exits(region.id)
 
@@ -286,15 +296,21 @@ class GameMap(
      *   뜸부기·개개비류가 갈대 뒤에서 가장 가까이 접근을 허용하는 전형적인 숨을 곳.
      * - 산·건물 등 부피 구조물(0.9): 샘플된 시선을 완전히 끊는 단단한 덩어리.
      * - 나무(0.85): 수관 + 굵은 줄기 — 몸통은 가리지만 줄기 사이 틈이 남는 도피 커버.
-     * - 바위(0.8): 지면 높이의 단단한 수평 차폐 — 머리 위로는 틈이 남아 위에서 내려다보는
-     *   맹금류의 시선에는 약하다.
+     * - 바위: 크기급(`PropSize`)마다 다르다 — 큰 바위(0.8)는 지면 높이의 단단한 수평
+     *   차폐(머리 위로는 틈이 있어 내려다보는 맹금류의 시선에는 약하고), 허리 높이 낮은
+     *   돌(0.55)은 웅크려야 부분 차폐, **발목만 넘는 자갈(PropSize.PEBBLE, 0) 뒤에는
+     *   숨지 못한다** — 자갈 더미를 피해 새에게 다가가야 한다.
      * - 키 큰 풀(0.4): 로벨폴 기준 중간 수준의 부분 차폐 — 웅크린 자세만 가린다.
      * - 벤치·가로등·이정표·흙길·광장: 0 — 숨기엔 키가 낮거나 틈이 없지 않다.
      */
     fun concealmentAt(x: Int, y: Int): Float = when (t(x, y)) {
         T.REED -> 0.95f
         T.TREE -> 0.85f
-        T.ROCK -> 0.8f
+        T.ROCK -> when (PropLooks.rockSize(rockLook(x, y))) {
+            PropSize.PEBBLE -> 0f
+            PropSize.LOW -> 0.55f
+            PropSize.TALL -> 0.8f
+        }
         T.TALLGRASS -> 0.4f
         else -> if (t(x, y).bulk) 0.9f else 0f
     }
@@ -397,9 +413,26 @@ class GameMap(
         return bmp
     }
 
+    /**
+     * 촬영용 3D 지면 텍스처. 구조물은 사진 렌더러가 높이를 주어 따로 세우므로
+     * 건물 밑 지면까지 채운다. 도로 오토타일·물가·지역 팔레트는 월드와 공유한다.
+     * 16px/칸으로 제한해 셔터 한 번에 전체 해상도 월드 비트맵을 만들지 않는다.
+     */
+    internal fun photoGroundTexture(a: Assets, time: Float): Bitmap {
+        val bitmap = Bitmap.createBitmap(w * 16, h * 16, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.scale(0.5f, 0.5f)
+        val waterFrame = ((time * 2.2f).toInt() % 4 + 4) % 4
+        for (y in 0 until h) for (x in 0 until w) {
+            drawGroundTile(canvas, a, x, y, 0f, 0f, time, waterFrame, coveredGround = true)
+        }
+        return bitmap
+    }
+
     /** 지면 → 포장 → 데칼 순서는 캐시와 움직이는 물 모두 동일해야 한다. */
     private fun drawGroundTile(c: Canvas, a: Assets, x: Int, y: Int,
-                               camX: Float, camY: Float, time: Float, waterFrame: Int) {
+                               camX: Float, camY: Float, time: Float, waterFrame: Int,
+                               coveredGround: Boolean = false) {
         val fx = x * 32f - camX
         val fy = y * 32f - camY
         val tv = tiles[y][x]
@@ -407,7 +440,7 @@ class GameMap(
         val pv = paving[y][x]
 
         // 1) 지면 — 포장/소품 아래에 깔린다 (불투명한 구조물 아래는 생략)
-        if (pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
+        if (coveredGround || pv != Pave.NONE || tile.ground || tile.prop || tile == T.OVEN) {
             // 겨울엔 꽃밭이 진다 — 마른 잔디로 읽힌다 (눈은 WorldFx가 덮는다)
             var gv = ground[y][x]
             var gTile = T.ALL[gv]
@@ -964,6 +997,25 @@ object MapBuilder {
             if (t[y][x] == T.MOUNTAIN.ordinal) return
             t[y][x] = T.ROCK.ordinal
             reserved[y][x] = true
+        }
+        /**
+         * 바위 옆에 동행 돌을 하나 얹는다 — 3~4칸짜리 돌무더기로 읽히게 한다.
+         * 한 칸짜리 바위를 등간격으로 뿌리면 '붙여놓은 돌' 같아서 동물을 숨길 때도
+         * 주변이 어중간한 얼룩이 된다. 크기가 다른 바위가 겹치면 하나의 노두로 보인다.
+         */
+        val ROCK_OFFSETS = arrayOf(
+            intArrayOf(1, 0), intArrayOf(0, 1), intArrayOf(-1, 0), intArrayOf(0, -1),
+            intArrayOf(1, 1), intArrayOf(1, -1), intArrayOf(-1, 1), intArrayOf(-1, -1)
+        )
+        fun rockBuddy(x: Int, y: Int) {
+            if (rnd.nextFloat() > 0.42f) return
+            val step = ROCK_OFFSETS[rnd.nextInt(8)]
+            val bx = x + step[0]
+            val by = y + step[1]
+            if (bx < 2 || by < 2 || bx >= w - 2 || by >= h - 2) return
+            if (reserved[by][bx] || t[by][bx] != T.GRASS.ordinal) return
+            if (base[by][bx] == T.WATER.ordinal || pave[by][bx] != Pave.NONE) return
+            placeRock(bx, by)
         }
         fun placeTree(x: Int, y: Int) {
             if (!inb(x, y) || isPlazaOrRoad(x, y)) return
@@ -1863,9 +1915,9 @@ object MapBuilder {
             when {
                 // 습지·강은 갈대/물억새를 우선하고, 산은 바위와 숲을 우선한다.
                 isWet && r < 0.28 -> { t[y][x] = T.REED.ordinal; base[y][x] = T.REED.ordinal }
-                isRiver && r < 0.17 -> t[y][x] = T.ROCK.ordinal
-                isCoast && r < 0.16 -> t[y][x] = T.ROCK.ordinal
-                isMountain && r < 0.15 -> t[y][x] = T.ROCK.ordinal
+                isRiver && r < 0.17 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
+                isCoast && r < 0.16 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
+                isMountain && r < 0.15 -> { t[y][x] = T.ROCK.ordinal; rockBuddy(x, y) }
                 // 도시 공원·하천 산책로에는 꽃밭을 조금 더 자주 만든다.
                 region.city && r < 0.19 -> { t[y][x] = T.FLOWER.ordinal; base[y][x] = T.FLOWER.ordinal }
                 r < region.treeDensity -> t[y][x] = T.TREE.ordinal
@@ -1873,7 +1925,9 @@ object MapBuilder {
                     t[y][x] = T.FLOWER.ordinal
                     base[y][x] = T.FLOWER.ordinal
                 }
-                r < region.treeDensity + region.flowerDensity + region.rockDensity -> t[y][x] = T.ROCK.ordinal
+                r < region.treeDensity + region.flowerDensity + region.rockDensity -> {
+                    t[y][x] = T.ROCK.ordinal; rockBuddy(x, y)
+                }
             }
         }
 
@@ -2433,7 +2487,7 @@ class Cat(var x: Float, var y: Float) {
     var pouncing = false
     var pounceCued = false
     var pounceT = 0f
-    /** 잡아먹거나 길이 막힌 뒤 잠시 쉬는 시간 */
+    /** 새를 놀라게 한 뒤나 길이 막힌 뒤 잠시 쉬는 시간 */
     var calmT = 0f
     /** 지금 노리는 새 (알림이 같은 새에 반복되지 않게) */
     var preyId: String? = null
@@ -2656,7 +2710,7 @@ class FieldBird(val def: BirdDef, var x: Float, var y: Float) {
     var hiddenFromPlayer = false
     /** 실제 적용된 은폐 품질 0..1 (지형지물 차폐 × 종군별 시각 능력) — 뷰파인더 표시 강도에 쓴다 */
     var coverQuality = 0f
-    var facing = BirdFacing.LEFT     // 옆/정면/뒷면 — 촬영 기록에도 그대로 남는다
+    var facing = BirdFacing.LEFT     // 월드 방향 — 사진에서는 촬영자의 방위에 맞게 변환한다
     var renderPose = BirdPose.PERCHED
     /** 비행 스프라이트 호환용. 정면/뒷면일 때는 마지막 가로 방향을 유지한다. */
     var faceLeft: Boolean

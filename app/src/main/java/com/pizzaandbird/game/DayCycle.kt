@@ -98,6 +98,12 @@ object DayCycle {
         return if (a >= 0f) a * peak else a
     }
 
+    /** 밤 경계 고도 — 이 아래면 밤(올빼미 등 밤새 출현)이다 */
+    const val NIGHT_ALTITUDE = -0.12f
+
+    /** 밤 여부 — 출현·HUD·대사·업적 집계가 함께 쓰는 단일 판정 */
+    fun isNightAt(hour: Float, s: Season = season): Boolean = sunAltitude(hour, s) < NIGHT_ALTITUDE
+
     /** 햇빛 세기 0..1 — 지평선 부근에서 부드럽게 오르내린다. */
     fun daylight(hour: Float, s: Season = season): Float {
         val alt = sunAltitude(hour, s)

@@ -29,6 +29,12 @@ object CharacterArt {
     const val SIZE = 32
 
     /**
+     * 앉은 자세는 엉덩이를 좌석 높이로 올리므로 머리·모자가 프레임 위로 넘친다.
+     * `render(..., topPad = SIT_TOPPAD)` 로 상단 여백을 두고 그릴 때 y 에서 이만큼 뺀다.
+     */
+    const val SIT_TOPPAD = 9
+
+    /**
      * HD 디테일(옷 주름·머리카락 윤기·눈 반짝임)을 넣기 시작하는 배율.
      *
      * 32px 도트에서는 이런 요소가 1px도 되지 않아 뭉개지므로 [HD_DETAIL_SCALE] 배 이상의
@@ -64,6 +70,84 @@ object CharacterArt {
     const val NPC_VILLAGER = 2
     const val NPC_KID = 3
     const val NPC_ELDER = 4
+
+    // ------------------------------------------------------------------
+    // 사람 겉모습 — 색만 다른 게 아니라 **실루엣부터 다르게** 그린다.
+    // 같은 몸에 색만 바꾸면 멀리서는 다 똑같아 보이므로, 체형·헤어·모자·
+    // 수염·치마·소품까지 사람마다 다른 파츠를 조합한다 (NpcRoster가 지정).
+    // ------------------------------------------------------------------
+
+    // 체형
+    const val BODY_STANDARD = 0
+    const val BODY_TALL = 1      // 키 크고 늘씬 (관찰원·안내원)
+    const val BODY_STOCKY = 2    // 어깨 넓고 다부짐 (어민·농부)
+    const val BODY_SLIM = 3      // 호리호리 (화가·카누)
+    const val BODY_ROUND = 4     // 키 작고 둥글둥글 (시장 아주머니·할머니)
+    const val BODY_HUNCH = 5     // 허리 굽음 (연로한 어르신)
+
+    // 헤어스타일 (정면 기준 — 옆/뒷모습은 SHORT/LONG 으로 퉁친다)
+    const val HAIR_SHORT = 0
+    const val HAIR_BUZZ = 1      // 스포츠형 짧은 머리
+    const val HAIR_BOB = 2       // 단발 보브
+    const val HAIR_LONG = 3      // 긴 생머리
+    const val HAIR_PONY = 4      // 옆으로 넘긴 포니테일
+    const val HAIR_BUN = 5       // 정수리 동그란 상투
+    const val HAIR_PIGTAIL = 6    // 양갈래 (꼬마)
+    const val HAIR_BALD = 7      // 민머리 + 옆머리
+    const val HAIR_UPDO = 8      // 올린 쪽머리 (할머니)
+    const val HAIR_PERM = 9      // 파마 · 곱슬
+    const val HAIR_SWEEP = 10    // 옆으로 넘긴 가르마
+    const val HAIR_BRAID = 11    // 어깨 위 땋은 머리
+
+    // 수염
+    const val BEARD_NONE = 0
+    const val BEARD_MUSTACHE = 1
+    const val BEARD_FULL = 2
+    const val BEARD_GOATEE = 3
+
+    // 모자 — 탐조가 장비(Gear.cap)와 별개로 NPC 전용 실루엣
+    const val HAT_NONE = 0
+    const val HAT_CAP = 1        // 볼캡
+    const val HAT_BUCKET = 2     // 털모자/버킷햇
+    const val HAT_STRAW = 3      // 밀짚모자 (챙 넓음)
+    const val HAT_BEANIE = 4     // 털모자 + 방울
+    const val HAT_BANDANA = 5    // 반다나 두건
+    const val HAT_HEADSCARF = 6  // 수건 쓴 아주머니·해녀
+    const val HAT_FISHER = 7     // 방수 어부 모자 (뒷챙 긺)
+    const val HAT_VISOR = 8      // 썬바이저 (정수리 뚫림)
+
+    // 하의
+    const val BOTTOM_PANTS = 0
+    const val BOTTOM_SKIRT = 1
+    const val BOTTOM_OVERALLS = 2
+
+    // 소품 — 손에 들거나 몸에 걸친다 (직업이 한눈에 보인다)
+    const val PROP_NONE = 0
+    const val PROP_BINOCS = 1    // 목에 건 쌍안경
+    const val PROP_CAMERA = 2    // 목에 건 카메라
+    const val PROP_ROD = 3       // 낚싯대 (손에)
+    const val PROP_BASKET = 4    // 바구니 (손에)
+    const val PROP_BOOK = 5      // 책 (두 손에)
+    const val PROP_BRUSH = 6     // 팔레트 + 붓 (화가)
+    const val PROP_PADDLE = 7    // 어깨에 멘 노
+    const val PROP_CUP = 8       // 찻잔 (손에)
+    const val PROP_NET = 9       // 어깨에 멘 뜰채
+
+    // 피부톤
+    const val SKIN_FAIR = 0
+    const val SKIN_NORMAL = 1
+    const val SKIN_TAN = 2
+    const val SKIN_DEEP = 3
+
+    // NPC 소동작 — 같은 바디라도 소품·성격에 따라 다르게 논다
+    const val FLAVOR_NONE = 0
+    const val FLAVOR_BOUNCE = 1  // 깡충깡충 (개구쟁이)
+    const val FLAVOR_PAINT = 2   // 붓질 (화가)
+    const val FLAVOR_SIP = 3     // 찻잔 홀짝 (다방·카페)
+    const val FLAVOR_SCAN = 4    // 쌍안경으로 두리번 (관찰원)
+    const val FLAVOR_READ = 5    // 책 읽기 (해설사·이장)
+    const val FLAVOR_NOD = 6     // 끄덕끄덕 (어르신)
+    const val FLAVOR_SWAY = 7    // 갯바람에 살랑 (어민·뱃사공)
 
     private const val TAU = (PI * 2).toFloat()
 
@@ -105,8 +189,29 @@ object CharacterArt {
         val small: Boolean = false,
         val longHair: Boolean = false,
         val pack: Boolean = true,
+        // --- 아래는 NPC 개성 파츠 (기본값 = 예전과 똑같은 모습) ---
+        val body: Int = BODY_STANDARD,
+        /** HAIR_* — SHORT + longHair=true 면 예전처럼 LONG 으로 그린다 */
+        val hairStyle: Int = HAIR_SHORT,
+        val beard: Int = BEARD_NONE,
+        /** HAT_* — HAT_NONE 이면 탐조가 장비(Gear.cap)만 그린다 */
+        val hat: Int = HAT_NONE,
+        /** 모자 색 (0이면 머리색·옷색에서 자동) */
+        val hatColor: Int = 0,
+        val bottom: Int = BOTTOM_PANTS,
+        /** PROP_* — 손·목·어깨 소품 */
+        val prop: Int = PROP_NONE,
+        /** 소품 보조색 (0이면 자동) */
+        val propColor: Int = 0,
+        /** 나이테 주름 (어르신) */
+        val wrinkles: Boolean = false,
+        /** 볼 주근깨 (꼬마) */
+        val freckles: Boolean = false,
         val keepsake: String? = null
-    )
+    ) {
+        /** 실제 그릴 헤어스타일 — 옛 longHair 플래그를 새 번호로 매핑 */
+        val hair: Int get() = if (hairStyle == HAIR_SHORT && longHair) HAIR_LONG else hairStyle
+    }
 
     /** 관절 포즈 — 모든 각도는 도(°) */
     data class Pose(
@@ -324,6 +429,43 @@ object CharacterArt {
         )
     }
 
+    /**
+     * 벤치에 앉기 — 허리를 펴고 앉아 숨쉬며 두리번거린다.
+     *
+     * 앉으면 엉덩이가 좌석 높이(타일 아트 y≈16)로 올라가므로 머리·모자가 프레임 위로
+     * 넘친다. 그래서 `render(..., topPad = SIT_TOPPAD)` 로 상단 여백을 두고,
+     * 그릴 때 y 에서 SIT_TOPPAD 만큼 뺀다 (WorldScene/참조: Anim.SIT).
+     * 정면 기준: 허벅지는 앞으로 벌리고 무릎 아래로 종아리가 살짝 흔들리며 내려간다.
+     */
+    fun sitPose(phase: Float): Pose {
+        val p = ((phase % 1f) + 1f) % 1f
+        val breath = 0.5f - 0.5f * cos(TAU * p)
+        val look = bump(p, 0.30f, 0.56f)
+        val shift = sin(TAU * p)
+        val settle = (p * 8f).coerceAtMost(1f)      // 앉은 직후 1/8 사이클만 자세를 고정
+        return Pose(
+            bodyY = -5.2f - 0.22f * breath + 0.6f * (1f - settle),
+            bodyX = 0.22f * shift,
+            lean = -1.5f,
+            // 허벅지는 앞으로(무릎 갈림), 종아리는 살짝 앞으로 내려가며 흔들
+            hipR = 88f + 1.5f * shift, kneeR = 76f, footR = 2f,
+            hipL = -88f + 1.5f * shift, kneeL = -76f, footL = -2f,
+            armR = 34f + 2f * shift, elbowR = 46f,
+            armL = -34f + 2f * shift, elbowL = 46f,
+            shoulderR = -0.2f * breath, shoulderL = -0.2f * breath,
+            headY = -0.2f * breath + 0.3f * (1f - settle),
+            headX = 0.55f * shift + 0.7f * look,
+            tilt = -1.4f * shift,
+            turn = 0.8f * look,
+            blink = if (p >= 0.845f && p < 0.885f) 1f else if (p >= 0.885f && p < 0.905f) 0.5f else 0f,
+            breath = breath,
+            brow = 0.3f * look,
+            hairSway = 0.4f * shift,
+            clothSway = 0.35f * shift,
+            packBob = -0.25f * breath
+        )
+    }
+
     /** 카메라 조준 — 숨죽이고 미세하게 흔들린다 */
     fun aimPose(phase: Float): Pose {
         val p = ((phase % 1f) + 1f) % 1f
@@ -415,20 +557,36 @@ object CharacterArt {
         )
     }
 
-    /** NPC 성격별 대기 동작 */
-    fun npcPose(kind: Int, phase: Float): Pose {
-        val p = ((phase % 1f) + 1f) % 1f
+    /** NPC 성격별 대기 동작 — 예전 시그니처(소품·시드 없이) */
+    fun npcPose(kind: Int, phase: Float): Pose = npcPose(kind, phase, FLAVOR_NONE, 0f)
+
+    /**
+     * NPC 성격별 대기 동작.
+     *
+     * @param flavor FLAVOR_* — 소품·직업에 맞는 소동작 (붓질·홀짝·두리번…).
+     *   같은 VILLAGER 라도 쌍안경 든 관찰원과 붓 든 화가가 다르게 논다.
+     * @param seed 사람마다 다른 난수(0~1) — 숨결 크기·깜빡임 타이밍·두리번
+     *   속도가 조금씩 어긋나서, 옆에 서 있어도 박자가 겹치지 않는다.
+     */
+    fun npcPose(kind: Int, phase: Float, flavor: Int, seed: Float): Pose {
+        val sd = ((seed % 1f) + 1f) % 1f
+        val p = ((phase + sd * 0.61f) % 1f + 1f) % 1f
+        val energy = 0.82f + 0.36f * frac(sd * 7.31f)
         val base = idlePose(p)
-        return when (kind) {
+        // 사람마다 눈 깜빡임 타이밍이 다르다
+        val blinkAt = 0.80f + 0.12f * frac(sd * 13.7f)
+        val blink = if (p >= blinkAt && p < blinkAt + 0.04f) 1f
+        else if (p >= blinkAt + 0.04f && p < blinkAt + 0.06f) 0.5f else base.blink
+        val posed = when (kind) {
             NPC_PROFESSOR -> {
                 val push = bump(p, 0.55f, 0.85f)
                 base.copy(
-                    headY = base.headY + 0.55f * sin(2f * TAU * p),
-                    tilt = base.tilt + 1.4f * sin(TAU * p),
+                    headY = base.headY + 0.55f * sin(2f * TAU * p) * energy,
+                    tilt = base.tilt + 1.4f * sin(TAU * p) * energy,
                     armR = -150f * push + 3f,
                     elbowR = 8f + 112f * push,
                     brow = 0.5f * push,
-                    blink = if (p >= 0.60f && p < 0.64f) 1f else base.blink
+                    blink = if (p >= 0.60f && p < 0.64f) 1f else blink
                 )
             }
             NPC_SHOP -> {
@@ -438,20 +596,22 @@ object CharacterArt {
                     elbowR = 12f + 26f * wave + 22f * wave * sin(TAU * 3f * p),
                     mouth = 0.5f * wave,
                     headX = base.headX + 0.3f * wave,
-                    tilt = base.tilt - 1.2f * wave
+                    tilt = base.tilt - 1.2f * wave,
+                    blink = blink
                 )
             }
             NPC_VILLAGER -> {
                 val look = sin(TAU * p)
                 base.copy(
-                    turn = 0.9f * look, headX = 0.9f * look,
-                    tilt = -1.8f * look, bodyX = 0.5f * look
+                    turn = 0.9f * look * energy, headX = 0.9f * look * energy,
+                    tilt = -1.8f * look * energy, bodyX = 0.5f * look,
+                    blink = blink
                 )
             }
             NPC_KID -> {
                 val hop = Math.pow(max(0f, sin(TAU * 2f * p)).toDouble(), 0.8).toFloat()
                 base.copy(
-                    bodyY = -3.2f * hop,
+                    bodyY = -3.2f * hop * energy,
                     kneeL = 16f + 26f * (1f - hop), kneeR = 16f + 26f * (1f - hop),
                     hipL = -9f * hop, hipR = 9f * hop,
                     footL = -18f * hop, footR = -18f * hop,
@@ -459,22 +619,108 @@ object CharacterArt {
                     elbowL = 18f, elbowR = 18f,
                     mouth = 0.8f,
                     hairSway = -1.4f * hop,
-                    headY = -0.5f * hop
+                    headY = -0.5f * hop,
+                    blink = blink
                 )
             }
             NPC_ELDER -> {
                 val tap = bump(p, 0.44f, 0.60f)
                 base.copy(
-                    bodyY = base.bodyY + 0.5f + 0.25f * sin(TAU * p),
+                    bodyY = base.bodyY + 0.5f + 0.25f * sin(TAU * p) * energy,
                     lean = 8f, crouch = 0.35f,
                     armR = 16f + 10f * tap, elbowR = 14f,
                     tilt = base.tilt + 1f,
-                    headY = base.headY + 0.6f
+                    headY = base.headY + 0.6f,
+                    blink = blink
                 )
             }
-            else -> base
+            else -> base.copy(blink = blink)
+        }
+        if (flavor == FLAVOR_NONE) return posed
+        return when (flavor) {
+            FLAVOR_BOUNCE -> {
+                // 개구쟁이 — 폴짝폴짝 + 팔 흔들
+                val hop = Math.pow(max(0f, sin(TAU * 2f * p)).toDouble(), 0.7).toFloat()
+                posed.copy(
+                    bodyY = posed.bodyY - 2.4f * hop * energy,
+                    kneeL = posed.kneeL + 14f * (1f - hop), kneeR = posed.kneeR + 14f * (1f - hop),
+                    armL = posed.armL - 34f * hop, armR = posed.armR + 34f * hop,
+                    mouth = max(posed.mouth, 0.7f * hop),
+                    hairSway = posed.hairSway - 1.2f * hop
+                )
+            }
+            FLAVOR_PAINT -> {
+                // 화가 — 오른팔로 슥슥 붓질 + 고개 갸웃
+                val stroke = sin(TAU * 2f * p)
+                posed.copy(
+                    armR = -64f + 26f * stroke, elbowR = 34f,
+                    armL = posed.armL - 18f, elbowL = 52f,
+                    tilt = posed.tilt + 2.2f * sin(TAU * p),
+                    brow = max(posed.brow, 0.4f),
+                    mouth = max(posed.mouth, 0.25f)
+                )
+            }
+            FLAVOR_SIP -> {
+                // 찻잔 홀짝 — 주기적으로 잔을 입으로
+                val sip = bump(p, 0.42f, 0.72f)
+                posed.copy(
+                    armR = posed.armR * (1f - sip) + -118f * sip,
+                    elbowR = posed.elbowR * (1f - sip) + 96f * sip,
+                    headY = posed.headY - 0.5f * sip,
+                    tilt = posed.tilt - 1.6f * sip,
+                    mouth = max(posed.mouth, 0.55f * sip),
+                    blink = max(posed.blink, 0.5f * sip)
+                )
+            }
+            FLAVOR_SCAN -> {
+                // 관찰원 — 쌍안경 든 채 좌우를 훑는다
+                val scan = sin(TAU * p * 0.75f + sd)
+                posed.copy(
+                    turn = 1.1f * scan, headX = posed.headX + 1.2f * scan,
+                    tilt = posed.tilt - 0.8f + 0.5f * sin(TAU * 2f * p),
+                    headY = posed.headY - 0.6f,
+                    armL = posed.armL - 24f, elbowL = 46f,
+                    armR = posed.armR + 24f, elbowR = 46f,
+                    brow = max(posed.brow, 0.5f)
+                )
+            }
+            FLAVOR_READ -> {
+                // 책 읽기 — 고개 숙이고 양손으로 책
+                val page = bump(p, 0.60f, 0.78f)
+                posed.copy(
+                    headY = posed.headY + 1.1f,
+                    tilt = posed.tilt + 0.8f,
+                    armL = -52f - 8f * page, elbowL = 74f,
+                    armR = 52f + 8f * page, elbowR = 74f,
+                    brow = max(posed.brow, 0.35f)
+                )
+            }
+            FLAVOR_NOD -> {
+                // 어르신 끄덕임 — 느리고 깊게
+                val nod = 0.5f - 0.5f * cos(TAU * p)
+                posed.copy(
+                    headY = posed.headY + 0.9f * nod,
+                    tilt = posed.tilt + 2.4f * nod,
+                    bodyY = posed.bodyY + 0.4f * nod,
+                    mouth = max(posed.mouth, 0.3f * nod)
+                )
+            }
+            FLAVOR_SWAY -> {
+                // 갯바람 — 몸을 좌우로 크게 실랑실랑
+                val sway = sin(TAU * p * 0.9f + sd * 2f)
+                posed.copy(
+                    bodyX = posed.bodyX + 0.9f * sway,
+                    tilt = posed.tilt - 2.6f * sway,
+                    headX = posed.headX + 0.8f * sway,
+                    clothSway = posed.clothSway + 1.2f * sway,
+                    hairSway = posed.hairSway + 1f * sway
+                )
+            }
+            else -> posed
         }
     }
+
+    private fun frac(x: Float): Float = x - kotlin.math.floor(x.toDouble()).toFloat()
 
     // -----------------------------------------------------------------------
     // 사람 렌더링
@@ -489,48 +735,83 @@ object CharacterArt {
      *   [SIZE]의 정수배(= 슈퍼샘플 · HD)면 비율은 그대로이면서
      *   코드로 그리는 벡터 도형이 그만큼 촘촘하게 래스터화되어 훨씬 부드럽다.
      *   [HD_DETAIL_SCALE] 배 이상일 때만 옷 주름·윤기·눈 반짝임 같은 HD 디테일을 더한다.
+     * @param topPad 앉은 자세처럼 머리가 위로 넘칠 때 상단에 둘 여백([SIZE] 기준 px).
+     *   [size] 배율만큼 함께 커지며, 그릴 때 y 에서 이만큼 뺀다.
      *
      * `tools/preview/people.py` 미리보기는 32px(=기본값)라 도트 결과가 같고,
      * 프리뷰 스크린샷 파이프라인은 4배(128px)로 HD 결과를 확인한다.
      */
-    fun render(direction: Int, pose: Pose, look: Look, size: Int): Bitmap {
+    fun render(direction: Int, pose: Pose, look: Look, size: Int, topPad: Int = 0): Bitmap {
         val k = size.toFloat() / SIZE
         val hd = k >= HD_DETAIL_SCALE - 0.001f
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val g = G(Canvas(bmp), k)
+        val pad = (topPad * k).toInt()
+        val bmp = Bitmap.createBitmap(size, size + pad, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        if (pad != 0) cv.translate(0f, pad.toFloat())
+        val g = G(cv, k)
         val pal = look.pal
         val sc = if (look.small) 0.86f else 1f
 
+        // 체형 — 키·어깨·머리·팔다리 굵기가 사람마다 다르다
+        val legMul: Float; val torsoHMul: Float; val torsoWMul: Float
+        val headMul: Float; val lw: Float; val hunch: Float
+        when (look.body) {
+            BODY_TALL -> {
+                legMul = 1.12f; torsoHMul = 1.08f; torsoWMul = 0.94f
+                headMul = 0.94f; lw = 0.95f; hunch = 0f
+            }
+            BODY_STOCKY -> {
+                legMul = 0.94f; torsoHMul = 0.96f; torsoWMul = 1.26f
+                headMul = 1.07f; lw = 1.22f; hunch = 0f
+            }
+            BODY_SLIM -> {
+                legMul = 1.04f; torsoHMul = 1.02f; torsoWMul = 0.80f
+                headMul = 0.94f; lw = 0.84f; hunch = 0f
+            }
+            BODY_ROUND -> {
+                legMul = 0.86f; torsoHMul = 0.90f; torsoWMul = 1.36f
+                headMul = 1.12f; lw = 1.05f; hunch = 0f
+            }
+            BODY_HUNCH -> {
+                legMul = 0.92f; torsoHMul = 0.94f; torsoWMul = 1.08f
+                headMul = 1.0f; lw = 1.0f; hunch = 1f
+            }
+            else -> {
+                legMul = 1f; torsoHMul = 1f; torsoWMul = 1f
+                headMul = 1f; lw = 1f; hunch = 0f
+            }
+        }
 
         val ground = 31.4f
         val footH = 1.7f * sc
-        val legLen = 8.3f * sc
-        val thigh = 4.2f * sc
-        val shin = 3.9f * sc
-        val torsoH = 6.1f * sc
-        val headR = 6.5f * sc
-        val headGap = 6.3f * sc
+        val legLen = 8.3f * sc * legMul
+        val thigh = 4.2f * sc * legMul
+        val shin = 3.9f * sc * legMul
+        val torsoH = 6.1f * sc * torsoHMul
+        val headR = 6.5f * sc * headMul
+        val headGap = headR * 0.97f
 
         var hipY = ground - footH - legLen + pose.bodyY + pose.crouch * 2.4f * sc
         if (look.small) hipY += 0.6f
         val hipX = 16f + pose.bodyX
         val leanPx = pose.lean * 0.085f * (if (direction == SIDE) 1f else 0f)
-        val shoulderY = hipY - torsoH + pose.crouch * 0.6f
+        val shoulderY = hipY - torsoH + pose.crouch * 0.6f + hunch * 0.8f
         val shoulderX = hipX + leanPx
         val headCx = shoulderX + pose.headX + leanPx * 0.8f + pose.tilt * 0.12f
-        val headCy = shoulderY - headGap + pose.headY - pose.breath * 0.25f
+        val headCy = shoulderY - headGap + pose.headY - pose.breath * 0.25f + hunch * 1.3f
 
         val depth = if (direction == SIDE) 1f else 0.32f
         val face = if (direction != BACK) 1f else -1f
 
         val tL: Float; val tR: Float
         if (direction == SIDE) {
-            tL = shoulderX - 5f * sc; tR = shoulderX + 5f * sc
+            val hw = 5f * sc * (0.75f + 0.25f * torsoWMul)
+            tL = shoulderX - hw; tR = shoulderX + hw
         } else {
-            tL = shoulderX - 6.2f * sc; tR = shoulderX + 6.2f * sc
+            tL = shoulderX - 6.2f * sc * torsoWMul; tR = shoulderX + 6.2f * sc * torsoWMul
         }
-        val hipHalf = 2.45f * sc
-        val shHalf = (if (direction == SIDE) 5f else 7f) * sc
+        val hipHalf = 2.45f * sc * (0.7f + 0.3f * torsoWMul)
+        val shHalf = (if (direction == SIDE) 5f else 7f) * sc * (0.6f + 0.4f * torsoWMul)
 
         fun legRoot(side: Float) = hipX + side * hipHalf * (if (direction == SIDE) 0.5f else 1f)
         fun armRootX(side: Float) = hipX + leanPx + side * shHalf * (if (direction == SIDE) 0.2f else 1f)
@@ -548,10 +829,20 @@ object CharacterArt {
             val ay = fkY(ky, shinAng, shin)
             val pants = if (back) pal.pants2 else pal.pants
             val shoe = if (back) shade(pal.shoe, 0.8f) else pal.shoe
-            g.seg(x0, hipY, kx, ky, 2.15f * sc, 1.8f * sc, pal.line)
-            g.seg(kx, ky, ax, ay, 1.75f * sc, 1.45f * sc, pal.line)
-            g.seg(x0, hipY - 0.3f, kx, ky, 1.7f * sc, 1.4f * sc, pants)
-            g.seg(kx, ky, ax, ay, 1.35f * sc, 1.1f * sc, pants)
+            // 치마 차림은 정면에서 맨다리 (종아리만 피부색)
+            val bare = look.bottom == BOTTOM_SKIRT && direction == FRONT
+            val shinCol = if (bare) (if (back) pal.skin2 else pal.skin) else pants
+            // 관절(FK)은 hipY 에서 시작하지만, 눈에 보이는 허벅지는 몸통 밑단에서
+            // 시작하게 잘라 낸다 — 몸통 위에 그려지는 앞다리가 상체 한가운데서
+            // 튀어나와 보이던 문제 방지.
+            val legTop = hipY + 1.7f * sc
+            val t = if (ky - hipY > 0.001f) ((legTop - hipY) / (ky - hipY)).coerceIn(0f, 0.85f) else 0f
+            val sx = x0 + (kx - x0) * t
+            val sy = hipY + (ky - hipY) * t
+            g.seg(sx, sy, kx, ky, 2.15f * sc * lw, 1.8f * sc * lw, pal.line)
+            g.seg(kx, ky, ax, ay, 1.75f * sc * lw, 1.45f * sc * lw, pal.line)
+            g.seg(sx, sy - 0.3f, kx, ky, 1.7f * sc * lw, 1.4f * sc * lw, pants)
+            g.seg(kx, ky, ax, ay, 1.35f * sc * lw, 1.1f * sc * lw, shinCol)
             if (direction == SIDE) {
                 val pitch = foot * PI.toFloat() / 180f
                 val fl = 3.5f * sc
@@ -587,12 +878,12 @@ object CharacterArt {
             val hy = fkY(ey, foreAng, fore)
             val sleeve = if (back) shade(pal.top2, 0.88f) else pal.top2
             val skin = if (back) pal.skin2 else pal.skin
-            g.seg(x0, y0, ex, ey, 1.85f * sc, 1.5f * sc, pal.line)
-            g.seg(ex, ey, hx, hy, 1.45f * sc, 1.2f * sc, pal.line)
-            g.seg(x0, y0, ex, ey, 1.4f * sc, 1.1f * sc, sleeve)
-            g.seg(ex, ey, hx, hy, 1f * sc, 0.85f * sc, skin)
-            g.circ(hx, hy, 1.25f * sc, pal.line)
-            g.circ(hx, hy, 0.95f * sc, skin)
+            g.seg(x0, y0, ex, ey, 1.85f * sc * lw, 1.5f * sc * lw, pal.line)
+            g.seg(ex, ey, hx, hy, 1.45f * sc * lw, 1.2f * sc * lw, pal.line)
+            g.seg(x0, y0, ex, ey, 1.4f * sc * lw, 1.1f * sc * lw, sleeve)
+            g.seg(ex, ey, hx, hy, 1f * sc * lw, 0.85f * sc * lw, skin)
+            g.circ(hx, hy, 1.25f * sc * lw, pal.line)
+            g.circ(hx, hy, 0.95f * sc * lw, skin)
             if (hd) {
                 // 소매 끝 동그랗게 마감 + 손등 광 — 팔이 막대기처럼 보이지 않게
                 val m = 0.85f
@@ -627,6 +918,19 @@ object CharacterArt {
                 g.rect(tL + 3f, top + 2.4f, tR - 3f, top + 3.7f, 0xFFE8DFC8.toInt())
                 g.rect(tL + 4f, top + 7.6f, tR - 4f, top + 8.9f, 0xFFE8DFC8.toInt())
             }
+            if (look.bottom == BOTTOM_OVERALLS && direction != BACK) {
+                // 멜빵바지 — 가슴판 + 어깨끈 + 놋쇠 단추
+                val mid = (tL + tR) / 2f
+                val bibL = mid - 3.2f
+                val bibR = mid + 3.2f
+                g.rect(bibL + 1f, top - 0.6f, bibL + 2.4f, top + 1.8f, pal.pants)
+                g.rect(bibR - 2.4f, top - 0.6f, bibR - 1f, top + 1.8f, pal.pants)
+                g.rrect(bibL, top + 1.2f, bibR, top + 6.6f, 1f, pal.line)
+                g.rrect(bibL + 0.4f, top + 1.6f, bibR - 0.4f, top + 6.2f, 0.8f, pal.pants)
+                g.circ(bibL + 1.2f, top + 2.7f, 0.55f, 0xFFF2D06B.toInt())
+                g.circ(bibR - 1.2f, top + 2.7f, 0.55f, 0xFFF2D06B.toInt())
+                if (hd) g.rect(bibL + 0.6f, top + 5.4f, bibR - 0.6f, top + 5.8f, HD_SHADE)
+            }
             if (hd) {
                 // 옷 주름 2~3줄 + 어깨 하이라이트 — 4배(128px)에서 비로소 보이는 결
                 val foldX = tL + (tR - tL) * 0.42f
@@ -656,52 +960,9 @@ object CharacterArt {
             }
         }
 
-        // ---- 머리 ------------------------------------------------------------
-        fun drawHead() {
-            val cx = headCx
-            val cy = headCy
-            val tilt = pose.tilt
-            val turn = pose.turn * face
-            g.circ(cx, cy, headR + 0.85f, pal.line)
-            if (direction == BACK) {
-                g.circ(cx, cy, headR, pal.hair)
-                if (hd) {
-                    // 뒤통수 윤기 — 뒷모습도 머리카락으로 보이게
-                    g.oval(cx - headR * 0.68f, cy - headR * 0.72f, cx + headR * 0.68f, cy - headR * 0.05f, HD_HILITE)
-                }
-                g.rect(cx - headR * 0.85f, cy + 1.9f, cx + headR * 0.85f, cy + 3.7f, pal.hair2)
-                g.rect(
-                    cx - headR * 0.6f + pose.hairSway, cy - headR - 0.4f,
-                    cx + headR * 0.6f + pose.hairSway, cy - headR + 1.1f, pal.hair2
-                )
-                if (look.longHair) g.rrect(cx - 4.2f, cy + 2f, cx + 4.2f, cy + 8.4f, 2.4f, pal.hair2)
-                return
-            }
-
-            g.circ(cx, cy, headR, pal.skin)
-            val sway = pose.hairSway
-            val capBot = cy - 0.5f
-            if (hd) {
-                // 턱·목 그림자 — 머리가 얼굴 판때기처럼 붙지 않게 살짝 얹는다
-                g.oval(cx - headR * 0.72f, cy + headR * 0.45f, cx + headR * 0.72f, cy + headR + 1.1f, HD_CHIN)
-            }
-            g.oval(
-                cx - headR - 0.15f + sway * 0.18f, cy - headR - 0.35f,
-                cx + headR + 0.15f + sway * 0.18f, capBot, pal.hair
-            )
-            if (direction == SIDE) {
-                g.rrect(cx - headR - 0.2f, cy - 2.6f, cx - headR + 2.7f, cy + 5f, 1.2f, pal.hair)
-                g.rect(cx - headR + 1.2f, cy + 1.4f, cx - headR + 2.7f, cy + 5f + sway * 0.35f, pal.hair2)
-                g.poly(
-                    pal.hair,
-                    cx + 0.4f, capBot - 2.2f,
-                    cx + headR + 0.9f + sway, capBot - 0.4f,
-                    cx + headR - 1.8f, capBot + 1.3f,
-                    cx + 0.6f, capBot + 0.4f
-                )
-            } else {
-                g.rrect(cx - headR * 0.98f, cy - 2.6f, cx - headR * 0.44f, cy + 4.4f, 0.9f, pal.hair)
-                g.rrect(cx + headR * 0.44f, cy - 2.6f, cx + headR * 0.98f, cy + 4.4f, 0.9f, pal.hair)
+        // ---- 앞모습 헤어스타일 — 사람마다 실루엣이 다르다 ---------------------------
+        fun drawFrontHair(cx: Float, cy: Float, sway: Float, capBot: Float, hs: Int) {
+            fun bangs() {
                 g.poly(
                     pal.hair,
                     cx - 4.2f + sway, capBot - 1.4f,
@@ -714,15 +975,206 @@ object CharacterArt {
                     cx + 2.6f + sway * 1.4f, capBot + 1.4f,
                     cx + 4.3f + sway, capBot - 1.4f
                 )
-                if (look.longHair) {
-                    g.rrect(cx - headR - 0.7f, cy - 1.2f, cx - headR + 1.5f, cy + 7.4f + sway * 0.3f, 1.1f, pal.hair2)
-                    g.rrect(cx + headR - 1.5f, cy - 1.2f, cx + headR + 0.7f, cy + 7.4f - sway * 0.3f, 1.1f, pal.hair2)
-                    if (hd) {
-                        // 긴 머리카락 결 — 숱이 갈라지는 느낌
-                        g.rect(cx - headR - 0.2f, cy + 0.4f, cx - headR + 0.1f, cy + 6.6f + sway * 0.3f, HD_HILITE)
-                        g.rect(cx + headR - 0.1f, cy + 0.4f, cx + headR + 0.2f, cy + 6.6f - sway * 0.3f, HD_HILITE)
-                    }
+            }
+            fun sideLocks(len: Float = 4.4f) {
+                g.rrect(cx - headR * 0.98f, cy - 2.6f, cx - headR * 0.44f, cy + len, 0.9f, pal.hair)
+                g.rrect(cx + headR * 0.44f, cy - 2.6f, cx + headR * 0.98f, cy + len, 0.9f, pal.hair)
+            }
+            fun topCap(bot: Float = capBot) {
+                g.oval(
+                    cx - headR - 0.15f + sway * 0.18f, cy - headR - 0.35f,
+                    cx + headR + 0.15f + sway * 0.18f, bot, pal.hair
+                )
+            }
+            fun longStrands() {
+                g.rrect(cx - headR - 0.7f, cy - 1.2f, cx - headR + 1.5f, cy + 7.4f + sway * 0.3f, 1.1f, pal.hair2)
+                g.rrect(cx + headR - 1.5f, cy - 1.2f, cx + headR + 0.7f, cy + 7.4f - sway * 0.3f, 1.1f, pal.hair2)
+                if (hd) {
+                    g.rect(cx - headR - 0.2f, cy + 0.4f, cx - headR + 0.1f, cy + 6.6f + sway * 0.3f, HD_HILITE)
+                    g.rect(cx + headR - 0.1f, cy + 0.4f, cx + headR + 0.2f, cy + 6.6f - sway * 0.3f, HD_HILITE)
                 }
+            }
+            when (hs) {
+                HAIR_BUZZ -> {
+                    // 스포츠형 — 윗머리만 얇게, 관자놀이는 피부
+                    g.oval(cx - headR * 0.80f, cy - headR - 0.3f, cx + headR * 0.80f, capBot - 2.2f, pal.hair)
+                }
+                HAIR_BOB -> {
+                    // 턱선까지 둥글게 내려오는 단발
+                    topCap()
+                    g.rrect(cx - headR - 0.7f, cy - 2.2f, cx - headR + 2.3f, cy + 5.8f, 2f, pal.hair)
+                    g.rrect(cx + headR - 2.3f, cy - 2.2f, cx + headR + 0.7f, cy + 5.8f, 2f, pal.hair)
+                    g.rect(cx - 4.4f + sway * 0.5f, capBot - 1.8f, cx + 4.4f + sway * 0.5f, capBot + 0.7f, pal.hair)
+                }
+                HAIR_LONG -> {
+                    topCap(); sideLocks(); bangs(); longStrands()
+                }
+                HAIR_PONY -> {
+                    topCap(); sideLocks()
+                    g.poly(
+                        pal.hair,
+                        cx - 4.2f + sway, capBot - 1.4f,
+                        cx + 4.3f + sway, capBot - 1.4f,
+                        cx + 0.8f + sway, capBot + 0.9f,
+                        cx - 0.6f + sway, capBot + 0.9f
+                    )
+                    // 오른쪽으로 넘긴 포니테일 — 걸음에 흔들린다
+                    val px = cx + headR - 0.4f + sway * 0.9f
+                    g.seg(cx + headR - 1.6f, cy - 2f, px + 0.6f, cy + 6.4f + sway * 0.5f, 1.7f, 1f, pal.hair2)
+                    g.circ(cx + headR - 1.6f, cy - 2f, 1f, pal.blush)
+                }
+                HAIR_BUN -> {
+                    topCap(capBot - 0.6f); sideLocks(); bangs()
+                    // 정수리 동그란 상투
+                    g.circ(cx + sway * 0.3f, cy - headR - 1.6f, 2.6f, pal.line)
+                    g.circ(cx + sway * 0.3f, cy - headR - 1.6f, 1.9f, pal.hair)
+                    g.circ(cx - 0.5f + sway * 0.3f, cy - headR - 2.2f, 0.7f, pal.hair2)
+                }
+                HAIR_PIGTAIL -> {
+                    topCap(); bangs()
+                    // 양갈래 — 좌우로 삐죽 + 리본 끈
+                    val lift = 0.4f * sway
+                    g.circ(cx - headR - 1.2f, cy - 0.6f + lift, 2.2f, pal.line)
+                    g.circ(cx - headR - 1.2f, cy - 0.6f + lift, 1.6f, pal.hair)
+                    g.circ(cx + headR + 1.2f, cy - 0.6f - lift, 2.2f, pal.line)
+                    g.circ(cx + headR + 1.2f, cy - 0.6f - lift, 1.6f, pal.hair)
+                    g.circ(cx - headR + 0.4f, cy - 1.4f, 0.9f, pal.blush)
+                    g.circ(cx + headR - 0.4f, cy - 1.4f, 0.9f, pal.blush)
+                }
+                HAIR_BALD -> {
+                    // 민머리 — 정수리 광 + 옆머리만
+                    if (hd) g.oval(cx - headR * 0.5f, cy - headR * 0.7f, cx + headR * 0.5f, cy - headR * 0.1f, HD_HILITE)
+                    g.rrect(cx - headR * 0.98f, cy + 0.4f, cx - headR * 0.44f, cy + 4.4f, 0.9f, pal.hair)
+                    g.rrect(cx + headR * 0.44f, cy + 0.4f, cx + headR * 0.98f, cy + 4.4f, 0.9f, pal.hair)
+                }
+                HAIR_UPDO -> {
+                    // 쪽머리 — 위로 올려 묶음 (앞머리 없음, 이마 훤함)
+                    g.oval(cx - headR - 0.1f, cy - headR - 0.3f, cx + headR + 0.1f, capBot - 1.8f, pal.hair)
+                    g.circ(cx, cy - headR - 1.2f, 3f, pal.line)
+                    g.circ(cx, cy - headR - 1.2f, 2.3f, pal.hair2)
+                    g.rect(cx - 1.2f, cy - headR - 2.2f, cx + 1.2f, cy - headR - 1.6f, pal.hair)
+                    g.rrect(cx - headR * 0.95f, cy - 1.6f, cx - headR * 0.5f, cy + 3.4f, 0.9f, pal.hair)
+                    g.rrect(cx + headR * 0.5f, cy - 1.6f, cx + headR * 0.95f, cy + 3.4f, 0.9f, pal.hair)
+                }
+                HAIR_PERM -> {
+                    // 파마 — 동그란 곱슬 뭉치
+                    val oxs = floatArrayOf(-0.72f, -0.30f, 0.18f, 0.62f, -0.88f, 0.88f, -0.80f, 0.80f)
+                    val oys = floatArrayOf(-0.72f, -0.92f, -0.90f, -0.68f, -0.28f, -0.28f, 0.22f, 0.22f)
+                    for (i in oxs.indices) {
+                        g.circ(cx + headR * oxs[i] + sway * 0.2f, cy + headR * oys[i], 2.3f, pal.line)
+                        g.circ(cx + headR * oxs[i] + sway * 0.2f, cy + headR * oys[i], 1.7f, pal.hair)
+                    }
+                    g.oval(cx - headR * 0.9f, cy - headR * 0.9f, cx + headR * 0.9f, capBot - 0.6f, pal.hair)
+                }
+                HAIR_SWEEP -> {
+                    // 옆 가르마 — 이마를 가로지르는 앞머리
+                    topCap(capBot - 0.4f)
+                    sideLocks()
+                    g.poly(
+                        pal.hair,
+                        cx - headR * 0.7f + sway * 0.4f, capBot - 2.6f,
+                        cx + headR * 0.75f + sway * 0.6f, capBot - 0.6f,
+                        cx + headR * 0.5f + sway * 0.6f, capBot + 1.2f,
+                        cx - headR * 0.55f + sway * 0.4f, capBot - 0.8f
+                    )
+                }
+                HAIR_BRAID -> {
+                    topCap(); sideLocks(); bangs()
+                    // 왼쪽은 길게, 오른쪽은 땋아 앞으로 넘김
+                    g.rrect(cx - headR - 0.7f, cy - 1.2f, cx - headR + 1.5f, cy + 7.4f + sway * 0.3f, 1.1f, pal.hair2)
+                    var brY = cy + 2.4f
+                    val bx = cx + headR - 0.8f + sway * 0.4f
+                    repeat(3) {
+                        g.rrect(bx - 1.6f, brY, bx + 1.6f, brY + 2.5f, 1f, if (it % 2 == 0) pal.hair else pal.hair2)
+                        brY += 2.3f
+                    }
+                    g.circ(bx, brY + 0.5f, 1f, pal.blush)
+                }
+                else -> {
+                    // SHORT — 예전과 동일한 기본형
+                    topCap(); sideLocks(); bangs()
+                }
+            }
+        }
+
+        // ---- 옆모습 헤어 — 앞모습 특징만 살짝 얹는다 (NPC는 정면만 쓰므로 간략히) ----
+        fun drawSideHair(cx: Float, cy: Float, sway: Float, capBot: Float, hs: Int) {
+            if (hs == HAIR_BALD) {
+                g.rrect(cx - headR - 0.2f, cy + 1.4f, cx - headR + 2.7f, cy + 5f, 1.2f, pal.hair)
+                return
+            }
+            if (hs == HAIR_BUZZ) {
+                g.oval(cx - headR * 0.8f, cy - headR - 0.3f, cx + headR * 0.8f, capBot - 2f, pal.hair)
+                return
+            }
+            g.oval(
+                cx - headR - 0.15f + sway * 0.18f, cy - headR - 0.35f,
+                cx + headR + 0.15f + sway * 0.18f, capBot, pal.hair
+            )
+            val backLen = if (hs == HAIR_LONG || hs == HAIR_BRAID) 7.4f else 5f
+            g.rrect(cx - headR - 0.2f, cy - 2.6f, cx - headR + 2.7f, cy + backLen, 1.2f, pal.hair)
+            g.rect(cx - headR + 1.2f, cy + 1.4f, cx - headR + 2.7f, cy + backLen + sway * 0.35f, pal.hair2)
+            g.poly(
+                pal.hair,
+                cx + 0.4f, capBot - 2.2f,
+                cx + headR + 0.9f + sway, capBot - 0.4f,
+                cx + headR - 1.8f, capBot + 1.3f,
+                cx + 0.6f, capBot + 0.4f
+            )
+            if (hs == HAIR_BUN || hs == HAIR_UPDO) {
+                g.circ(cx - 1f, cy - headR - 1.4f, 2.2f, pal.line)
+                g.circ(cx - 1f, cy - headR - 1.4f, 1.6f, if (hs == HAIR_UPDO) pal.hair2 else pal.hair)
+            }
+            if (hs == HAIR_PONY) {
+                g.seg(cx - headR + 0.4f, cy - 2f, cx - headR - 1.6f + sway * 0.8f, cy + 5.6f, 1.6f, 0.9f, pal.hair2)
+            }
+        }
+
+        // ---- 머리 ------------------------------------------------------------
+        fun drawHead() {
+            val cx = headCx
+            val cy = headCy
+            val tilt = pose.tilt
+            val turn = pose.turn * face
+            g.circ(cx, cy, headR + 0.85f, pal.line)
+            if (direction == BACK) {
+                val hs = look.hair
+                g.circ(cx, cy, headR, if (hs == HAIR_BALD) pal.skin else pal.hair)
+                if (hd) {
+                    // 뒤통수 윤기 — 뒷모습도 머리카락으로 보이게
+                    g.oval(cx - headR * 0.68f, cy - headR * 0.72f, cx + headR * 0.68f, cy - headR * 0.05f, HD_HILITE)
+                }
+                if (hs != HAIR_BALD) {
+                    g.rect(cx - headR * 0.85f, cy + 1.9f, cx + headR * 0.85f, cy + 3.7f, pal.hair2)
+                    g.rect(
+                        cx - headR * 0.6f + pose.hairSway, cy - headR - 0.4f,
+                        cx + headR * 0.6f + pose.hairSway, cy - headR + 1.1f, pal.hair2
+                    )
+                }
+                if (hs == HAIR_LONG || hs == HAIR_BRAID || look.longHair) {
+                    g.rrect(cx - 4.2f, cy + 2f, cx + 4.2f, cy + 8.4f, 2.4f, pal.hair2)
+                }
+                if (hs == HAIR_BUN || hs == HAIR_UPDO) {
+                    g.circ(cx, cy - headR - 1f, 2.6f, pal.line)
+                    g.circ(cx, cy - headR - 1f, 1.9f, if (hs == HAIR_UPDO) pal.hair2 else pal.hair)
+                }
+                if (hs == HAIR_PONY) {
+                    g.seg(cx + 1f, cy - headR + 1f, cx + 2.6f + pose.hairSway, cy + 5.6f, 1.7f, 1f, pal.hair2)
+                }
+                return
+            }
+
+            g.circ(cx, cy, headR, pal.skin)
+            val sway = pose.hairSway
+            val capBot = cy - 0.5f
+            if (hd) {
+                // 턱·목 그림자 — 머리가 얼굴 판때기처럼 붙지 않게 살짝 얹는다
+                g.oval(cx - headR * 0.72f, cy + headR * 0.45f, cx + headR * 0.72f, cy + headR + 1.1f, HD_CHIN)
+            }
+            // 수건 두건은 머리카락을 통째로 감싸므로 헤어를 그리지 않는다
+            if (look.hat != HAT_HEADSCARF) {
+                if (direction == SIDE) drawSideHair(cx, cy, sway, capBot, look.hair)
+                else drawFrontHair(cx, cy, sway, capBot, look.hair)
             }
             if (hd) {
                 // 앞머리 윤기 한 줄 — 앞모습·옆모습 모두
@@ -768,6 +1220,54 @@ object CharacterArt {
                 if (pose.mouth > 0.2f) {
                     val mw = 0.7f + pose.mouth * 0.7f
                     g.rrect(ex - mw, ey + 2.2f, ex + mw, ey + 3f + pose.mouth * 1.1f, 0.5f, 0xFF7A4A3A.toInt())
+                }
+            }
+
+            // 수염 — 입 위에 얹는다 (입은 수염 뒤로 숨는다)
+            if (direction != BACK) {
+                when (look.beard) {
+                    BEARD_MUSTACHE -> {
+                        if (direction == SIDE) {
+                            g.rect(ex + 3.4f, ey + 1.1f, ex + 6f, ey + 2.1f, pal.hair2)
+                        } else {
+                            g.rrect(ex - 2.6f, ey + 1.8f, ex - 0.2f, ey + 2.9f, 0.5f, pal.hair2)
+                            g.rrect(ex + 0.2f, ey + 1.8f, ex + 2.6f, ey + 2.9f, 0.5f, pal.hair2)
+                        }
+                    }
+                    BEARD_FULL -> {
+                        if (direction == SIDE) {
+                            g.rrect(ex + 0.4f, ey + 1.6f, ex + 6.2f, ey + 6.4f, 1.6f, pal.hair)
+                            g.rect(ex + 3.4f, ey + 1.1f, ex + 6f, ey + 2.1f, pal.hair2)
+                        } else {
+                            g.rrect(ex - headR * 0.72f, ey + 1.9f, ex + headR * 0.72f, ey + 6.6f, 2.6f, pal.hair)
+                            g.rrect(ex - headR * 0.5f, ey + 2.6f, ex + headR * 0.5f, ey + 5.6f, 2f, pal.hair2)
+                            g.rrect(ex - 2.6f, ey + 1.8f, ex + 2.6f, ey + 2.9f, 0.5f, pal.hair2)
+                        }
+                    }
+                    BEARD_GOATEE -> {
+                        if (direction == SIDE) {
+                            g.rect(ex + 3.8f, ey + 2.6f, ex + 5.6f, ey + 4.6f, pal.hair2)
+                        } else {
+                            g.rrect(ex - 1.6f, ey + 3.2f, ex + 1.6f, ey + 5.4f, 0.8f, pal.hair2)
+                        }
+                    }
+                }
+            }
+            if (direction == FRONT) {
+                if (look.wrinkles) {
+                    // 나이테 — 이마 주름 2줄 + 눈가 주름
+                    g.rect(ex - 3.4f, ey - 3.6f, ex + 3.6f, ey - 3.2f, pal.skin2)
+                    g.rect(ex - 2.8f, ey - 4.6f, ex + 3f, ey - 4.2f, pal.skin2)
+                    g.rect(ex - 4.4f, ey - 0.4f, ex - 3.4f, ey, pal.skin2)
+                    g.rect(ex + 3.6f, ey - 0.4f, ex + 4.6f, ey, pal.skin2)
+                }
+                if (look.freckles) {
+                    // 볼 주근깨
+                    val fk = 0xFFC98A5E.toInt()
+                    g.rect(ex - 4.1f, ey + 0.6f, ex - 3.5f, ey + 1.2f, fk)
+                    g.rect(ex - 3.2f, ey + 1.1f, ex - 2.6f, ey + 1.7f, fk)
+                    g.rect(ex + 2.8f, ey + 1.1f, ex + 3.4f, ey + 1.7f, fk)
+                    g.rect(ex + 3.7f, ey + 0.6f, ex + 4.3f, ey + 1.2f, fk)
                 }
             }
 
@@ -908,6 +1408,301 @@ object CharacterArt {
             g.rect(hx - 1.2f, shoulderY - 0.6f, hx + 2.2f, shoulderY + 1f, 0xFF6B431F.toInt())
         }
 
+        // ---- 치마 — 허리에서 무릎까지 (정면만, 옆모습은 바지) ----------------------
+        fun drawSkirt() {
+            if (look.bottom != BOTTOM_SKIRT || direction != FRONT) return
+            val waistY = hipY - 1.2f
+            val hemY = hipY + 5.6f + pose.clothSway * 0.3f
+            val cx = (tL + tR) / 2f
+            val hwTop = (tR - tL) * 0.32f
+            val hwBot = (tR - tL) * 0.52f + 1.2f
+            g.poly(
+                pal.line,
+                cx - hwTop - 0.7f, waistY - 0.5f, cx + hwTop + 0.7f, waistY - 0.5f,
+                cx + hwBot + 0.7f, hemY + 0.5f, cx - hwBot - 0.7f, hemY + 0.5f
+            )
+            g.poly(
+                pal.pants,
+                cx - hwTop, waistY, cx + hwTop, waistY,
+                cx + hwBot, hemY, cx - hwBot, hemY
+            )
+            g.poly(
+                pal.pants2,
+                cx + hwTop * 0.4f, waistY + 0.6f, cx + hwTop, waistY + 0.6f,
+                cx + hwBot, hemY - 0.4f, cx + hwBot * 0.55f, hemY - 0.4f
+            )
+            if (hd) {
+                g.rect(cx - hwBot + 1f, hemY - 0.9f, cx + hwBot - 1f, hemY - 0.4f, HD_SHADE)
+                g.rect(cx - hwTop + 0.4f, waistY + 0.4f, cx + hwTop - 0.4f, waistY + 0.8f, HD_HILITE)
+            }
+        }
+
+        // 손 위치 — 소품을 손에 쥐여 주려고 팔 FK 를 그대로 다시 계산한다
+        fun handPos(side: Float): Pair<Float, Float> {
+            val x0 = armRootX(side)
+            val y0 = armRootY(side)
+            val d = depth * face
+            val upper = 3.6f * sc
+            val fore = 3.4f * sc
+            val ang = if (side > 0) pose.armR else pose.armL
+            val elbow = if (side > 0) pose.elbowR else pose.elbowL
+            val ex = fkX(x0, ang, upper, d)
+            val ey = fkY(y0, ang, upper)
+            val foreAng = ang + elbow
+            return fkX(ex, foreAng, fore, d) to fkY(ey, foreAng, fore)
+        }
+
+        // ---- 몸에 걸치는 소품 — 쌍안경·카메라·노·뜰채 (팔보다 먼저) ---------------
+        fun drawWornProps() {
+            if (direction != FRONT) return
+            val pc = if (look.propColor != 0) look.propColor else pal.pack
+            when (look.prop) {
+                PROP_BINOCS, PROP_CAMERA -> {
+                    // 목걸이 — 끈 + 가슴팍 장비
+                    val ny = shoulderY + 0.6f
+                    val by = shoulderY + 4.6f + pose.packBob * 0.4f
+                    val strap = shade(pc, 0.6f)
+                    g.seg(hipX - 3.4f, ny, hipX - 1.6f, by - 1f, 0.5f, 0.5f, strap)
+                    g.seg(hipX + 3.4f, ny, hipX + 1.6f, by - 1f, 0.5f, 0.5f, strap)
+                    if (look.prop == PROP_BINOCS) {
+                        g.rrect(hipX - 2.8f, by - 1.4f, hipX - 0.2f, by + 1.2f, 0.7f, pal.line)
+                        g.rrect(hipX + 0.2f, by - 1.4f, hipX + 2.8f, by + 1.2f, 0.7f, pal.line)
+                        g.rrect(hipX - 2.4f, by - 1f, hipX - 0.6f, by + 0.8f, 0.6f, 0xFF3A3F49.toInt())
+                        g.rrect(hipX + 0.6f, by - 1f, hipX + 2.4f, by + 0.8f, 0.6f, 0xFF3A3F49.toInt())
+                        g.circ(hipX - 1.5f, by - 0.1f, 0.55f, 0xFFBFE6FF.toInt())
+                        g.circ(hipX + 1.5f, by - 0.1f, 0.55f, 0xFFBFE6FF.toInt())
+                    } else {
+                        g.rrect(hipX - 2.9f, by - 1.5f, hipX + 2.9f, by + 1.3f, 0.8f, pal.line)
+                        g.rrect(hipX - 2.5f, by - 1.1f, hipX + 2.5f, by + 0.9f, 0.6f, 0xFF3A3F49.toInt())
+                        g.circ(hipX + 0.6f, by - 0.1f, 1.5f, pal.line)
+                        g.circ(hipX + 0.6f, by - 0.1f, 1.05f, 0xFF2B3038.toInt())
+                        g.circ(hipX + 0.9f, by - 0.4f, 0.45f, 0xFFBFE6FF.toInt())
+                    }
+                }
+                PROP_PADDLE -> {
+                    // 어깨에 멘 노 — 오른쪽 위로 길게
+                    val bx = shoulderX + 4.6f
+                    val by = shoulderY + 1f
+                    val tx = bx + 5.5f + pose.clothSway * 0.7f
+                    val ty = by - 13.5f
+                    g.seg(bx - 1f, by + 3f, tx, ty + 3f, 0.8f, 0.7f, 0xFF8A5A33.toInt())
+                    g.rrect(tx - 1.7f, ty - 1.2f, tx + 1.7f, ty + 3.4f, 1.2f, pal.line)
+                    g.rrect(tx - 1.2f, ty - 0.7f, tx + 1.2f, ty + 2.9f, 1f, pc)
+                }
+                PROP_NET -> {
+                    // 어깨에 멘 뜰채 — 왼쪽에 둥근 망
+                    val nx = shoulderX - 7.6f
+                    val ny = shoulderY + 2.4f
+                    g.seg(shoulderX - 3f, shoulderY, nx + 1.6f, ny - 1.6f, 0.8f, 0.7f, 0xFF8A5A33.toInt())
+                    g.circ(nx, ny, 3.4f, pal.line)
+                    g.circ(nx, ny, 2.8f, 0xFFDCE6EC.toInt())
+                    g.rect(nx - 2.6f, ny - 0.3f, nx + 2.6f, ny + 0.3f, 0xFF9AA3AD.toInt())
+                    g.rect(nx - 0.3f, ny - 2.6f, nx + 0.3f, ny + 2.6f, 0xFF9AA3AD.toInt())
+                    g.circ(nx, ny, 1.2f, 0xFFDCE6EC.toInt())
+                }
+            }
+        }
+
+        // ---- 손에 든 소품 — 낚싯대·바구니·책·붓·찻잔 (팔보다 나중에) ---------------
+        fun drawHeldProps() {
+            if (direction != FRONT) return
+            val pc = if (look.propColor != 0) look.propColor else pal.pack
+            when (look.prop) {
+                PROP_ROD -> {
+                    val (hx, hy) = handPos(1f)
+                    // 오른손에 쥔 낚싯대 — 위로 길게 + 낚싯줄
+                    val tipX = hx + 6.5f + pose.clothSway * 0.8f
+                    val tipY = hy - 15f
+                    g.seg(hx, hy + 1.5f, tipX, tipY, 0.7f, 0.35f, 0xFF8A5A33.toInt())
+                    g.seg(tipX, tipY, tipX + 1.2f, tipY + 4.5f, 0.25f, 0.2f, 0xFFDCE6EC.toInt())
+                    g.circ(hx + 0.9f, hy - 1.2f, 0.9f, 0xFF9AA0AD.toInt())
+                }
+                PROP_BASKET -> {
+                    val (hx, hy) = handPos(-1f)
+                    // 왼손에 든 바구니 — 손 아래로 매달린다
+                    val bw = 3.4f
+                    val top = hy + 0.6f
+                    g.poly(
+                        0xFF8A5A33.toInt(),
+                        hx - bw - 0.4f, top, hx + bw + 0.4f, top,
+                        hx + bw - 0.6f, top + 4.6f, hx - bw + 0.6f, top + 4.6f
+                    )
+                    g.poly(
+                        pc,
+                        hx - bw, top + 0.4f, hx + bw, top + 0.4f,
+                        hx + bw - 0.8f, top + 4.2f, hx - bw + 0.8f, top + 4.2f
+                    )
+                    g.rect(hx - bw + 0.4f, top + 1.8f, hx + bw - 0.4f, top + 2.4f, 0xFFB08840.toInt())
+                    g.seg(hx - bw, top + 0.4f, hx, top - 2.2f, 0.5f, 0.5f, 0xFF8A5A33.toInt())
+                    g.seg(hx + bw, top + 0.4f, hx, top - 2.2f, 0.5f, 0.5f, 0xFF8A5A33.toInt())
+                }
+                PROP_BOOK -> {
+                    val (lx, ly) = handPos(-1f)
+                    val (rx, ry) = handPos(1f)
+                    val bx = (lx + rx) / 2f
+                    val by = (ly + ry) / 2f - 0.6f
+                    // 두 손에 펼쳐 든 책
+                    g.rrect(bx - 3.4f, by - 1.8f, bx + 3.4f, by + 1.8f, 0.7f, pal.line)
+                    g.rrect(bx - 3f, by - 1.4f, bx - 0.2f, by + 1.4f, 0.5f, 0xFFFDF6E8.toInt())
+                    g.rrect(bx + 0.2f, by - 1.4f, bx + 3f, by + 1.4f, 0.5f, 0xFFFDF6E8.toInt())
+                    g.rect(bx - 2.4f, by - 0.6f, bx - 0.8f, by, shade(pc, 1f))
+                    g.rect(bx + 0.8f, by - 0.6f, bx + 2.4f, by, shade(pc, 1f))
+                }
+                PROP_BRUSH -> {
+                    val (lx, ly) = handPos(-1f)
+                    val (rx, ry) = handPos(1f)
+                    // 왼손 팔레트 + 오른손 붓
+                    g.circ(lx, ly, 2.4f, pal.line)
+                    g.circ(lx, ly, 1.9f, 0xFFF3EDE2.toInt())
+                    g.circ(lx - 0.7f, ly - 0.5f, 0.55f, 0xFFE2574C.toInt())
+                    g.circ(lx + 0.7f, ly - 0.4f, 0.55f, 0xFF3F6FA0.toInt())
+                    g.circ(lx, ly + 0.7f, 0.55f, 0xFFF2B63C.toInt())
+                    g.seg(rx, ry, rx + 1.8f, ry - 4.2f, 0.55f, 0.4f, 0xFFC9A05C.toInt())
+                    g.circ(rx + 1.9f, ry - 4.5f, 0.8f, 0xFFE2574C.toInt())
+                }
+                PROP_CUP -> {
+                    val (hx, hy) = handPos(1f)
+                    // 오른손 찻잔 + 모락모락 김
+                    g.rrect(hx - 1.4f, hy - 1.6f, hx + 1.4f, hy + 0.8f, 0.5f, pal.line)
+                    g.rrect(hx - 1f, hy - 1.2f, hx + 1f, hy + 0.4f, 0.4f, 0xFFFDF6E8.toInt())
+                    g.rect(hx - 1f, hy - 1.2f, hx + 1f, hy - 0.6f, 0xFF8A5A33.toInt())
+                    val sw = pose.breath * 0.5f
+                    g.seg(hx - 0.3f + sw, hy - 1.8f, hx + 0.2f - sw, hy - 3.4f, 0.3f, 0.2f, 0xAAFFFFFF.toInt())
+                }
+            }
+        }
+
+        // ---- NPC 모자 — 탐조가 장비 모자와 별개 실루엣 8종 --------------------------
+        fun drawHat() {
+            if (look.hat == HAT_NONE || direction == BACK) return
+            val cx = headCx
+            val cy = headCy
+            val hc = if (look.hatColor != 0) look.hatColor else pal.top2
+            val hd2 = shade(hc, 0.72f)
+            val tilt = pose.tilt
+            val cw = headR + 0.6f
+            when (look.hat) {
+                HAT_CAP -> {
+                    val top = cy - headR - 2f
+                    val bot = cy - headR * 0.18f
+                    g.rrect(cx - cw - 0.5f + tilt * 0.12f, top - 0.5f, cx + cw + 0.5f + tilt * 0.12f, bot + 0.4f, 3.4f, pal.line)
+                    g.rrect(cx - cw + tilt * 0.12f, top, cx + cw + tilt * 0.12f, bot, 3f, hc)
+                    g.rect(cx - cw + 0.7f + tilt * 0.12f, top + 0.5f, cx + cw - 0.7f + tilt * 0.12f, top + 2.4f, hd2)
+                    if (direction == SIDE) {
+                        g.rect(cx + 2.2f, bot - 1.5f, cx + cw + 2.6f, bot - 0.1f, pal.line)
+                        g.rect(cx + 2.2f, bot - 1.4f, cx + cw + 2.3f, bot - 0.4f, hd2)
+                    } else {
+                        g.rect(cx - cw + 0.5f, bot - 1.1f, cx + cw - 0.5f, bot + 0.6f, pal.line)
+                        g.rect(cx - cw + 0.9f, bot - 1f, cx + cw - 0.9f, bot + 0.3f, hd2)
+                    }
+                }
+                HAT_BUCKET -> {
+                    // 버킷햇 — 둥근 통 + 중간 챙
+                    val top = cy - headR - 2.6f
+                    val bot = cy - headR * 0.30f
+                    g.rrect(cx - cw + 0.6f, top, cx + cw - 0.6f, bot, 2.6f, pal.line)
+                    g.rrect(cx - cw + 1.2f, top + 0.6f, cx + cw - 1.2f, bot, 2.2f, hc)
+                    g.rect(cx - cw + 1.2f, bot - 2.6f, cx + cw - 1.2f, bot - 1.6f, hd2)
+                    if (direction == SIDE) {
+                        g.rrect(cx - cw - 1.2f, bot - 1.2f, cx + cw + 1.6f, bot + 0.7f, 0.9f, pal.line)
+                        g.rrect(cx - cw - 0.8f, bot - 1.1f, cx + cw + 1.2f, bot + 0.4f, 0.8f, hc)
+                    } else {
+                        g.rrect(cx - cw - 2.2f, bot - 1.2f, cx + cw + 2.2f, bot + 0.7f, 1f, pal.line)
+                        g.rrect(cx - cw - 1.8f, bot - 1.1f, cx + cw + 1.8f, bot + 0.4f, 0.9f, hc)
+                    }
+                }
+                HAT_STRAW -> {
+                    // 밀짚모자 — 납작한 넓은 챙 + 낮은 머리 + 리본 끈
+                    val bot = cy - headR * 0.35f
+                    g.rrect(cx - cw + 1.4f, bot - 4.4f, cx + cw - 1.4f, bot - 0.6f, 2f, pal.line)
+                    g.rrect(cx - cw + 2f, bot - 3.8f, cx + cw - 2f, bot - 0.6f, 1.8f, hc)
+                    g.rect(cx - cw + 2f, bot - 2f, cx + cw - 2f, bot - 1.2f, pal.blush)
+                    if (direction == SIDE) {
+                        g.rrect(cx - cw - 2.6f, bot - 1f, cx + cw + 2.8f, bot + 0.8f, 0.8f, pal.line)
+                        g.rrect(cx - cw - 2.2f, bot - 0.9f, cx + cw + 2.4f, bot + 0.5f, 0.7f, hc)
+                    } else {
+                        g.rrect(cx - cw - 3.4f, bot - 1f, cx + cw + 3.4f, bot + 0.8f, 0.9f, pal.line)
+                        g.rrect(cx - cw - 3f, bot - 0.9f, cx + cw + 3f, bot + 0.5f, 0.8f, hc)
+                    }
+                }
+                HAT_BEANIE -> {
+                    // 털모자 — 접은 단 + 방울
+                    val bot = cy - headR * 0.25f
+                    g.rrect(cx - cw + 0.2f, bot - 6.4f, cx + cw - 0.2f, bot - 0.4f, 3f, pal.line)
+                    g.rrect(cx - cw + 0.8f, bot - 5.8f, cx + cw - 0.8f, bot - 0.4f, 2.6f, hc)
+                    g.rect(cx - cw + 0.8f, bot - 2.6f, cx + cw - 0.8f, bot - 0.4f, hd2)
+                    g.circ(cx + pose.hairSway * 0.4f, bot - 7f, 1.6f, pal.line)
+                    g.circ(cx + pose.hairSway * 0.4f, bot - 7f, 1.1f, 0xFFFDF6E8.toInt())
+                    if (direction == FRONT) {
+                        g.rect(cx - 2f, bot - 5.2f, cx - 1.2f, bot - 2.8f, hd2)
+                        g.rect(cx + 1.2f, bot - 5.2f, cx + 2f, bot - 2.8f, hd2)
+                    }
+                }
+                HAT_BANDANA -> {
+                    // 반다나 — 삼각 두건 + 옆 매듭 + 땡땡이
+                    g.poly(
+                        hc,
+                        cx - cw + 0.4f, cy - headR * 0.2f,
+                        cx, cy - headR - 3.4f,
+                        cx + cw - 0.4f, cy - headR * 0.2f,
+                        cx, cy - headR * 0.5f
+                    )
+                    g.rrect(cx - cw + 0.2f, cy - headR * 0.45f, cx + cw - 0.2f, cy - headR * 0.2f + 1.2f, 0.8f, hd2)
+                    g.circ(cx + cw - 0.2f, cy - headR * 0.3f + 0.6f, 1.2f, hd2)
+                    g.seg(cx + cw - 0.2f, cy - headR * 0.3f + 1.2f, cx + cw + 1.2f + pose.hairSway * 0.5f, cy - headR * 0.3f + 3f, 0.8f, 0.5f, hd2)
+                    if (direction == FRONT) {
+                        g.circ(cx - 1.6f, cy - headR - 0.6f, 0.7f, 0xFFFDF6E8.toInt())
+                        g.circ(cx + 1.4f, cy - headR - 1.4f, 0.7f, 0xFFFDF6E8.toInt())
+                    }
+                }
+                HAT_HEADSCARF -> {
+                    // 수건 — 얼굴만 내놓고 머리를 감싼다 (헤어는 그리지 않음)
+                    g.oval(cx - headR - 0.9f, cy - headR - 1.1f, cx + headR + 0.9f, cy - 0.6f, pal.line)
+                    g.oval(cx - headR - 0.3f, cy - headR - 0.5f, cx + headR + 0.3f, cy - 1.1f, hc)
+                    if (direction == SIDE) {
+                        g.rrect(cx - headR - 1.2f, cy - 1f, cx - headR + 1.8f, cy + 6.4f, 1.4f, hc)
+                        g.rrect(cx - headR - 1.2f, cy - 1f, cx - headR + 0.2f, cy + 6.4f, 1.2f, hd2)
+                    } else {
+                        g.rrect(cx - headR - 1.1f, cy - 1f, cx - headR + 1.6f, cy + 6.2f, 1.3f, hc)
+                        g.rrect(cx + headR - 1.6f, cy - 1f, cx + headR + 1.1f, cy + 6.2f, 1.3f, hc)
+                        g.circ(cx, cy + headR + 0.2f, 1.5f, hd2)
+                    }
+                }
+                HAT_FISHER -> {
+                    // 방수 어부 모자 — 앞챙 짧고 뒷목 가리개 김
+                    val bot = cy - headR * 0.30f
+                    g.rrect(cx - cw + 0.8f, bot - 5f, cx + cw - 0.8f, bot, 2.4f, pal.line)
+                    g.rrect(cx - cw + 1.4f, bot - 4.4f, cx + cw - 1.4f, bot, 2f, hc)
+                    if (direction == SIDE) {
+                        g.rrect(cx - cw - 2.4f, bot - 1.2f, cx + cw + 1.8f, bot + 0.8f, 1f, pal.line)
+                        g.rrect(cx - cw - 2f, bot - 1.1f, cx + cw + 1.4f, bot + 0.5f, 0.9f, hc)
+                        g.rect(cx - cw - 2f, bot + 0.5f, cx - cw + 0.6f, bot + 3.4f, hc)
+                    } else {
+                        g.rrect(cx - cw - 2.4f, bot - 1.2f, cx + cw + 2.4f, bot + 0.8f, 1f, pal.line)
+                        g.rrect(cx - cw - 2f, bot - 1.1f, cx + cw + 2f, bot + 0.5f, 0.9f, hc)
+                        g.rect(cx - cw - 2f, bot - 0.1f, cx + cw + 2f, bot + 0.5f, hd2)
+                    }
+                }
+                HAT_VISOR -> {
+                    // 썬바이저 — 띠 + 앞챙, 정수리는 머리 그대로
+                    val bot = cy - headR * 0.35f
+                    g.rrect(cx - cw + 0.2f, bot - 1.8f, cx + cw - 0.2f, bot + 0.2f, 0.9f, pal.line)
+                    g.rrect(cx - cw + 0.6f, bot - 1.4f, cx + cw - 0.6f, bot - 0.2f, 0.7f, hc)
+                    if (direction == SIDE) {
+                        g.rect(cx + 1.6f, bot - 1f, cx + cw + 2.8f, bot + 0.6f, pal.line)
+                        g.rect(cx + 1.6f, bot - 0.9f, cx + cw + 2.5f, bot + 0.2f, hc)
+                    } else {
+                        g.rrect(cx - cw - 0.6f, bot - 0.4f, cx + cw + 0.6f, bot + 1.6f, 0.8f, pal.line)
+                        g.rrect(cx - cw - 0.2f, bot - 0.3f, cx + cw + 0.2f, bot + 1.3f, 0.7f, hc)
+                    }
+                }
+            }
+            if (hd && look.hat != HAT_NONE) {
+                // 모자 윤기 한 줄
+                g.rect(cx - cw + 1.2f, cy - headR - 0.4f, cx + cw - 1.2f, cy - headR + 0.1f, HD_HILITE)
+            }
+        }
+
         // ---- 그리기 순서 --------------------------------------------------------
         val backIsRight =
             if (direction != BACK) pose.hipR < pose.hipL else pose.hipR > pose.hipL
@@ -920,6 +1715,7 @@ object CharacterArt {
             drawScarf()
             drawHead()
             drawCap()
+            drawHat()
             drawArm(1f, pose.armR, pose.elbowR, false)
         } else {
             if (backIsRight) drawLeg(1f, pose.hipR, pose.kneeR, pose.footR, true)
@@ -932,11 +1728,15 @@ object CharacterArt {
             }
             if (backIsRight) drawLeg(-1f, pose.hipL, pose.kneeL, pose.footL, false)
             else drawLeg(1f, pose.hipR, pose.kneeR, pose.footR, false)
+            drawSkirt()
+            drawWornProps()
             drawArm(-1f, pose.armL, pose.elbowL, !backIsRight)
             drawArm(1f, pose.armR, pose.elbowR, backIsRight)
+            drawHeldProps()
             drawScarf()
             drawHead()
             drawCap()
+            drawHat()
         }
 
         // High-contrast keepsakes remain legible even at the base sprite size.

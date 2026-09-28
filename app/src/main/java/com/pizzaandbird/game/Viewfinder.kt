@@ -165,7 +165,11 @@ class Viewfinder(private val game: Game) {
         drawGrain(c, w, h)
         drawVignette(c, w, h)
 
-        drawRange(c, px, py, rangePx, rangeTiles, rig.minDist * 16f * WORLD_SCALE, rig.minDist)
+        // 최단 촬영 거리도 사거리와 같은 축첍(zoom)으로 그려야 실제 판정과 맞아떨어진다.
+        // zoom 을 빼먹으면 원이 실제보다 훨씬 작게 그려져 "충분히 떨어졌다"고 믿고
+        // 셔터를 눌렀다가 '너무 가까워요'로 사진이 날아간다.
+        val minPx = rig.minDist * 16f * WORLD_SCALE * zoom
+        drawRange(c, px, py, rangePx, rangeTiles, minPx, rig.minDist)
 
         val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles, zoom)
         if (focus?.def?.id != focusId) {
@@ -189,6 +193,20 @@ class Viewfinder(private val game: Game) {
         val hy = game.virtH / 2f
         return hy + ((wy - camY) * WORLD_SCALE - hy) * zoom
     }
+
+    /**
+     * 표식을 붙일 새의 화면 세로 위치 — **몸통 중심**.
+     *
+     * 스프라이트는 발이 `y + sprH` 에 고정된 채로 그려지므로 몸통 중심은
+     * `y + sprH / 2` 다. 여기서 두 가지를 보정한다.
+     * - 걷기·활공(state 1·3) 땐 스프라이트가 `hopLift` 만큼 위로 떠서 그려진다
+     *   (WorldScene.drawEntity). 이걸 무시하면 새만 위로 튀고 별은 제자리에 남는다.
+     * - `cy`(발에서 72% 지점)를 쓰면 큰 새일수록 박스가 발 아래로 처져
+     *   머리가 박스 밖으로 삐져나온다. AF 박스의 반경도 `sprH / 2` 기준이므로
+     *   중심 역시 `sprH / 2` 여야 박스가 새를 정확히 감싼다.
+     */
+    private fun birdSy(b: FieldBird, camY: Float, zoom: Float): Float =
+        sy(b.y + b.sprH * 0.5f - b.hopLift, camY, zoom)
 
     // ----- 배경 연출 ---------------------------------------------------
 
@@ -365,7 +383,7 @@ class Viewfinder(private val game: Game) {
         for (b in birds) {
             if (b.state == 2) continue
             val sx = sx(b.cx, camX, zoom)
-            val sy = sy(b.cy, camY, zoom)
+            val sy = birdSy(b, camY, zoom)
             if (sx < 34f || sx > w - 34f || sy < 84f || sy > h - 76f) continue
             val d = hypot(b.cx - pcx, b.cy - pcy) / 16f
             if (d > rangeTiles * 1.45f) continue
@@ -388,7 +406,7 @@ class Viewfinder(private val game: Game) {
         for (b in birds) {
             if (b.state == 2) continue
             val sx = sx(b.cx, camX, zoom)
-            val sy = sy(b.cy, camY, zoom)
+            val sy = birdSy(b, camY, zoom)
             if (sx < -40f || sx > game.virtW + 40f || sy < -40f || sy > game.virtH + 40f) continue
             val dTiles = hypot(b.cx - pcx, b.cy - pcy) / 16f
             val inRange = dTiles <= rangeTiles
@@ -399,13 +417,16 @@ class Viewfinder(private val game: Game) {
                 val ratio = dTiles / rangeTiles
                 val (stars, col) = zone(ratio)
                 val ratingW = 3f * 13f
-                val by = sy - b.sprH * WORLD_SCALE * 0.5f * zoom - 24f
+                // 화면 밖이나 정보 바(상단 y<84 / 하단 y>h-92) 밑으로 숨지 않게 보정한다.
+                val bx = sx.coerceIn(ratingW / 2f + 14f, game.virtW - ratingW / 2f - 14f)
+                val by = (sy - b.sprH * WORLD_SCALE * 0.5f * zoom - 24f)
+                    .coerceIn(SAFE_TOP + 11f, game.virtH - SAFE_BOTTOM - 6f)
                 fill.color = Color.argb(140, 16, 14, 24)
-                c.drawRoundRect(RectF(sx - ratingW / 2f - 6f, by - 11f, sx + ratingW / 2f + 6f, by + 6f), 5f, 5f, fill)
+                c.drawRoundRect(RectF(bx - ratingW / 2f - 6f, by - 11f, bx + ratingW / 2f + 6f, by + 6f), 5f, 5f, fill)
                 stroke.color = Color.argb(150, Color.red(col), Color.green(col), Color.blue(col))
                 stroke.strokeWidth = 1.2f
-                c.drawRoundRect(RectF(sx - ratingW / 2f - 6f, by - 11f, sx + ratingW / 2f + 6f, by + 6f), 5f, 5f, stroke)
-                drawStars(c, sx - ratingW / 2f, by + 3f, stars, 11f)
+                c.drawRoundRect(RectF(bx - ratingW / 2f - 6f, by - 11f, bx + ratingW / 2f + 6f, by + 6f), 5f, 5f, stroke)
+                drawStars(c, bx - ratingW / 2f, by + 3f, stars, 11f)
             }
         }
     }
@@ -478,7 +499,9 @@ class Viewfinder(private val game: Game) {
         val plateH = 34f
         val plateCx = sx.coerceIn(46f + plateW / 2f, game.virtW - 46f - plateW / 2f)
         var plateTop = box.top - plateH - 8f
-        if (plateTop < 84f) plateTop = box.bottom + 8f
+        if (plateTop < SAFE_TOP) plateTop = box.bottom + 8f
+        // 새가 화면 아래쪽이면 라벨이 하단 정보 바에 묻히지 않게 위로 당긴다
+        plateTop = plateTop.coerceIn(SAFE_TOP, (game.virtH - SAFE_BOTTOM - plateH).coerceAtLeast(SAFE_TOP))
         val plate = RectF(plateCx - plateW / 2f, plateTop, plateCx + plateW / 2f, plateTop + plateH)
 
         fill.color = Color.argb(196, 14, 12, 22)
@@ -744,5 +767,10 @@ class Viewfinder(private val game: Game) {
         const val OPEN = 3
         const val CLOSE_T = 0.10f
         const val OPEN_T = 0.28f
+
+        /** 상단 정보 바가 덮는 아래 경계 (그 아래부터 새 표식을 놓는다) */
+        const val SAFE_TOP = 84f
+        /** 하단 정보 바가 덮는 위 경계까지의 여백 (virtH - 이 값 위쪽까지만 표식) */
+        const val SAFE_BOTTOM = 92f
     }
 }
