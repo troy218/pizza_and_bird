@@ -267,6 +267,12 @@ class GameMap(
         return paving[y][x]
     }
 
+    /** 데칼 (0 = 없음, 1..9 = 광장 문양, 10 = 빗물받이) */
+    fun decalAt(x: Int, y: Int): Int {
+        if (x < 0 || y < 0 || x >= w || y >= h) return 0
+        return decals[y][x]
+    }
+
     /** 길 위인가 (자전거·발소리·새 스폰 판정에 쓸 수 있다) */
     fun onRoad(px: Float, py: Float): Boolean =
         paveAt(((px + 8f) / 16f).toInt(), ((py + 13f) / 16f).toInt()) != Pave.NONE
@@ -1214,6 +1220,18 @@ object MapBuilder {
 
         // 4. 도시 건물 (길보다 먼저 — 정문 앞으로 샛길을 내기 위해) ---------------
         val buildingFronts = ArrayList<Pair<Int, Int>>()
+        // 숲속 쉼터 자리 — 건축물이 침범하지 않도록 건축 전에 계산해 둔다.
+        // (실제 쉼터 조경·샛길은 9번 길 단계에서 마당까지 깐다)
+        val eastRestBlocked = mapStyle.rivers.any { river ->
+            river.course.any { it.x in 27..33 && it.y in 16..24 }
+        }
+        val restX = when {
+            lakeShoreX >= 0 && lakeShoreX < w / 2 -> w - 10
+            lakeShoreX >= 0 -> 9
+            eastRestBlocked -> 9
+            else -> 30
+        }
+        val restY = 22
         if (region.city) {
             val northY = mapStyle.northBuildingY
             for ((bx, by) in listOf(6 to northY, 31 to northY, 6 to 24, 31 to 24)) {
@@ -1236,67 +1254,117 @@ object MapBuilder {
             }
         }
 
-        // 4.5 도시별 건물 밀도 — 실제 도시 규모를 살린다
-        if (region.city) {
-            fun tryExtra(bx: Int, by: Int) {
-                if (inb(bx, by) && inb(bx + 2, by + 2)) {
-                    var ok = true
-                    for (y in by until by + 3) for (x in bx until bx + 3) {
-                        if (x !in 2 until w - 2 || y !in 2 until h - 2 || t[y][x] != T.GRASS.ordinal) ok = false
-                    }
-                    if (!ok) return
-                    for (y in by until by + 3) for (x in bx until bx + 3) {
-                        t[y][x] = when {
-                            y == by -> T.BLDG_ROOF
-                            (x + y) % 2 == 0 -> T.BLDG_WIN
-                            else -> T.BLDG_WALL
-                        }.ordinal
-                        structure[y][x] = true; reserved[y][x] = true
-                    }
-                    buildingFronts.add(if (by + 3 <= AVE_Y) (bx + 1 to by + 3) else (bx + 1 to by - 1))
+        // 4.5 도심 형성 — 광역시급(메트로)은 고층·고밀도, 소도시는 저층 + 지역색 -----------------
+        //   같은 '도시'라도 스카이라인이 달라야 한눈에 구분된다.
+        //   · 메트로 (서울·부산·대구·인천·대전·광주·울산): 4~6층 업무 지구를 남북 두 띠로.
+        //   · 그 외 도시 (전주·강릉·송도·안산): 기본 3층 블록 + 전주는 한옥 골목.
+        //
+        //   빈 초록(GRASS)에만 세우고, 다음 금기 구역은 어떤 건축물도 침범하지 않는다:
+        //   · 간선·광장 회랑 — 세로 x 17..22 / 가로 y 13..18 (간선도로·광장·터널 진입로·이정표·컬드삭)
+        //   · 우리 집 자리 (x 18..28, y 6..14) — 어느 지역 집이든 매입할 수 있으므로 항상 비워 둠
+        //   · 숲속 쉼터·호숫가 데크 진입로
+        fun footprintLegal(bx: Int, by: Int, ex: Int, ey: Int): Boolean {
+            if (bx < 2 || by < 2 || ex > w - 3 || ey > h - 3) return false
+            if (bx <= 22 && ex >= 17) return false
+            if (by <= 18 && ey >= 13) return false
+            if (ex >= 18 && bx <= 28 && ey >= 6 && by <= 14) return false
+            if (ex >= restX - 2 && bx <= restX + 2 && ey >= 15 && by <= 24) return false
+            if (lakeShoreX >= 0 && ex >= lakeShoreX - 1 && bx <= lakeShoreX && ey >= lakeShoreY && by <= 17) return false
+            return true
+        }
+
+        fun footprintClear(bx: Int, by: Int, ex: Int, ey: Int): Boolean {
+            if (!footprintLegal(bx, by, ex, ey)) return false
+            for (y in by..ey) for (x in bx..ex) {
+                if (t[y][x] != T.GRASS.ordinal || structure[y][x] || reserved[y][x]) return false
+            }
+            return true
+        }
+
+        // 고층 빌딩은 '빈 초록 + reserved' 격리 대신 도시 성장 논리로:
+        //   · 구조물(structure — 건축물)·포장·물·머리/바위 는 절대 침범하지 않고
+        //   · 키 큰 풀·꽃·갈대·나무 (강둑·숲·부시) 는 도심 확장이 덮어 쓸 수 있다.
+        //     (도시 태생의 강둑 간척을 연상케 하며, 강가 고층은 오히려 현실적 스카이라인이다.)
+        fun towerClear(bx: Int, by: Int, ex: Int, ey: Int): Boolean {
+            if (!footprintLegal(bx, by, ex, ey)) return false
+            for (y in by..ey) for (x in bx..ex) {
+                if (structure[y][x] || pave[y][x] != Pave.NONE) return false
+                when (t[y][x]) {
+                    T.WATER.ordinal, T.MOUNTAIN.ordinal, T.ROCK.ordinal -> return false
                 }
             }
-            when (region.id) {
-                "seoul" -> {
-                    // 서울 — 북촌·강남에 빽빽한 빌딩
-                    tryExtra(12, northY0); tryExtra(14, 24); tryExtra(24, 24)
-                }
-                "busan" -> {
-                    // 부산 — 항만 뒤 고층 빌딩 밀집
-                    tryExtra(12, 5); tryExtra(9, 24); tryExtra(26, 24)
-                }
-                "daegu" -> {
-                    // 대구 — 분지 안 중밀도
-                    tryExtra(14, northY0)
-                }
-                "incheon" -> {
-                    // 인천 — 신도시 고층 2동 추가
-                    tryExtra(12, 5); tryExtra(14, 24)
-                }
-                "daejeon" -> tryExtra(26, 5)
-                "gwangju" -> tryExtra(24, 24)
-                "ulsan" -> tryExtra(10, 24)
-                "jeonju" -> {
-                    // 한옥마을 느낌 — 북동쪽에 기와집 2채 (HOUSE 타일로)
-                    for ((hx, hy) in listOf(28 to 5, 30 to 8)) {
-                        if (!inb(hx, hy) || t[hy][hx] != T.GRASS.ordinal) continue
-                        var ok = true
-                        for (y in hy until hy + 3) for (x in hx until hx + 3) if (t[y][x] != T.GRASS.ordinal) ok = false
-                        if (!ok) continue
-                        for (y in hy until hy + 3) for (x in hx until hx + 3) {
-                            t[y][x] = when {
-                                y == hy -> T.HOUSE_ROOF.ordinal
-                                y == hy + 1 && (x == hx + 1) -> T.HOUSE_WIN.ordinal
-                                y == hy + 1 -> T.HOUSE_WALL.ordinal
-                                else -> T.HOUSE_WALL.ordinal
-                            }
-                            structure[y][x] = true; reserved[y][x] = true
-                        }
-                    }
-                }
-                else -> {}
+            return true
+        }
+
+        /** 고층 빌딩 한 동 — 맨 윗줄이 지붕, 아래로 창·벽이 층을 이룬다 (높을수록 더 커 보인다). */
+        fun tryTower(bx: Int, by: Int, wid: Int, hgt: Int) {
+            val ex = bx + wid - 1
+            val ey = by + hgt - 1
+            if (!towerClear(bx, by, ex, ey)) return
+            for (y in by..ey) for (x in bx..ex) {
+                t[y][x] = when {
+                    y == by -> T.BLDG_ROOF
+                    (x + y) % 2 == 0 -> T.BLDG_WIN
+                    else -> T.BLDG_WALL
+                }.ordinal
+                structure[y][x] = true
+                reserved[y][x] = true
+            }
+            // 정문은 간선도로를 바라보는 쪽에
+            buildingFronts.add(if (ey + 1 <= AVE_Y) (bx + wid / 2 to ey + 1) else (bx + wid / 2 to by - 1))
+        }
+
+        /** 기와 민가 한 채 — 3칸 폭 (지붕 1줄 + 창·벽 2줄). 정문 상호작용은 없다. */
+        fun tryFarmhouse(bx: Int, by: Int): Boolean {
+            val ex = bx + 2
+            val ey = by + 2
+            if (!footprintClear(bx, by, ex, ey)) return false
+            for (y in by..ey) for (x in bx..ex) {
+                t[y][x] = when {
+                    y == by -> T.HOUSE_ROOF
+                    y == by + 1 && x == bx + 1 -> T.HOUSE_WIN
+                    else -> T.HOUSE_WALL
+                }.ordinal
+                structure[y][x] = true
+                reserved[y][x] = true
+            }
+            return true
+        }
+
+        val isMetro = region.id in setOf("seoul", "busan", "daegu", "incheon", "daejeon", "gwangju", "ulsan")
+        if (region.city && isMetro) {
+            // 북측 도심 띠 — 간선 북쪽, 네 구석의 기본 블록(6..8 / 31..33)과 집 보호구역(x18..28)
+            // 을 피해 서쪽 구획(간선 직전까지)에 4~6층 업무 지구.
+            for (bx in intArrayOf(9, 12, 14)) {
+                tryTower(bx, northY0 + rnd.nextInt(2), 3, 4 + rnd.nextInt(3))
+            }
+            // 남측 도심 띠 — 광장 남쪽 두 줄. 안쪽(광장 쪽) 줄이 조금 더 높다.
+            // 아랫줄은 맵 가장자리 미세 조정으로(by=24 고정, 최대 높이 4) 경계 누수를 막는다.
+            for (bx in intArrayOf(3, 9, 12, 15, 23, 25)) {
+                tryTower(bx + 1, 19 + rnd.nextInt(2), 3, 4 + rnd.nextInt(3))
+                tryTower(bx, 24, 3, 3 + rnd.nextInt(2))
+            }
+        } else if (region.id == "jeonju") {
+            // 한옥마을 느낌 — 기와집 2채. 집 보호구역(x18..28, y6..14)과 지형 충돌을 피해
+            // 후보지를 넓게 돌아 가며 두 채를 세운다.
+            var hanok = 0
+            for ((hx, hy) in listOf(30 to 6, 32 to 8, 31 to 10, 29 to 12, 24 to 20, 26 to 21)) {
+                if (hanok >= 2) break
+                if (tryFarmhouse(hx, hy)) hanok++
             }
         }
+
+        // 4.6 시골 마을 — 도시가 아닌 지역엔 마을 입구의 민가 한두 채가 시골 정취를 살린다.
+        //     자연 탐조지라도 지도 어딘가 집이 서 있으면 "어느 동네"인지 읽힌다.
+        if (!region.city) {
+            val want = 1 + rnd.nextInt(2)     // 1~2채
+            var placed = 0
+            for ((hx, hy) in listOf(30 to 10, 13 to 19, 8 to 5, 29 to 24, 28 to 5, 8 to 24, 25 to 23)) {
+                if (placed >= want) break
+                if (tryFarmhouse(hx, hy)) placed++
+            }
+        }
+
 
         // 5. 우리 집 -------------------------------------------------------------
         var houseDoorX = -1
@@ -1451,12 +1519,12 @@ object MapBuilder {
         }
 
         /** control point 를 1칸씩 이어가며 브러시를 찍는다 (연결 보장). 중심선을 돌려준다. */
-        fun walk(points: List<Pair<Int, Int>>, size: Int): List<Pair<Int, Int>> {
+        fun walk(points: List<Pair<Int, Int>>, size: Int, mat: Int): List<Pair<Int, Int>> {
             var px = points[0].first
             var py = points[0].second
             val line = ArrayList<Pair<Int, Int>>()
             line.add(px to py)
-            stamp(px, py, size, Pave.DIRT)
+            stamp(px, py, size, mat)
             for (i in 1 until points.size) {
                 val tx = points[i].first
                 val ty = points[i].second
@@ -1468,7 +1536,7 @@ object MapBuilder {
                     } else {
                         px += if (tx > px) 1 else -1
                     }
-                    stamp(px, py, size, Pave.DIRT)
+                    stamp(px, py, size, mat)
                     line.add(px to py)
                 }
             }
@@ -1476,11 +1544,11 @@ object MapBuilder {
         }
 
         /** 컬드삭(회차 공간) — 막다른 길 끝의 원형 마당 */
-        fun stampRound(cx: Int, cy: Int, rad: Int) {
+        fun stampRound(cx: Int, cy: Int, rad: Int, mat: Int) {
             for (y in cy - rad..cy + rad) for (x in cx - rad..cx + rad) {
                 val dx = x - cx
                 val dy = y - cy
-                if (dx * dx + dy * dy <= rad * rad + 1) stamp(x, y, 1, Pave.DIRT)
+                if (dx * dx + dy * dy <= rad * rad + 1) stamp(x, y, 1, mat)
             }
         }
 
@@ -1518,28 +1586,32 @@ object MapBuilder {
         val bendW = rnd.nextInt(3) - 1      // 서쪽 구간 (-1..1)
         val bendE = rnd.nextInt(3) - 1      // 동쪽 구간 (-1..1)
 
+        // 대로 재질 — 도시는 석재(아스팔트·연석), 시골은 흙길 (바퀴자국).
+        // 빌딩 군집과 함께 "큰 도시 vs 시골"이 멀리서도 읽히게 하는 시각 구분축.
+        val streetMat = if (region.city) Pave.STONE else Pave.DIRT
+
         val nEnd = 2
         val sEnd = h - 3
         val wEnd = 2
         val eEnd = w - 3
         val centerlines = ArrayList<Pair<Boolean, List<Pair<Int, Int>>>>()   // (세로인가, 중심선)
         centerlines.add(true to walk(
-            listOf(AVE_X to nEnd, AVE_X to 4, AVE_X + bendN to 6, AVE_X + bendN to 9, AVE_X to 10, AVE_X to 11), 2))
+            listOf(AVE_X to nEnd, AVE_X to 4, AVE_X + bendN to 6, AVE_X + bendN to 9, AVE_X to 10, AVE_X to 11), 2, streetMat))
         centerlines.add(true to walk(
             listOf(AVE_X to PLAZA_Y1 - 1, AVE_X to 20, AVE_X + bendS to 22, AVE_X + bendS to 24,
-                AVE_X to sEnd - 2, AVE_X to sEnd), 2))
+                AVE_X to sEnd - 2, AVE_X to sEnd), 2, streetMat))
         centerlines.add(false to walk(
             listOf(wEnd to AVE_Y, 6 to AVE_Y, 9 to AVE_Y + bendW, 12 to AVE_Y + bendW,
-                PLAZA_X0 - 3 to AVE_Y, PLAZA_X0 - 1 to AVE_Y), 2))
+                PLAZA_X0 - 3 to AVE_Y, PLAZA_X0 - 1 to AVE_Y), 2, streetMat))
         centerlines.add(false to walk(
             listOf(PLAZA_X1 to AVE_Y, 28 to AVE_Y, 31 to AVE_Y + bendE, 34 to AVE_Y + bendE,
-                eEnd - 2 to AVE_Y, eEnd to AVE_Y), 2))
+                eEnd - 2 to AVE_Y, eEnd to AVE_Y), 2, streetMat))
 
         // 막다른 방향은 회차 공간으로 마무리
-        if (!exits.containsKey(Dir.N)) stampRound(AVE_X, 3, 1)
-        if (!exits.containsKey(Dir.S)) stampRound(AVE_X, h - 4, 1)
-        if (!exits.containsKey(Dir.W)) stampRound(3, AVE_Y, 1)
-        if (!exits.containsKey(Dir.E)) stampRound(w - 4, AVE_Y, 1)
+        if (!exits.containsKey(Dir.N)) stampRound(AVE_X, 3, 1, streetMat)
+        if (!exits.containsKey(Dir.S)) stampRound(AVE_X, h - 4, 1, streetMat)
+        if (!exits.containsKey(Dir.W)) stampRound(3, AVE_Y, 1, streetMat)
+        if (!exits.containsKey(Dir.E)) stampRound(w - 4, AVE_Y, 1, streetMat)
 
         // 광장 진입부 나팔목 (길이 넓어지며 광장으로 이어진다)
         for ((fx, fy) in listOf(
@@ -1547,7 +1619,7 @@ object MapBuilder {
             AVE_X - 1 to PLAZA_Y1 + 1, AVE_X + 2 to PLAZA_Y1 + 1,
             PLAZA_X0 - 1 to AVE_Y - 1, PLAZA_X0 - 1 to AVE_Y + 2,
             PLAZA_X1 + 1 to AVE_Y - 1, PLAZA_X1 + 1 to AVE_Y + 2
-        )) stamp(fx, fy, 1, Pave.DIRT)
+        )) stamp(fx, fy, 1, streetMat)
 
         // 8. 터널 & 진입로 (가장자리 링을 뚫고 나간다) -------------------------------
         fun openTunnel(x: Int, y: Int) {
@@ -1594,7 +1666,7 @@ object MapBuilder {
         for ((fx, fy) in buildingFronts) {
             val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
             val seq = pathClear(listOf(fx to fy, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty()) ?: continue
-            for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
+            for ((x, y) in seq) stamp(x, y, 1, streetMat)
         }
         // 랜드마크 정문 앞 샛길 (간선도로까지 이어 준다)
         //     문턱 포장 2칸은 이미 깔려 있으므로 그 **바깥**에서부터 길을 잇는다 —
@@ -1604,7 +1676,7 @@ object MapBuilder {
             val startY = if (fy < AVE_Y) fy + 1 else fy - 1
             val seq = pathClear(listOf(fx to startY, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty())
                 ?: pathClear(listOf(fx to startY, fx to AVE_Y + 1), allowRiverBridge = true)
-            if (seq != null) for ((x, y) in seq) stamp(x, y, 1, Pave.DIRT)
+            if (seq != null) for ((x, y) in seq) stamp(x, y, 1, streetMat)
         }
 
         // 호숫가 전망 데크
@@ -1623,17 +1695,7 @@ object MapBuilder {
             }
         }
 
-        // 숲속 쉼터 (사진 찍기 좋은 자리)
-        val eastRestBlocked = mapStyle.rivers.any { river ->
-            river.course.any { it.x in 27..33 && it.y in 16..24 }
-        }
-        val restX = when {
-            lakeShoreX >= 0 && lakeShoreX < w / 2 -> w - 10
-            lakeShoreX >= 0 -> 9
-            eastRestBlocked -> 9
-            else -> 30
-        }
-        val restY = 22
+        // 숲속 쉼터 (사진 찍기 좋은 자리) — 자리(restX)는 건축 단계에서 정해 둔 값을 그대로 쓴다
         val restSeq = pathClear(listOf(restX to AVE_Y + 2, restX to restY))
         if (restSeq != null) {
             for ((x, y) in restSeq) stamp(x, y, 1, Pave.DIRT)
@@ -1699,14 +1761,16 @@ object MapBuilder {
         for ((cx0, cy0) in plazaCorners) putProp(cx0, cy0, if (region.city) T.LAMP else T.TREE)
 
         // 12. 가로수 / 가로등 도열 + 길섶 꽃 ---------------------------------------------
-        fun roadside(x: Int, y: Int): Boolean {
+        /** 갓길인가 — 기본은 흙길섶만. 도심 석재 대로변도 anyMat = true 로 세어 가로수·가로등을 세운다. */
+        fun roadside(x: Int, y: Int, anyMat: Boolean = false): Boolean {
             if (!inb(x, y) || reserved[y][x] || structure[y][x]) return false
             if (t[y][x] != T.GRASS.ordinal || pave[y][x] != Pave.NONE) return false
             if (x in PLAZA_X0 - 1..PLAZA_X1 + 1 && y in PLAZA_Y0 - 1..PLAZA_Y1 + 1) return false
-            if (inb(x, y - 1) && pave[y - 1][x] == Pave.DIRT) return true
-            if (inb(x, y + 1) && pave[y + 1][x] == Pave.DIRT) return true
-            if (inb(x - 1, y) && pave[y][x - 1] == Pave.DIRT) return true
-            if (inb(x + 1, y) && pave[y][x + 1] == Pave.DIRT) return true
+            fun sidePave(dx: Int, dy: Int): Int = if (inb(x + dx, y + dy)) pave[y + dy][x + dx] else Pave.NONE
+            for ((dx, dy) in listOf(0 to -1, 0 to 1, -1 to 0, 1 to 0)) {
+                val p = sidePave(dx, dy)
+                if (p == Pave.DIRT || (anyMat && p != Pave.NONE)) return true
+            }
             return false
         }
 
@@ -1721,14 +1785,14 @@ object MapBuilder {
                 val sx = if (nearSide) leftX else rightX
                 val sy = if (nearSide) leftY else rightY
                 if (i % 6 == 3 && region.city) {
-                    if (roadside(sx, sy)) {
+                    if (roadside(sx, sy, anyMat = true)) {
                         t[sy][sx] = T.TREE.ordinal
                         reserved[sy][sx] = true
                     }
                 } else if (i % 13 == 7) {
                     val ox = if (nearSide) rightX else leftX
                     val oy = if (nearSide) rightY else leftY
-                    if (roadside(ox, oy)) {
+                    if (roadside(ox, oy, anyMat = true)) {
                         t[oy][ox] = (if (region.city) T.LAMP else T.TREE).ordinal
                         reserved[oy][ox] = true
                     }
@@ -1736,6 +1800,7 @@ object MapBuilder {
             }
         }
 
+        // 길섶 꽃은 흙길섶에만 — 석재 대로변에 꽃밭이 붙으면 도심 느낌이 흐려진다
         for (y in 3 until h - 3) for (x in 3 until w - 3) {
             if (roadside(x, y) && rnd.nextDouble() < 0.22) {
                 t[y][x] = T.FLOWER.ordinal
