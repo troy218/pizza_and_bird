@@ -14,6 +14,33 @@ import math
 from pixelcanvas import Bitmap, Paint, Path
 
 SIZE = 32
+# 앉은 자세는 엉덩이를 좌석 높이로 올리므로 머리·모자가 프레임 위로 넘친다.
+# render(..., top_pad=SIT_TOPPAD) 로 상단 여백을 두고, 그릴 때 y 에서 이만큼 뺀다.
+SIT_TOPPAD = 9
+
+# ---------------------------------------------------------------------------
+# 사람 겉모습 — CharacterArt.kt 와 같은 번호 (색이 아니라 실루엣으로 구분)
+# ---------------------------------------------------------------------------
+
+BODY_STANDARD, BODY_TALL, BODY_STOCKY, BODY_SLIM, BODY_ROUND, BODY_HUNCH = range(6)
+
+(HAIR_SHORT, HAIR_BUZZ, HAIR_BOB, HAIR_LONG, HAIR_PONY, HAIR_BUN,
+ HAIR_PIGTAIL, HAIR_BALD, HAIR_UPDO, HAIR_PERM, HAIR_SWEEP, HAIR_BRAID) = range(12)
+
+BEARD_NONE, BEARD_MUSTACHE, BEARD_FULL, BEARD_GOATEE = range(4)
+
+(HAT_NONE, HAT_CAP, HAT_BUCKET, HAT_STRAW, HAT_BEANIE, HAT_BANDANA,
+ HAT_HEADSCARF, HAT_FISHER, HAT_VISOR) = range(9)
+
+BOTTOM_PANTS, BOTTOM_SKIRT, BOTTOM_OVERALLS = range(3)
+
+(PROP_NONE, PROP_BINOCS, PROP_CAMERA, PROP_ROD, PROP_BASKET, PROP_BOOK,
+ PROP_BRUSH, PROP_PADDLE, PROP_CUP, PROP_NET) = range(10)
+
+SKIN_FAIR, SKIN_NORMAL, SKIN_TAN, SKIN_DEEP = range(4)
+
+(FLAVOR_NONE, FLAVOR_BOUNCE, FLAVOR_PAINT, FLAVOR_SIP, FLAVOR_SCAN,
+ FLAVOR_READ, FLAVOR_NOD, FLAVOR_SWAY) = range(8)
 
 # ---------------------------------------------------------------------------
 # 사람 겉모습 — CharacterArt.kt 와 같은 번호 (색이 아니라 실루엣으로 구분)
@@ -134,29 +161,30 @@ class Pose:
 
 
 class G:
-    def __init__(self, cv):
+    def __init__(self, cv, dy=0.0):
         self.cv = cv
+        self.dy = dy              # 앉은 자세용 상단 여백(top_pad) 만큼 아래로 그리기
         self.p = Paint()
 
     def rect(self, l, t, r, b, col):
         self.p.color = col
-        self.cv.drawRect(l, t, r, b, self.p)
+        self.cv.drawRect(l, t + self.dy, r, b + self.dy, self.p)
 
     def circ(self, x, y, rad, col):
         self.p.color = col
-        self.cv.drawCircle(x, y, rad, self.p)
+        self.cv.drawCircle(x, y + self.dy, rad, self.p)
 
     def oval(self, l, t, r, b, col):
         self.p.color = col
-        self.cv.drawOval((l, t, r, b), self.p)
+        self.cv.drawOval((l, t + self.dy, r, b + self.dy), self.p)
 
     def poly(self, col, *pts):
         self.p.color = col
         path = Path()
-        path.moveTo(pts[0], pts[1])
+        path.moveTo(pts[0], pts[1] + self.dy)
         i = 2
         while i < len(pts):
-            path.lineTo(pts[i], pts[i + 1])
+            path.lineTo(pts[i], pts[i + 1] + self.dy)
             i += 2
         path.close()
         self.cv.drawPath(path, self.p)
@@ -314,7 +342,39 @@ def aim_pose(phase):
 
 
 def sit_pose(phase):
-    return idle_pose(phase)
+    """벤치에 앉은 자세 — 허리를 펴고 앉아 숨쉬며 두리번거린다.
+
+    앉으면 엉덩이가 좌석 높이(타일 아트 y≈16)로 올라가므로 머리·모자가 프레임
+    위로 넘친다. 그래서 render(..., top_pad=SIT_TOPPAD) 로 상단 여백을 둔다.
+    정면 기준: 허벅지는 앞으로(무릎 갈림), 종아리는 아래로 흔들리듯 내려간다.
+    """
+    tau = math.tau
+    p = phase % 1.0
+    breath = 0.5 - 0.5 * math.cos(tau * p)
+    look = _bump(p, 0.30, 0.56)
+    shift = math.sin(tau * p)
+    settle = min(1.0, p * 8.0)          # 앉은 직후 1/8 사이클만 자세를 고정
+    return Pose(
+        bodyY=-5.2 - 0.22 * breath + 0.6 * (1.0 - settle),
+        bodyX=0.22 * shift,
+        lean=-1.5,
+        # 허벅지는 앞으로(무릎 갈림), 종아리는 살짝 앞으로 내려가며 흔들
+        hipR=88.0 + 1.5 * shift, kneeR=76.0, footR=2.0,
+        hipL=-88.0 + 1.5 * shift, kneeL=-76.0, footL=-2.0,
+        armR=34.0 + 2.0 * shift, elbowR=46.0,
+        armL=-34.0 + 2.0 * shift, elbowL=46.0,
+        shoulderR=-0.2 * breath, shoulderL=-0.2 * breath,
+        headY=-0.2 * breath + 0.3 * (1.0 - settle),
+        headX=0.55 * shift + 0.7 * look,
+        tilt=-1.4 * shift,
+        turn=0.8 * look,
+        blink=(1.0 if 0.845 <= p < 0.885 else 0.5 if 0.885 <= p < 0.905 else 0.0),
+        breath=breath,
+        brow=0.3 * look,
+        hairSway=0.4 * shift,
+        clothSway=0.35 * shift,
+        packBob=-0.25 * breath,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -324,9 +384,10 @@ def sit_pose(phase):
 FRONT, BACK, SIDE = 0, 1, 2
 
 
-def render(direction, pose, look):
-    bmp = Bitmap(SIZE, SIZE)
-    g = G(bmp)
+def render(direction, pose, look, top_pad=0):
+    """top_pad: 앉은 자세처럼 머리가 위로 넘칠 때 상단에 둘 여백(px)."""
+    bmp = Bitmap(SIZE, SIZE + top_pad)
+    g = G(bmp, dy=float(top_pad))
     pal = look.pal
     sc = 0.86 if look.small else 1.0
 

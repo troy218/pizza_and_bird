@@ -207,8 +207,9 @@ class Game(val context: Context) {
 
     /** 설정(state.renderScale)과 화면 크기로 월드 배율 결정 */
     private fun computeWorldScale(w: Int, h: Int): Int {
-        val auto = (h / VIRT_H).coerceIn(1, 3).coerceAtMost(autoScaleCap)
         // FHD=2 · QHD=2 · 4K=3에서 시작, 부족한 기기에서만 1단계씩 낮춘다.
+        // VIRT_H는 옛 540px 디자인의 4배(2160)로 이관됐으므로 옛 h/540 기준(=FHD 2×)을 유지하려면 4배 보정이 필요하다.
+        val auto = (h * 4 / VIRT_H).coerceIn(1, 3).coerceAtMost(autoScaleCap)
         val s = when (state.renderScale) {
             "1" -> 1
             "2" -> 2
