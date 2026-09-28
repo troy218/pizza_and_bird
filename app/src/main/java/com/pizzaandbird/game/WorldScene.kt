@@ -2460,8 +2460,12 @@ class WorldScene(
             showQuestLog()
             return
         }
-        if (input.justEat) {
-            quickEat()
+        if (input.justEatPick) {          // [P11] 🍕 길게 누르기 → 빠른 피자 창
+            openQuickPizza()
+            return
+        }
+        if (input.justEat) {              // [P11] 등록한 빠른 피자 한 조각
+            quickEatSlice()
             return
         }
         if (input.justPunch) {
@@ -2671,17 +2675,8 @@ class WorldScene(
         }
     }
 
-    private fun quickEat() {
-        val pid = state.eatBest()
-        if (pid == null) {
-            game.toast("피자가 없어요!")
-            game.sfx(Audio.Sfx.FAIL, 0.45f)
-        } else {
-            val p = Pizzas.of(pid)
-            game.toast("냠냠! ${p.emoji} ${p.fullName}")
-            game.sfx(Audio.Sfx.EAT, 0.9f)
-        }
-    }
+    // [P11] 간식(🍕) 처리는 `Scene.quickEatSlice()` · `Scene.openQuickPizza()`(QuickPizzaOverlay.kt)로
+    //       옮겼다 — 월드·집·랜드마크가 같은 규칙(등록한 빠른 피자 우선, 한 조각씩)을 쓰도록 한 곳에 모았다.
 
     // -------------------------------------------------------------------
     // 그리기

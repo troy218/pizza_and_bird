@@ -455,16 +455,12 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             game.toast("실내에서 자전거는 위험해요!")
             return
         }
-        if (input.justEat) {
-            val pid = state.eatBest()
-            if (pid == null) {
-                game.toast("피자가 없어요!")
-                game.sfx(Audio.Sfx.FAIL, 0.45f)
-            } else {
-                val p = Pizzas.of(pid)
-                game.toast("냠냠! ${p.fullName}")
-                game.sfx(Audio.Sfx.EAT, 0.9f)
-            }
+        if (input.justEatPick) {          // [P11] 🍕 길게 누르기 → 빠른 피자 창
+            openQuickPizza()
+            return
+        }
+        if (input.justEat) {              // [P11] 등록한 빠른 피자 한 조각
+            quickEatSlice()
             return
         }
         if (input.justA) {

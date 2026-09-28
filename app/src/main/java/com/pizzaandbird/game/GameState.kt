@@ -7,6 +7,9 @@ import org.json.JSONObject
 /**
  * 플레이어 진행 상황. 오프라인 저장(JSON in SharedPreferences).
  *
+ * 세이브 형식 v7: [P11] 피자 **조각** — 한 판을 구우면 8조각으로 쪼개지고 먹기는 조각 단위다.
+ *   `pizzaSlices`(남은 조각)와 `quickPizzaId`(🍕 버튼에 등록한 빠른 피자)를 추가했다.
+ *   v6 이하 세이브는 [PizzaSlices.reconcile]이 "보유한 판 1개 = 8조각"으로 자동으로 채워 준다.
  * 세이브 형식 v6: 선택 퀘스트와 터널 이동 사이에도 이어지는 자전거 길안내 계획을 추가했다.
  * v5: 8칸 집 꾸미기 레이아웃/세트 효과와 방향·자세·지역·시간·날씨가 포함된 사진집 메타데이터,
  * 자전거 모델·도색·부속품 커스텀 + 메인 스토리 진행도/완료 상태 +
@@ -26,7 +29,11 @@ class GameState {
     val ownedCharms = LinkedHashSet<String>()
     var charmId = ""
     var luck = 50f                 // 행운 수치 (높을수록 희귀새 출현)
-    val pizzas = IntArray(Pizzas.ALL.size * 3)   // [피자id*3 + 품질] 피자 개수
+    val pizzas = IntArray(Pizzas.ALL.size * 3)   // [피자id*3 + 품질] 피자 **판** 개수
+    /** [P11] 같은 인덱스의 남은 조각 수 — 한 판 = [PizzaSlices.PER_PIZZA]조각 */
+    val pizzaSlices = IntArray(Pizzas.ALL.size * 3)
+    /** [P11] 🍕 버튼에 등록한 빠른 피자 id (-1 = 등록 없음 → 제일 좋은 조각을 자동으로) */
+    var quickPizzaId = -1
 
     // 카메라 장비 -------------------------------------------------------
     val ownedGear = LinkedHashSet<String>()     // 구매한 장비 id 전체
@@ -117,12 +124,15 @@ class GameState {
 
     fun isPizzaUnlocked(id: Int): Boolean = id in MainStory.unlockedPizzas(mainQuestStage)
 
+    /** 배낭의 피자 **판** 개수 (한 판 = 8조각 · 배낭 한도는 판 단위) */
     val pizzaCount: Int get() = pizzas.sum()
 
-    private fun pizzaIdx(pizzaId: Int, quality: Int): Int =
-        pizzaId.coerceIn(0, Pizzas.ALL.size - 1) * 3 + quality.coerceIn(0, 2)
+    /** [P11] 배낭의 남은 **조각** 총합 — 🍕 버튼을 몇 번 더 누를 수 있는지 */
+    val sliceCount: Int get() = PizzaSlices.total(this)
 
-    /** 특정 피자(품질 무관) 개수 */
+    private fun pizzaIdx(pizzaId: Int, quality: Int): Int = PizzaSlices.idx(pizzaId, quality)
+
+    /** 특정 피자(품질 무관) 판 개수 */
     fun pizzaCountOf(pizzaId: Int): Int {
         var n = 0
         for (q in 0 until 3) n += pizzas[pizzaIdx(pizzaId, q)]
@@ -131,53 +141,69 @@ class GameState {
 
     fun pizzaCountOf(pizzaId: Int, quality: Int): Int = pizzas[pizzaIdx(pizzaId, quality)]
 
-    /** 계열(화덕피자/일반 피자)별 개수 */
+    /** 계열(화덕피자/일반 피자)별 판 개수 */
     fun pizzaCountOfKind(kind: PizzaKind): Int {
         var n = 0
         for (p in Pizzas.ALL) if (p.kind == kind) n += pizzaCountOf(p.id)
         return n
     }
 
+    // ----- [P11] 조각 단위 재고 -----
+
+    /** 특정 피자(품질 무관)의 남은 조각 수 */
+    fun slicesOf(pizzaId: Int): Int = PizzaSlices.of(this, pizzaId)
+
+    /** 특정 피자·품질의 남은 조각 수 */
+    fun slicesOf(pizzaId: Int, quality: Int): Int = PizzaSlices.of(this, pizzaId, quality)
+
+    /** 계열별 남은 조각 수 */
+    fun slicesOfKind(kind: PizzaKind): Int = PizzaSlices.ofKind(this, kind)
+
+    /** [P11] 🍕 빠른 피자로 등록한 피자 (없으면 null) */
+    fun quickPizza(): PizzaDef? = Pizzas.byId[quickPizzaId]
+
+    /** [P11] 🍕 빠른 피자 등록/해제 (-1 이거나 없는 id면 해제) */
+    fun setQuickPizza(pizzaId: Int) {
+        quickPizzaId = if (pizzaId in Pizzas.byId) pizzaId else -1
+    }
+
+    /**
+     * 한 판을 굽는다 — 배낭 한도(판 단위)를 넘지 않으면 판 +1, 조각 8개가 생긴다.
+     * @return false 면 배낭이 가득 차서 못 챙긴 것 (구운 피자는 사라진다)
+     */
     fun addPizza(pizzaId: Int, quality: Int): Boolean {
         if (pizzaCount >= pizzaCapEff()) return false
-        pizzas[pizzaIdx(pizzaId, quality)]++
+        PizzaSlices.onBaked(this, pizzaId, quality)
         QuestManager.onPizzaBaked(this, Pizzas.of(pizzaId))
         return true
     }
 
-    /** 특정 피자의 가장 좋은 품질부터 먹기 (없으면 null) */
-    fun eat(pizzaId: Int): PizzaQ? {
-        val p = Pizzas.of(pizzaId)
-        for (q in 2 downTo 0) {
-            val idx = pizzaIdx(p.id, q)
-            if (pizzas[idx] > 0) {
-                pizzas[idx]--
-                val def = PizzaQ.of(q)
-                hunger = (hunger + def.hunger + p.hungerBonus).coerceIn(0f, 100f)
-                luck = (luck + def.luck + p.luckBonus).coerceIn(0f, 100f)
-                return def
-            }
-        }
-        return null
-    }
+    /** [P11] 피자 한 조각 먹기 — 가장 좋은 품질부터. 실제로 오른 수치는 반환값에 담긴다 */
+    fun eatSlice(pizzaId: Int): PizzaSlices.Bite? = PizzaSlices.takeSlice(this, pizzaId)
+
+    /** 특정 피자의 가장 좋은 품질부터 **한 조각** 먹기 (없으면 null) */
+    fun eat(pizzaId: Int): PizzaQ? = eatSlice(pizzaId)?.q
 
     /**
-     * 아무 피자나 가장 좋은 것부터 먹기 (먹은 피자 id 반환, 없으면 null).
-     * 같은 품질이면 배고픔 회복이 큰 피자를 먼저 먹는다 (간식 버튼용).
+     * 아무 피자나 가장 좋은 것부터 한 조각 먹기 (먹은 피자 id 반환, 없으면 null).
+     * 같은 품질이면 조각당 배고픔 회복이 큰 피자를 먼저 먹는다.
      */
-    fun eatBest(): Int? {
-        for (q in 2 downTo 0) {
-            var best: PizzaDef? = null
-            for (p in Pizzas.ALL) {
-                if (pizzas[pizzaIdx(p.id, q)] > 0 && (best == null || p.hungerBonus > best.hungerBonus)) best = p
-            }
-            if (best != null) {
-                eat(best.id)
-                return best.id
-            }
-        }
-        return null
-    }
+    fun eatBest(): Int? = eatBestSlice()?.pizzaId
+
+    /** [P11] [eatBest]의 상세판 — 오른 수치와 남은 조각까지 알고 싶을 때 */
+    fun eatBestSlice(): PizzaSlices.Bite? = PizzaSlices.takeBest(this)
+
+    /**
+     * [P11] 🍕 버튼의 **빠른 피자** — 등록해 둔 피자의 한 조각을 먹고,
+     * 등록이 없거나 품절이면 제일 좋은 조각을 대신 먹는다.
+     */
+    fun eatQuick(): PizzaSlices.Bite? = PizzaSlices.takeQuick(this)
+
+    /** [P11] 판째로 내주기 (사이드 스토리 피자 납품) — 남은 조각 8개도 함께 사라진다 */
+    fun removePanAt(index: Int): Boolean = PizzaSlices.removePan(this, index)
+
+    /** [P11] 피자 id로 판째로 내주기 (가장 좋은 품질부터) */
+    fun removePanOf(pizzaId: Int): Boolean = PizzaSlices.removePanOf(this, pizzaId)
 
     // ------------------ 카메라 장비 ------------------
 
@@ -497,6 +523,8 @@ class GameState {
         charmId = ""
         luck = 50f
         for (i in pizzas.indices) pizzas[i] = 0
+        for (i in pizzaSlices.indices) pizzaSlices[i] = 0
+        quickPizzaId = -1
         // 첫 장비는 물려받은 컴팩트 카메라 한 대
         ownedGear.clear()
         ownedGear.add(CameraGear.STARTER)
@@ -559,7 +587,7 @@ class GameState {
     // ------------------------------------------------------------------
 
     fun toJSON(): JSONObject = JSONObject().apply {
-        put("v", 6)
+        put("v", 7)
         put("started", started)
         put("gender", gender)
         put("inHome", inHome)
@@ -607,6 +635,8 @@ class GameState {
         put("skillPoints", skillPoints)
         put("skills", JSONObject(skills as Map<*, *>))
         put("pizzas", JSONArray().apply { pizzas.forEach { put(it) } })
+        put("pizzaSlices", JSONArray().apply { pizzaSlices.forEach { put(it) } })
+        put("quickPizzaId", quickPizzaId)
         put("birdCounts", JSONObject(birdCounts as Map<*, *>))
         put("bestStars", JSONObject(bestStars as Map<*, *>))
         put("photoAlbum", JSONArray().apply { photoAlbum.forEach { put(it.toJSON()) } })
@@ -786,6 +816,16 @@ class GameState {
                     for (q in 0 until minOf(pz.length(), 3)) s.pizzas[q] = pz.optInt(q, 0).coerceAtLeast(0)
                 }
             }
+            // [P11] 조각 재고 — v6부터 저장한다. 이 키가 없는 옛 세이브는 아래 reconcile 이
+            // "보유한 판 1개 = 8조각"으로 채워 주므로, 업데이트 후에도 피자 한 판이 통째로 사라지지 않는다.
+            val pzs = j.optJSONArray("pizzaSlices")
+            if (pzs != null) {
+                for (i in 0 until minOf(pzs.length(), s.pizzaSlices.size)) {
+                    s.pizzaSlices[i] = pzs.optInt(i, 0).coerceAtLeast(0)
+                }
+            }
+            s.quickPizzaId = j.optInt("quickPizzaId", -1)
+            PizzaSlices.reconcile(s)
             val bc = j.optJSONObject("birdCounts")
             if (bc != null) {
                 val it2 = bc.keys()
