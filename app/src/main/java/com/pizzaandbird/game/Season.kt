@@ -264,6 +264,10 @@ class SeasonFx {
         Color.argb(a.coerceIn(0, 255), Color.red(color), Color.green(color), Color.blue(color))
 
     fun draw(c: Canvas, season: Season, w: Float, h: Float) {
+        // 입자 크기·떨어지는 속도는 540 설계 px 기준이다 — 2160p 가상 캔버스에는
+        // UI_K배로 확대해 그린다(위치도 설계 좌표로 받는다).
+        c.save()
+        c.scale(UI_K, UI_K)
         // 은은한 계절 색감
         val col = when (season) {
             Season.SPRING -> Color.argb(12, 255, 190, 210)
@@ -314,5 +318,6 @@ class SeasonFx {
                 }
             }
         }
+        c.restore()
     }
 }

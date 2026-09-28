@@ -641,7 +641,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         val sy = (docentY - 13f - camY) * WORLD_SCALE
         c.drawOval(RectF(sx + 8f, sy + 26f, sx + 24f, sy + 32f), a.shadowPaint)
         val bmp = a.docentBitmap(theme, game.time, game.hdSprites)
-        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        a.drawPlayer(c, bmp, sx, sy, SPRITE_DOT_K)
         // 머리 위 💬 마커
         val bx = sx + 16f
         val by = sy - 12f
@@ -667,7 +667,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
         // (앉아지는 연출 lift 는 앉은 상태에서만 — 걷는 중엔 제자리에 그린다)
         val sitLift = restSit?.takeIf { !it.walking }?.lift ?: 0f
         val bodyY = sy - clip.topPad + sitLift * 32f
-        a.drawPlayer(c, bmp, sx, bodyY, game.worldScale.toFloat())
+        a.drawPlayer(c, bmp, sx, bodyY, SPRITE_DOT_K)
         Charms.equipped(state)?.let { item ->
             Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
                 bodyY + if (item.id == "rain") 12f else 22f, 8f, game.time)
@@ -678,7 +678,7 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, bodyY, game.worldScale.toFloat())
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, bodyY, SPRITE_DOT_K)
     }
 
     override fun drawHud(c: Canvas) {

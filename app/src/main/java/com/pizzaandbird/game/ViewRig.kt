@@ -273,7 +273,10 @@ class ViewRig(private val state: GameState) {
         }
         zoomBase += (zTarget - zoomBase) * CamFx.smoothK(dt, if (teleZoom > 1.001f) 0.24f else 0.40f)
         punch.step(dt)
-        zoom = (zoomBase * (1f + punch.v)).coerceIn(0.7f, 2.8f)
+        // 클램프는 기본 시야(CAM_BASE_ZOOM)의 비율로 건다 — 기본 배율이 커져도
+        // 같은 범위(약 0.28×~1.12× 기본)에서만 움직인다. 절대값(0.7~2.8)을 쓰면
+        // 기본 줌이 그보다 커질 때 줌이 통째로 잘려 화면이 튀어 올라간다.
+        zoom = (zoomBase * (1f + punch.v)).coerceIn(CAM_BASE_ZOOM * 0.28f, CAM_BASE_ZOOM * 1.12f)
 
         // ---------- 2) 카메라 셰이크 ----------
         // trauma^1.5 — 작은 충격은 은은하게, 큰 충격은 확실하게 (선형보다 덜 산만하다)
@@ -521,6 +524,9 @@ class SpeedStreaks(seed: Long = 20250927L) {
         if (list.isEmpty() || intensity <= 0.02f) return
         val len = hypot(dirX, dirY)
         if (len < 0.001f) return
+        // 잔상 굵기·길이는 540 설계 px 기준 — 2160p 가상 캔버스에는 UI_K배로 확대한다
+        c.save()
+        c.scale(UI_K, UI_K)
         val nx = dirX / len
         val ny = dirY / len
         for (p in list) {
@@ -532,6 +538,7 @@ class SpeedStreaks(seed: Long = 20250927L) {
             val l = p.len * (0.5f + 0.5f * intensity)
             c.drawLine(p.x, p.y, p.x - nx * l, p.y - ny * l, paint)
         }
+        c.restore()
     }
 
     fun clear() = list.clear()

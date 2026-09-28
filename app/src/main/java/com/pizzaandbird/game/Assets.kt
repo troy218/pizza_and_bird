@@ -55,9 +55,9 @@ private const val TREE_ASPEN = 18
  * 플레이어 캐릭터 스프라이트를 그리는 해상도(px, 한 변).
  *
  * 32(= [CharacterArt.SIZE])의 정수배여야 픽셀 격자가 어긋나지 않는다.
- * 96 = 3배 — 월드 슈퍼샘플 배율([Game.worldScale])이 2~3일 때 원래 크기(32 도트)로
- * 줄여 그리므로 픽셀 굵기는 예전 그대로면서, 옷 주름·머리 윤기·눈 반짝임·AA 윤곽이
- * 살아남는다. 프레임 한 장이 4KB → 36KB 로 늘어나므로 캐시 개수를 LRU 로 묶어 둔다.
+ * 96 = 3배 — 월드 비트맵이 화면급 해상도([Game.worldScale] ≈ 0.6~2.3)일 때 원래 크기(32
+ * 도트) 근처로 줄여 그리므로 픽셀 굵기는 예전 그대로면서, 옷 주름·머리 윤기·눈 반짝임·AA
+ * 윤곽이 살아남는다. 프레임 한 장이 4KB → 36KB 로 늘어나므로 캐시 개수를 LRU 로 묶어 둔다.
  */
 const val CHARACTER_PX = CharacterArt.SIZE * 3
 
@@ -628,7 +628,10 @@ class Assets(private val context: Context) {
      * 옷 주름·머리 윤기·눈 반짝임 같은 결만 새로 보인다.
      * (레벨업 축하 화면처럼 크게 띄우는 곳에서 "확대한 도트"가 아니라 "진짜 그림"이 된다)
      *
-     * @param dotScale 월드 비트맵에서 **도트 하나가 차지하는 기기 픽셀 수** (= [Game.worldScale]).
+     * @param dotScale 가상 화면에서 **도트 하나가 차지하는 px** ([SPRITE_DOT_K]).
+     *   월드 비트맵 캔버스는 이미 슈퍼샘플 배율만큼 확장돼 있으므로, 여기에 화질 설정
+     *   ([Game.worldScale])을 넘기면 배율이 이중으로 적용돼 기기마다 캐릭터 크기가
+     *   변한다 — 크기는 화질과 무관하게 항상 같아야 한다.
      */
     fun drawPlayer(
         c: Canvas, bmp: Bitmap, x: Float, y: Float,

@@ -395,8 +395,9 @@ class WorldScene(
         grass.setSeason(seasonNow)
         fx.season = seasonNow
         DayCycle.season = seasonNow
+        // 계절 입자 시뮬레이션은 540 설계 좌표에서 돌린다(그릴 때 UI_K배로 확대)
         seasonFx.update(
-            dt, seasonNow, weather, game.virtW.toFloat(), game.virtH.toFloat(),
+            dt, seasonNow, weather, game.virtW / UI_K, game.virtH / UI_K,
             night = state.isNight(), blossomIntensity = state.cherryBlossomIntensity()
         )
 
@@ -508,11 +509,12 @@ class WorldScene(
             allowRoll = !photoMode
         )
         syncCamera()
-        streaks.update(dt, velX, velY, viewRig.speedFx, game.virtW.toFloat(), game.virtH.toFloat())
+        streaks.update(dt, velX, velY, viewRig.speedFx, game.virtW / UI_K, game.virtH / UI_K)
 
         // 디테일 연출 & NPC 말풍선 (보이는 영역은 카메라 리그가 알려 준다)
         // 화면 크기는 따로 등록한다 — 화면 공간 비/눈 입자가 월드 시야·줌에 끌려다니지 않게
-        fx.setScreen(game.virtW.toFloat(), game.virtH.toFloat())
+        // 날씨 입자(비·눈)도 540 설계 좌표 공간을 쓴다 — drawWeather가 UI_K배로 확대해 그린다
+        fx.setScreen(game.virtW / UI_K, game.virtH / UI_K)
         fx.update(
             dt, game.time, state.worldTime, viewRig.x, viewRig.y,
             viewRig.viewW, viewRig.viewH, player.cx, player.cy
@@ -2780,7 +2782,7 @@ class WorldScene(
         c.restore()
 
         // ---- 스크린 패스: 날씨 · 속도 연출 · 심도 · 뷰파인더 (UI는 흔들지 않는다) ----
-        seasonFx.draw(c, state.season(), game.virtW.toFloat(), game.virtH.toFloat())
+        seasonFx.draw(c, state.season(), game.virtW / UI_K, game.virtH / UI_K)
         fx.drawWeather(c)
         atmosphere.draw(c, vw, vh, hour, weather, game.time)
         if (viewRig.speedFx > 0.02f) {
@@ -2806,13 +2808,16 @@ class WorldScene(
         if (!state.camDof) return
         // 밝은 렌즈(작은 F값)일수록 얕은 심도 — 배경이 더 많이 날아간다
         val bokeh = ((8f - state.rig().apTele) / 6f).coerceIn(0f, 1f)
+        // 반경/클램프는 가상 화면 높이에 비례 — 540px 시대의 절대값을 쓰면
+        // 2160px 화면에서 초점 원이 화면의 극히 일부만 덮는다.
+        val viewK = VIRT_H / 540f
         val hasSubject = focusBird != null
         val cx = if (hasSubject) projX((subjX - camX) * WORLD_SCALE) else projX((player.cx - camX) * WORLD_SCALE)
         val cy = if (hasSubject) projY((subjY - camY) * WORLD_SCALE) else projY((player.cy - camY) * WORLD_SCALE)
         val r = if (hasSubject) {
-            (focusR * WORLD_SCALE * viewRig.zoom * (2.8f - 0.5f * bokeh)).coerceIn(90f, 520f)
+            (focusR * WORLD_SCALE * viewRig.zoom * (2.8f - 0.5f * bokeh)).coerceIn(90f * viewK, 520f * viewK)
         } else {
-            430f
+            430f * viewK
         }
         val a = (64f + 52f * bokeh) * (0.45f + 0.55f * focusK)
         focusMask.draw(
@@ -2834,7 +2839,7 @@ class WorldScene(
             val gy = (ghostY[idx] - camY) * WORLD_SCALE
             val alpha = ((78 - i * 26) * k).toInt().coerceIn(0, 255)
             if (alpha <= 3) continue
-            a.drawPlayer(c, bmp, gx, gy, game.worldScale.toFloat(), alpha)
+            a.drawPlayer(c, bmp, gx, gy, SPRITE_DOT_K, alpha)
         }
     }
 
@@ -2856,7 +2861,7 @@ class WorldScene(
                 val sy = (e.y - camY) * WORLD_SCALE
                 scratchRect.set(sx + 8f, sy + 26f, sx + 24f, sy + 32f)
                 c.drawOval(scratchRect, a.shadowPaint)
-                a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+                a.drawPlayer(c, bmp, sx, sy, SPRITE_DOT_K)
                 // 메인 보고 가능 또는 받을 수 있는 서브 의뢰가 있으면 느낌표 표시
                 if (e.kind == NpcKind.PROFESSOR) {
                     val mainReady = !state.mainQuestFinished &&
@@ -3006,7 +3011,7 @@ class WorldScene(
                 // 앉아지는 연출 동안에는 lift 만큼 아래에서 좌석으로 떠오른다 (걷는 중엔 적용 안 함).
                 val sitLift = benchSit?.takeIf { !it.walking }?.lift ?: 0f
                 val bodyY = sy - (animClip?.topPad ?: 0) + sitLift * 32f
-                a.drawPlayer(c, bmp, sx, bodyY, game.worldScale.toFloat())
+                a.drawPlayer(c, bmp, sx, bodyY, SPRITE_DOT_K)
                 Charms.equipped(state)?.let { item ->
                     val left = player.facing == Dir.W
                     val x = sx + if (left) 8f else 24f
@@ -3035,7 +3040,7 @@ class WorldScene(
                     }
                     val lift = if (raised) -1f else 0f
                     val ride = if (player.bike) 1.5f else 0f
-                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, bodyY + bob + lift + ride, game.worldScale.toFloat())
+                    a.drawPlayer(c, a.camHeld(look, camDir, raised, hd), sx, bodyY + bob + lift + ride, SPRITE_DOT_K)
 
                     // 촬영 모드: 렌즈 앞알이 반짝인다
                     if (raised && camDir != 1) {

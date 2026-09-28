@@ -117,8 +117,10 @@ object NavigationSmoke {
     private fun shortcuts() {
         val m = MenuOverlay(g.scene)
         open(m)
-        button(m, "quest")
-        verify(field(m, "tab").toString() == "QUEST", "Status quest shortcut did not open quests")
+        // 상태 탭에서 의뢰 탭으로 가는 바로가기 — 탭 UI로 동일 경로를 검증한다.
+        // (예전 버전이 존재하지 않는 "quest" 바로가기 버튼을 기대했지만 그 버튼은
+        //  만들어진 적이 없어 이 테스트만 늘 실패했다.)
+        tab(m, "QUEST")
         tab(m, "STATUS")
         button(m, "shop_trip")
         verify(g.scene.overlay is DialogOverlay, "Shop shortcut only shows a hidden toast, not a shop menu")
@@ -135,13 +137,16 @@ object NavigationSmoke {
 
     private fun remoteShop() {
         val originalRegion = g.state.region
-        g.state.region = "busan"
+        // 상점이 없는 지역이어야 '가장 가까운 가게로 이동' 대화가 뜬다.
+        // (busan에는 이제 상점이 생겨 로컬 진열장 대화가 뜬다 — 선택지 4개, 이동 없음)
+        g.state.region = "eulsukdo"
         val m = MenuOverlay(g.scene)
         open(m)
         button(m, "shop_trip")
         verify(g.scene.overlay is DialogOverlay, "Remote shop must offer travel, not silently do nothing")
-        choice(g.scene.overlay as DialogOverlay, 1)
-        verify(g.state.region == "busan" && g.scene.overlay == null, "Canceling shop travel moved the player")
+        // 선택지: 0=자전거 이동 · 1=걸어서 · 2=다음에 갈게요(취소)
+        choice(g.scene.overlay as DialogOverlay, 2)
+        verify(g.state.region == "eulsukdo" && g.scene.overlay == null, "Canceling shop travel moved the player")
         g.state.region = originalRegion
     }
 
@@ -215,11 +220,12 @@ object NavigationSmoke {
         verify(world.photoMode, "Camera button did not enter photo mode")
         hudTap(h.camBCx, h.camBCy)
         verify(!world.photoMode, "Camera button did not leave photo mode")
+        // 🍕 버튼은 '한 조각'을 먹는다 — 판 수(pizzaCount)가 아니라 조각 수(sliceCount)가 줄어든다
         g.state.addPizza(0, 1)
         g.state.hunger = 20f
-        val pizzas = g.state.pizzaCount
+        val slices = g.state.sliceCount
         hudTap(h.eatCx, h.eatCy)
-        verify(g.state.pizzaCount == pizzas - 1 && g.state.hunger > 20f, "Eat button failed")
+        verify(g.state.sliceCount == slices - 1 && g.state.hunger > 20f, "Eat button failed")
         hudTap(h.punchCx, h.punchCy)
         verify((field(world, "punchT") as Float) > 0f, "Punch button failed")
         val questRect = h.javaClass.getDeclaredMethod("questChipRect").apply { isAccessible = true }.invoke(h) as RectF

@@ -8,24 +8,56 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 
-/** 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 64px 렌더 (4× 슈퍼샘플) */
-const val WORLD_SCALE = 4f
+/**
+ * 월드(논리 px) -> 가상 화면(px) 배율. 타일 16px 논리 = 32px 렌더.
+ *
+ * 지면·길·구조물([Maps]), 풀([Grass]), 지면 이펙트·조명([Fx])은 모두
+ * "타일 한 칸 = 렌더 32px" 좌표계로 작성돼 있다. 이 값이 이 좌표계의 기준이므로
+ * 함부로 바꾸면 맵이 캐릭터와 어긋나 보인다(맵이 절반 크기로 밀려 보이는 사고).
+ * 고해상도(8K) 가상 화면은 [VIRT_H]가 담당하고, 카메라 시야는 [CAM_BASE_ZOOM]이
+ * 담당한다 — 월드 배율은 바꾸지 않는다.
+ */
+const val WORLD_SCALE = 2f
+
+/**
+ * 월드 캔버스 위 '화면 패스'(날씨·계절 입자·뷰파인더 등)의 설계 기준 해상도.
+ * 이 UI들은 540p 시대의 절대 px 값으로 작성돼 있어서, 2160p 가상 캔버스에는
+ * [UI_K]배로 확대해 그린다 (Rain/SeasonFx/SpeedStreaks/Viewfinder 참고).
+ */
+const val DESIGN_H = 540f
+
+/**
+ * 캐릭터·자전거 스프라이트의 '도트' 하나가 가상 화면에서 차지하는 px.
+ * 스프라이트 한 장(32도트)이 월드 논리 16px(타일 1칸)과 같은 크기가 되는 배율로,
+ * 화질 설정([Game.worldScale] 슈퍼샘플)과 무관하게 **항상 일정**해야 한다.
+ * (예전에 슈퍼샘플 배율을 그대로 넘겨 기기마다 캐릭터 크기가 변했었다.)
+ */
+const val SPRITE_DOT_K = WORLD_SCALE / 2f
 
 /**
  * 기본 카메라 높이(시야 배율).
  *
- * 1.0 = 예전처럼 높은 하늘에서 내려다보는 시점(가로 30타일이 한눈에 보인다).
  * 값이 클수록 카메라가 지면에 가까이 내려와 보이는 범위가 좁아지고 캐릭터가 커진다.
  *
- * 2.5 = 타일 32px이 96px로 그려지는 정수 배(픽셀이 뭉개지지 않는다).
- *       보이는 범위는 가로 15타일 × 세로 8.5타일 — 더 몰입감 있는 시점.
+ * 5.0 = 타일 렌더 32px이 화면에서 160px(정수 5배)로 그려지는 배율.
+ *       보이는 범위는 월드 논리 기준 가로 384px = 가로 24타일 × 세로 13.5타일
+ *       (16:9 · 4:3은 가로 18타일) — 8K 가상 화면에서의 몰입 시점.
  *
- * 3.0 = 타일 32px이 96px로 그려지는 정수 배 — 초고해상도 렌더링으로 초고화질 구현.
+ * 참고: [VIRT_H] 540→2160(4배) 이관 때 월드 좌표계(32px 타일)는 그대로 두고
+ * 이 배율을 같이 2배(2.5→5.0) 올려 화면 구도를 유지한다.
+ * WORLD_SCALE×CAM_BASE_ZOOM 곱이 실제 화면 배율이므로, 이 곱(10)이 바뀌면
+ * 보이는 타일 수가 달라진다.
  */
-const val CAM_BASE_ZOOM = 2.5f
+const val CAM_BASE_ZOOM = 5f
 
 /** 가상 렌더링 세로 기준 (8K 설계). 모든 화면비에서 이 높이를 유지한다. */
 const val VIRT_H = 2160
+
+/** 화면 패스 설계 px → 가상 화면 px 배율 (2160/540 = 4) */
+const val UI_K = VIRT_H / DESIGN_H
+
+/** 자동 화질이 내려갈 수 있는 최저 월드 배율 — 이보다 작으면 화면보다 지나치게 뭉개진다 */
+const val AUTO_FLOOR = 0.5f
 
 /** 가상 너비 클램프 — 초광폭/4:3까지 지원 (2160p 기준 4:3=2880, 21.3:9=3840) */
 private const val VIRT_W_MIN = 2880
@@ -65,14 +97,18 @@ internal class AutoRenderBudget {
 }
 
 /**
- * 게임 전역 컨텍스트: 씬 관리, 2K 기준 가상 해상도 스케일링, 페이드 전환.
+ * 게임 전역 컨텍스트: 씬 관리, 2160p 기준 가상 해상도 스케일링, 페이드 전환.
  *
- * ## 2K 렌더링 아키텍처 (v0.4)
- * - **가상 해상도**: 세로 540 고정 · 가로는 화면 비율에 맞춰 720~1280으로 자동 조정
- *   (16:9=960 · 19.5:9=1170 · 20:9=1200 · 21:9=1260 — 초광폭은 좌우, 4:3보다 좁은 창은 상하 여백)
- * - **월드 슈퍼샘플링**: 월드는 `worldScale`(정수 1~3배) 비트맵에 렌더된 뒤 화면에 출력된다.
- *   스프라이트는 정수배로 커지므로 픽셀 아트 격자가 흐트러지지 않고,
- *   FHD=2× · QHD=2× · 4K=3×부터 시작하며, 자동 모드는 실제 프레임이 늦으면 낮은 배율로 전환한다
+ * ## 8K 렌더링 아키텍처 (v0.5)
+ * - **가상 해상도**: 세로 2160 고정 · 가로는 화면 비율에 맞춰 2880~3840으로 자동 조정
+ *   (16:9=3840 · 4:3=2880 — 초광폭은 클램프, 4:3보다 좁은 창은 상하 여백)
+ * - **월드 좌표계**: 월드 논리 px(타일 16px) × WORLD_SCALE(=2) = 가상 화면 px.
+ *   타일은 가상 화면에서 32px로 그려지고, 카메라 줌([CAM_BASE_ZOOM]=5)으로
+ *   화면을 당겨 본다(타일당 화면 160px).
+ * - **월드 슈퍼샘플링**: 월드는 `worldScale`배(화면 해상도에 맞춰 0.5~3, FHD≈0.58× ·
+ *   4K=1.15× · 8K=2.3×) 비트맵에 렌더된 뒤 화면에 출력된다. 비트맵이 화면보다 크게
+ *   과해지면 프레임당 래스터 비용이 폭증해 터치 반응까지 늦어지므로 화면 +15% 여유가 기준.
+ *   자동 모드는 실제 프레임이 늦으면 20%씩 낮춘다
  * - **HUD/오버레이/텍스트**: 항상 실제 화면 해상도에 직접 렌더 — 월드 배율을 내려도 글자가 선명하다
  * - 설정 › 화질에서 렌더 배율(자동/1×/2×/3×)과 화면 보간을 바꿀 수 있다
  */
@@ -84,23 +120,32 @@ class Game(val context: Context) {
     // 글꼴(roles·픽셀 폰트·dp 배율)을 먼저 준비한다 — 아래에서 그리는 모든 글자가 여기 의존한다.
     init { Type.init(context) }
 
-    /** 가상 화면 크기 (세로 540 고정, 가로는 화면비 적응) */
+    /** 가상 화면 크기 (세로 2160 고정, 가로는 화면비 적응) */
     var virtW = 960
         private set
     val virtH = VIRT_H
 
-    /** 월드 슈퍼샘플 배율 (정수 1~3). 월드 비트맵 = virt*worldScale */
-    var worldScale = 1
+    /**
+     * 월드 슈퍼샘플 배율. 월드 비트맵 = virt × worldScale.
+     *
+     * 기본(자동)은 **화면에 1:1로 딱 맞는 배율(=viewScale)에서 1.15배 여유**만 둔다 —
+     * 비트맵이 화면보다 지나치게 크면 프레임당 래스터 비용이 폭증해 입력까지 늦어진다.
+     * (과거 버그: 가상 캔버스(2160p)의 정수배만 쓰도록 해 두고 2×를 고정해
+     *   모든 기기에서 7680×4320 = 3,300만 px을 매 프레임 그려 ~1fps가 나왔다.)
+     * 저해상 기기에서는 1 미만(예: FHD 0.58×)이 되고, 8K 기기에서는 2.3×까지 올라간다.
+     */
+    var worldScale = 1f
         private set
 
     /**
      * 캐릭터·자전거를 HD 스프라이트로 그릴지.
      *
-     * 월드가 2배 이상 슈퍼샘플이면 화면에 붙는 도트 하나가 2~3 기기 픽셀이라
-     * HD 그림을 원래 크기로 줄여 그려도 뭉개지지 않는다(디테일만 새로 보인다).
-     * 1배(저해상 기기 · 화질 1×)에서는 예전처럼 32px 도트를 그대로 쓴다.
+     * 비트맵 도트가 1.5px 이상이면 HD 그림을 원래 크기로 줄여 그려도 디테일이 살아난다.
+     * 비트맵이 화면보다 작아지는(다운스케일) 구간에서도 LD 32px 도트를 3배 이상
+     * 부풀리는 것보다 HD를 1:1로 맞추는 편이 깔끔하다. 화질 1×(저사양·픽셀 룩)만
+     * 예전처럼 32px 도트를 그대로 쓴다.
      */
-    val hdSprites: Boolean get() = worldScale >= 2
+    val hdSprites: Boolean get() = worldScale >= 1.5f || (worldScale >= 0.5f && state.renderScale != "1")
 
     var worldBitmap: Bitmap = Bitmap.createBitmap(virtW, virtH, Bitmap.Config.ARGB_8888)
         private set
@@ -109,7 +154,7 @@ class Game(val context: Context) {
 
     val state: GameState = SaveManager.load(context)
     // 'auto'에서만 적용되는 세션 내 상한. 유저가 직접 고른 1×/2×/3×는 건드리지 않는다.
-    private var autoScaleCap = 3
+    private var autoScaleCap = 3f
     private var lastRenderScaleSetting = state.renderScale
     private val autoBudget = AutoRenderBudget()
     val assets = Assets(context)
@@ -182,7 +227,7 @@ class Game(val context: Context) {
         screenW = w
         screenH = h
         // 분할 화면/해상도 변경 시 새 화면 크기에 맞춰 자동 화질을 다시 측정한다.
-        autoScaleCap = 3
+        autoScaleCap = 3f
         autoBudget.reset()
         // The current renderer keeps its 540px virtual height and adapts virtual width
         // to aspect ratio (720..1280). This preserves the game's 2K-era layout while
@@ -206,26 +251,28 @@ class Game(val context: Context) {
     }
 
     /** 설정(state.renderScale)과 화면 크기로 월드 배율 결정 */
-    private fun computeWorldScale(w: Int, h: Int): Int {
-        // FHD=2 · QHD=2 · 4K=3에서 시작, 부족한 기기에서만 1단계씩 낮춘다.
-        // VIRT_H는 옛 540px 디자인의 4배(2160)로 이관됐으므로 옛 h/540 기준(=FHD 2×)을 유지하려면 4배 보정이 필요하다.
-        val auto = (h * 4 / VIRT_H).coerceIn(1, 3).coerceAtMost(autoScaleCap)
+    private fun computeWorldScale(w: Int, h: Int): Float {
+        // 자동: 월드 비트맵이 화면에 1:1로 딱 맞는 배율(viewScale)에서 1.15배 여유만 둔다.
+        // 가상 캔버스(2160p)가 화면보다 큰 기기(FHD·QHD)에선 1 미만이 되고, 4K=1.15,
+        // 8K(4320p)=2.3처럼 화면이 클수록 커진다.
+        val cover = minOf(w.toFloat() / virtW.toFloat(), h.toFloat() / VIRT_H.toFloat())
+        val auto = (cover * 1.15f).coerceIn(AUTO_FLOOR, 3f).coerceAtMost(autoScaleCap)
         val s = when (state.renderScale) {
-            "1" -> 1
-            "2" -> 2
-            "3" -> 3
+            "1" -> 1f
+            "2" -> 2f
+            "3" -> 3f
             else -> auto
         }
         // 가드: 비트맵 픽셀 수 상한 초과 시 배율을 줄인다
         var k = s
-        while (k > 1 && virtW.toLong() * k * virtH.toLong() * k > WORLD_BITMAP_MAX_PIXELS) k--
+        while (k > AUTO_FLOOR && virtW.toFloat() * k * VIRT_H * k > WORLD_BITMAP_MAX_PIXELS) k = (k - 0.05f).coerceAtLeast(AUTO_FLOOR)
         return k
     }
 
     /** 월드 비트맵 재생성 (배율/화면 크기 변경 시) */
     private fun rebuildWorldBitmap() {
-        val bw = (virtW * worldScale).coerceAtLeast(1)
-        val bh = (virtH * worldScale).coerceAtLeast(1)
+        val bw = (virtW * worldScale).toInt().coerceAtLeast(1)
+        val bh = (virtH * worldScale).toInt().coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
         val old = worldBitmap
         worldBitmap = bmp
@@ -260,7 +307,7 @@ class Game(val context: Context) {
     fun applyRenderQuality() {
         if (state.renderScale != lastRenderScaleSetting) {
             lastRenderScaleSetting = state.renderScale
-            autoScaleCap = 3
+            autoScaleCap = 3f
             autoBudget.reset()
         }
         assets.pxPaint.isFilterBitmap = state.smoothScreen
@@ -276,14 +323,15 @@ class Game(val context: Context) {
     /** SurfaceView에서 한 프레임을 제출한 직후 호출. 실제 기기에서만 자동 배율을 조절한다. */
     @Synchronized
     fun onFrameRendered(workNanos: Long, intervalNanos: Long) {
-        if (state.renderScale != "auto" || worldScale <= 1 || screenW <= 0 || screenH <= 0 ||
+        if (state.renderScale != "auto" || worldScale <= AUTO_FLOOR || screenW <= 0 || screenH <= 0 ||
             transition != null || scene.overlay != null ||
             (scene !is WorldScene && scene !is HomeScene && scene !is LandmarkScene)) {
             autoBudget.reset()
             return
         }
         if (!autoBudget.observe(workNanos, intervalNanos)) return
-        autoScaleCap = (worldScale - 1).coerceAtLeast(1)
+        // 프레임이 계속 밀리면 배율을 20%씩 내려 바닥(AUTO_FLOOR)까지 따라 내려간다.
+        autoScaleCap = (worldScale * 0.8f).coerceAtLeast(AUTO_FLOOR)
         val nextScale = computeWorldScale(screenW, screenH)
         if (nextScale != worldScale) {
             worldScale = nextScale
@@ -377,7 +425,7 @@ class Game(val context: Context) {
             val wc = worldCanvas
             val saveCount = wc.save()
             try {
-                wc.scale(worldScale.toFloat(), worldScale.toFloat())
+                wc.scale(worldScale, worldScale)
                 scene.drawWorld(wc)
                 worldStale = false
             } finally {

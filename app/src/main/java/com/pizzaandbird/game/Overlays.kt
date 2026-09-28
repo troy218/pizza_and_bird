@@ -484,7 +484,8 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
     override fun handleInput(input: Input) {
         val g = scene.game
         val tap = input.consumeTapScreen()
-        if (input.justB || input.justBack) {
+        // justMenu 포함: 메뉴 키(M)로 열었다면 같은 키로 닫히게 토글한다.
+        if (input.justB || input.justBack || input.justMenu) {
             // 도감에서 키보드·드롭다운이 열려 있으면 그 칸부터 닫는다 (메뉴가 통째로 꺼지면 당황스럽다)
             if (tab == Tab.BOOK && (dexKeyboard || dexDrop >= 0)) {
                 if (dexDrop >= 0) dexDrop = -1
@@ -2182,7 +2183,7 @@ class MenuOverlay(scene: Scene, private val showAchievements: Boolean = false) :
                     "1" -> "1배 (성능 우선)"
                     "2" -> "2배 (고화질)"
                     "3" -> "3배 (최고 화질)"
-                    else -> "자동 (${g.worldScale}배 · 프레임 우선)"
+                    else -> "자동 (${"%.2f".format(g.worldScale)}배 · 프레임 우선)"
                 } },
                 "버벅이면 월드만 낮춰요 (글씨·버튼은 선명하게)",
                 action = {

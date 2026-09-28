@@ -979,8 +979,14 @@ class Canvas {
         val old = g.composite
         g.composite = java.awt.AlphaComposite.SrcOver
         g.paint = JColor(color, true)
+        // Android의 drawColor는 '클립 전체'를 장치 공간 기준으로 채운다 — 현재 캔버스
+        // 변환(월드 비트맵 축소 등)과 무관하다. Java2D fillRect는 변환을 받으므로
+        // 잠시 항등 변환으로 바꿔 클립(=비트맵) 전체를 덮은 뒤 되돌린다.
+        val at = g.transform
+        g.transform = java.awt.geom.AffineTransform()
         val b = g.clipBounds
         g.fillRect(b?.x ?: 0, b?.y ?: 0, b?.width ?: owner?.width ?: 1, b?.height ?: owner?.height ?: 1)
+        g.transform = at
         g.composite = old
     }
 

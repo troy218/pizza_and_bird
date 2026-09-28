@@ -660,7 +660,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         val hd = game.hdSprites
         val ps = a.playerSet(state.gender, state.gearTier(), hd)
         val bmp = ps.clip(player.anim).frame(player.facing, player.frame)
-        a.drawPlayer(c, bmp, sx, sy, game.worldScale.toFloat())
+        a.drawPlayer(c, bmp, sx, sy, SPRITE_DOT_K)
         Charms.equipped(state)?.let { item ->
             Charms.draw(c, item, sx + if (player.facing == Dir.W) 8f else 24f,
                 sy + if (item.id == "rain") 12f else 22f, 8f, game.time)
@@ -672,7 +672,7 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
             Dir.N -> 1
             else -> 0
         }
-        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, game.worldScale.toFloat())
+        a.drawPlayer(c, a.camHeld(state.rig().look, camDir, false, hd), sx, sy, SPRITE_DOT_K)
 
         // 화덕 불티 / 연기
         drawMotes(c, camXv, camYv)
