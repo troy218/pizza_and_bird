@@ -190,11 +190,18 @@ class WorldScene(
             SpawnKind.HOME -> {
                 // 집을 나가면 **들어갔던 현관** 바로 앞으로 돌아온다 (우리 집뿐 아니라 마을 민가도).
                 // 현관 타일 위에 서면 다시 들어가는 트리거가 걸리므로, 문 앞 한 칸에서 시작한다.
-                val hx = state.px
-                val hy = state.py
-                if (hx > 16f && hy > 16f &&
-                    map.t(((hx + 8f) / 16f).toInt(), ((hy + 13f) / 16f).toInt()) == T.HOUSE_DOOR
-                ) {
+                var hx = state.px
+                var hy = state.py
+                var atDoor = hx > 16f && hy > 16f &&
+                        map.t(((hx + 8f) / 16f).toInt(), ((hy + 13f) / 16f).toInt()) == T.HOUSE_DOOR
+                if (!atDoor && map.houseDoorX >= 0) {
+                    // 실내 좌표로 현관 판정에 실패한 복원 세이브: 그 지역의 집 현관을 기준으로 잡는다.
+                    hx = map.houseDoorX * 16f
+                    hy = map.houseDoorY * 16f
+                    atDoor = hx > 16f && hy > 16f &&
+                            map.t(((hx + 8f) / 16f).toInt(), ((hy + 13f) / 16f).toInt()) == T.HOUSE_DOOR
+                }
+                if (atDoor) {
                     // 문 앞 후보지를 돌며 비어 있는 칸을 고른다 (나무·바위에 파묻히지 않게)
                     var placed: Pair<Float, Float>? = null
                     for ((ox, oy) in listOf(0f to 16f, -16f to 0f, 16f to 0f, 0f to -16f, 0f to 32f)) {
@@ -210,9 +217,24 @@ class WorldScene(
                     376f to 12.2f * 16f
                 }
             }
-            SpawnKind.LANDMARK ->                      // 랜드마크에서 나오면 정문 바로 앞
-                if (map.landmarkDoorX >= 0) map.landmarkDoorX * 16f to (map.landmarkDoorY + 1) * 16f
-                else 18f * 16f to 14f * 16f
+            SpawnKind.LANDMARK -> {         // 랜드마크에서 나오면 정문 바로 앞
+                if (map.landmarkDoorX >= 0) {
+                    val lx = map.landmarkDoorX * 16f
+                    val ly = (map.landmarkDoorY + 1) * 16f   // 정문 앞(남쪽) 한 칸
+                    var placed: Pair<Float, Float>? = null
+                    for ((ox, oy) in listOf(0f to 0f, 0f to 16f, -16f to 0f, 16f to 0f, 0f to -32f, -16f to 16f, 16f to 16f)) {
+                        val cx = lx + ox
+                        val cy = ly + oy
+                        if (cx > 16f && cy > 16f && !map.solidBox(cx + 8f, cy + 13f)) {
+                            placed = cx to cy
+                            break
+                        }
+                    }
+                    placed ?: (lx to ly)
+                } else {
+                    18f * 16f to 14f * 16f
+                }
+            }
             SpawnKind.TUNNEL -> when (spawnDir) {
                 Dir.N -> 312f to 3f * 16f
                 Dir.S -> 312f to (map.h - 4f) * 16f
@@ -250,7 +272,7 @@ class WorldScene(
             Healing.unlock(state, "sea_breeze")
         }
 
-        spawnTimer = BirdEcology.nextInterval(state.worldTime, state.weather(), rnd)
+        spawnTimer = 2.5f + rnd.nextFloat() * 3.5f   // 첫 새는 재생산 직후 곧바로 모습을 드러낸다
         spawnCats()
 
         // 카메라 초기 스냅
@@ -485,8 +507,10 @@ class WorldScene(
         // 새 스폰
         spawnTimer -= dt
         if (spawnTimer <= 0f) {
-            trySpawnBird()
-            spawnTimer = BirdEcology.nextInterval(state.worldTime, weather, rnd)
+            // 스폰에 실패했어도 다음 주기를 기다리지 않고 잠깐 후 다시 시도한다
+            val spawned = trySpawnBird()
+            spawnTimer = if (spawned) BirdEcology.nextInterval(state.worldTime, weather, rnd)
+            else 2.5f + rnd.nextFloat() * 2f
         }
 
         // 파티클
@@ -1202,8 +1226,8 @@ class WorldScene(
         return Birds.poolFor(map.region, state.isNight(), state.day, state.worldTime)
     }
 
-    private fun trySpawnBird() {
-        if (birds.size >= 3) return
+    private fun trySpawnBird(): Boolean {
+        if (birds.size >= 4) return false
         // Roll rarity first, independently of how many species the checklist contains.
         // Missing tiers leave a quiet interval rather than promoting a rarity to certainty.
         val tierWeights = Tier.values().associateWith {
@@ -1215,7 +1239,7 @@ class WorldScene(
             tierRoll < 0.0
         } ?: Tier.COMMON
         val pool = regionPool().filter { it.tier == tier }
-        if (pool.isEmpty()) return
+        if (pool.isEmpty()) return false
 
         val currentWeather = state.weather()
         val currentSeason = state.season()
@@ -1232,7 +1256,7 @@ class WorldScene(
             if (roll <= 0) { def = pool[i]; break }
         }
 
-        for (i in 0 until 80) {
+        for (i in 0 until 110) {
             val tx = 2 + rnd.nextInt(map.w - 4)
             val ty = 2 + rnd.nextInt(map.h - 4)
             val suitability = BirdEcology.suitability(def, map, tx, ty)
@@ -1240,7 +1264,7 @@ class WorldScene(
             val bx = tx * 16f + 1f
             val by = ty * 16f + 3f
             val dPlayer = hypot(bx - player.cx, by - player.cy)
-            if (dPlayer < 7f * 16f || dPlayer > 20f * 16f) continue
+            if (dPlayer < 5f * 16f || dPlayer > 18f * 16f) continue
             var tooClose = false
             for (b in birds) {
                 if (hypot(b.x - bx, b.y - by) < 40f) { tooClose = true; break }
@@ -1256,8 +1280,9 @@ class WorldScene(
             fieldBird.y = by + 9f - fieldBird.sprH
             birds.add(fieldBird)
             announceSpawn(def)
-            return
+            return true
         }
+        return false
     }
 
     /**
@@ -2488,8 +2513,13 @@ class WorldScene(
             openOverlay(MapOverlay(this))
             return
         }
+        if (input.justQuestView) {
+            // 의뢰 칩(의뢰 · 1장 …) 탭 = 해당 의뢰의 내용을 보여 준다
+            QuestNavigation.openTracker(this)
+            return
+        }
         if (input.justQuest) {
-            // 의뢰 칩(1장 …) 탭 = 의뢰 목표 위치로 자동 길안내
+            // 칩 아래 내용 상자(남은 새 …) 탭 = 의뢰 목표 위치로 자동 길안내
             QuestNavigation.autoGo(this)
             return
         }
