@@ -1502,12 +1502,12 @@ object MapBuilder {
             val chosen = anchor
             if (chosen != null) {
                 val (bx, by) = chosen
-                // 간선도로 남쪽에 자리 잡으면 문을 북쪽(길 쪽)으로 낸다 —
-                // 남향 그대로 두면 정문 앞이 등지고 선 벽이라 샛길이 이을 수 없다.
-                val south = by > AVE_Y
-                val roofRows = if (south) listOf(by + 2, by + 3) else listOf(by, by + 1)
-                val winY = if (south) by + 1 else by + 2
-                val doorY = if (south) by else by + 3
+                // 랜드마크는 언제나 **정방향**으로만 세운다 (지붕 위·문 아래).
+                // 남쪽 자리에서도 뒤집으면 지붕이 아래로 내려와 문이 반대쪽으로 나오고,
+                // 정문 앞 스폰이 벽에 갇힌다. 남쪽 배치는 샛길을 옆으로 돌아 잇는다.
+                val roofRows = listOf(by, by + 1)
+                val winY = by + 2
+                val doorY = by + 3
                 // 지붕 2줄
                 for (yy in roofRows) for (x in bx..bx + 4) {
                     t[yy][x] = T.LM_ROOF.ordinal; structure[yy][x] = true; reserved[yy][x] = true
@@ -1526,9 +1526,9 @@ object MapBuilder {
                 }
                 landmarkDoorX = bx + 2
                 landmarkDoorY = doorY
-                // 문턱 포장
+                // 문턱 포장 — 정문 앞(남쪽) 한 칸
                 pave[doorY][bx + 2] = Pave.STONE
-                val frontY = if (south) doorY - 1 else doorY + 1
+                val frontY = doorY + 1
                 if (inb(bx + 2, frontY)) pave[frontY][bx + 2] = Pave.STONE
                 landmarkFronts.add(bx + 2 to frontY)
             }
@@ -1733,11 +1733,24 @@ object MapBuilder {
         //     문턱 포장 2칸은 이미 깔려 있으므로 그 **바깥**에서부터 길을 잇는다 —
         //     포장된 칸이 줄에 섞이면 pathClear 가 포기해서 정문이 고아 길이 된다.
         for ((fx, fy) in landmarkFronts) {
-            val targetY = if (fy < AVE_Y) AVE_Y else AVE_Y + 1
-            val startY = if (fy < AVE_Y) fy + 1 else fy - 1
-            val seq = pathClear(listOf(fx to startY, fx to targetY), allowRiverBridge = mapStyle.rivers.isNotEmpty())
-                ?: pathClear(listOf(fx to startY, fx to AVE_Y + 1), allowRiverBridge = true)
-            if (seq != null) for ((x, y) in seq) stamp(x, y, 1, streetMat)
+            if (fy < AVE_Y) {
+                // 북쪽 배치 — 남향 정문에서 곧장 남쪽 간선도로로.
+                val seq = pathClear(listOf(fx to fy + 1, fx to AVE_Y), allowRiverBridge = mapStyle.rivers.isNotEmpty())
+                    ?: pathClear(listOf(fx to fy + 1, fx to AVE_Y + 1), allowRiverBridge = true)
+                if (seq != null) for ((x, y) in seq) stamp(x, y, 1, streetMat)
+            } else {
+                // 남쪽 배치도 문은 남향(정방향) — 건물이 바로 앞을 막으므로
+                // 동·서 한쪽으로 돌아 간선도로(16번 줄)까지 이어 준다.
+                for (sideX in listOf(fx - 3, fx + 3)) {
+                    val pts = listOf(fx to fy + 1, sideX to fy + 1, sideX to AVE_Y + 1)
+                    val seq = pathClear(pts, allowRiverBridge = mapStyle.rivers.isNotEmpty())
+                        ?: pathClear(pts, allowRiverBridge = true)
+                    if (seq != null) {
+                        for ((x, y) in seq) stamp(x, y, 1, streetMat)
+                        break
+                    }
+                }
+            }
         }
 
         // 호숫가 전망 데크

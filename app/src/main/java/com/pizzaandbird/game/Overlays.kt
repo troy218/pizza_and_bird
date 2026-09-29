@@ -438,7 +438,9 @@ class NotebookOverlay(scene: Scene) : Overlay(scene) {
 class MenuOverlay(
     scene: Scene,
     private val showAchievements: Boolean = false,
-    private val target: MenuTarget = MenuTarget.BAG
+    private val target: MenuTarget = MenuTarget.BAG,
+    /** 아이템 설명 팝업에서 돌아올 때 가방 페이지를 그대로 이어 간다 */
+    private val bagPage0: Int = 0
 ) : Overlay(scene) {
     /** 화면 대부분을 덮는 동안 뒤 월드 비트맵을 재사용한다. */
     override val coversWorld: Boolean get() = true
@@ -484,6 +486,13 @@ class MenuOverlay(
     /** 탭을 누른 직후 0.1초 눌린 버튼 상태를 보여 준다 (타 게임 버튼처럼 톡 눌리는 느낌). */
     private var flashTab: Tab? = null
     private var flashUntil = 0f
+    /**
+     * false(기본) = **지금 연 창만** 단독으로 보여 준다 — 가방/도감/업적/설정 버튼을
+     * 누르면 해당 창만 뜨고 인덱스 탭 줄은 보이지 않는다. true = "전체 창" 버튼으로
+     * 펼쳤을 때 색색의 인덱스 탭 9개를 나란히 보여 준다.
+     */
+    private var showAllTabs = false
+    private var tabsBtnRect = RectF()
     private val tabRects = ArrayList<Pair<RectF, Tab>>()
     private val btnRects = ArrayList<Triple<RectF, String, () -> Unit>>()
     private var closeRect = RectF()
@@ -518,6 +527,13 @@ class MenuOverlay(
         if (closeRect.contains(tap.x, tap.y)) {
             g.sfx(Audio.Sfx.TAP, 0.5f)
             finished = true
+            return
+        }
+        // "전체 창" — 단독 창 ↔ 인덱스 탭 9개 보기 전환
+        if (tabsBtnRect.contains(tap.x, tap.y)) {
+            g.sfx(Audio.Sfx.TAP, 0.5f)
+            showAllTabs = !showAllTabs
+            resetArmed = false
             return
         }
         for ((r, t) in tabRects) {
@@ -638,8 +654,8 @@ class MenuOverlay(
         UiKit.stitch(c, g, RectF(flapR.left + dp(scene, 4f), flapR.top + dp(scene, 4f), flapR.right - dp(scene, 4f), flapR.bottom - dp(scene, 4f)),
             dp(scene, 1.4f), 0xFFFFE9C4.toInt(), 175)
 
-        // 이름표 스티커 (제목)
-        val titleTxt = "backpack 여행 가방"
+        // 이름표 스티커 (제목) — 단독 창일 땐 지금 펼친 창의 이름만, 전체 모드에선 가방 덮개 제목
+        val titleTxt = if (showAllTabs) "backpack 여행 가방" else "${tab.icon} ${tab.label}"
         val tagW = UiKit.nameTagWidth(g, titleTxt, 15f)
         val tagR = RectF(flapR.left + dp(scene, 10f), flapR.centerY() - dp(scene, 13f), flapR.left + dp(scene, 10f) + tagW, flapR.centerY() + dp(scene, 13f))
         UiKit.nameTag(c, g, tagR, titleTxt, 15f)
@@ -647,7 +663,7 @@ class MenuOverlay(
         UiKit.sparkle(c, tagR.right + dp(scene, 9f), tagR.top + dp(scene, 4f), dp(scene, 7f), 0xFFFFF1C2.toInt(), g.time * 3.1f)
         UiKit.sparkle(c, tagR.right + dp(scene, 17f), tagR.bottom - dp(scene, 5f), dp(scene, 5f), 0xFFFFF1C2.toInt(), g.time * 3.1f + 2.1f)
         // 서브 타이틀 (넓을 때만 — 닫기 단추와 겹침 방지)
-        if (panelR.width() > dp(scene, 420f)) {
+        if (showAllTabs && panelR.width() > dp(scene, 420f)) {
             textP.textSize = textDp(scene, 10f)
             textP.color = 0xFFFFF3DC.toInt()
             UiKit.drawIconText(c, scene.game, "지금 펼친 칸 · ${tab.icon} ${tab.label}", tagR.right + dp(scene, 30f), flapR.centerY() - (textP.descent() + textP.ascent()) / 2f, textP)
@@ -660,9 +676,15 @@ class MenuOverlay(
             closeCx - closeRr - dp(scene, 6f), closeCy - closeRr - dp(scene, 6f),
             closeCx + closeRr + dp(scene, 6f), closeCy + closeRr + dp(scene, 6f)
         )
+        // 닫기 왼쪽의 "전체 창 / 접기" 토글 — 단독 창 ↔ 인덱스 탭 보기
+        textP.textSize = textDp(scene, 10f)
+        val tabsLabel = if (showAllTabs) "탭 접기" else "전체 창"
+        val tabsW = textP.measureText(tabsLabel) + dp(scene, 16f)
+        tabsBtnRect = RectF(closeRect.left - dp(scene, 5f) - tabsW, closeCy - dp(scene, 9f), closeRect.left - dp(scene, 5f), closeCy + dp(scene, 9f))
+        UiKit.cuteButton(c, g, tabsBtnRect, tabsLabel, UiKit.CREAM, UiKit.INK, 10f, depthDp = 1.6f)
         UiKit.circleButton(c, g, closeCx, closeCy, closeRr, "close", 11f, 0xFFFFF3DC.toInt(), 0xFF8A4A2A.toInt())
 
-        // ---- 탭: 색색의 인덱스 탭. 고른 탭은 위로 톡 튀어나온다 ----
+        // ---- 탭: 색색의 인덱스 탭 (전체 창 모드에서만) ----
         tabRects.clear()
         val nTabs = Tab.values().size
         val tabGap = dp(scene, 7f)
@@ -670,7 +692,7 @@ class MenuOverlay(
         val tabTop = panelR.top + dp(scene, 45f)
         val tabH = dp(scene, 26f)
         val flashing = flashTab?.takeIf { g.time < flashUntil }
-        for ((i, t) in Tab.values().withIndex()) {
+        if (showAllTabs) for ((i, t) in Tab.values().withIndex()) {
             val x0 = panelR.left + dp(scene, 12f) + i * (tabW + tabGap)
             val hit = RectF(x0, tabTop - dp(scene, 4f), x0 + tabW, tabTop + tabH + dp(scene, 4f))
             val label = if (tabW < dp(scene, 90f)) t.label else "${t.icon} ${t.label}"
@@ -694,7 +716,11 @@ class MenuOverlay(
             }
             tabRects.add(hit to t)
         }
-        UiKit.stitchLine(c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f), panelR.top + dp(scene, 78f))
+        // 헤더와 내용 사이 스티치 — 탭 줄이 있으면 그 아래, 없으면 플랩 바로 밑
+        UiKit.stitchLine(
+            c, g, panelR.left + dp(scene, 14f), panelR.right - dp(scene, 14f),
+            panelR.top + (if (showAllTabs) dp(scene, 78f) else dp(scene, 44f))
+        )
 
         btnRects.clear()
         when (tab) {
@@ -710,21 +736,23 @@ class MenuOverlay(
         }
     }
 
-    private fun contentTop(): Float = panelR.top + dp(scene, 84f)
+    private fun contentTop(): Float = panelR.top + dp(scene, if (showAllTabs) 84f else 50f)
     private fun contentBottom(): Float = panelR.bottom - dp(scene, 14f)
 
     // -------------------------------------------------------------------
     // 가방 탭 — 좌: 캐릭터 + 신체 부위 장비 슬롯 / 우: 아이템 수량 격자
     // -------------------------------------------------------------------
 
-    private var bagPage = 0
+    private var bagPage = bagPage0
 
     /** 가방에 보이는 아이템 한 종류 — 한 슬롯에 수량으로 쌓인다 (두라구 인벤토리식). */
     private class BagItem(
         val name: String, val qty: Int, val unit: String, val note: String,
         val emoji: String, val tip: String,
         /** UiKit SVG 토큰이 있으면 이모지 대신 이 아이콘을 그린다 (Inventory.kt Items 연동) */
-        val token: String? = null
+        val token: String? = null,
+        /** 설명·사용 버튼 팝업용 키 — "pizza:3" / "item:flour" / "herb:mint" / "treat" */
+        val key: String = ""
     )
 
     private fun bagItems(s: GameState): List<BagItem> {
@@ -737,26 +765,199 @@ class MenuOverlay(
             if (slices <= 0 && pans <= 0) continue
             out.add(
                 BagItem(def.fullName, slices, "조각", if (pans > 0) "한 판 ${pans}개" else "",
-                    def.emoji, def.desc)
+                    def.emoji, def.desc, key = "pizza:${def.id}")
             )
         }
         // 고양이 간식
         val treats = Healing.catTreats(s)
-        if (treats > 0) out.add(BagItem("생선 간식", treats, "개", "고양이에게 주면 친밀도가 올라가요", "🐟", "고양이 간식 — 길고양이에게 주면 답례 선물을 물어다 줘요"))
+        if (treats > 0) out.add(BagItem("생선 간식", treats, "개", "고양이에게 주면 친밀도가 올라가요", "🐟", "고양이 간식 — 길고양이에게 주면 답례 선물을 물어다 줘요", key = "treat"))
         // 야생 허브 12종 — 수량으로 저장된다 (healing JSON)
         val herbs = Healing.herbs(s)
         for (h in Healing.HERBS) {
             val n = herbs[h.id] ?: 0
             if (n <= 0) continue
-            out.add(BagItem(h.name, n, "개", h.note, h.emoji, h.note))
+            out.add(BagItem(h.name, n, "개", h.note, h.emoji, h.note, key = "herb:${h.id}"))
         }
         // 일반 인벤토리 (듀랑고식 수량 저장 — Inventory.kt Items 카탈로그, GameState.inventory)
         for (def in Items.ALL) {
             val n = s.itemCount(def.id)
             if (n <= 0) continue
-            out.add(BagItem(def.name, n, "개", def.desc, "", def.desc, def.icon))
+            out.add(BagItem(def.name, n, "개", def.desc, "", def.desc, def.icon, "item:${def.id}"))
         }
         return out
+    }
+
+    /**
+     * 아이템 설명 + 사용 버튼 팝업 — 아이템을 누르면 뜬다.
+     * 종류별로 쓸 수 있는(먹기/장착/등록/우려내기/주기) 버튼과 설명을 함께 보여 주고,
+     * 닫으면 원래 있던 가방 페이지로 돌아온다.
+     */
+    private fun openItemDetail(item: BagItem, page: Int) {
+        val g = scene.game
+        val s = g.state
+        fun backToBag() {
+            scene.openOverlay(MenuOverlay(scene, target = MenuTarget.BAG, bagPage0 = page))
+        }
+        val key = item.key
+        when {
+            key.startsWith("pizza:") -> {
+                val pid = key.substringAfter(':').toIntOrNull() ?: return
+                val def = Pizzas.of(pid)
+                val slices = PizzaSlices.of(s, pid)
+                var pans = 0
+                for (q in 0 until 3) pans += s.pizzas[PizzaSlices.idx(pid, q)]
+                val quick = s.quickPizzaId == pid
+                val body = buildString {
+                    append(def.desc)
+                    append("\n\n남은 조각 ${slices}조각")
+                    if (pans > 0) append(" · 한 판 ${pans}개")
+                    if (quick) append("\n⚡ 지금 '빠른 피자'로 등록돼 있어요")
+                    append("\n\n한 조각씩 먹으면 배고픔과 행운이 조금씩 올라가요.")
+                }
+                val choices = ArrayList<DialogOverlay.Choice>()
+                if (slices > 0) {
+                    choices.add(DialogOverlay.Choice("🍕 한 조각 먹기") {
+                        val bite = s.eatSlice(pid)
+                        if (bite != null) {
+                            SaveManager.save(g.context, s)
+                            g.sfx(Audio.Sfx.EAT, 0.9f)
+                            g.toast("냠냠! ${def.emoji} ${def.name} (${bite.q.label}) — 배고픔 +${bite.hunger} 행운 +${bite.luck} · 남은 ${bite.slicesLeft}조각")
+                        } else {
+                            g.toast("피자가 없어요")
+                        }
+                        backToBag()
+                    })
+                }
+                choices.add(DialogOverlay.Choice(if (quick) "⚡ 빠른 피자 해제" else "⚡ 빠른 피자로 등록") {
+                    s.setQuickPizza(if (quick) -1 else pid)
+                    SaveManager.save(g.context, s)
+                    g.toast(if (quick) "빠른 피자를 해제했어요" else "🍕 ${def.name} — 빠른 피자로 등록했어요")
+                    backToBag()
+                })
+                choices.add(DialogOverlay.Choice("닫기") { backToBag() })
+                scene.openOverlay(DialogOverlay(scene, "${def.emoji} ${def.fullName} ×${slices}조각", body, choices))
+            }
+            key.startsWith("herb:") -> {
+                val hid = key.substringAfter(':')
+                val herb = Healing.HERBS.firstOrNull { it.id == hid } ?: return
+                val have = Healing.herbs(s)[hid] ?: 0
+                val body = "${herb.note}\n\n배고픔 +${herb.hungerBonus} · 행운 +${herb.luckBonus}\n지금 보유: ${herb.emoji} ${have}개"
+                val choices = listOf(
+                    DialogOverlay.Choice("🍵 차로 우려내기") {
+                        val brewed = Healing.brewTea(s, herb.id)
+                        if (brewed != null) {
+                            g.sfx(Audio.Sfx.SPARKLE, 0.6f, 1.1f)
+                            g.toast("${brewed.emoji} ${brewed.name} 차를 마셨어요 — 배고픔 +${brewed.hungerBonus} · 행운 +${brewed.luckBonus}")
+                        } else {
+                            g.toast("남은 허브가 없어요 🌿")
+                        }
+                        SaveManager.save(g.context, s)
+                        backToBag()
+                    },
+                    DialogOverlay.Choice("닫기") { backToBag() }
+                )
+                scene.openOverlay(DialogOverlay(scene, "${herb.emoji} ${herb.name} ×${have}개", body, choices))
+            }
+            key == "treat" -> {
+                val n = Healing.catTreats(s)
+                val love = Healing.catLove(s)
+                val body = "길고양이에게 주면 친밀도가 올라가요.\n고양이는 답례 선물을 물어다 주기도 해요.\n\n지금 친밀도: ☘️ $love · 남은 간식: 🐟 ${n}개"
+                val choices = listOf(
+                    DialogOverlay.Choice("🐟 길고양이에게 주기") {
+                        val feed = Healing.feedCat(s)
+                        if (feed.fed) {
+                            g.sfx(Audio.Sfx.CAT_MEOW1, 0.8f)
+                            g.sfx(Audio.Sfx.SPARKLE, 0.4f, 1.2f)
+                            val follow = when (Healing.catFollowLevel(s)) {
+                                2 -> "이제 내 뒤를 졸졸 따라올 것만 같다."
+                                1 -> "꼬리가 하늘로 올라갔다."
+                                else -> "간식을 받아먹고 야옹~"
+                            }
+                            g.toast("🐈 생선 간식 냠! $follow")
+                            feed.gift?.let { gift ->
+                                g.toast("🎀 고마워! 고양이가 ${gift.name} 선물을 물어다 줬다!")
+                            }
+                            if (Healing.catLove(s) >= 40) {
+                                Healing.unlock(s, "cat_love_40")?.let { m ->
+                                    g.toast("${m.emoji} ${m.line} ☘️+${m.luckReward}")
+                                }
+                            }
+                        } else {
+                            g.toast("남은 간식이 없어요")
+                        }
+                        SaveManager.save(g.context, s)
+                        backToBag()
+                    },
+                    DialogOverlay.Choice("닫기") { backToBag() }
+                )
+                scene.openOverlay(DialogOverlay(scene, "🐟 생선 간식 ×${n}개", body, choices))
+            }
+            key.startsWith("item:") -> {
+                val id = key.substringAfter(':')
+                val def = Items.of(id) ?: return
+                val slot = def.equipSlot
+                val equipped = slot != null && s.equippedItem(slot)?.id == id
+                val body = buildString {
+                    append(def.desc)
+                    when {
+                        slot != null -> {
+                            append("\n\n장착칸: ${slot.label}")
+                            if (equipped) append(" · 지금 착용 중")
+                        }
+                        def.category == ItemCategory.CONSUMABLE ->
+                            append("\n\n배고픔을 채워 주는 먹을거리예요. 쓰면 1개 줄어들어요.")
+                        else -> append("\n\n지금 보유: ${s.itemCount(id)}개")
+                    }
+                }
+                val choices = ArrayList<DialogOverlay.Choice>()
+                when {
+                    slot != null -> choices.add(DialogOverlay.Choice(if (equipped) "장착 해제" else "✦ 장착하기") {
+                        if (equipped) {
+                            s.unequipItem(slot)
+                            g.toast("${def.name} 장착을 해제했어요")
+                        } else if (s.equipItem(slot, id)) {
+                            g.sfx(Audio.Sfx.SPARKLE, 0.55f)
+                            g.toast("✦ ${def.name} 장착 완료 — ${slot.label}")
+                        } else {
+                            g.toast("장착할 수 없어요")
+                        }
+                        SaveManager.save(g.context, s)
+                        backToBag()
+                    })
+                    def.category == ItemCategory.CONSUMABLE -> choices.add(DialogOverlay.Choice("사용하기") {
+                        if (s.removeItem(id, 1)) {
+                            val effect = when (id) {
+                                "energy_bar" -> {
+                                    s.hunger = (s.hunger + 18f).coerceIn(0f, 100f)
+                                    "배고픔 +18"
+                                }
+                                "water_bottle" -> {
+                                    s.hunger = (s.hunger + 8f).coerceIn(0f, 100f)
+                                    "갈증 해소 · 배고픔 +8"
+                                }
+                                else -> "…"
+                            }
+                            g.sfx(Audio.Sfx.EAT, 0.8f)
+                            g.toast("${def.name} 사용 — $effect")
+                        } else {
+                            g.toast("남은 수량이 없어요")
+                        }
+                        SaveManager.save(g.context, s)
+                        backToBag()
+                    })
+                    def.category == ItemCategory.MATERIAL -> choices.add(DialogOverlay.Choice("한 개 버리기") {
+                        if (s.removeItem(id, 1)) {
+                            g.toast("${def.name} 한 개를 버렸어요")
+                            SaveManager.save(g.context, s)
+                        }
+                        backToBag()
+                    })
+                }
+                choices.add(DialogOverlay.Choice("닫기") { backToBag() })
+                scene.openOverlay(DialogOverlay(scene, "${def.name} ×${s.itemCount(id)}개", body, choices))
+            }
+            else -> g.toast("${item.name} ×${item.qty}${item.unit}")
+        }
     }
 
     private fun drawBag(c: Canvas) {
@@ -864,10 +1065,13 @@ class MenuOverlay(
         val gridR = itemR.right - dp(scene, 10f)
         val gridT = itemR.top + dp(scene, 22f)
         val gridB = itemR.bottom - dp(scene, 10f)
-        val cols = 4
-        val gap2 = dp(scene, 7f)
+        // 인벤토리 격자 — 한 칸을 넉넉히 줄이고 이름 줄을 빼서
+        // 한 화면에 더 많은 아이템을 조그맣게 담는다. (이름·설명은 탭하면 팝업)
+        val gap2 = dp(scene, 6f)
+        val targetCell = dp(scene, 40f)
+        val cols = (((gridR - gridL + gap2) / (targetCell + gap2)).toInt()).coerceIn(4, 10)
         val cellW = (gridR - gridL - gap2 * (cols - 1)) / cols
-        val cellH = cellW + dp(scene, 16f)
+        val cellH = cellW
         val rows = ((gridB - gridT + gap2) / (cellH + gap2)).toInt().coerceAtLeast(1)
         val perPage = cols * rows
         val pages = if (items.isEmpty()) 1 else (items.size + perPage - 1) / perPage
@@ -889,35 +1093,29 @@ class MenuOverlay(
             val row = i / cols
             val x = gridL + col * (cellW + gap2)
             val y = gridT + row * (cellH + gap2)
-            val r = RectF(x, y, x + cellW, y + cellH - dp(scene, 16f))
+            val r = RectF(x, y, x + cellW, y + cellH)
             cuteCard(c, r, UiKit.CARD_HI, 0xFFD8BE8F.toInt(), 1.3f)
             val it = shown[i]
-            // 아이콘 — 인벤토리 아이템은 SVG 토큰, 나머지는 이모지
+            // 아이콘 — 인벤토리 아이템은 SVG 토큰, 나머지는 이모지 (칸 크기에 맞춰 축소)
             if (it.token != null) {
                 UiKit.iconCenter(c, g, it.token, r.centerX(), r.centerY() + dp(scene, 1f), cellW * 0.52f)
             } else {
-                textP.textSize = textDp(scene, 16f)
-                UiKit.drawIconText(c, g, it.emoji, r.centerX() - textP.measureText(it.emoji) / 2f, r.centerY() + dp(scene, 5.5f), textP)
+                textP.textSize = cellW * 0.46f
+                UiKit.drawIconText(c, g, it.emoji, r.centerX() - textP.measureText(it.emoji) / 2f, r.centerY() + cellW * 0.17f, textP)
             }
             // 수량 배지 — 우하단
             val qTxt = "x${it.qty}"
-            textP.textSize = textDp(scene, 8.5f)
+            textP.textSize = textDp(scene, 8f)
             val qw = textP.measureText(qTxt)
-            val qb = RectF(r.right - qw - dp(scene, 7f), r.bottom - dp(scene, 11f), r.right - dp(scene, 2f), r.bottom - dp(scene, 1f))
+            val qb = RectF(r.right - qw - dp(scene, 6f), r.bottom - dp(scene, 10f), r.right - dp(scene, 1.5f), r.bottom - dp(scene, 1f))
             fillP.shader = null
             fillP.color = 0xFF4A2E12.toInt()
             c.drawRoundRect(qb, dp(scene, 3f), dp(scene, 3f), fillP)
             textP.color = 0xFFFFF3DC.toInt()
             c.drawText(qTxt, qb.centerX() - qw / 2f, qb.bottom - dp(scene, 2.5f), textP)
-            // 이름 + 단위
-            textP.textSize = textDp(scene, 8.5f)
-            textP.color = 0xFF6B4F35.toInt()
-            var nm = it.name
-            while (nm.length > 1 && textP.measureText(nm) > cellW) nm = nm.dropLast(1)
-            if (nm != it.name) nm = "$nm…"
-            c.drawText(nm, x + (cellW - textP.measureText(nm)) / 2f, r.bottom + dp(scene, 10f), textP)
-            btnRects.add(Triple(RectF(x, y, x + cellW, y + cellH), "item$i") {
-                g.toast("${it.name} ×${it.qty}${it.unit}" + (if (it.note.isNotEmpty()) " · ${it.note}" else ""))
+            // 탭하면 설명 + 사용 버튼 팝업
+            btnRects.add(Triple(r, "item_$i") {
+                openItemDetail(it, bagPage)
             })
         }
         // 페이지 넘김
@@ -1145,11 +1343,12 @@ class MenuOverlay(
         val right = panelR.right - dp(scene, 16f)
         var y = contentTop() + dp(scene, 5f)
 
-        // 메인 퀘스트와 시간 제한 없는 서브 의뢰
-        // 카드 자체 = 자동 진행 버튼: 누르면 어드바이저가 정한 추천 지역으로 이동한다.
+        // 메인 퀘스트 카드 — 자동 진행 버튼(누르면 추천 지역으로 이동).
+        // 카드에는 제목·안내·의뢰 줄만 담고, **현재 진행 상황은 버튼 바깥**에
+        // 굵은 글씨 + 세로 새 목록으로 빼서 한눈에 보이게 한다.
         val chapter = MainStory.current(s)
         val advice = chapter?.let { MainQuestAdvisor.advise(s) }
-        val mainH = if (advice != null) dp(scene, 94f) else dp(scene, 72f)
+        val mainH = if (advice != null) dp(scene, 56f) else dp(scene, 44f)
         val mainR = RectF(left, y, right, y + mainH)
         val mainDone = chapter?.isComplete(s) == true
         val mainGo = advice != null && !advice.alreadyThere
@@ -1167,42 +1366,15 @@ class MenuOverlay(
             else -> "메인 ${s.mainQuestStage}/${MainStory.CHAPTERS.size - 1} · ${chapter?.title ?: ""}"
         }
         c.drawText(mainTitle, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 18f), textP)
-        textP.textSize = textDp(scene, 10.5f)
-        textP.color = 0xFF796653.toInt()
-        val objective = when {
-            s.mainQuestFinished -> "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
-            !s.mainQuestStarted -> "카드를 누르면 자전거를 타고 박사가 있는 곳까지 직접 달려가요."
-            else -> chapter?.objective(s) ?: ""
-        }
-        val objectiveLines = scene.game.hud.wrapText(objective, textP, mainR.width() - dp(scene, 20f)).take(2)
-        objectiveLines.forEachIndexed { i, line ->
-            c.drawText(line, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f + i * 12f), textP)
-        }
-        val missingMainSpecies = if (s.mainQuestStarted) {
-            chapter?.collectionDef()?.species?.filterNot { s.hasBirdName(it) }.orEmpty()
-        } else emptyList()
-        if (missingMainSpecies.isNotEmpty()) {
-            textP.textSize = textDp(scene, 9.2f)
-            textP.color = 0xFF8A5A33.toInt()
-            var missingLine = "모을 새: ${missingMainSpecies.take(4).joinToString("·")}" +
-                if (missingMainSpecies.size > 4) " 외" else ""
-            val missingMaxW = mainR.width() - dp(scene, 20f)
-            while (missingLine.length > 4 && textP.measureText(missingLine) > missingMaxW) missingLine = missingLine.dropLast(1)
-            c.drawText(missingLine, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 61f), textP)
-        }
         advice?.let { adv ->
             // 추천 위치 한 줄 — "어디로 가야 하는지"를 카드에 직접 보여준다
             val here = adv.alreadyThere || adv.regionId == s.region
-            var rec = if (here) {
-                "${adv.regionName} · ${adv.reason}"
-            } else {
-                "${adv.regionName} · ${adv.reason}"
-            }
-            textP.textSize = dp(scene, 10f)
+            var rec = "${adv.regionName} · ${adv.reason}"
+            textP.textSize = textDp(scene, 10f)
             textP.color = if (here) 0xFF397547.toInt() else 0xFFB5651D.toInt()
             val maxRecW = mainR.width() - dp(scene, 20f)
             while (rec.length > 4 && textP.measureText(rec) > maxRecW) rec = rec.dropLast(1)
-            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 74f), textP)
+            c.drawText(rec, mainR.left + dp(scene, 10f), mainR.top + dp(scene, 36f), textP)
             btnRects.add(Triple(mainR, "main_auto") { autoGoMainQuest() })
         }
         val side = if (s.activeQuests.isEmpty()) {
@@ -1212,21 +1384,72 @@ class MenuOverlay(
             val extra = if (s.activeQuests.size > 1) " 외 ${s.activeQuests.size - 1}개" else ""
             "탐조 의뢰(${s.activeQuests.size}/3): ${first.title}$extra"
         }
+        textP.textSize = textDp(scene, 10.5f)
+        textP.color = 0xFF796653.toInt()
         c.drawText(side, mainR.left + dp(scene, 10f), mainR.bottom - dp(scene, 7f), textP)
-        y = mainR.bottom + dp(scene, 7f)
+        y = mainR.bottom + dp(scene, 6f)
 
-        // 라이퍼 기반 탐조 이정표. 실제 자격제도가 아님을 UI에서 명시한다.
+        // ---- 현재 진행 상황 (버튼 바깥 · 굵은 글씨) ----
+        when {
+            s.mainQuestFinished -> {
+                textP.textSize = textDp(scene, 9.5f)
+                textP.color = 0xFF8A7360.toInt()
+                val note = "Lv.${Progression.MAX_LEVEL}에서 이야기는 멈춤 · 아래 컬렉션과 사진 의뢰는 계속 가능"
+                val noteLines = scene.game.hud.wrapText(note, textP, right - left).take(2)
+                noteLines.forEachIndexed { i, line ->
+                    c.drawText(line, left, y + dp(scene, 11f + i * 11f), textP)
+                }
+                y += dp(scene, 11f + noteLines.size * 11f - 4f)
+            }
+            !s.mainQuestStarted -> {
+                textP.textSize = textDp(scene, 9.5f)
+                textP.color = 0xFF8A7360.toInt()
+                c.drawText("카드를 누르면 자전거를 타고 박사가 있는 곳까지 직접 달려가요.", left, y + dp(scene, 11f), textP)
+                y += dp(scene, 14f)
+            }
+            else -> {
+                // 진행 상황 — 굵은 글씨로 두 줄까지.
+                val objective = chapter?.objective(s) ?: ""
+                if (objective.isNotEmpty()) {
+                    val bp = Type.paintAt(11.5f, true, 0.015f, 0xFF4A3728.toInt())
+                    val objLines = scene.game.hud.wrapText("진행: $objective", bp, right - left).take(2)
+                    var oy = y + dp(scene, 12f)
+                    for (line in objLines) {
+                        c.drawText(line, left, oy, bp)
+                        oy += dp(scene, 13f)
+                    }
+                    y = oy - dp(scene, 3f)
+                }
+                // 남은 새는 **세로로** 한 줄씩 — 어떤 새를 찍어야 하는지 훑어 보기 좋게.
+                val missing = chapter?.collectionDef()?.species?.filterNot { s.hasBirdName(it) }.orEmpty()
+                if (missing.isNotEmpty()) {
+                    val lp = Type.paintAt(10.5f, true, 0.02f, 0xFF8A5A33.toInt())
+                    c.drawText("남은 새:", left, y + dp(scene, 12f), lp)
+                    y += dp(scene, 13f)
+                    for (nm in missing.take(3)) {
+                        c.drawText("· $nm", left + dp(scene, 7f), y + dp(scene, 12f), lp)
+                        y += dp(scene, 12f)
+                    }
+                    if (missing.size > 3) {
+                        c.drawText("… 외 ${missing.size - 3}종", left + dp(scene, 7f), y + dp(scene, 12f), lp)
+                        y += dp(scene, 12f)
+                    }
+                }
+            }
+        }
+
+        // 도감 기반 탐조 이정표. 실제 자격제도가 아님을 UI에서 명시한다.
         val lifers = s.birdCounts.size
         val rank = BirdingRanks.of(lifers)
         val next = BirdingRanks.next(lifers)
         textP.textSize = textDp(scene, 12f)
         textP.color = 0xFF4A3728.toInt()
-        c.drawText("라이퍼 ${lifers}종 · 게임 탐조 등급 「${rank.name}」", left, y + dp(scene, 13f), textP)
+        c.drawText("도감에 올린 새 ${lifers}종 · 탐조 등급 「${rank.name}」", left, y + dp(scene, 15f), textP)
         textP.textSize = textDp(scene, 9.5f)
         textP.color = 0xFF8A7360.toInt()
-        val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 수집 이정표" else "400종 이상 · 공식 자격이 아닌 수집 이정표"
-        c.drawText(rankHint, right - textP.measureText(rankHint), y + dp(scene, 13f), textP)
-        y += dp(scene, 19f)
+        val rankHint = if (next != null) "다음 ${next.name}까지 ${next.min - lifers}종 · 공식 자격이 아닌 새 모음 이정표" else "400종 이상 · 공식 자격이 아닌 새 모음 이정표"
+        c.drawText(rankHint, right - textP.measureText(rankHint), y + dp(scene, 15f), textP)
+        y += dp(scene, 21f)
 
         // 서브탭 전환 버튼: [도장 깨기 (70)] / [탐조 의뢰 & 일일 미션]
         val tabW = (right - left - dp(scene, 6f)) / 2f

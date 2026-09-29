@@ -3,8 +3,9 @@ package com.pizzaandbird.game
 /**
  * 메인 스토리, 탐조 등급, 한국 탐조식 "도장 깨기" 컬렉션.
  *
- * 라이퍼는 사진을 한 번 이상 남긴 서로 다른 종으로 계산한다. 실제 탐조에는 공인된
- * 실력 등급이 없으므로 아래 구간은 경쟁 랭킹이 아니라 게임 안의 성장 이정표다.
+ * 도감에 오른 새는 사진을 한 번 이상 남긴 서로 다른 종으로 계산한다 (수집가들이
+ * 쓰는 '라이퍼' 기록과 같은 뜻 — 게임에서는 주로 "도감에 올린 새"로 부른다). 실제
+ * 탐조에는 공인된 실력 등급이 없으므로 아래 구간은 경쟁 랭킹이 아니라 게임 안의 성장 이정표다.
  * 종명은 한국조류학회 2025 v2.1 목록의 표준 국명을 따른다.
  */
 object BirdingRanks {
@@ -200,7 +201,7 @@ enum class QuestCategory(
     NIGHT_EXPEDITION("야간 야조", "moon", 0xFF8368B2, "달빛 아래 밤에 활동하는 야행성 조류의 비밀을 기록합니다"),
     FAMILY_RESEARCH("분류군 연구", "feather", 0xFFC6724E, "오리과, 딱다구리과, 맹금류 등 특정 무리의 생태를 조사합니다"),
     WEATHER_EXPEDITION("기상 탐조", "cloud", 0xFF5B96B2, "비나 눈이 내리는 악천후 속 생명의 날갯짓을 관찰합니다"),
-    LIFER_DISCOVERY("새로운 종", "book", 0xFFD46882, "아직 도감에 기록되지 않은 새로운 라이퍼를 찾아냅니다"),
+    LIFER_DISCOVERY("새로운 종", "book", 0xFFD46882, "아직 도감에 기록되지 않은 새로운 새를 찾아냅니다"),
     IN_FLIGHT_ACTION("비행 포착", "wind", 0xFF4EADA5, "하늘을 날아오르거나 빠르게 이동하는 결정적 순간을 담습니다"),
     PIZZA_DELIVERY("피자 심부름", "pizza", 0xFFD88939, "따뜻하게 구운 피자로 탐조 여행자 및 주민과 교류합니다")
 }
@@ -419,7 +420,7 @@ object QuestManager {
                 id = "lifer_${System.currentTimeMillis()}",
                 category = QuestCategory.LIFER_DISCOVERY,
                 title = "미지의 새 첫 발견",
-                description = "아직 자네의 도감에 없는 새로운 미기록 종(라이퍼) 2종을 찾아 사진으로 남기게.",
+                description = "아직 자네의 도감에 없는 새 2종을 찾아 사진으로 남기게.",
                 targetKey = "lifer",
                 targetCount = 2,
                 rewardMoney = 22000,
@@ -673,7 +674,7 @@ object MainStory {
         fun objective(s: GameState): String {
             val parts = ArrayList<String>()
             if (minLevel > 1) parts += "레벨 ${s.level}/$minLevel"
-            if (minLifers > 0) parts += "라이퍼 ${s.birdCounts.size}/${minLifers}종"
+            if (minLifers > 0) parts += "도감에 올린 새 ${s.birdCounts.size}/${minLifers}종"
             if (minVisited > 1) parts += "방문 ${s.visited.size}/${minVisited}곳"
             collectionDef()?.let { parts += "${it.name} ${it.progress(s)}" }
             if (minThreeStars > 0) parts += "3성 기록 ${s.bestStars.values.count { it >= 3 }}/${minThreeStars}종"
@@ -892,7 +893,7 @@ object MainQuestAdvisor {
         val goals = buildList {
             if (chapter.minLevel > 1) add("Lv.${s.level}/${chapter.minLevel}")
             if (chapter.minLifers > 0 && s.birdCounts.size < chapter.minLifers)
-                add("라이퍼 ${s.birdCounts.size}/${chapter.minLifers}종")
+                add("도감에 올린 새 ${s.birdCounts.size}/${chapter.minLifers}종")
             if (chapter.minThreeStars > 0)
                 add("3성 ${s.bestStars.values.count { it >= 3 }}/${chapter.minThreeStars}종")
         }.joinToString(" · ")

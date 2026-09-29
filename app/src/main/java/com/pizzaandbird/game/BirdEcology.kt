@@ -132,20 +132,20 @@ object BirdEcology {
 
     fun meanInterval(hour: Float, weather: Weather): Float {
         val base = when (BirdTimeWindow.ofHour(hour)) {
-            BirdTimeWindow.DAWN -> 12f
-            BirdTimeWindow.DUSK -> 17f
-            BirdTimeWindow.DAY -> if (hour in 11f..15f) 28f else 19f
-            BirdTimeWindow.NIGHT -> 48f
+            BirdTimeWindow.DAWN -> 8f
+            BirdTimeWindow.DUSK -> 10f
+            BirdTimeWindow.DAY -> if (hour in 11f..15f) 14f else 11f
+            BirdTimeWindow.NIGHT -> 30f
         }
         return base * when (weather) {
-            Weather.RAIN -> 1.7f
-            Weather.WIND -> 1.9f
-            Weather.SNOW -> 1.5f
+            Weather.RAIN -> 1.3f
+            Weather.WIND -> 1.4f
+            Weather.SNOW -> 1.25f
             else -> 1f
         }
     }
 
     /** Irregular quiet spells, with a minimum gap; sampled once per attempt. */
     fun nextInterval(hour: Float, weather: Weather, random: Random): Float =
-        4f + (-ln(1.0 - random.nextDouble()) * (meanInterval(hour, weather) - 4f)).toFloat()
+        3f + (-ln(1.0 - random.nextDouble()) * (meanInterval(hour, weather) - 3f)).toFloat()
 }

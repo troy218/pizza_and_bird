@@ -8,7 +8,7 @@ import android.view.MotionEvent
 import kotlin.math.sqrt
 
 /** 가상 컨트롤 종류 */
-enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST, STATS, DEX, ACHIEVE, SETTINGS }
+enum class Ctrl { NONE, STICK, A, B, CAM, MENU, EAT, MAP, PUNCH, QUEST, QUEST_VIEW, STATS, DEX, ACHIEVE, SETTINGS }
 
 /** 가방(☰)과 그 옆의 바로가기 버튼이 열 수 있는 창. */
 enum class MenuTarget { BAG, DEX, ACHIEVEMENTS, SETTINGS, STATUS }
@@ -62,7 +62,8 @@ class Input(private val game: Game) {
     var justEatPick = false   // [P11] 빠른 피자 창 (🍕 버튼 길게 누르기 / Q 키)
     var justMap = false       // 큰 지도 (미니맵 탭)
     var justPunch = false     // 펀치 (👊 버튼 / F 키) — 근처 고양이를 날려 보낸다
-    var justQuest = false     // 진행 중 의뢰 칩 탭 — 의뢰 목표 위치로 자동 이동
+    var justQuest = false     // 의뢰 내용 상자 탭 — 의뢰 목표 위치로 자동 이동
+    var justQuestView = false // 의뢰 칩(의뢰 · 제목) 탭 — 해당 의뢰 내용을 보여 준다
     var justStats = false     // 좌상단 레벨 패널 탭 — 내 상태 통합 창
     var menuTarget = MenuTarget.BAG   // justMenu와 함께: 어떤 창을 열지 (가방/도감/업적/설정)
     var isRun = false         // 달리기 홀드 (키보드 Shift)
@@ -369,6 +370,7 @@ class Input(private val game: Game) {
             Ctrl.MAP -> { justMap = true; game.haptic() }
             Ctrl.PUNCH -> { justPunch = true; game.haptic() }
             Ctrl.QUEST -> { justQuest = true; game.haptic() }
+            Ctrl.QUEST_VIEW -> { justQuestView = true; game.haptic() }
             Ctrl.STATS -> { justStats = true; game.haptic() }
             Ctrl.DEX -> { justMenu = true; menuTarget = MenuTarget.DEX; game.haptic() }
             Ctrl.ACHIEVE -> { justMenu = true; menuTarget = MenuTarget.ACHIEVEMENTS; game.haptic() }
@@ -461,6 +463,7 @@ class Input(private val game: Game) {
         justMap = false
         justPunch = false
         justQuest = false
+        justQuestView = false
         justStats = false
         menuTarget = MenuTarget.BAG
         tapScreen = null

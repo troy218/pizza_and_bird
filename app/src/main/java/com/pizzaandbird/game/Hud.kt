@@ -316,11 +316,12 @@ class Hud(private val game: Game) {
         }
         // 좌상단 레벨 패널 = 내 상태 통합 창 열기
         if (showStats && statsPanelRect().contains(x, y)) return Ctrl.STATS
-        // 진행 중 의뢰 칩(좌상단)을 누르면 의뢰 목표 위치로 자동 이동
-        if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST
+        // 진행 중 의뢰 칩 = 의뢰 **내용 보기** / 칩 아래 내용 상자 = 목표로 **이동**
+        if (questLabel != null && hitQuestChip(x, y)) return Ctrl.QUEST_VIEW
+        if (questLabel != null && hitQuestPanel(x, y)) return Ctrl.QUEST
         // 상단 클러스터 (사각 아이콘 버튼들) — 큰 히트 영역(1.2배)으로 여유 있게
         fun icon(cx: Float, cy: Float): Boolean {
-            val half = iconS * 0.62f
+            val half = iconS * 0.58f
             return x >= cx - half && x <= cx + half && y >= cy - half && y <= cy + half
         }
         if (icon(menuCx, menuCy)) return Ctrl.MENU
@@ -518,7 +519,7 @@ class Hud(private val game: Game) {
             if (regionLabel.isNotEmpty()) drawFieldTag(c)
         }
         if (questLabel != null) {
-            // › 표시 — 누르면 의뢰 목표 위치로 자동 길안내가 된다
+            // › 표시 — 누르면 해당 의뢰의 내용이 열리고, 아래 내용 상자를 누르면 목표로 이동한다
             drawChip(c, questChipX(), questChipY(), "의뢰 · $questLabel  ›")
             drawQuestDetails(c)
         }
@@ -551,11 +552,15 @@ class Hud(private val game: Game) {
         return RectF(cx - tw / 2f - pad, cy - dp(12f), cx + tw / 2f + pad, cy + dp(12f))
     }
 
+    /** 의뢰 칩(제목 줄) 탭 — 해당 의뢰의 내용을 보여 준다 */
     private fun hitQuestChip(x: Float, y: Float): Boolean {
         val r = questChipRect() ?: return false
-        r.inset(-dp(6f), -dp(6f))
-        if (r.contains(x, y)) return true
-        // 칩 아래에 붙은 의뢰 내용 상자까지 눌러도 의뢰로 이어진다
+        r.inset(-dp(5f), -dp(5f))
+        return r.contains(x, y)
+    }
+
+    /** 칩 아래 의뢰 내용 상자 탭 — 목표 위치로 자동 이동한다 (진행 리본은 눌리지 않는다) */
+    private fun hitQuestPanel(x: Float, y: Float): Boolean {
         val panel = questPanelRect() ?: return false
         panel.inset(-dp(4f), -dp(4f))
         return panel.contains(x, y)
@@ -1035,23 +1040,41 @@ class Hud(private val game: Game) {
     }
 
     /**
+     * 의뢰 목표 줄 — "남은 새: 참새·까치…" 같은 목록은 새 이름을 **세로로** 한 줄씩,
+     * 그 외 문장은 가로 줄바꿈으로 최대 3줄. 목록을 세로로 보면 남은 새가 한눈에 들어온다.
+     */
+    private fun questObjectiveLines(objective: String, maxW: Float): List<String> {
+        val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
+        val colon = objective.indexOf(':')
+        val sep = objective.indexOf('·')
+        if (colon in 1 until sep) {
+            val header = objective.substring(0, colon + 1).trim()
+            val items = objective.substring(colon + 1).split('·').map { it.trim() }.filter { it.isNotEmpty() }
+            if (items.size >= 2) {
+                val lines = ArrayList<String>()
+                lines.add(header)
+                for (it in items) lines.add("· $it")
+                return lines.take(5)
+            }
+        }
+        return Type.wrap(objective, p, maxW).take(3)
+    }
+
+    /**
      * 의뢰 내용 상자 — 글자 수·줄 수에 맞춰 상자가 **유동적으로** 커진다.
-     * 짧은 의리는 얇게, 긴 의뢰는 줄어든 글씨로 넘치지 않게 들어간다.
+     * 진행 상황("진행: …")은 상자 **바깥** 리본에 따로 그린다 — 버튼이 아닌 글씨로 보는 자리.
      */
     private fun questPanelRect(): RectF? {
         val objective = questObjective ?: return null
         val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
         val maxW = dp(200f)
-        val lines = Type.wrap(objective, p, maxW).take(3)
+        val lines = questObjectiveLines(objective, maxW)
         var widest = 0f
         for (line in lines) widest = maxOf(widest, p.measureText(line))
-        val progress = questProgress
         val travel = questTravelLabel
-        if (progress != null) widest = maxOf(widest, p.measureText("진행: $progress"))
         if (travel != null) widest = maxOf(widest, p.measureText(travel))
         val w = (widest + dp(14f)).coerceIn(dp(140f), dp(214f))
         var h = dp(8f) + dp(10f) * lines.size
-        if (progress != null) h += dp(10f)
         if (travel != null) h += dp(10f)
         h += dp(4f)
         val left = dp(16f)
@@ -1059,33 +1082,50 @@ class Hud(private val game: Game) {
         return RectF(left, top, left + w, top + h)
     }
 
-    /** Objectives and live progress stay visible next to the quest chip while roaming. */
+    /** Objectives stay in the tappable box; live progress hangs **below** it — bold and untappable. */
     private fun drawQuestDetails(c: Canvas) {
-        val objective = questObjective ?: return
-        val r = questPanelRect() ?: return
-        UiKit.panel(c, game, r, 9f)
-        val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
-        val maxW = r.width() - dp(14f)
-        fun fitLine(raw: String): String {
-            var line = raw
-            while (line.length > 2 && p.measureText(line) > maxW) line = line.dropLast(1)
-            return if (line != raw) "$line…" else line
+        var below = questChipY() + dp(14f)
+        val objective = questObjective
+        if (objective != null) {
+            val r = questPanelRect() ?: return
+            UiKit.panel(c, game, r, 9f)
+            val p = Type.paintAt(8.8f, true, 0.01f, Type.INK)
+            val maxW = r.width() - dp(14f)
+            fun fitLine(raw: String): String {
+                var line = raw
+                while (line.length > 2 && p.measureText(line) > maxW) line = line.dropLast(1)
+                return if (line != raw) "$line…" else line
+            }
+            val lines = questObjectiveLines(objective, dp(200f))
+            var y = r.top + dp(13f)
+            for (line in lines) {
+                c.drawText(fitLine(line), r.left + dp(7f), y, p)
+                y += dp(10f)
+            }
+            questTravelLabel?.let { route ->
+                p.color = 0xFF3E7550.toInt()
+                c.drawText(fitLine(route), r.left + dp(7f), y + dp(1f), p)
+            }
+            below = r.bottom
         }
-        val lines = Type.wrap(objective, p, maxW).take(3)
-        var y = r.top + dp(13f)
-        for (line in lines) {
-            c.drawText(line, r.left + dp(7f), y, p)
-            y += dp(10f)
-        }
-        questProgress?.let { progress ->
-            p.color = 0xFF795A2B.toInt()
-            c.drawText(fitLine("진행: $progress"), r.left + dp(7f), y + dp(1f), p)
-            y += dp(10f)
-        }
-        questTravelLabel?.let { route ->
-            p.color = 0xFF3E7550.toInt()
-            c.drawText(fitLine(route), r.left + dp(7f), y + dp(1f), p)
-        }
+
+        val progress = questProgress ?: return
+        // 현재 진행 상황 — 버튼 영역 바깥의 리본에 **굵은 글씨**로. (탭해도 눌리지 않는다)
+        val pp = Type.paintAt(10f, true, 0.02f, 0xFFFFF3DC.toInt())
+        val full = "진행: $progress"
+        val maxW = dp(198f)
+        var txt = full
+        while (txt.length > 4 && pp.measureText("$txt…") > maxW) txt = txt.dropLast(1)
+        if (txt != full) txt = "$txt…"
+        val tw = pp.measureText(txt)
+        val pill = RectF(dp(16f), below + dp(6f), dp(16f) + tw + dp(16f), below + dp(6f) + dp(19f))
+        fill.shader = null
+        fill.color = Color.argb(216, 46, 40, 58)
+        c.drawRoundRect(pill, dp(7f), dp(7f), fill)
+        stroke.color = Color.argb(205, 233, 196, 106)
+        stroke.strokeWidth = dp(1.4f)
+        c.drawRoundRect(pill, dp(7f), dp(7f), stroke)
+        c.drawText(txt, pill.left + dp(8f), pill.centerY() - (pp.descent() + pp.ascent()) / 2f, pp)
     }
 
     private fun drawMessages(c: Canvas) {
@@ -1349,17 +1389,18 @@ class Hud(private val game: Game) {
         // ------------------------------------------------------------
         fun iconTile(cx: Float, cy: Float, ctrl: Ctrl, icon: String, base: Int) {
             val pressed = ctrl in active
-            val half = iconS / 2f
+            // 판(배경)을 아이콘보다 조금 큰 정도로만 — 판이 크면 버튼이 커 보인다.
+            val half = iconS * 0.42f
             val r = RectF(cx - half, cy - half, cx + half, cy + half)
             fill.shader = null
             fill.color = Color.argb(if (pressed) 70 else 96, 10, 8, 18)
-            c.drawRoundRect(RectF(r.left, r.top + dp(2f), r.right, r.bottom + dp(3f)), dp(8f), dp(8f), fill)
+            c.drawRoundRect(RectF(r.left, r.top + dp(1.6f), r.right, r.bottom + dp(2.4f)), dp(7f), dp(7f), fill)
             fill.color = if (pressed) UiKit.lighten(base, 26) else base
-            c.drawRoundRect(r, dp(8f), dp(8f), fill)
+            c.drawRoundRect(r, dp(7f), dp(7f), fill)
             stroke.color = Color.argb(195, 248, 239, 220)
-            stroke.strokeWidth = dp(1.8f)
-            c.drawRoundRect(r, dp(8f), dp(8f), stroke)
-            UiKit.iconCenter(c, game, icon, cx, cy, iconS * 0.58f)
+            stroke.strokeWidth = dp(1.6f)
+            c.drawRoundRect(r, dp(7f), dp(7f), stroke)
+            UiKit.iconCenter(c, game, icon, cx, cy, iconS * 0.5f)
         }
         iconTile(settingsCx, settingsCy, Ctrl.SETTINGS, "gear", Color.argb(220, 58, 52, 74))
         iconTile(achieveCx, achieveCy, Ctrl.ACHIEVE, "trophy", Color.argb(220, 58, 52, 74))

@@ -455,6 +455,10 @@ class LandmarkScene(game: Game, private val region: RegionDef) : Scene(game) {
             game.toast("실내에선 쉬어도 돼요. 새는 밖에서!")
             return
         }
+        if (input.justQuestView) {
+            QuestNavigation.openTracker(this)
+            return
+        }
         if (input.justQuest) {
             QuestNavigation.autoGo(this)
             return

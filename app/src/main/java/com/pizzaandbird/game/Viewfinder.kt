@@ -174,7 +174,12 @@ class Viewfinder(private val game: Game) {
         // zoom 을 빼먹으면 원이 실제보다 훨씬 작게 그려져 "충분히 떨어졌다"고 믿고
         // 셔터를 눌렀다가 '너무 가까워요'로 사진이 날아간다.
         val minPx = rig.minDist * 16f * WORLD_SCALE * zoom / UI_K
-        drawRange(c, px, py, rangePx, rangeTiles, minPx, rig.minDist)
+        // 별점 구역 라벨(★3/★2)은 사거리 안에 실제 새가 있을 때만 띄운다 —
+        // 새가 없는 화면에서 버튼처럼 보이는 잡음 제거.
+        val zoneTarget = birds.any {
+            it.state != 2 && hypot(it.cx - playerCx, it.cy - playerCy) / 16f <= rangeTiles
+        }
+        drawRange(c, px, py, rangePx, rangeTiles, minPx, rig.minDist, zoneTarget)
 
         val focus = pickFocus(birds, playerCx, playerCy, camX, camY, rangeTiles, zoom)
         if (focus?.def?.id != focusId) {
@@ -314,8 +319,8 @@ class Viewfinder(private val game: Game) {
         c.drawLine(w / 2f, h / 2f + 4f, w / 2f, h / 2f + 12f, stroke)
     }
 
-    /** 사거리 원 + 별점 구역 링 */
-    private fun drawRange(c: Canvas, px: Float, py: Float, rangePx: Float, rangeTiles: Float, minPx: Float, minTiles: Float) {
+    /** 사거리 원 + 별점 구역 링 — [showZoneLabels] 이 true 일 때만 별점 구역 라벨을 그린다 */
+    private fun drawRange(c: Canvas, px: Float, py: Float, rangePx: Float, rangeTiles: Float, minPx: Float, minTiles: Float, showZoneLabels: Boolean) {
         // 사거리 안쪽을 아주 살짝 밝게
         fill.color = Color.argb(9, 255, 250, 235)
         c.drawCircle(px, py, rangePx, fill)
@@ -353,10 +358,12 @@ class Viewfinder(private val game: Game) {
         text.color = Color.argb(210, 246, 240, 224)
         c.drawText(lbl, px - lw / 2f, labelY, text)
 
-        // 별점 구역 라벨 (왼쪽 수평선 위)
-        text.textSize = 11.5f
-        zoneLabel(c, 3, px - rangePx * 0.38f - 6f, py, 0xFF9BD98F.toInt())
-        zoneLabel(c, 2, px - rangePx * 0.72f - 6f, py, 0xFFF2C86B.toInt())
+        // 별점 구역 라벨 (왼쪽 수평선 위) — 새가 있을 때만
+        if (showZoneLabels) {
+            text.textSize = 11.5f
+            zoneLabel(c, 3, px - rangePx * 0.38f - 6f, py, 0xFF9BD98F.toInt())
+            zoneLabel(c, 2, px - rangePx * 0.72f - 6f, py, 0xFFF2C86B.toInt())
+        }
     }
 
     /** 별점도 폰트 글리프가 아닌 동일한 SVG 세트로 렌더링한다. */

@@ -122,11 +122,18 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         Spot("interior", -1, interiorX, interiorY, 28f, 24f)
     ) + decorSpots.map { (idx, dx0, dy0) -> Spot("decor", idx, dx0, dy0, 22f, 18f) }
 
+    /** 문을 열고 들어설 때의 **월드** 좌표 — state.px/py 는 실내 좌표로 덮이므로 별도로 보관한다. */
+    private var entryX = 0f
+    private var entryY = 0f
+
     init {
         // 실내에 머무르는 동안에도 저장에는 실제로 들어온 지역을 남긴다.
         // 앱을 종료·복원하거나 현관으로 나갈 때 다른 정착지로 튀지 않는다.
         state.region = exitRegionId
         state.inHome = true
+        // 들어올 때 서 있었던 월드 현관 좌표를 남겨 둔다 (나갈 때 그대로 되돌린다).
+        entryX = state.px
+        entryY = state.py
         rig.snap(
             map.w * 8f, map.h * 8f, 1f,
             map.w * 16f, map.h * 16f,
@@ -311,6 +318,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
     private fun exitHome() {
         // 서울에 정착해 있어도 부산에 매입한 집에서 나왔다면 부산 현관 앞으로.
         state.region = exitRegionId
+        // 실내 좌표 대신 들어올 때의 **월드 현관** 좌표를 되돌려 놓는다.
+        // (그대로 두면 WorldScene 이 실내 타일을 현관으로 못 알아보고 엉뚱한 자리에 스폰한다)
+        state.px = entryX
+        state.py = entryY
         SaveManager.save(game.context, state)
         game.audio.stopSteps()
         game.fadeTo {
@@ -578,6 +589,10 @@ class HomeScene(game: Game, enteredFromRegionId: String? = null) : Scene(game) {
         }
         if (input.justCam) {
             game.toast("집에선 쉬어도 돼요. 새는 밖에서!")
+            return
+        }
+        if (input.justQuestView) {
+            QuestNavigation.openTracker(this)
             return
         }
         if (input.justQuest) {

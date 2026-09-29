@@ -352,10 +352,12 @@ object Healing {
         map[id] = ((map[id] ?: 0) + n).coerceAtMost(99)
     }
 
-    fun brewTea(state: GameState): Herb? {
+    /** [herbId] 를 고르면 그 허브로, 아니면 효과가 가장 좋은 허브로 차를 우려 낸다. */
+    fun brewTea(state: GameState, herbId: String? = null): Herb? {
         val map = herbs(state)
-        val best = HERBS.filter { (map[it.id] ?: 0) > 0 }
-            .maxByOrNull { it.luckBonus * 2 + it.hungerBonus } ?: return null
+        val owned = HERBS.filter { (map[it.id] ?: 0) > 0 }
+        val best = (if (herbId != null) owned.firstOrNull { it.id == herbId } else null)
+            ?: owned.maxByOrNull { it.luckBonus * 2 + it.hungerBonus } ?: return null
         map[best.id] = (map[best.id] ?: 1) - 1
         state.hunger = (state.hunger + best.hungerBonus).coerceIn(0f, 100f)
         state.luck = (state.luck + best.luckBonus).coerceIn(0f, 100f)
